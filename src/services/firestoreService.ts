@@ -54,14 +54,14 @@ export const subscribeToNotes = (callback: (notes: Note[]) => void) => {
 
 // Fees
 export const createFeeReceipt = async (receiptData: Omit<FeeReceipt, 'id'>) => {
-  return addDoc(collection(db, 'fee_receipts'), {
+  return addDoc(collection(db, 'receipts'), {
     ...receiptData,
     status: 'pending'
   });
 };
 
 export const approveFeeReceipt = async (receiptId: string, adminId: string) => {
-  const receiptRef = doc(db, 'fee_receipts', receiptId);
+  const receiptRef = doc(db, 'receipts', receiptId);
   return updateDoc(receiptRef, {
     status: 'approved',
     approvedBy: adminId,
@@ -70,7 +70,7 @@ export const approveFeeReceipt = async (receiptId: string, adminId: string) => {
 };
 
 export const subscribeToFeeReceipts = (callback: (receipts: FeeReceipt[]) => void) => {
-  return onSnapshot(collection(db, 'fee_receipts'), (snapshot) => {
+  return onSnapshot(collection(db, 'receipts'), (snapshot) => {
     const receipts = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as FeeReceipt));
     callback(receipts);
   });

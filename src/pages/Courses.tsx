@@ -44,9 +44,9 @@ export default function Courses() {
   const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
 
   useEffect(() => {
-    const q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[]);
+      setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[];
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'courses');

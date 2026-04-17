@@ -57,9 +57,9 @@ export default function Dashboard({ user }: DashboardProps) {
         logger.info('Dashboard Initializing...');
         // Stats
         if (isMudaris) {
-          const tulabSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'student')));
-          const pendingFeesSnap = await getDocs(query(collection(db, 'receipts'), where('status', '==', 'pending')));
-          const todayHaziriSnap = await getDocs(query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present')));
+          const tulabSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'student'), limit(500)));
+          const pendingFeesSnap = await getDocs(query(collection(db, 'receipts'), where('status', '==', 'pending'), limit(100)));
+          const todayHaziriSnap = await getDocs(query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present'), limit(200)));
           
           setStats({
             totalTulab: tulabSnap.size,

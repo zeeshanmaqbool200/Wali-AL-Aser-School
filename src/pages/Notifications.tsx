@@ -51,7 +51,7 @@ export default function Notifications() {
     if (!currentUser) return;
     logger.info('Notifications Page Loading...');
 
-    const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notification[];
       

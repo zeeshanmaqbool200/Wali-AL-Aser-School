@@ -72,7 +72,7 @@ export default function Users() {
   const isSuperAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
 
   useEffect(() => {
-    const q = query(collection(db, 'users'), orderBy('displayName', 'asc'));
+    const q = query(collection(db, 'users'), orderBy('displayName', 'asc'), limit(200));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
       setLoading(false);

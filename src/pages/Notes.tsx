@@ -59,7 +59,7 @@ export default function Notes() {
   const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
 
   useEffect(() => {
-    const q = query(collection(db, 'notes'), orderBy('uploadedAt', 'desc'));
+    const q = query(collection(db, 'notes'), orderBy('uploadedAt', 'desc'), limit(100));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const allNotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as StudyNote[];
       

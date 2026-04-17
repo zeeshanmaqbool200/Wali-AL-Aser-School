@@ -63,9 +63,9 @@ export default function Exams() {
   const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
 
   useEffect(() => {
-    const q = query(collection(db, 'exams'), orderBy('date', 'desc'));
+    const q = query(collection(db, 'exams'), orderBy('date', 'desc'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setExams(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Exam[]);
+      setExams(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Exam[];
       setLoading(false);
     });
     return () => unsubscribe();
