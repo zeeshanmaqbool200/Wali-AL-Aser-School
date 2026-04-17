@@ -71,17 +71,17 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
         spacing: uiPrefs.compactLayout ? 4 : 8,
         typography: {
           fontFamily: '"Inter", sans-serif',
-          h1: { fontWeight: 800, letterSpacing: '-0.05em' },
-          h2: { fontWeight: 800, letterSpacing: '-0.04em' },
-          h3: { fontWeight: 700, letterSpacing: '-0.03em' },
-          h4: { fontWeight: 700, letterSpacing: '-0.02em' },
-          h5: { fontWeight: 600 },
-          h6: { fontWeight: 600 },
-          subtitle1: { fontWeight: 500, letterSpacing: '-0.01em' },
-          subtitle2: { fontWeight: 500, letterSpacing: '-0.01em' },
-          body1: { lineHeight: 1.6, fontSize: '1rem' },
-          body2: { lineHeight: 1.5, fontSize: '0.875rem' },
-          button: { textTransform: 'none', fontWeight: 700, letterSpacing: '0.02em' },
+          h1: { fontWeight: 800, letterSpacing: '-0.05em', fontSize: { xs: '1.75rem', sm: '2rem', md: '2.5rem' } },
+          h2: { fontWeight: 800, letterSpacing: '-0.04em', fontSize: { xs: '1.5rem', sm: '1.875rem', md: '2.25rem' } },
+          h3: { fontWeight: 700, letterSpacing: '-0.03em', fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.875rem' } },
+          h4: { fontWeight: 700, letterSpacing: '-0.02em', fontSize: { xs: '1.1rem', sm: '1.25rem', md: '1.5rem' } },
+          h5: { fontWeight: 600, fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' } },
+          h6: { fontWeight: 600, fontSize: { xs: '0.95rem', sm: '1rem', md: '1.1rem' } },
+          subtitle1: { fontWeight: 500, letterSpacing: '-0.01em', fontSize: { xs: '0.9rem', md: '1rem' } },
+          subtitle2: { fontWeight: 500, letterSpacing: '-0.01em', fontSize: { xs: '0.85rem', md: '0.875rem' } },
+          body1: { lineHeight: 1.6, fontSize: { xs: '0.9rem', md: '1rem' } },
+          body2: { lineHeight: 1.5, fontSize: { xs: '0.8rem', md: '0.875rem' } },
+          button: { textTransform: 'none', fontWeight: 700, letterSpacing: '0.02em', fontSize: { xs: '0.8rem', md: '0.875rem' } },
         },
         shape: {
           borderRadius: 8,
@@ -91,7 +91,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
             styleOverrides: {
               root: {
                 borderRadius: 8,
-                padding: '12px 24px',
+                padding: { xs: '8px 16px', md: '12px 24px' },
                 boxShadow: 'none',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': {
@@ -120,7 +120,16 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
               },
             },
           },
-          MuiCard: {
+          MuiCardContent: {
+            styleOverrides: {
+              root: {
+                padding: { xs: '12px', sm: '16px', md: '24px' },
+                '&:last-child': {
+                  paddingBottom: { xs: '12px', sm: '16px', md: '24px' },
+                },
+              },
+            },
+          },
             styleOverrides: {
               root: {
                 borderRadius: 12,

@@ -22,30 +22,35 @@ export default function PermissionAgent() {
     permissions, 
     requestNotificationPermission, 
     requestCameraPermission, 
-    requestMicrophonePermission 
+    requestMicrophonePermission,
+    hasAskedBefore 
   } = useHardwarePermissions();
   
   const [open, setOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [hasShown, setHasShown] = useState(false);
 
-  // Show agent if any critical permission is not granted
+  // Show agent only once if any critical permission is not granted and we haven't asked before
   useEffect(() => {
-    if (!user) return;
+    if (!user || hasShown) return;
+    
+    const askedBefore = hasAskedBefore();
     
     const needsAttention = 
-      permissions.notifications === 'prompt' || 
-      permissions.camera === 'prompt' || 
-      permissions.microphone === 'prompt';
+      (permissions.notifications === 'prompt' && !askedBefore.notifications) || 
+      (permissions.camera === 'prompt' && !askedBefore.camera) || 
+      (permissions.microphone === 'prompt' && !askedBefore.microphone);
 
-    // If all are granted or denied (not prompt), we don't need to show the agent
-    if (!needsAttention) {
+    if (needsAttention) {
+      const timer = setTimeout(() => {
+        setOpen(true);
+        setHasShown(true);
+      }, 2000);
+      return () => clearTimeout(timer);
+    } else {
       setOpen(false);
-      return;
     }
-
-    const timer = setTimeout(() => setOpen(true), 3000);
-    return () => clearTimeout(timer);
-  }, [user, permissions]);
+  }, [user, permissions, hasShown]);
 
   const syncToBackend = async () => {
     if (!user) return;
@@ -74,6 +79,12 @@ export default function PermissionAgent() {
     if (result === 'granted') {
       logger.info(`${type} permission granted`);
       syncToBackend();
+    }
+    
+    // Check if all permissions have been asked
+    const askedBefore = hasAskedBefore();
+    if (askedBefore.notifications && askedBefore.camera && askedBefore.microphone) {
+      setOpen(false);
     }
   };
 
@@ -155,7 +166,7 @@ export default function PermissionAgent() {
           }}
         >
           <Box sx={{ 
-            p: 3, 
+            p: { xs: 2, sm: 3 }, 
             bgcolor: 'primary.main', 
             color: 'white', 
             display: 'flex', 
@@ -171,7 +182,7 @@ export default function PermissionAgent() {
             </IconButton>
           </Box>
           
-          <DialogContent sx={{ p: 3 }}>
+          <DialogContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Typography variant="body2" sx={{ mb: 3, fontWeight: 500, color: 'text.secondary' }}>
               To provide the best experience for **Maktab Wali Ul Aser**, we need access to your device hardware. This allows real-time alerts and communication.
             </Typography>
@@ -208,7 +219,7 @@ export default function PermissionAgent() {
             </Box>
           </DialogContent>
 
-          <DialogActions sx={{ p: 3, pt: 0 }}>
+          <DialogActions sx={{ p: { xs: 2, sm: 3 }, pt: 0 }}>
             <Button 
               fullWidth 
               variant="contained" 

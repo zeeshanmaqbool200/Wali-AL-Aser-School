@@ -173,7 +173,7 @@ export default function Dashboard({ user }: DashboardProps) {
   );
 
   return (
-    <Box sx={{ pb: 8, position: 'relative', px: { xs: 1, sm: 0 } }}>
+    <Box sx={{ pb: { xs: 4, sm: 6, md: 8 }, position: 'relative', px: { xs: 1.5, sm: 2, md: 3 } }}>
       {/* Animated Background Blobs */}
       <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', zIndex: -1, pointerEvents: 'none' }}>
         <motion.div
@@ -228,7 +228,7 @@ export default function Dashboard({ user }: DashboardProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Box sx={{ mb: isMobile ? 4 : 8, textAlign: 'center' }}>
+        <Box sx={{ mb: { xs: 3, sm: 4, md: 6 }, textAlign: 'center' }}>
           <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontFamily: 'var(--font-serif)', fontWeight: 500, mb: 1, color: 'text.primary', letterSpacing: -0.5 }}>
             Asslamualikum, {user.displayName.split(' ')[0]}! 👋
           </Typography>
