@@ -88,7 +88,7 @@ export default function Fees() {
     });
 
     if (isTeacher) {
-      const studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+      const studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'), limit(500));
       onSnapshot(studentsQuery, (snapshot) => {
         setStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
       }, (error) => {

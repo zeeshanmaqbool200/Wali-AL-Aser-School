@@ -37,7 +37,7 @@ export default function AttendancePage() {
     const fetchData = async () => {
       try {
         // Fetch all students
-        const studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+        const studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'), limit(500));
         const studentsSnap = await getDocs(studentsQuery);
         const studentsList = studentsSnap.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[];
         setStudents(studentsList);
