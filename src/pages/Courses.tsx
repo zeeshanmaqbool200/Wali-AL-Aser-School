@@ -46,7 +46,7 @@ export default function Courses() {
   useEffect(() => {
     const q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[];
+      setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[]);
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'courses');
