@@ -7,7 +7,7 @@ import {
   TableHead, TableRow, Paper, InputAdornment, Tab, Tabs,
   FormControl, InputLabel, Select, MenuItem, useTheme,
   useMediaQuery, alpha, Stack, Tooltip, Zoom, Fade,
-  LinearProgress, Divider
+  LinearProgress, Divider, Snackbar, Alert
 } from '@mui/material';
 import { 
   Plus, Search, Edit2, Trash2, UserPlus, 
@@ -15,12 +15,13 @@ import {
   MoreVertical, User, GraduationCap, UserCheck,
   ArrowRight, ExternalLink, Download, Layout,
   Layers, CheckCircle, XCircle, Clock, Save,
-  Bell, Camera, X
+  Bell, Camera, X, Printer
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where } from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError } from '../firebase';
-import { UserProfile, UserRole, MaktabLevel } from '../types';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDocs, writeBatch, getDoc } from 'firebase/firestore';
+import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartDeleteDoc } from '../firebase';
+import { UserProfile, UserRole, MaktabLevel, InstituteSettings } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { logger } from '../lib/logger';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -34,10 +35,14 @@ export default function Users() {
   const [searchQuery, setSearchQuery] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [openPromoteDialog, setOpenPromoteDialog] = useState(false);
+  const [openViewProfile, setOpenViewProfile] = useState(false);
+  const [profileToView, setProfileToView] = useState<UserProfile | null>(null);
+  const [instituteSettings, setInstituteSettings] = useState<Partial<InstituteSettings>>({});
   const [promotingUser, setPromotingUser] = useState<UserProfile | null>(null);
   const [newGrade, setNewGrade] = useState<MaktabLevel | ''>('');
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   
   const [formData, setFormData] = useState({
     displayName: '',
@@ -54,6 +59,7 @@ export default function Users() {
     address: '',
     subject: '',
     subjectsEnrolled: [] as string[],
+    assignedClasses: [] as string[],
     status: 'Active' as 'Active' | 'Inactive'
   });
 
@@ -68,19 +74,84 @@ export default function Users() {
     'haftum', 'hashtum', 'dahum', 'Hafiz', 'muntazim [m]', 'muntazimah [f]'
   ];
 
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super-admin' || currentUser?.role === 'teacher';
-  const isSuperAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
+  const isAdmin = isSuperAdmin || isApprovedMudaris;
+  const isMudaris = isApprovedMudaris || isSuperAdmin;
+
+  const handleSystemReset = async () => {
+    if (!isSuperAdmin) return;
+    const confirmText = "RESET ALL USERS";
+    const prompt = window.prompt(`CRITICAL: This will delete ALL users except yourself. This cannot be undone. Type "${confirmText}" to confirm:`);
+    
+    if (prompt === confirmText) {
+      setLoading(true);
+      try {
+        const batch = writeBatch(db);
+        const snapshot = await getDocs(collection(db, 'users'));
+        let deletedCount = 0;
+        
+        snapshot.docs.forEach(userDoc => {
+          if (userDoc.data().email !== 'zeeshanmaqbool200@gmail.com') {
+            batch.delete(userDoc.ref);
+            deletedCount++;
+          }
+        });
+        
+        await batch.commit();
+        logger.success(`System Reset Complete: ${deletedCount} users removed.`);
+        alert(`System Reset Complete: ${deletedCount} users removed from Firestore. Note: Auth users must be managed via Firebase Console.`);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, 'users');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
 
   useEffect(() => {
-    const q = query(collection(db, 'users'), orderBy('displayName', 'asc'));
+    let q;
+    if (isSuperAdmin) {
+      q = query(collection(db, 'users'), orderBy('displayName', 'asc'));
+    } else if (isApprovedMudaris) {
+      // Mudaris can only see students in their assigned classes
+      q = query(
+        collection(db, 'users'), 
+        where('role', '==', 'student'),
+        where('grade', 'in', currentUser?.assignedClasses || ['none']),
+        orderBy('displayName', 'asc')
+      );
+    } else {
+      // Pending mudaris see nothing or just themselves
+      q = query(collection(db, 'users'), where('uid', '==', currentUser?.uid));
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
+      setUsers(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id })) as UserProfile[]);
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'users');
     });
     return () => unsubscribe();
+  }, [isSuperAdmin, isApprovedMudaris, currentUser?.assignedClasses, currentUser?.uid]);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const settingsDoc = await getDoc(doc(db, 'settings', 'institute'));
+        if (settingsDoc.exists()) {
+          setInstituteSettings(settingsDoc.data() as InstituteSettings);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch institute settings:', error);
+      }
+    };
+    fetchSettings();
   }, []);
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   const handleSave = async () => {
     try {
@@ -94,10 +165,24 @@ export default function Users() {
         finalFormData.admissionNo = `ADM-${year}-${namePart}-${timestamp}`;
       }
 
+      // Check for duplicate email if creating a new user
+      if (!editingUser) {
+        const q = query(collection(db, 'users'), where('email', '==', formData.email));
+        const checkSnap = await getDocs(q);
+        if (!checkSnap.empty) {
+          setSnackbar({ 
+            open: true, 
+            message: `A user with email ${formData.email} already exists!`, 
+            severity: 'error' 
+          });
+          return;
+        }
+      }
+
       if (editingUser) {
-        await updateDoc(doc(db, 'users', editingUser.uid), finalFormData);
+        await smartUpdateDoc(doc(db, 'users', editingUser.uid), finalFormData);
       } else {
-        await addDoc(collection(db, 'users'), {
+        await smartAddDoc(collection(db, 'users'), {
           ...finalFormData,
           createdAt: Date.now(),
           photoURL: `https://ui-avatars.com/api/?name=${formData.displayName}&background=random`
@@ -105,6 +190,7 @@ export default function Users() {
       }
       setOpenDialog(false);
       setEditingUser(null);
+      setSnackbar({ open: true, message: `User ${editingUser ? 'updated' : 'registered'} successfully`, severity: 'success' });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'users');
     }
@@ -112,7 +198,7 @@ export default function Users() {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'users', id));
+      await smartDeleteDoc(doc(db, 'users', id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
     }
@@ -120,7 +206,7 @@ export default function Users() {
 
   const handleApproveClass = async (user: UserProfile) => {
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
+      await smartUpdateDoc(doc(db, 'users', user.uid), {
         maktabLevel: user.pendingMaktabLevel,
         pendingMaktabLevel: null,
         status: 'Active'
@@ -132,9 +218,33 @@ export default function Users() {
 
   const handleRejectClass = async (user: UserProfile) => {
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
+      await smartUpdateDoc(doc(db, 'users', user.uid), {
         pendingMaktabLevel: null
       });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+    }
+  };
+
+  const handleApproveMudaris = async (user: UserProfile) => {
+    try {
+      await smartUpdateDoc(doc(db, 'users', user.uid), {
+        role: 'approved_mudaris',
+        status: 'Active'
+      });
+      logger.success(`Mudaris ${user.displayName} approved`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+    }
+  };
+
+  const handleRejectMudaris = async (user: UserProfile) => {
+    try {
+      await smartUpdateDoc(doc(db, 'users', user.uid), {
+        role: 'student', // Revert to student or deactivate
+        status: 'Inactive'
+      });
+      logger.info(`Mudaris ${user.displayName} rejected`);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
     }
@@ -143,7 +253,7 @@ export default function Users() {
   const handlePromote = async () => {
     if (!promotingUser || !newGrade) return;
     try {
-      await updateDoc(doc(db, 'users', promotingUser.uid), {
+      await smartUpdateDoc(doc(db, 'users', promotingUser.uid), {
         maktabLevel: newGrade,
         grade: newGrade
       });
@@ -162,8 +272,8 @@ export default function Users() {
                          (u.teacherId && u.teacherId.toLowerCase().includes(searchQuery.toLowerCase()));
     
     if (tabValue === 0) return u.role === 'student' && matchesSearch;
-    if (tabValue === 1) return u.role === 'teacher' && matchesSearch;
-    if (tabValue === 2) return u.pendingMaktabLevel && matchesSearch;
+    if (tabValue === 1) return (u.role === 'approved_mudaris' || u.role === 'pending_mudaris') && matchesSearch;
+    if (tabValue === 2) return (u.pendingMaktabLevel || u.role === 'pending_mudaris') && matchesSearch;
     return matchesSearch;
   });
 
@@ -192,7 +302,7 @@ export default function Users() {
               display: 'flex', 
               bgcolor: 'background.default', 
               p: 0.8, 
-              borderRadius: 4,
+              borderRadius: 2,
               boxShadow: theme.palette.mode === 'dark'
                 ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
                 : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
@@ -228,6 +338,35 @@ export default function Users() {
                 <Layers size={18} />
               </IconButton>
             </Box>
+            {isSuperAdmin && (
+              <Button 
+                variant="outlined" 
+                color="error" 
+                startIcon={<Trash2 size={18} />} 
+                onClick={handleSystemReset}
+                sx={{ 
+                  borderRadius: 2, 
+                  fontWeight: 900, 
+                  px: 4, 
+                  py: 1.5,
+                  textTransform: 'none',
+                  border: 'none',
+                  bgcolor: 'background.paper',
+                  color: 'error.main',
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+                    : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+                  '&:hover': {
+                    bgcolor: 'background.paper',
+                    boxShadow: theme.palette.mode === 'dark'
+                      ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                      : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                  }
+                }}
+              >
+                Reset Users
+              </Button>
+            )}
             {isAdmin && (
               <Button 
                 variant="contained" 
@@ -236,15 +375,15 @@ export default function Users() {
                 onClick={() => {
                   setEditingUser(null);
                   setFormData({ 
-                    displayName: '', email: '', role: tabValue === 0 ? 'student' : 'teacher', 
+                    displayName: '', email: '', role: tabValue === 0 ? 'student' : 'approved_mudaris', 
                     phone: '', maktabLevel: '' as MaktabLevel, admissionNo: '', teacherId: '', 
                     fatherName: '', motherName: '', rollNo: '', admissionDate: format(new Date(), 'yyyy-MM-dd'),
-                    address: '', subject: '', subjectsEnrolled: [], status: 'Active'
+                    address: '', subject: '', subjectsEnrolled: [], assignedClasses: [], status: 'Active'
                   });
                   setOpenDialog(true);
                 }}
                 sx={{ 
-                  borderRadius: 4, 
+                  borderRadius: 2, 
                   fontWeight: 900, 
                   px: 4, 
                   py: 1.5,
@@ -267,7 +406,7 @@ export default function Users() {
           <SummaryCard title="Total Tulab-e-Ilm" value={users.filter(u => u.role === 'student').length} icon={<GraduationCap size={24} />} color="primary" />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <SummaryCard title="Total Mudaris" value={users.filter(u => u.role === 'teacher').length} icon={<UserCheck size={24} />} color="success" />
+          <SummaryCard title="Total Mudaris" value={users.filter(u => u.role === 'approved_mudaris').length} icon={<UserCheck size={24} />} color="success" />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <SummaryCard title="Active Now" value={users.filter(u => u.status === 'Active').length} icon={<Clock size={24} />} color="warning" />
@@ -371,7 +510,7 @@ export default function Users() {
             <TableContainer component={Box} sx={{ minWidth: { xs: 800, md: '100%' } }}>
               <Table>
                 <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50' }}>
                   <TableCell sx={{ fontWeight: 800, py: 2.5 }}>Profile</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Admission No / ID</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>{tabValue === 0 ? 'Maktab Level' : 'Subject'}</TableCell>
@@ -430,13 +569,23 @@ export default function Users() {
                           label={user.role === 'student' ? user.admissionNo || user.studentId : user.teacherId} 
                           size="small" 
                           variant="outlined" 
-                          sx={{ fontWeight: 800, fontSize: '0.7rem', borderRadius: 2, bgcolor: 'grey.50' }} 
+                          sx={{ fontWeight: 800, fontSize: '0.7rem', borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50' }} 
                         />
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          {user.role === 'student' ? user.maktabLevel || user.grade : (user.subject || 'N/A')}
-                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {user.role === 'student' ? (user.maktabLevel || user.grade || (user.pendingMaktabLevel ? 'Pending...' : 'N/A')) : (user.subject || 'N/A')}
+                          </Typography>
+                          {user.pendingMaktabLevel && (
+                            <Chip 
+                              label={`Req: ${user.pendingMaktabLevel}`} 
+                              size="small" 
+                              color="warning" 
+                              sx={{ fontWeight: 800, height: 20, fontSize: '0.65rem' }} 
+                            />
+                          )}
+                        </Box>
                       </TableCell>
                       <TableCell>
                         <Stack spacing={0.5}>
@@ -453,7 +602,11 @@ export default function Users() {
                       <TableCell align="right">
                         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
                           <Tooltip title="View Profile">
-                            <IconButton size="small" sx={{ bgcolor: 'grey.100', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}>
+                            <IconButton 
+                              size="small" 
+                              sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.4) : 'grey.100', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
+                              onClick={() => { setProfileToView(user); setOpenViewProfile(true); }}
+                            >
                               <ExternalLink size={16} />
                             </IconButton>
                           </Tooltip>
@@ -481,6 +634,28 @@ export default function Users() {
                                   </Tooltip>
                                 </>
                               )}
+                              {isSuperAdmin && user.role === 'pending_mudaris' && (
+                                <>
+                                  <Tooltip title="Approve Mudaris">
+                                    <IconButton 
+                                      size="small" 
+                                      sx={{ bgcolor: 'success.light', color: 'success.dark', '&:hover': { bgcolor: 'success.main', color: 'white' } }}
+                                      onClick={() => handleApproveMudaris(user)}
+                                    >
+                                      <UserCheck size={16} />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Reject Mudaris">
+                                    <IconButton 
+                                      size="small" 
+                                      sx={{ bgcolor: 'error.light', color: 'error.dark', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
+                                      onClick={() => handleRejectMudaris(user)}
+                                    >
+                                      <XCircle size={16} />
+                                    </IconButton>
+                                  </Tooltip>
+                                </>
+                              )}
                               {user.role === 'student' && user.maktabLevel && (
                                 <Tooltip title="Promote">
                                   <IconButton 
@@ -495,8 +670,16 @@ export default function Users() {
                               <Tooltip title="Edit">
                                 <IconButton 
                                   size="small" 
-                                  sx={{ bgcolor: 'grey.100', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
-                                  onClick={() => { setEditingUser(user); setFormData(user as any); setOpenDialog(true); }}
+                                  sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.4) : 'grey.100', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
+                                  onClick={() => { 
+                                    setEditingUser(user); 
+                                    setFormData({
+                                      ...user,
+                                      subjectsEnrolled: user.subjectsEnrolled || [],
+                                      assignedClasses: user.assignedClasses || []
+                                    } as any); 
+                                    setOpenDialog(true); 
+                                  }}
                                 >
                                   <Edit2 size={16} />
                                 </IconButton>
@@ -535,7 +718,18 @@ export default function Users() {
                       exit={{ opacity: 0, scale: 0.9 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
                     >
-                      <UserCard user={user} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} onEdit={() => { setEditingUser(user); setFormData(user as any); setOpenDialog(true); }} onDelete={() => handleDelete(user.uid)} />
+                      <UserCard 
+                        user={user} 
+                        isAdmin={isAdmin} 
+                        isSuperAdmin={isSuperAdmin} 
+                        onEdit={() => { setEditingUser(user); setFormData(user as any); setOpenDialog(true); }} 
+                        onDelete={() => handleDelete(user.uid)}
+                        onApproveClass={handleApproveClass}
+                        onRejectClass={handleRejectClass}
+                        onApproveMudaris={handleApproveMudaris}
+                        onRejectMudaris={handleRejectMudaris}
+                        onViewProfile={() => { setProfileToView(user); setOpenViewProfile(true); }}
+                      />
                     </motion.div>
                   </Grid>
                 ))}
@@ -602,8 +796,9 @@ export default function Users() {
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                 >
                   <MenuItem value="student">Talib-e-Ilm</MenuItem>
-                  <MenuItem value="teacher">Mudaris</MenuItem>
-                  <MenuItem value="admin">Muntazim</MenuItem>
+                  <MenuItem value="approved_mudaris">Approved Mudaris</MenuItem>
+                  <MenuItem value="pending_mudaris">Pending Mudaris</MenuItem>
+                  <MenuItem value="superadmin">Super Admin</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -684,7 +879,7 @@ export default function Users() {
                     <InputLabel>Subjects Enrolled</InputLabel>
                     <Select
                       multiple
-                      value={formData.subjectsEnrolled}
+                      value={formData.subjectsEnrolled || []}
                       label="Subjects Enrolled"
                       onChange={(e) => setFormData({ ...formData, subjectsEnrolled: e.target.value as string[] })}
                       renderValue={(selected) => (
@@ -724,6 +919,32 @@ export default function Users() {
                     sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
                   />
                 </Grid>
+                {isSuperAdmin && (
+                  <Grid size={{ xs: 12 }}>
+                    <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}>
+                      <InputLabel>Assigned Classes</InputLabel>
+                      <Select
+                        multiple
+                        value={formData.assignedClasses || []}
+                        label="Assigned Classes"
+                        onChange={(e) => setFormData({ ...formData, assignedClasses: e.target.value as string[] })}
+                        renderValue={(selected) => (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {(selected as string[]).map((value) => (
+                              <Chip key={value} label={value} size="small" />
+                            ))}
+                          </Box>
+                        )}
+                      >
+                        {maktabLevels.map((level) => (
+                          <MenuItem key={level} value={level}>
+                            {level}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                )}
               </>
             )}
             <Grid size={12}>
@@ -783,11 +1004,203 @@ export default function Users() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Profile Detail Printable Dialog */}
+      <Dialog 
+        open={openViewProfile} 
+        onClose={() => setOpenViewProfile(false)} 
+        maxWidth="md" 
+        fullWidth 
+        PaperProps={{ 
+          sx: { 
+            borderRadius: 5, 
+            p: 0, 
+            overflow: 'visible',
+            '@media print': {
+              boxShadow: 'none',
+              borderRadius: 0,
+              width: '100%',
+              maxWidth: '100%',
+              margin: 0,
+              p: 0,
+              overflow: 'visible',
+              bgcolor: 'white',
+              color: 'black'
+            }
+          } 
+        }}
+      >
+        <DialogTitle className="no-print" sx={{ fontWeight: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 0 }}>
+          Student Admission Form
+          <Box>
+            <IconButton onClick={handlePrint} size="small" sx={{ mr: 1, bgcolor: 'primary.light', color: 'primary.dark' }}>
+              <Printer size={18} />
+            </IconButton>
+            <IconButton onClick={() => setOpenViewProfile(false)} size="small">
+              <X size={18} />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: { xs: 2, md: 4 } }}>
+          <Box id="printable-profile" sx={{ position: 'relative', color: 'black', bgcolor: 'white', p: { xs: 1, md: 2 }, borderRadius: 2 }}>
+             {/* Printable Form Content */}
+             <Box sx={{ border: '2px solid black', p: { xs: 2, md: 4 }, position: 'relative' }}>
+                {/* Header with Logo */}
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, borderBottom: '2px solid black', pb: 2 }}>
+                  <Avatar src={instituteSettings.logoUrl} sx={{ width: 80, height: 80, mr: 3, borderRadius: 0, bgcolor: 'grey.200' }}>
+                    <GraduationCap size={40} color="black" />
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h4" sx={{ fontWeight: 900, color: 'black', textTransform: 'uppercase', fontSize: { xs: '1.2rem', md: '2.125rem' } }}>
+                      {instituteSettings.maktabName || instituteSettings.name || 'MAKHTAB-UN-NOOR'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'black' }}>
+                      {instituteSettings.tagline || 'Education for Excellence'}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'black', display: 'block' }}>
+                      {instituteSettings.address} | {instituteSettings.phone}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
+                    <Typography variant="h6" sx={{ fontWeight: 800, border: '1px solid black', px: 2, display: 'inline-block', fontSize: '0.9rem' }}>
+                      ADMISSION FORM
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>
+                      Session: {format(new Date(), 'yyyy')}-{parseInt(format(new Date(), 'yyyy')) + 1}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {/* Student Info Grid */}
+                <Grid container spacing={3}>
+                  <Grid size={{ xs: 8 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                       <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, width: 140, flexShrink: 0 }}>Full Name:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.displayName}</Typography>
+                       </Box>
+                       <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, width: 140, flexShrink: 0 }}>Father's Name:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.fatherName || '____________________'}</Typography>
+                       </Box>
+                       <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, width: 140, flexShrink: 0 }}>Mother's Name:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.motherName || '____________________'}</Typography>
+                       </Box>
+                       <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, width: 140, flexShrink: 0 }}>Date of Birth:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>____________________</Typography>
+                       </Box>
+                    </Box>
+                  </Grid>
+                  <Grid size={{ xs: 4 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                     <Box sx={{ width: 120, height: 140, border: '1px dashed black', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', p: 0.5 }}>
+                        {profileToView?.photoURL ? (
+                          <img src={profileToView.photoURL} alt="student" style={{ width: '100%', height: '100%', objectFit: 'cover' }} referrerPolicy="no-referrer" />
+                        ) : (
+                          <Typography variant="caption" sx={{ fontSize: '0.6rem', color: 'grey.600' }}>PASTE RECENT PHOTO HERE</Typography>
+                        )}
+                     </Box>
+                  </Grid>
+
+                  <Grid size={{ xs: 6 }}>
+                     <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0 }}>Admission No:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.admissionNo || profileToView?.studentId || 'N/A'}</Typography>
+                     </Box>
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                     <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0 }}>Class/Grade:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.maktabLevel || profileToView?.grade || 'N/A'}</Typography>
+                     </Box>
+                  </Grid>
+
+                  <Grid size={{ xs: 6 }}>
+                     <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0 }}>Email:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.email}</Typography>
+                     </Box>
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                     <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0 }}>Phone/Contact:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.phone || '____________________'}</Typography>
+                     </Box>
+                  </Grid>
+
+                  <Grid size={{ xs: 12 }}>
+                     <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0 }}>Address:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.address || '____________________________________________________________'}</Typography>
+                     </Box>
+                  </Grid>
+
+                  <Grid size={{ xs: 12 }} sx={{ mt: 2 }}>
+                     <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1, borderBottom: '2px solid black', display: 'inline-block' }}>ACADEMIC DETAILS</Typography>
+                     <Box sx={{ border: '1px solid black' }}>
+                        <Grid container>
+                           <Grid size={{ xs: 6 }} sx={{ borderRight: '1px solid black', p: 1, bgcolor: '#f5f5f5' }}>
+                              <Typography variant="caption" sx={{ fontWeight: 900 }}>Enrolled Subjects</Typography>
+                           </Grid>
+                           <Grid size={{ xs: 6 }} sx={{ p: 1, bgcolor: '#f5f5f5' }}>
+                              <Typography variant="caption" sx={{ fontWeight: 900 }}>Previous Academic Record</Typography>
+                           </Grid>
+                           <Grid size={{ xs: 6 }} sx={{ borderRight: '1px solid black', p: 1, minHeight: 60 }}>
+                              <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>{profileToView?.subjectsEnrolled?.join(', ') || 'N/A'}</Typography>
+                           </Grid>
+                           <Grid size={{ xs: 6 }} sx={{ p: 1, minHeight: 60 }}>
+                              <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>N/A</Typography>
+                           </Grid>
+                        </Grid>
+                     </Box>
+                  </Grid>
+
+                  <Grid size={{ xs: 12 }} sx={{ mt: 6, display: 'flex', justifyContent: 'space-between', px: 2 }}>
+                     <Box sx={{ textAlign: 'center' }}>
+                        <Box sx={{ width: 120, borderBottom: '1px solid black', mb: 1 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 800 }}>Parent's Sign</Typography>
+                     </Box>
+                     <Box sx={{ textAlign: 'center' }}>
+                        <Box sx={{ width: 120, borderBottom: '1px solid black', mb: 1 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 800 }}>Incharge Sign</Typography>
+                     </Box>
+                     <Box sx={{ textAlign: 'center' }}>
+                        <Box sx={{ width: 120, borderBottom: '1px solid black', mb: 1 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 800 }}>Admin Sign</Typography>
+                     </Box>
+                  </Grid>
+                </Grid>
+                
+                <Box sx={{ mt: 4, pt: 1, borderTop: '1px dashed #ccc', textAlign: 'center' }}>
+                    <Typography variant="caption" sx={{ fontStyle: 'italic', color: 'grey.700', fontSize: '0.65rem' }}>
+                       Printed on {format(new Date(), 'PPpp')} via AIS Management System
+                    </Typography>
+                </Box>
+             </Box>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={4000} 
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity} 
+          sx={{ width: '100%', borderRadius: 3, fontWeight: 700 }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
 
-const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, onEdit, onDelete }: any) => {
+const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, onEdit, onDelete, onApproveClass, onRejectClass, onApproveMudaris, onRejectMudaris, onViewProfile }: any) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   
@@ -859,35 +1272,89 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, onEdit, onDelete }: 
         </Box>
       </CardContent>
       
-      <Box 
-        className="user-actions"
-        sx={{ 
-          position: 'absolute', 
-          top: 16, 
-          right: 16, 
-          display: 'flex', 
-          gap: 1.5, 
-          opacity: 0, 
-          transform: 'translateY(-10px)', 
-          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
-        }}
-      >
-        {isSuperAdmin && (
-          <>
+        <Box 
+          className="user-actions"
+          sx={{ 
+            position: 'absolute', 
+            top: 16, 
+            right: 16, 
+            display: 'flex', 
+            gap: 1.5, 
+            opacity: 0, 
+            transform: 'translateY(-10px)', 
+            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            zIndex: 10
+          }}
+        >
+          {isAdmin && (
+            <IconButton 
+              size="small" 
+              sx={{ bgcolor: 'background.paper', boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }} 
+              onClick={(e) => { e.stopPropagation(); onViewProfile(); }}
+            >
+              <ExternalLink size={16} />
+            </IconButton>
+          )}
+          {isAdmin && user.pendingMaktabLevel && (
+            <>
+              <Tooltip title="Approve Class">
+                <IconButton 
+                  size="small" 
+                  sx={{ bgcolor: 'success.light', color: 'success.dark', '&:hover': { bgcolor: 'success.main', color: 'white' }, boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }}
+                  onClick={(e) => { e.stopPropagation(); onApproveClass?.(user); }}
+                >
+                  <CheckCircle size={16} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Reject Class">
+                <IconButton 
+                  size="small" 
+                  sx={{ bgcolor: 'error.light', color: 'error.dark', '&:hover': { bgcolor: 'error.main', color: 'white' }, boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }}
+                  onClick={(e) => { e.stopPropagation(); onRejectClass?.(user); }}
+                >
+                  <XCircle size={16} />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+          {isSuperAdmin && user.role === 'pending_mudaris' && (
+            <>
+              <Tooltip title="Approve Mudaris">
+                <IconButton 
+                  size="small" 
+                  sx={{ bgcolor: 'success.light', color: 'success.dark', '&:hover': { bgcolor: 'success.main', color: 'white' }, boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }}
+                  onClick={(e) => { e.stopPropagation(); onApproveMudaris?.(user); }}
+                >
+                  <UserCheck size={16} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Reject Mudaris">
+                <IconButton 
+                  size="small" 
+                  sx={{ bgcolor: 'error.light', color: 'error.dark', '&:hover': { bgcolor: 'error.main', color: 'white' }, boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }}
+                  onClick={(e) => { e.stopPropagation(); onRejectMudaris?.(user); }}
+                >
+                  <XCircle size={16} />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+          {isSuperAdmin && (
+            <>
+              <IconButton size="small" sx={{ bgcolor: 'background.paper', boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }} onClick={onEdit}>
+                <Edit2 size={16} />
+              </IconButton>
+              <IconButton size="small" sx={{ bgcolor: 'background.paper', boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }} color="error" onClick={onDelete}>
+                <Trash2 size={16} />
+              </IconButton>
+            </>
+          )}
+          {!isSuperAdmin && isAdmin && (
             <IconButton size="small" sx={{ bgcolor: 'background.paper', boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }} onClick={onEdit}>
               <Edit2 size={16} />
             </IconButton>
-            <IconButton size="small" sx={{ bgcolor: 'background.paper', boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }} color="error" onClick={onDelete}>
-              <Trash2 size={16} />
-            </IconButton>
-          </>
-        )}
-        {!isSuperAdmin && isAdmin && (
-          <IconButton size="small" sx={{ bgcolor: 'background.paper', boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }} onClick={onEdit}>
-            <Edit2 size={16} />
-          </IconButton>
-        )}
-      </Box>
+          )}
+        </Box>
     </Card>
   );
 });
@@ -899,7 +1366,7 @@ const SummaryCard = React.memo(({ title, value, icon, color }: any) => {
   
   return (
     <Card sx={{ 
-      borderRadius: 7, 
+      borderRadius: 2, 
       height: '100%', 
       transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
       border: 'none',

@@ -1,15 +1,298 @@
 import React from 'react';
 import { 
   Dialog, DialogContent, Box, Typography, Button, Divider, 
-  Grid, IconButton, Chip, Table, TableBody, TableCell, TableContainer, TableRow, TableHead, DialogActions,
+  Grid, IconButton, Chip, DialogActions, useMediaQuery,
   useTheme, alpha
 } from '@mui/material';
-import { Printer, Download, X, FileText, CheckCircle, Clock, ShieldCheck } from 'lucide-react';
+import { Printer, Download, X, FileText, CheckCircle, Clock } from 'lucide-react';
 import { FeeReceipt, InstituteSettings } from '../types';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { toWords } from 'number-to-words';
 import { format } from 'date-fns';
+import { 
+  Document, Page, Text, View, StyleSheet, PDFDownloadLink, Image, Font 
+} from '@react-pdf/renderer';
+
+// Register fonts if needed (Inter is good for professional looks)
+Font.register({
+  family: 'Inter',
+  fonts: [
+    { src: 'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-EkCc.woff2', fontWeight: 400 },
+    { src: 'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGkyAZ9hjp-EkCc.woff2', fontWeight: 700 },
+    { src: 'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFu8AZ9hjp-EkCc.woff2', fontWeight: 900 },
+  ],
+});
+
+const pdfStyles = StyleSheet.create({
+  page: {
+    padding: 40,
+    fontFamily: 'Inter',
+    backgroundColor: '#FFFFFF',
+    color: '#1a1a1a',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 30,
+    borderBottom: '2pt solid #0d9488',
+    paddingBottom: 20,
+    position: 'relative',
+    paddingTop: 10,
+  },
+  receiptCorners: {
+    position: 'absolute',
+    top: -30,
+    left: -30,
+    right: -30,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    height: 60,
+    zIndex: -1,
+  },
+  cornerImage: {
+    width: 100,
+    height: 100,
+    opacity: 0.6,
+  },
+  logo: {
+    width: 60,
+    height: 60,
+    borderRadius: 4,
+  },
+  headerText: {
+    marginLeft: 15,
+    flex: 1,
+  },
+  instituteName: {
+    fontSize: 18,
+    fontWeight: 900,
+    color: '#0d9488',
+  },
+  maktabName: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: '#0f766e',
+    marginVertical: 4,
+  },
+  address: {
+    fontSize: 8,
+    color: '#4b5563',
+    lineHeight: 1.4,
+  },
+  receiptMeta: {
+    textAlign: 'right',
+  },
+  receiptTitle: {
+    fontSize: 24,
+    fontWeight: 900,
+    color: '#E5E7EB',
+    marginBottom: 5,
+  },
+  receiptNo: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: '#0d9488',
+  },
+  date: {
+    fontSize: 8,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  detailsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 30,
+    marginTop: 20,
+  },
+  detailColumn: {
+    flex: 1,
+  },
+  label: {
+    fontSize: 7,
+    fontWeight: 900,
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 5,
+  },
+  value: {
+    fontSize: 11,
+    fontWeight: 700,
+  },
+  subValue: {
+    fontSize: 9,
+    color: '#4b5563',
+    marginTop: 2,
+  },
+  table: {
+    width: '100%',
+    marginVertical: 20,
+    border: '1pt solid #E5E7EB',
+    borderRadius: 2,
+  },
+  tableHeader: {
+    backgroundColor: '#F9FAFB',
+    flexDirection: 'row',
+    padding: 10,
+    borderBottom: '1pt solid #E5E7EB',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    padding: 15,
+    borderBottom: '1pt solid #f3f4f6',
+  },
+  tableFooter: {
+    backgroundColor: '#f0f9f9',
+    flexDirection: 'row',
+    padding: 15,
+  },
+  colDesc: { flex: 3 },
+  colAmount: { flex: 1, textAlign: 'right' },
+  wordsBox: {
+    backgroundColor: '#F9FAFB',
+    padding: 15,
+    borderRadius: 4,
+    border: '1pt solid #E5E7EB',
+    marginTop: 10,
+  },
+  footer: {
+    marginTop: 60,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+  signatureBox: {
+    borderTop: '1pt solid #E5E7EB',
+    width: 150,
+    paddingTop: 5,
+    textAlign: 'center',
+  },
+  signatureLabel: {
+    fontSize: 8,
+    color: '#4b5563',
+    fontWeight: 700,
+  },
+  verifiedStamp: {
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  verifiedText: {
+    fontSize: 8,
+    fontWeight: 900,
+    color: '#22c55e',
+  },
+  verifiedBy: {
+    fontSize: 7,
+    color: '#4b5563',
+    marginTop: 2,
+  },
+  disclaimer: {
+    marginTop: 40,
+    textAlign: 'center',
+    fontSize: 7,
+    color: '#9ca3af',
+    borderTop: '1pt solid #f3f4f6',
+    paddingTop: 15,
+  }
+});
+
+const ReceiptPDF = ({ receipt, settings }: { receipt: FeeReceipt, settings: InstituteSettings }) => (
+  <Document>
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.header}>
+        {/* Corner Images */}
+        <View style={{ position: 'absolute', top: -35, left: -35, right: -35, flexDirection: 'row', justifyContent: 'space-between', width: '110%' }}>
+          {settings.receiptLeftImageUrl && (
+            <Image src={settings.receiptLeftImageUrl} style={{ width: 80, height: 80, opacity: 0.4 }} />
+          )}
+          {settings.receiptRightImageUrl && (
+            <Image src={settings.receiptRightImageUrl} style={{ width: 80, height: 80, opacity: 0.4 }} />
+          )}
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', zIndex: 10 }}>
+          {settings.logoUrl && (
+            <Image src={settings.logoUrl} style={pdfStyles.logo} />
+          )}
+          <View style={pdfStyles.headerText}>
+            <Text style={pdfStyles.instituteName}>{settings.name}</Text>
+            <Text style={pdfStyles.maktabName}>{settings.maktabName}</Text>
+            <Text style={pdfStyles.address}>{settings.address}</Text>
+            <Text style={pdfStyles.address}>Ph: {settings.phone} • {settings.email}</Text>
+          </View>
+        </View>
+        <View style={pdfStyles.receiptMeta}>
+          <Text style={pdfStyles.receiptTitle}>RASEED</Text>
+          <Text style={pdfStyles.receiptNo}>No: {receipt.receiptNo || receipt.receiptNumber}</Text>
+          <Text style={pdfStyles.date}>Date: {format(new Date(receipt.date), 'dd MMM, yyyy')}</Text>
+        </View>
+      </View>
+
+      <View style={pdfStyles.detailsGrid}>
+        <View style={pdfStyles.detailColumn}>
+          <Text style={pdfStyles.label}>Talib-e-Ilm Details</Text>
+          <Text style={[pdfStyles.value, { fontSize: 13 }]}>{receipt.studentName}</Text>
+          <Text style={pdfStyles.subValue}>Admission No: {receipt.studentId}</Text>
+          <Text style={pdfStyles.subValue}>Maktab Level: {receipt.grade || 'N/A'}</Text>
+        </View>
+        <View style={[pdfStyles.detailColumn, { textAlign: 'right' }]}>
+          <Text style={pdfStyles.label}>Adaigi ki Tafseel</Text>
+          <Text style={[pdfStyles.value, { color: '#0d9488' }]}>{receipt.status.toUpperCase()}</Text>
+          <Text style={pdfStyles.subValue}>Mode: {receipt.paymentMode}</Text>
+          {receipt.transactionId && (
+            <Text style={pdfStyles.subValue}>Ref: {receipt.transactionId}</Text>
+          )}
+        </View>
+      </View>
+
+      <View style={pdfStyles.table}>
+        <View style={pdfStyles.tableHeader}>
+          <Text style={[pdfStyles.colDesc, { fontSize: 9, fontWeight: 900 }]}>Tafseel (Description)</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 9, fontWeight: 900 }]}>Raqam (Amount)</Text>
+        </View>
+        <View style={pdfStyles.tableRow}>
+          <View style={pdfStyles.colDesc}>
+            <Text style={{ fontSize: 11, fontWeight: 700 }}>{receipt.feeHead}</Text>
+            <Text style={{ fontSize: 8, color: '#4b5563', marginTop: 4 }}>{receipt.remarks || 'Standard fee payment for the current academic session.'}</Text>
+          </View>
+          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 700 }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+        </View>
+        <View style={pdfStyles.tableFooter}>
+          <Text style={[pdfStyles.colDesc, { textAlign: 'right', fontSize: 10, fontWeight: 900 }]}>Kul Ada-shuda Raqam</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 12, fontWeight: 900, color: '#0d9488' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+        </View>
+      </View>
+
+      <View style={pdfStyles.wordsBox}>
+        <Text style={pdfStyles.label}>Amount in Words</Text>
+        <Text style={{ fontSize: 10, fontWeight: 700, textTransform: 'capitalize', marginTop: 5 }}>
+          {toWords(receipt.amount)} Rupees Only
+        </Text>
+      </View>
+
+      <View style={pdfStyles.footer}>
+        <View style={pdfStyles.signatureBox}>
+          <Text style={pdfStyles.signatureLabel}>Talib-e-Ilm ke Dastakhat</Text>
+        </View>
+        <View style={{ alignItems: 'center' }}>
+          {receipt.status === 'approved' && (
+            <View style={pdfStyles.verifiedStamp}>
+              <Text style={pdfStyles.verifiedText}>DIGITALLY VERIFIED</Text>
+              <Text style={pdfStyles.verifiedBy}>By {receipt.approvedByName || 'System'}</Text>
+            </View>
+          )}
+          <View style={pdfStyles.signatureBox}>
+            <Text style={pdfStyles.signatureLabel}>Tasdiq-shuda Dastakhat</Text>
+          </View>
+        </View>
+      </View>
+
+      <Text style={pdfStyles.disclaimer}>
+        This is a computer-generated document. No physical signature is required for digitally verified receipts.
+        {"\n"}© {new Date().getFullYear()} {settings.name}. All Rights Reserved.
+      </Text>
+    </Page>
+  </Document>
+);
 
 interface FeeReceiptModalProps {
   open: boolean;
@@ -19,13 +302,13 @@ interface FeeReceiptModalProps {
 }
 
 const defaultSettings: InstituteSettings = {
-  name: 'IDARAH WALI UL ASER',
+  name: 'EDUFEE TRACK',
   maktabName: 'MAKTAB WALI UL ASER',
   tagline: 'First Step Towards Building Taqwa',
   address: 'Banpora Chattergam 191113, Kashmir',
   phone: '+91 7006123456',
   email: 'idarahwaliulaser@gmail.com',
-  logoUrl: './images/logo.png',
+  logoUrl: 'https://idarahwaliulaser.netlify.app/img/logo.png',
   primaryColor: '#0d9488',
   secondaryColor: '#0f766e',
   website: 'idarahwaliulaser.netlify.app',
@@ -48,73 +331,10 @@ const defaultSettings: InstituteSettings = {
 
 export default function FeeReceiptModal({ open, onClose, receipt, settings: propSettings }: FeeReceiptModalProps) {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const settings = propSettings || defaultSettings;
   
   if (!receipt) return null;
-
-  const handlePrint = () => {
-    const printContent = document.getElementById('receipt-content');
-    if (!printContent) return;
-    
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      // Fallback if popup is blocked
-      window.print();
-      return;
-    }
-
-    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map(style => style.outerHTML)
-      .join('');
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Receipt - ${receiptNo}</title>
-          ${styles}
-          <style>
-            body { margin: 0; padding: 0; background: white; }
-            #receipt-content { 
-              box-shadow: none !important; 
-              margin: 0 !important; 
-              padding: 20px !important;
-              width: 100% !important;
-              max-width: none !important;
-              min-height: auto !important;
-              color: black !important;
-            }
-            .no-print { display: none !important; }
-            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          </style>
-        </head>
-        <body>
-          <div id="receipt-content">
-            ${printContent.innerHTML}
-          </div>
-          <script>
-            setTimeout(() => {
-              window.print();
-              window.close();
-            }, 500);
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
-  const handleDownloadPDF = async () => {
-    const element = document.getElementById('receipt-content');
-    if (!element) return;
-    const canvas = await html2canvas(element, { scale: 3, useCORS: true });
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const imgProps = pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    pdf.save(`Receipt_${receipt.receiptNo || receipt.receiptNumber}.pdf`);
-  };
 
   const receiptNo = receipt.receiptNo || receipt.receiptNumber;
 
@@ -126,266 +346,117 @@ export default function FeeReceiptModal({ open, onClose, receipt, settings: prop
       fullWidth 
       PaperProps={{ 
         sx: { 
-          borderRadius: 2,
-          overflow: 'hidden',
-          '@media print': {
-            boxShadow: 'none',
-            p: 0,
-            m: 0,
-            width: '100%',
-            maxWidth: 'none'
-          }
+          borderRadius: { xs: 0, sm: 2 },
+          m: { xs: 0, sm: 2 },
+          bgcolor: 'background.paper',
+          overflow: 'hidden'
         } 
       }}
     >
       <Box sx={{ 
-        p: 2.5, 
+        p: { xs: 1.5, sm: 2.5 }, 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
         borderBottom: '1px solid', 
         borderColor: 'divider',
         bgcolor: 'background.paper',
-        position: 'relative',
-        '@media print': { display: 'none' }
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{ p: 1, borderRadius: 1, bgcolor: 'primary.main', color: 'primary.contrastText' }}>
-            <FileText size={20} />
+            <FileText size={isMobile ? 16 : 20} />
           </Box>
-          <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5 }}>Official Raseed - {receiptNo}</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+            Official Raseed - {receiptNo}
+          </Typography>
         </Box>
-        <IconButton onClick={onClose} className="close-button">
+        <IconButton onClick={onClose} size={isMobile ? 'small' : 'medium'}>
           <X size={20} />
         </IconButton>
       </Box>
 
-      <DialogContent sx={{ 
-        p: { xs: 2, md: 4 }, 
-        bgcolor: 'background.default',
-        maxHeight: '80vh',
-        overflowY: 'auto',
-        '&::-webkit-scrollbar': { width: '6px' },
-        '&::-webkit-scrollbar-track': { background: 'transparent' },
-        '&::-webkit-scrollbar-thumb': { background: alpha(theme.palette.primary.main, 0.2), borderRadius: 10 },
-        '@media print': { bgcolor: 'white', p: 0, maxHeight: 'none', overflow: 'visible' }
-      }}>
-        <Box 
-          id="receipt-content"
-          sx={{ 
-            bgcolor: 'white !important', 
-            p: { xs: 3, md: 6 }, 
-            borderRadius: 1, 
-            boxShadow: '0 20px 50px rgba(0,0,0,0.1)',
-            position: 'relative',
-            overflow: 'hidden',
-            minHeight: '800px',
-            width: '100%',
-            maxWidth: '800px',
-            mx: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            color: '#000000 !important',
-            // Force dark text for readability on white background in dark mode
-            '& .MuiTypography-root': { color: '#1a1a1a !important' },
-            '& .MuiTableCell-root': { color: '#1a1a1a !important', borderColor: 'rgba(0,0,0,0.1) !important' },
-            '& .MuiDivider-root': { borderColor: 'rgba(0,0,0,0.1) !important' },
-            '& .MuiChip-root': { color: '#1a1a1a !important' },
-            '& .MuiChip-label': { color: 'inherit !important' },
-            '@media print': {
-              boxShadow: 'none !important',
-              borderRadius: 0,
-              p: 4,
-              minHeight: 'auto'
-            }
-          }}
-        >
-          {/* Islamic Pattern Background */}
-          <Box sx={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            opacity: 0.03, 
-            pointerEvents: 'none',
-            backgroundImage: `repeating-conic-gradient(from 45deg, ${theme.palette.primary.main} 0deg 90deg, transparent 90deg 180deg)`,
-            backgroundSize: '40px 40px',
-            zIndex: 0
-          }} />
-          {/* Watermark */}
-          <Typography 
-            variant="h1" 
-            sx={{ 
-              position: 'absolute', 
-              top: '50%', 
-              left: '50%', 
-              transform: 'translate(-50%, -50%) rotate(-45deg)', 
-              opacity: 0.03, 
-              fontWeight: 900,
-              zIndex: 0,
-              whiteSpace: 'nowrap',
-              pointerEvents: 'none',
-              fontSize: '6rem',
-              color: theme.palette.primary.main,
-              textAlign: 'center'
-            }}
-          >
-            {settings.maktabName.toUpperCase()}
-          </Typography>
+      <DialogContent sx={{ p: { xs: 1, sm: 4 }, bgcolor: 'background.default' }}>
+        <Box sx={{ 
+          bgcolor: 'white', 
+          p: { xs: 2, sm: 6 }, 
+          borderRadius: 2, 
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          maxWidth: '800px',
+          mx: 'auto',
+          position: 'relative',
+          overflow: 'hidden',
+          // Force black text for PDF preview on white background
+          '& *': { color: '#000000 !important' },
+          border: '1px solid #e5e7eb'
+        }}>
+          {/* Receipt Corner Decorations for UI Preview */}
+          <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', pointerEvents: 'none', zIndex: 0, opacity: 0.5 }}>
+            {settings.receiptLeftImageUrl && (
+              <Box component="img" src={settings.receiptLeftImageUrl} sx={{ width: { xs: 60, sm: 120 }, height: 'auto', mixBlendMode: 'multiply' }} />
+            )}
+            {settings.receiptRightImageUrl && (
+              <Box component="img" src={settings.receiptRightImageUrl} sx={{ width: { xs: 60, sm: 120 }, height: 'auto', mixBlendMode: 'multiply' }} />
+            )}
+          </Box>
 
-          {/* Header */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 6, position: 'relative', zIndex: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <Box 
-                component="img" 
-                src={settings.logoUrl || 'https://idarahwaliulaser.netlify.app/img/logo.png'} 
-                alt="Logo" 
-                sx={{ width: 90, height: 90, borderRadius: 1, objectFit: 'cover', boxShadow: '0 8px 16px rgba(0,0,0,0.05)', bgcolor: 'white' }} 
-                referrerPolicy="no-referrer" 
-                crossOrigin="anonymous"
-                onError={(e: any) => {
-                  e.target.src = 'https://idarahwaliulaser.netlify.app/img/logo.png';
-                }}
-              />
+          {/* Visual Preview Header */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, borderBottom: '2px solid #0d9488', pb: 2, position: 'relative', zIndex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box component="img" src={settings.logoUrl} sx={{ width: 60, height: 60 }} />
               <Box>
-                <Typography variant="h5" sx={{ fontWeight: 900, color: `${theme.palette.primary.main} !important`, letterSpacing: -1, mb: 0.5 }}>{settings.name}</Typography>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: `${theme.palette.secondary.main} !important`, mb: 1 }}>{settings.maktabName}</Typography>
-                <Typography variant="body2" sx={{ maxWidth: 350, fontWeight: 500, lineHeight: 1.4, color: '#4b5563 !important' }}>{settings.address}</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5, color: '#4b5563 !important' }}>Ph: {settings.phone} • {settings.email}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: '#0d9488 !important' }}>{settings.name}</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700 }}>{settings.maktabName}</Typography>
               </Box>
             </Box>
             <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="h3" sx={{ fontWeight: 900, color: '#e5e7eb !important', mb: 1, letterSpacing: 2 }}>RASEED</Typography>
-              <Box sx={{ bgcolor: '#f9fafb', p: 1.5, borderRadius: 1, border: '1px solid', borderColor: '#e5e7eb' }}>
-                <Typography variant="body2" sx={{ fontWeight: 800, color: `${theme.palette.primary.main} !important` }}>No: {receiptNo}</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', color: '#1a1a1a !important' }}>Date: {format(new Date(receipt.date), 'dd MMM, yyyy')}</Typography>
-              </Box>
+              <Typography variant="h4" sx={{ fontWeight: 900, color: '#e5e7eb !important' }}>RASEED</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#0d9488 !important' }}>No: {receiptNo}</Typography>
             </Box>
           </Box>
 
-          <Divider sx={{ mb: 5, borderStyle: 'dashed', borderWidth: 1 }} />
-
-          {/* Details Grid */}
-          <Grid container spacing={4} sx={{ mb: 6, position: 'relative', zIndex: 1 }}>
+          {/* Body Preview */}
+          <Grid container spacing={4} sx={{ mb: 4 }}>
             <Grid size={6}>
-              <Typography variant="overline" sx={{ fontWeight: 900, color: '#9ca3af !important', letterSpacing: 1.5 }}>Talib-e-Ilm Details</Typography>
-              <Box sx={{ mt: 1.5 }}>
-                <Typography variant="h6" sx={{ fontWeight: 900, mb: 0.5, color: '#1a1a1a !important' }}>{receipt.studentName}</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: '#4b5563 !important' }}>Admission No: {receipt.studentId}</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: '#4b5563 !important' }}>Maktab Level: {receipt.grade || 'N/A'}</Typography>
-              </Box>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important' }}>TALIB-E-ILM</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>{receipt.studentName}</Typography>
+              <Typography variant="body2">ID: {receipt.studentId}</Typography>
             </Grid>
             <Grid size={6} sx={{ textAlign: 'right' }}>
-              <Typography variant="overline" sx={{ fontWeight: 900, color: '#9ca3af !important', letterSpacing: 1.5 }}>Adaigi ki Tafseel</Typography>
-              <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-                <Chip 
-                  label={receipt.status.toUpperCase()} 
-                  color={receipt.status === 'approved' ? 'success' : 'warning'} 
-                  icon={receipt.status === 'approved' ? <CheckCircle size={14} /> : <Clock size={14} />}
-                  sx={{ fontWeight: 900, borderRadius: 1, height: 28, px: 1, color: 'white !important' }}
-                />
-                <Typography variant="body2" sx={{ fontWeight: 700, color: '#1a1a1a !important' }}>Mode: <Box component="span" sx={{ color: `${theme.palette.primary.main} !important` }}>{receipt.paymentMode}</Box></Typography>
-                {receipt.transactionId && (
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#4b5563 !important' }}>Ref: {receipt.transactionId}</Typography>
-                )}
-              </Box>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important' }}>AMOUNT</Typography>
+              <Typography variant="h4" sx={{ fontWeight: 900, color: '#0d9488 !important' }}>₹{receipt.amount.toLocaleString()}</Typography>
+              <Typography variant="body2">{receipt.feeHead}</Typography>
             </Grid>
           </Grid>
-
-          {/* Table */}
-          <TableContainer sx={{ mb: 5, borderRadius: 1, border: '1px solid', borderColor: '#e5e7eb', position: 'relative', zIndex: 1 }}>
-            <Table>
-              <TableHead>
-                <TableRow sx={{ bgcolor: '#f9fafb' }}>
-                  <TableCell sx={{ fontWeight: 900, py: 2, color: '#1a1a1a !important' }}>Tafseel (Description)</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 900, color: '#1a1a1a !important' }}>Raqam (Amount)</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                <TableRow>
-                  <TableCell sx={{ py: 3 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 0.5, color: '#1a1a1a !important' }}>{receipt.feeHead}</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#4b5563 !important' }}>{receipt.remarks || 'Standard fee payment for the current academic session.'}</Typography>
-                  </TableCell>
-                  <TableCell align="right" sx={{ py: 3 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900, color: '#1a1a1a !important' }}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
-                  </TableCell>
-                </TableRow>
-                <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.03) }}>
-                  <TableCell align="right" sx={{ py: 3 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#1a1a1a !important' }}>Kul Ada-shuda Raqam</Typography>
-                  </TableCell>
-                  <TableCell align="right" sx={{ py: 3 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 900, color: `${theme.palette.primary.main} !important` }}>
-                      ₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          {/* Amount in Words */}
-          <Box sx={{ mb: 6, p: 2.5, bgcolor: '#f9fafb', borderRadius: 1, border: '1px solid', borderColor: '#e5e7eb', position: 'relative', zIndex: 1 }}>
-            <Typography variant="overline" sx={{ fontWeight: 900, color: '#9ca3af !important', letterSpacing: 1 }}>Lafzon mein Raqam (Amount in Words)</Typography>
-            <Typography variant="body1" sx={{ fontWeight: 800, textTransform: 'capitalize', color: '#1a1a1a !important', mt: 0.5 }}>
-              {toWords(receipt.amount)} Rupees Only
-            </Typography>
+          
+          <Box sx={{ bgcolor: '#f9fafb', p: 2, borderRadius: 1, mb: 4 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important' }}>IN WORDS</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>{toWords(receipt.amount)} Rupees Only</Typography>
           </Box>
-
-          {/* Footer */}
-          <Box sx={{ mt: 'auto', pt: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', position: 'relative', zIndex: 1 }}>
-            <Box sx={{ textAlign: 'center' }}>
-              <Box sx={{ width: 180, height: 60, borderBottom: '1px solid', borderColor: '#e5e7eb', mb: 1.5 }} />
-              <Typography variant="caption" sx={{ fontWeight: 800, color: '#4b5563 !important' }}>Talib-e-Ilm ke Dastakhat</Typography>
-            </Box>
-            
-            <Box sx={{ textAlign: 'center' }}>
-              {receipt.status === 'approved' ? (
-                <Box sx={{ mb: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <ShieldCheck size={40} color={theme.palette.success.main} style={{ opacity: 0.5, marginBottom: 8 }} />
-                  <Typography variant="caption" sx={{ fontWeight: 900, color: `${theme.palette.success.main} !important`, display: 'block' }}>
-                    DIGITALLY VERIFIED
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#4b5563 !important' }}>
-                    By {receipt.approvedByName}
-                  </Typography>
-                </Box>
-              ) : (
-                <Box sx={{ height: 60, mb: 2 }} />
-              )}
-              <Box sx={{ width: 180, height: 1, bgcolor: '#e5e7eb', mb: 1.5 }} />
-              <Typography variant="caption" sx={{ fontWeight: 800, color: '#4b5563 !important' }}>Tasdiq-shuda Dastakhat</Typography>
-            </Box>
-          </Box>
-
-          <Box sx={{ mt: 8, textAlign: 'center', borderTop: '1px solid', borderColor: '#e5e7eb', pt: 3 }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: '#9ca3af !important' }}>
-              This is a computer-generated document. No physical signature is required for digitally verified receipts.
-              <br />© {new Date().getFullYear()} {settings.name}. All Rights Reserved.
-            </Typography>
-          </Box>
+          
+          <Typography variant="caption" sx={{ color: '#9ca3af !important', display: 'block', textAlign: 'center', mt: 4 }}>
+            Please download the official PDF for a complete, verified document.
+          </Typography>
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ p: 3, gap: 2, bgcolor: 'grey.50', borderTop: '1px solid', borderColor: 'divider', '@media print': { display: 'none' } }}>
-        <Button 
-          startIcon={<Printer size={18} />} 
-          onClick={handlePrint} 
-          variant="outlined"
-          sx={{ borderRadius: 1, fontWeight: 800, px: 3 }}
+      <DialogActions sx={{ p: 3, gap: 2, bgcolor: 'background.paper' }}>
+        <Button onClick={onClose} sx={{ fontWeight: 800 }}>Band Karein</Button>
+        <PDFDownloadLink 
+          document={<ReceiptPDF receipt={receipt} settings={settings} />} 
+          fileName={`Receipt_${receiptNo}.pdf`}
+          style={{ textDecoration: 'none' }}
         >
-          Raseed Print Karein
-        </Button>
-        <Button 
-          startIcon={<Download size={18} />} 
-          onClick={handleDownloadPDF} 
-          variant="contained"
-          sx={{ borderRadius: 1, fontWeight: 800, px: 3, boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}` }}
-        >
-          PDF Download Karein
-        </Button>
+          {({ loading: pdfLoading }) => (
+            <Button 
+              variant="contained" 
+              disabled={pdfLoading}
+              startIcon={<Download size={18} />}
+              sx={{ borderRadius: 2, fontWeight: 800, px: 4 }}
+            >
+              {pdfLoading ? 'PDF Bana rahe hain...' : 'PDF Download Karein'}
+            </Button>
+          )}
+        </PDFDownloadLink>
       </DialogActions>
     </Dialog>
   );

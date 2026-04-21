@@ -1,6 +1,6 @@
 {
-  "name": "Idarah Wali Ul Aser",
-  "description": "Official management portal for Idarah Wali Ul Aser and Maktab Wali Ul Aser, Chattergam Kashmir. Managing Tulab records, fees, attendance, and academic schedules.",
+  "name": "EduFee Track",
+  "description": "Student Fee Management System. Managing Tulab records, fees, attendance, and academic schedules with professional reports and PWA support.",
   "requestFramePermissions": [
     "camera",
     "microphone",

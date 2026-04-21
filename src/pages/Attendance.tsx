@@ -13,7 +13,7 @@ import {
   Clock, Info, MoreVertical, FileText, TrendingUp
 } from 'lucide-react';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, getDocs, where, setDoc, orderBy } from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError } from '../firebase';
+import { db, OperationType, handleFirestoreError, smartSetDoc } from '../firebase';
 import { UserProfile, Attendance } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subDays, addDays } from 'date-fns';
@@ -31,15 +31,30 @@ export default function AttendancePage() {
   const [classes, setClasses] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
+  const isTeacher = isSuperAdmin || isApprovedMudaris;
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch all students
-        const studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+        // Fetch students based on role
+        let studentsQuery;
+        if (isSuperAdmin) {
+          studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+        } else if (isApprovedMudaris) {
+          studentsQuery = query(
+            collection(db, 'users'), 
+            where('role', '==', 'student'), 
+            where('grade', 'in', currentUser?.assignedClasses || ['none'])
+          );
+        } else {
+          setLoading(false);
+          return;
+        }
+
         const studentsSnap = await getDocs(studentsQuery);
-        const studentsList = studentsSnap.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[];
+        const studentsList = studentsSnap.docs.map(doc => ({ uid: doc.id, ...(doc.data() as object) })) as UserProfile[];
         setStudents(studentsList);
 
         // Extract unique classes
@@ -49,7 +64,19 @@ export default function AttendancePage() {
 
         // Fetch attendance for selected date
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
-        const attendanceQuery = query(collection(db, 'attendance'), where('date', '==', dateStr));
+        let attendanceQuery;
+        
+        if (isSuperAdmin) {
+          attendanceQuery = query(collection(db, 'attendance'), where('date', '==', dateStr));
+        } else {
+          // Mudaris can only fetch attendance for their assigned classes
+          attendanceQuery = query(
+            collection(db, 'attendance'), 
+            where('date', '==', dateStr),
+            where('grade', 'in', currentUser?.assignedClasses || ['none'])
+          );
+        }
+
         const unsubscribe = onSnapshot(attendanceQuery, (snapshot) => {
           setAttendanceData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Attendance[]);
           setLoading(false);
@@ -77,7 +104,7 @@ export default function AttendancePage() {
     const student = students.find(s => s.uid === studentId);
     
     try {
-      await setDoc(doc(db, 'attendance', attendanceId), {
+      await smartSetDoc(doc(db, 'attendance', attendanceId), {
         studentId,
         studentName: student?.displayName || '',
         date: dateStr,
@@ -100,7 +127,7 @@ export default function AttendancePage() {
     try {
       const promises = filteredStudents.map(student => {
         const attendanceId = `${dateStr}_${student.uid}`;
-        return setDoc(doc(db, 'attendance', attendanceId), {
+        return smartSetDoc(doc(db, 'attendance', attendanceId), {
           studentId: student.uid,
           studentName: student.displayName,
           date: dateStr,
@@ -178,9 +205,9 @@ export default function AttendancePage() {
           />
         </motion.div>
       </Box>
-
+ 
       <Card sx={{ 
-        borderRadius: 6, 
+        borderRadius: 2, 
         overflow: 'hidden', 
         mb: 4,
         border: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
@@ -235,7 +262,7 @@ export default function AttendancePage() {
                     label="Select Maktab Level"
                     onChange={(e) => setSelectedClass(e.target.value)}
                     sx={{ 
-                      borderRadius: 3, 
+                      borderRadius: 2, 
                       bgcolor: alpha(theme.palette.background.default, 0.5), 
                       fontWeight: 800,
                       '& .MuiOutlinedInput-notchedOutline': { border: `1px solid ${alpha(theme.palette.divider, 0.1)}` },
@@ -254,7 +281,7 @@ export default function AttendancePage() {
                       display: 'flex', 
                       alignItems: 'center', 
                       px: 2.5, 
-                      borderRadius: 4, 
+                      borderRadius: 2, 
                       border: 'none',
                       bgcolor: 'background.default',
                       boxShadow: theme.palette.mode === 'dark'
@@ -505,12 +532,12 @@ export default function AttendancePage() {
                     <Typography variant="h4" sx={{ fontWeight: 900 }}>2</Typography>
                   </Box>
                 </Stack>
-                <Button 
-                  fullWidth 
-                  variant="contained" 
-                  sx={{ mt: 4, bgcolor: 'white', color: 'primary.main', fontWeight: 800, '&:hover': { bgcolor: 'grey.100' } }}
-                  startIcon={<FileText size={18} />}
-                >
+                  <Button 
+                    fullWidth 
+                    variant="contained" 
+                    sx={{ mt: 4, bgcolor: theme.palette.mode === 'dark' ? 'primary.main' : 'white', color: theme.palette.mode === 'dark' ? 'white' : 'primary.main', fontWeight: 800, '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'primary.dark' : 'grey.100' } }}
+                    startIcon={<FileText size={18} />}
+                  >
                   Download Summary
                 </Button>
               </Card>
@@ -544,7 +571,7 @@ const SummaryCard = React.memo(({ title, value, icon, color, progress }: any) =>
   
   return (
     <Card sx={{ 
-      borderRadius: 6, 
+      borderRadius: 2, 
       height: '100%', 
       transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
       border: `1px solid ${alpha(theme.palette.divider, 0.05)}`,

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, onSnapshot, doc, getDoc, setDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, OperationType, handleFirestoreError } from '../firebase';
+import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, onSnapshot, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, OperationType, handleFirestoreError } from '../firebase';
+import { collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { UserProfile, UserRole } from '../types';
+import { logger } from '../lib/logger';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -12,8 +14,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-import { logger } from '../lib/logger';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -31,28 +31,94 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Use onSnapshot for real-time profile updates (important for settings)
           unsubscribeDoc = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
             if (docSnap.exists()) {
-              const profile = docSnap.data() as UserProfile;
+              const profile = { ...docSnap.data(), uid: docSnap.id } as UserProfile;
+              // Ensure role is consistent with admin bootstrap
+              const isAdminEmail = firebaseUser.email === 'zeeshanmaqbool200@gmail.com';
+              if (isAdminEmail && profile.role !== 'superadmin') {
+                profile.role = 'superadmin';
+                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'superadmin' });
+              }
               // Ensure role exists, default to student if missing
               if (!profile.role) {
                 profile.role = 'student';
               }
+              // Auto-approve mudaris if they were already teachers
+              if ((profile.role as string) === 'teacher') {
+                profile.role = 'approved_mudaris';
+                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'approved_mudaris' });
+              }
+              if ((profile.role as string) === 'admin' && !isAdminEmail) {
+                profile.role = 'pending_mudaris';
+                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'pending_mudaris' });
+              }
               setUser(profile);
+              setLoading(false);
               logger.success(`Profile Updated: ${profile.displayName} (${profile.role})`);
             } else {
-              // Default role for new users is student
-              const newUser: UserProfile = {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email || '',
-                displayName: firebaseUser.displayName || 'User',
-                role: 'student',
-                createdAt: Date.now(),
-                photoURL: firebaseUser.photoURL || undefined,
+              // Try to find if user was pre-registered by admin using email
+              const findExistingByEmail = async () => {
+                try {
+                  const q = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
+                  const querySnapshot = await getDocs(q);
+                  
+                  if (!querySnapshot.empty) {
+                    const existingDoc = querySnapshot.docs[0];
+                    const existingData = existingDoc.data() as UserProfile;
+                    
+                    // Create the UID-based doc with the existing data
+                    const newUser: UserProfile = {
+                      ...existingData,
+                      uid: firebaseUser.uid, // Ensure UID is set
+                      photoURL: firebaseUser.photoURL || existingData.photoURL || `https://ui-avatars.com/api/?name=${existingData.displayName}&background=random`
+                    };
+                    
+                    // Force superadmin role if it's the specific email
+                    if (firebaseUser.email === 'zeeshanmaqbool200@gmail.com') {
+                      newUser.role = 'superadmin';
+                    }
+                    
+                    await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+                    
+                    // Delete the old doc (id-less or with different ID)
+                    if (existingDoc.id !== firebaseUser.uid) {
+                      await deleteDoc(existingDoc.ref);
+                      logger.info(`Merged pre-registered account: ${firebaseUser.email}`);
+                    }
+                    
+                    setUser(newUser);
+                    setLoading(false);
+                    return true;
+                  }
+                  return false;
+                } catch (err) {
+                  logger.error('findExistingByEmail error', err);
+                  return false;
+                }
               };
-              setDoc(doc(db, 'users', firebaseUser.uid), newUser);
-              setUser(newUser);
-              logger.success('New User Profile Created', newUser);
+
+              findExistingByEmail().then((found) => {
+                if (!found) {
+                  // Bootstrap new user
+                  const isAdminEmail = firebaseUser.email === 'zeeshanmaqbool200@gmail.com';
+                  const newUser: UserProfile = {
+                    uid: firebaseUser.uid,
+                    email: firebaseUser.email || '',
+                    displayName: firebaseUser.displayName || 'User',
+                    role: isAdminEmail ? 'superadmin' : (firebaseUser.displayName?.toLowerCase().includes('teacher') ? 'pending_mudaris' : 'student'),
+                    createdAt: Date.now(),
+                    photoURL: firebaseUser.photoURL || undefined,
+                  };
+                  setDoc(doc(db, 'users', firebaseUser.uid), newUser).then(() => {
+                    setUser(newUser);
+                    setLoading(false);
+                    logger.success('New User Profile Created', newUser);
+                  });
+                }
+              }).catch(err => {
+                logger.error('Failed to merge pre-registered account', err);
+                setLoading(false);
+              });
             }
-            setLoading(false);
           }, (error) => {
             handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
             setLoading(false);
@@ -106,14 +172,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
       
-      // Bootstrap the user's email as an admin
-      const finalRole = firebaseUser.email === 'zeeshanmaqbool200@gmail.com' ? 'admin' : role;
+      // Bootstrap the user's email as a superadmin
+      const finalRole = firebaseUser.email === 'zeeshanmaqbool200@gmail.com' ? 'superadmin' : (role === ('teacher' as any) ? 'pending_mudaris' : role);
       
       const newUser: UserProfile = {
         uid: firebaseUser.uid,
         email: firebaseUser.email || '',
         displayName: name,
-        role: finalRole,
+        role: finalRole as UserRole,
         createdAt: Date.now(),
       };
       

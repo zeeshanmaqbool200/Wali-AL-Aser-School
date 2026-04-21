@@ -4,32 +4,88 @@
  */
 
 import { addDoc, collection, Firestore } from 'firebase/firestore';
+import { UAParser } from 'ua-parser-js';
 
 const BRAND_COLOR = '#0d9488'; // Primary Teal
-const SECONDARY_COLOR = '#0f766e';
-const ERROR_COLOR = '#ef4444';
-const WARN_COLOR = '#f59e0b';
-const INFO_COLOR = '#3b82f6';
+const APP_VERSION = '2.1.0-gold';
+
+const getIslamicDate = () => {
+  try {
+    return new Intl.DateTimeFormat('en-u-ca-islamic-uma-nu-latn', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    }).format(new Date());
+  } catch (e) {
+    return new Date().toLocaleDateString();
+  }
+};
 
 const getTimestamp = () => new Date().toLocaleTimeString();
 
+const INFO_COLOR = '#3b82f6';
+const WARN_COLOR = '#f59e0b';
+
 let firestoreDb: Firestore | null = null;
+const parser = new UAParser();
 
 export const initLoggerDb = (db: Firestore) => {
   firestoreDb = db;
+  // Print initial beautiful header only once
+  console.log(
+    `%c EduFee Track V${APP_VERSION} %c ${getIslamicDate()} %c ${new Date().toLocaleDateString()} `,
+    `background: ${BRAND_COLOR}; color: white; border-radius: 4px; padding: 4px 8px; font-weight: 900; font-size: 1.1rem;`,
+    'background: #111827; color: #fbbf24; border-radius: 4px; padding: 4px 8px; font-weight: 700;',
+    'color: #6b7280; font-size: 0.9rem; font-weight: 500;'
+  );
 };
 
 const saveLogToDb = async (level: string, message: string, data?: any) => {
   if (!firestoreDb) return;
   try {
-    // Avoid logging the log itself
-    await addDoc(collection(firestoreDb, 'system_logs'), {
+    // Detailed User Agent Info
+    const result = parser.getResult();
+    
+    // IP address
+    let ip = 'Unknown';
+    let location = 'Unknown';
+    try {
+      // Use a faster IP service that also gives some geo info if possible
+      const response = await fetch('https://ipapi.co/json/');
+      const json = await response.json();
+      ip = json.ip;
+      location = `${json.city}, ${json.region}, ${json.country_name}`;
+    } catch (e) {
+      // Fallback
+      try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const json = await response.json();
+        ip = json.ip;
+      } catch (e) {}
+    }
+
+    const logData = {
       level,
       message,
       data: data ? JSON.parse(JSON.stringify(data)) : null,
       timestamp: Date.now(),
-      userAgent: navigator.userAgent
-    });
+      islamicDate: getIslamicDate(),
+      userAgent: navigator.userAgent,
+      ip,
+      location,
+      browser: result.browser,
+      os: result.os,
+      device: result.device,
+      engine: result.engine,
+      cpu: result.cpu
+    };
+
+    // If it's a security or access related event, Error, or Auth - use access_logs
+    if (level === 'error' || level === 'auth' || message.toLowerCase().includes('access') || message.toLowerCase().includes('login') || message.toLowerCase().includes('permission')) {
+      await addDoc(collection(firestoreDb, 'access_logs'), logData);
+    } else {
+      await addDoc(collection(firestoreDb, 'system_logs'), logData);
+    }
   } catch (e) {
     // Fail silently to avoid infinite loops
   }
@@ -78,14 +134,20 @@ export const logger = {
   },
 
   error: (message: string, data?: any) => {
-    // Always log errors to console but maybe sanitize data in prod
+    // Always log errors to console but sanitize data in prod
+    const ERROR_COLOR = '#ef4444';
     console.error(
       `%c 🚨 ERROR %c [${getTimestamp()}] %c ${message}`,
       `background: ${ERROR_COLOR}; color: white; border-radius: 4px; padding: 2px 6px; font-weight: bold;`,
       'color: #6b7280; font-size: 0.8rem;',
-      'color: #991b1b; font-weight: 600;',
-      isDev ? (data || '') : 'Sensitive data hidden in production'
+      'color: #991b1b; font-weight: 600;'
     );
+    
+    const isDev = process.env.NODE_ENV === 'development';
+    if (isDev) {
+      console.log('%c Debug Info:', 'color: #9ca3af; font-weight: bold;', data || '');
+    }
+    
     saveLogToDb('error', message, data);
   },
 

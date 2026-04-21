@@ -1,213 +1,121 @@
 {
   "entities": {
-    "User": {
-      "title": "User Profile",
-      "description": "Stores user profile information and roles.",
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile data including roles and permissions",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["superadmin", "approved_mudaris", "pending_mudaris", "student"] },
         "displayName": { "type": "string" },
-        "role": { "type": "string", "enum": ["student", "teacher", "admin", "super-admin"] },
-        "photoURL": { "type": "string", "format": "uri" },
-        "createdAt": { "type": "number" },
-        "phone": { "type": "string" },
-        "whatsapp": { "type": "string" },
-        "address": { "type": "string" },
-        "studentId": { "type": "string" },
-        "grade": { "type": "string" },
-        "fatherName": { "type": "string" },
-        "enrolledCourses": { "type": "array", "items": { "type": "string" } },
-        "teacherId": { "type": "string" },
-        "subject": { "type": "string" },
-        "expertise": { "type": "array", "items": { "type": "string" } },
         "assignedClasses": { "type": "array", "items": { "type": "string" } },
-        "hardwareStatus": {
-          "type": "object",
-          "properties": {
-            "notifications": { "type": "string", "enum": ["granted", "denied", "prompt", "not-supported"] },
-            "camera": { "type": "string", "enum": ["granted", "denied", "prompt", "not-supported"] },
-            "microphone": { "type": "string", "enum": ["granted", "denied", "prompt", "not-supported"] },
-            "lastUpdated": { "type": "string", "format": "date-time" }
-          }
-        }
-      },
-      "required": ["uid", "email", "displayName", "role", "createdAt"]
-    },
-    "Attendance": {
-      "title": "Attendance Record",
-      "description": "Stores attendance records for students.",
-      "type": "object",
-      "properties": {
-        "studentId": { "type": "string" },
-        "studentName": { "type": "string" },
-        "date": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["present", "absent", "late"] },
-        "markedBy": { "type": "string" },
-        "markedAt": { "type": "number" },
-        "grade": { "type": "string" }
-      },
-      "required": ["studentId", "studentName", "date", "status", "markedBy", "markedAt"]
-    },
-    "Schedule": {
-      "title": "Class Schedule",
-      "description": "Defines class timings and rooms.",
-      "type": "object",
-      "properties": {
-        "subject": { "type": "string" },
-        "teacherId": { "type": "string" },
-        "teacherName": { "type": "string" },
-        "startTime": { "type": "string" },
-        "endTime": { "type": "string" },
-        "dayOfWeek": { "type": "number" },
-        "room": { "type": "string" }
-      },
-      "required": ["subject", "teacherId", "teacherName", "startTime", "endTime", "dayOfWeek", "room"]
-    },
-    "Note": {
-      "title": "Study Note",
-      "description": "Stores metadata for uploaded study notes.",
-      "type": "object",
-      "properties": {
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "fileUrl": { "type": "string", "format": "uri" },
-        "uploadedBy": { "type": "string" },
-        "uploadedAt": { "type": "number" },
-        "subject": { "type": "string" },
+        "maktabLevel": { "type": "string" },
         "grade": { "type": "string" },
-        "authorName": { "type": "string" }
+        "phone": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
       },
-      "required": ["title", "uploadedBy", "uploadedAt", "subject", "grade"]
+      "required": ["uid", "email", "role"]
     },
     "FeeReceipt": {
-      "title": "Fee Receipt",
-      "description": "Stores fee payment records and approval status.",
+      "title": "FeeReceipt",
+      "description": "Student fee payment receipts",
       "type": "object",
       "properties": {
         "studentId": { "type": "string" },
         "studentName": { "type": "string" },
         "amount": { "type": "number" },
-        "date": { "type": "string", "format": "date" },
+        "date": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
-        "teacherId": { "type": "string" },
-        "approvedBy": { "type": "string" },
-        "approvedAt": { "type": "number" },
-        "remarks": { "type": "string" },
-        "receiptNumber": { "type": "string" },
         "feeHead": { "type": "string" },
         "paymentMode": { "type": "string" },
-        "transactionId": { "type": "string" }
+        "grade": { "type": "string" },
+        "receiptNo": { "type": "string" },
+        "month": { "type": "string" },
+        "year": { "type": "number" },
+        "uploadedAt": { "type": "number" }
       },
-      "required": ["studentId", "studentName", "amount", "date", "status", "teacherId"]
+      "required": ["studentId", "amount", "status"]
     },
-    "Course": {
-      "title": "Course Information",
-      "description": "Stores course details and curriculum.",
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily student attendance logs",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "code": { "type": "string" },
-        "description": { "type": "string" },
-        "credits": { "type": "number" },
-        "duration": { "type": "string" },
-        "teacherId": { "type": "string" },
-        "teacherName": { "type": "string" },
-        "createdAt": { "type": "number" },
-        "updatedAt": { "type": "number" }
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "grade": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["present", "absent", "late", "excused"] },
+        "markedBy": { "type": "string" },
+        "timestamp": { "type": "number" }
       },
-      "required": ["name", "code", "teacherId", "teacherName", "createdAt"]
+      "required": ["studentId", "status", "date"]
     },
-    "Notification": {
-      "title": "Notification",
-      "description": "Stores in-app notifications.",
+    "LogEntry": {
+      "title": "LogEntry",
+      "description": "Security and system logs",
       "type": "object",
       "properties": {
-        "title": { "type": "string" },
+        "level": { "type": "string" },
         "message": { "type": "string" },
-        "type": { "type": "string", "enum": ["fee_request", "class_timing", "announcement", "general"] },
-        "targetType": { "type": "string", "enum": ["individual", "class", "all"] },
-        "targetId": { "type": "string" },
-        "senderId": { "type": "string" },
-        "senderName": { "type": "string" },
-        "createdAt": { "type": "number" },
-        "readBy": { "type": "array", "items": { "type": "string" } }
-      },
-      "required": ["title", "message", "type", "targetType", "senderId", "createdAt"]
-    },
-    "SystemLog": {
-      "title": "System Log",
-      "description": "Stores application logs for administrative review.",
-      "type": "object",
-      "properties": {
-        "level": { "type": "string", "enum": ["info", "success", "warn", "error", "db", "auth"] },
-        "message": { "type": "string" },
-        "data": { "type": "object" },
-        "timestamp": { "type": "number" },
-        "userAgent": { "type": "string" }
-      },
-      "required": ["level", "message", "timestamp"]
+        "ip": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
     },
     "InstituteSettings": {
-      "title": "Institute Settings",
-      "description": "Stores branding and configuration for the institute.",
+      "title": "InstituteSettings",
+      "description": "Global settings for the institute",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "name": { "type": "string" },
         "maktabName": { "type": "string" },
         "tagline": { "type": "string" },
         "address": { "type": "string" },
-        "phone": { "type": "string" },
-        "email": { "type": "string" },
         "logoUrl": { "type": "string" },
+        "bannerUrl": { "type": "string" },
+        "receiptLeftImageUrl": { "type": "string" },
+        "receiptRightImageUrl": { "type": "string" },
         "primaryColor": { "type": "string" },
-        "secondaryColor": { "type": "string" },
-        "website": { "type": "string" },
-        "receiptPrefix": { "type": "string" },
-        "mission": { "type": "string" },
-        "founded": { "type": "string" },
-        "greeting": { "type": "string" }
-      },
-      "required": ["id", "name", "maktabName"]
+        "secondaryColor": { "type": "string" }
+      }
     }
   },
   "firestore": {
+    "/settings/{settingId}": {
+      "schema": "InstituteSettings",
+      "description": "Institute settings"
+    },
     "/users/{userId}": {
-      "schema": "User",
-      "description": "User profiles and roles."
-    },
-    "/attendance/{attendanceId}": {
-      "schema": "Attendance",
-      "description": "Attendance records."
-    },
-    "/schedules/{scheduleId}": {
-      "schema": "Schedule",
-      "description": "Class schedules."
-    },
-    "/notes/{noteId}": {
-      "schema": "Note",
-      "description": "Study notes."
+      "schema": "UserProfile",
+      "description": "User profiles"
     },
     "/receipts/{receiptId}": {
       "schema": "FeeReceipt",
-      "description": "Fee payment records."
+      "description": "Fee payments"
     },
-    "/courses/{courseId}": {
-      "schema": "Course",
-      "description": "Course information."
+    "/attendance/{recordId}": {
+      "schema": "AttendanceRecord",
+      "description": "Attendance logs"
     },
-    "/notifications/{notifId}": {
-      "schema": "Notification",
-      "description": "In-app notifications."
+    "/exams/{examId}": {
+      "schema": { "$ref": "#/entities/Exam" },
+      "description": "Exam schedules"
     },
-    "/settings/{settingId}": {
-      "schema": "InstituteSettings",
-      "description": "Institute branding and configuration."
+    "/schedules/{scheduleId}": {
+      "schema": { "$ref": "#/entities/Schedule" },
+      "description": "Class schedules"
+    },
+    "/access_logs/{logId}": {
+      "schema": "LogEntry",
+      "description": "Security access logs"
     },
     "/system_logs/{logId}": {
-      "schema": "SystemLog",
-      "description": "Application logs for administrative review."
+      "schema": "LogEntry",
+      "description": "General system logs"
     }
   }
 }

@@ -17,23 +17,25 @@ export default defineConfig(({mode}) => {
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
         },
         manifest: {
-          name: 'Idarah Wali Ul Aser',
-          short_name: 'Wali Ul Aser',
-          description: 'Official Institute Management App for Idarah Wali Ul Aser',
-          theme_color: '#0f766e',
+          name: 'EduFee Track',
+          short_name: 'EduFee',
+          description: 'Expert Student Fee Management System with PWA support',
+          theme_color: '#0d9488',
+          background_color: '#ffffff',
+          display: 'standalone',
           icons: [
             {
-              src: 'logo.png',
+              src: 'pwa-192x192.png',
               sizes: '192x192',
               type: 'image/png'
             },
             {
-              src: 'logo.png',
+              src: 'pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png'
             },
             {
-              src: 'logo.png',
+              src: 'pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any maskable'

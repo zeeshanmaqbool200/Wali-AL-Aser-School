@@ -45,7 +45,7 @@ export default function Notifications() {
     targetId: ''
   });
 
-  const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
+  const isTeacher = currentUser?.role === 'approved_mudaris' || currentUser?.role === 'superadmin';
 
   useEffect(() => {
     if (!currentUser) return;

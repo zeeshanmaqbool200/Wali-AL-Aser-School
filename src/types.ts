@@ -1,4 +1,4 @@
-export type UserRole = 'student' | 'teacher' | 'admin' | 'super-admin';
+export type UserRole = 'student' | 'superadmin' | 'approved_mudaris' | 'pending_mudaris';
 export type MaktabLevel = 'Awal' | 'Doum' | 'Soam' | 'Chaharum' | 'panjum' | 'shahsum' | 'haftum' | 'hashtum' | 'dahum' | 'Hafiz' | 'muntazim [m]' | 'muntazimah [f]';
 
 export interface UserProfile {
@@ -176,6 +176,9 @@ export interface InstituteSettings {
   };
   logo?: string;
   logoUrl?: string;
+  bannerUrl?: string;
+  receiptLeftImageUrl?: string;
+  receiptRightImageUrl?: string;
   receiptPrefix: string;
   primaryColor: string;
   secondaryColor: string;

@@ -14,7 +14,7 @@ import {
   MoreVertical, ArrowRight, Sparkles, CheckCircle,
   Folder, Layers, Layout, Save
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, or } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
@@ -56,27 +56,49 @@ export default function Notes() {
     'haftum', 'hashtum', 'dahum', 'Hafiz'
   ];
 
-  const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
+  const isTeacher = isSuperAdmin || isApprovedMudaris;
 
   useEffect(() => {
-    const q = query(collection(db, 'notes'), orderBy('uploadedAt', 'desc'));
+    if (!currentUser) return;
+
+    let q;
+    if (isSuperAdmin) {
+      q = query(collection(db, 'notes'), orderBy('uploadedAt', 'desc'));
+    } else if (isApprovedMudaris) {
+      // Mudaris see 'All' or their assigned classes
+      q = query(
+        collection(db, 'notes'), 
+        or(
+          where('grade', '==', 'All'),
+          where('grade', 'in', currentUser.assignedClasses || ['none']),
+          where('uploadedBy', '==', currentUser.uid)
+        ),
+        orderBy('uploadedAt', 'desc')
+      );
+    } else {
+      // Students see 'All' or their specific grade
+      q = query(
+        collection(db, 'notes'), 
+        or(
+          where('grade', '==', 'All'),
+          where('grade', '==', currentUser?.grade || 'none'),
+          where('grade', '==', currentUser?.maktabLevel || 'none')
+        ),
+        orderBy('uploadedAt', 'desc')
+      );
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const allNotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as StudyNote[];
-      
-      // Filter notes based on student level if applicable
-      const filtered = allNotes.filter(note => {
-        if (isTeacher) return true;
-        if (!note.grade || note.grade === 'All') return true;
-        return note.grade === currentUser?.grade || note.grade === currentUser?.maktabLevel;
-      });
-      
-      setNotes(filtered);
+      setNotes(allNotes); // We already filtered via query, so client-side filter is now redundant but safe
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'notes');
     });
     return () => unsubscribe();
-  }, [currentUser, isTeacher]);
+  }, [currentUser, isSuperAdmin, isApprovedMudaris, isTeacher]);
 
   const handleUpload = async () => {
     if (!currentUser) return;

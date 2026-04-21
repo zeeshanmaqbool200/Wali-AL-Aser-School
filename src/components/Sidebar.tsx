@@ -25,20 +25,20 @@ interface SidebarProps {
   logoUrl?: string;
 }
 
-export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifications = 0, instituteName = 'MAKTAB WALI UL ASER', logoUrl = '../images/logo.png' }: SidebarProps) {
+export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifications = 0, instituteName = 'MAKTAB WALI UL ASER', logoUrl = 'https://idarahwaliulaser.netlify.app/img/logo.png' }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
 
   const menuItems = [
-    { label: 'Dashboard', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'teacher', 'admin', 'super-admin'] },
-    { label: 'Tulab-e-Ilm', icon: <Users size={22} />, path: '/users', roles: ['admin', 'super-admin', 'teacher'] },
-    { label: role === 'student' ? 'My Payments' : 'Fees & Adaigi', icon: <DollarSign size={22} />, path: '/fees', roles: ['student', 'teacher', 'admin', 'super-admin'] },
-    { label: 'Haziri (Attendance)', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['teacher', 'admin', 'super-admin'] },
-    { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['teacher', 'admin', 'super-admin'] },
-    { label: 'Ittila\'at', icon: <Badge badgeContent={unreadNotifications} color="error"><Bell size={22} /></Badge>, path: '/notifications', roles: ['student', 'teacher', 'admin', 'super-admin'] },
-    { label: 'System Logs', icon: <Terminal size={22} />, path: '/admin/logs', roles: ['admin', 'super-admin'] },
-    { label: 'Settings', icon: <Settings size={22} />, path: '/settings', roles: ['student', 'teacher', 'admin', 'super-admin'] },
+    { label: 'Dashboard', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
+    { label: 'Tulab-e-Ilm', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'approved_mudaris'] },
+    { label: role === 'student' ? 'My Payments' : 'Fees & Adaigi', icon: <DollarSign size={22} />, path: '/fees', roles: ['student', 'approved_mudaris', 'superadmin'] },
+    { label: 'Haziri (Attendance)', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['approved_mudaris', 'superadmin'] },
+    { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['approved_mudaris', 'superadmin'] },
+    { label: 'Ittila\'at', icon: <Badge badgeContent={unreadNotifications} color="error"><Bell size={22} /></Badge>, path: '/notifications', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
+    { label: 'System Logs', icon: <Terminal size={22} />, path: '/admin/logs', roles: ['superadmin'] },
+    { label: 'Settings', icon: <Settings size={22} />, path: '/settings', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(role));

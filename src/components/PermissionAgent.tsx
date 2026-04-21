@@ -200,7 +200,7 @@ export default function PermissionAgent() {
               />
             </Stack>
 
-            <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ mt: 3, p: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50', borderRadius: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Smartphone size={18} color={theme.palette.text.secondary} />
               <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
                 Your preferences are securely synced to your account.

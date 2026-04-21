@@ -66,20 +66,31 @@ function ProtectedRoute({ children, user, allowedRoles }: ProtectedRouteProps) {
 
 import NotificationBanner from './components/NotificationBanner';
 import PermissionAgent from './components/PermissionAgent';
+import SyncNotifier from './components/SyncNotifier';
 
 function AppContent() {
   const { user, loading, error, manualLogin, manualSignUp, logout } = useAuth();
   const location = useLocation();
   const [showClassSelection, setShowClassSelection] = React.useState(false);
   const [hidePendingBanner, setHidePendingBanner] = React.useState(false);
+  const [selectionMade, setSelectionMade] = React.useState(false);
 
   React.useEffect(() => {
-    if (user && user.role === 'student' && !user.maktabLevel && !user.pendingMaktabLevel) {
-      setShowClassSelection(true);
-    } else {
-      setShowClassSelection(false);
+    setSelectionMade(false); // Reset when user changes
+  }, [user?.uid]);
+
+  React.useEffect(() => {
+    // If student has NO active level AND NO pending level AND hasn't just made a selection
+    if (user && user.role === 'student' && !user.maktabLevel && !user.pendingMaktabLevel && !selectionMade && !showClassSelection) {
+      const timer = setTimeout(() => {
+        // Double check condition before showing
+        if (!selectionMade && !showClassSelection) {
+          setShowClassSelection(true);
+        }
+      }, 5000); // 5 second "long" delay
+      return () => clearTimeout(timer);
     }
-  }, [user]);
+  }, [user?.role, user?.maktabLevel, user?.pendingMaktabLevel, selectionMade, showClassSelection]);
 
   if (loading) {
     return (
@@ -95,11 +106,14 @@ function AppContent() {
     );
   }
 
-  const adminRoles = ['admin', 'super-admin', 'teacher'];
+  const fullAdminRoles = ['superadmin'];
+  const staffRoles = ['superadmin', 'approved_mudaris'];
+  const allAuthenticatedRoles = ['superadmin', 'approved_mudaris', 'pending_mudaris', 'student'];
 
   return (
     <Layout user={user} onLogout={logout}>
       <NotificationListener />
+      <SyncNotifier />
       <NotificationBanner />
       <PermissionAgent />
       <AnimatePresence>
@@ -136,7 +150,10 @@ function AppContent() {
       <ClassSelection 
         open={showClassSelection} 
         userId={user?.uid || ''} 
-        onComplete={() => setShowClassSelection(false)} 
+        onComplete={() => {
+          setSelectionMade(true);
+          setShowClassSelection(false);
+        }} 
       />
       <AnimatePresence mode="wait">
         <motion.div
@@ -158,46 +175,46 @@ function AppContent() {
                 <Route path="/" element={<Dashboard user={user} />} />
                 <Route path="/courses" element={<Courses />} />
                 <Route path="/attendance" element={
-                  <ProtectedRoute user={user} allowedRoles={adminRoles}>
+                  <ProtectedRoute user={user} allowedRoles={staffRoles}>
                     <Attendance />
                   </ProtectedRoute>
                 } />
                 <Route path="/fees" element={
-                  <ProtectedRoute user={user} allowedRoles={['student', 'teacher', 'admin', 'super-admin']}>
+                  <ProtectedRoute user={user} allowedRoles={allAuthenticatedRoles}>
                     <Fees />
                   </ProtectedRoute>
                 } />
                 <Route path="/notes" element={<Notes />} />
                 <Route path="/users" element={
-                  <ProtectedRoute user={user} allowedRoles={adminRoles}>
+                  <ProtectedRoute user={user} allowedRoles={staffRoles}>
                     <Users />
                   </ProtectedRoute>
                 } />
                 <Route path="/settings" element={
-                  <ProtectedRoute user={user} allowedRoles={['student', 'teacher', 'admin', 'super-admin']}>
+                  <ProtectedRoute user={user} allowedRoles={allAuthenticatedRoles}>
                     <Settings />
                   </ProtectedRoute>
                 } />
                 <Route path="/notifications" element={<Notifications />} />
                 <Route path="/reports" element={
-                  <ProtectedRoute user={user} allowedRoles={adminRoles}>
+                  <ProtectedRoute user={user} allowedRoles={fullAdminRoles}>
                     <Reports />
                   </ProtectedRoute>
                 } />
                 <Route path="/exams" element={<Exams />} />
                 <Route path="/schedule" element={<Schedule />} />
                 <Route path="/payments-summary" element={
-                  <ProtectedRoute user={user} allowedRoles={adminRoles}>
+                  <ProtectedRoute user={user} allowedRoles={fullAdminRoles}>
                     <PaymentsSummary />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin/logs" element={
-                  <ProtectedRoute user={user} allowedRoles={['admin', 'super-admin']}>
+                  <ProtectedRoute user={user} allowedRoles={fullAdminRoles}>
                     <AdminLogs />
                   </ProtectedRoute>
                 } />
                 <Route path="/profile" element={
-                  <ProtectedRoute user={user} allowedRoles={['student', 'teacher', 'admin', 'super-admin']}>
+                  <ProtectedRoute user={user} allowedRoles={allAuthenticatedRoles}>
                     <Profile />
                   </ProtectedRoute>
                 } />

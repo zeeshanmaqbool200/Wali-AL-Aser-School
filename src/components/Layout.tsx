@@ -35,45 +35,47 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [instituteName, setInstituteName] = useState('Maktab Wali Ul Aser');
-  const [logoUrl, setLogoUrl] = useState('../images/logo.png');
+  const [logoUrl, setLogoUrl] = useState('https://idarahwaliulaser.netlify.app/img/logo.png');
   const [bottomNavVisible, setBottomNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const mainRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (!mainRef.current) return;
-      const currentScrollY = mainRef.current.scrollTop;
-      
-      if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        setBottomNavVisible(false);
-      } else {
-        setBottomNavVisible(true);
-      }
-      setLastScrollY(currentScrollY);
-    };
-
-    const mainEl = mainRef.current;
-    if (mainEl) {
-      mainEl.addEventListener('scroll', handleScroll, { passive: true });
-    }
-    return () => {
-      if (mainEl) {
-        mainEl.removeEventListener('scroll', handleScroll);
-      }
-    };
-  }, [lastScrollY]);
+    // Nav should always be visible on mobile to avoid confusion
+    setBottomNavVisible(true);
+  }, []);
 
   useEffect(() => {
     // Real-time listener for institute settings
     const unsubscribe = onSnapshot(doc(db, 'settings', 'institute'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.maktabName) setInstituteName(data.maktabName);
-        if (data.logoUrl) setLogoUrl(data.logoUrl);
+        if (data.maktabName) {
+          setInstituteName(data.maktabName);
+          document.title = data.maktabName;
+        }
+        if (data.logoUrl) {
+          setLogoUrl(data.logoUrl);
+          // Dynamically update favicon
+          const link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+          if (link) {
+            link.href = data.logoUrl;
+          } else {
+            const newLink = document.createElement('link');
+            newLink.rel = 'icon';
+            newLink.href = data.logoUrl;
+            document.head.appendChild(newLink);
+          }
+          const appleLink: HTMLLinkElement | null = document.querySelector("link[rel~='apple-touch-icon']");
+          if (appleLink) {
+            appleLink.href = data.logoUrl;
+          }
+        }
       }
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'settings/institute');
+      // Don't use handleFirestoreError for this passive background task
+      // as it would throw and potentially crash the SDK loop or React render
+      console.warn('Institute settings listener failed:', error.message);
     });
     return () => unsubscribe();
   }, []);

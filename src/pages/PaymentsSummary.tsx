@@ -37,10 +37,27 @@ export default function PaymentsSummary() {
   const [filterMode, setFilterMode] = useState('All');
   const [timeRange, setTimeRange] = useState('month'); // today, month, year
 
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
 
   useEffect(() => {
-    const q = query(collection(db, 'receipts'), orderBy('createdAt', 'desc'));
+    let q = query(collection(db, 'receipts'), orderBy('createdAt', 'desc'));
+    
+    // Filtering based on role
+    if (isApprovedMudaris) {
+      q = query(
+        collection(db, 'receipts'), 
+        where('grade', 'in', currentUser?.assignedClasses || ['none']), 
+        orderBy('createdAt', 'desc')
+      );
+    } else if (currentUser?.role === 'student') {
+      q = query(
+        collection(db, 'receipts'), 
+        where('studentId', '==', currentUser.uid), 
+        orderBy('createdAt', 'desc')
+      );
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[];
       setReceipts(data);
@@ -49,7 +66,7 @@ export default function PaymentsSummary() {
       handleFirestoreError(error, OperationType.LIST, 'receipts');
     });
     return () => unsubscribe();
-  }, []);
+  }, [currentUser, isApprovedMudaris]);
 
   const filteredReceipts = receipts.filter(r => {
     const matchesSearch = r.studentName.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -180,8 +197,9 @@ export default function PaymentsSummary() {
         </Box>
       </motion.div>
 
-      {/* Stats Grid */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      {/* Stats Grid - Only for Super Admin */}
+      {isSuperAdmin && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
         {[
           { title: 'Kul Jama-shuda', value: `₹${totalCollected.toLocaleString()}`, trend: '+12.5%', icon: <TrendingUp size={24} />, color: 'success', subtitle: 'Manzur-shuda adaigiyan' },
           { title: 'Baqaya Raqam', value: `₹${pendingAmount.toLocaleString()}`, trend: 'Awaiting', icon: <Clock size={24} />, color: 'warning', subtitle: 'Tajziye ki zarurat hai' },
@@ -247,9 +265,11 @@ export default function PaymentsSummary() {
           </Grid>
         ))}
       </Grid>
+      )}
 
-      {/* Charts */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      {/* Charts - Only for Super Admin */}
+      {isSuperAdmin && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid size={{ xs: 12, lg: 8 }}>
           <Card sx={{ 
             borderRadius: 7, 
@@ -354,7 +374,7 @@ export default function PaymentsSummary() {
               </Box>
               <Box sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 4 }}>
                 <Stack direction="row" spacing={2} alignItems="center">
-                  <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'white' }}>
+                  <Box sx={{ p: 1, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.1) : 'white' }}>
                     <Sparkles size={20} color={theme.palette.primary.main} />
                   </Box>
                   <Typography variant="caption" sx={{ fontWeight: 700, lineHeight: 1.4 }}>
@@ -366,6 +386,7 @@ export default function PaymentsSummary() {
           </Card>
         </Grid>
       </Grid>
+      )}
 
       {/* Filters & Table */}
       <Card sx={{ 
@@ -477,7 +498,7 @@ export default function PaymentsSummary() {
         <TableContainer>
           <Table>
             <TableHead>
-              <TableRow sx={{ bgcolor: 'grey.50' }}>
+              <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50' }}>
                 <TableCell sx={{ fontWeight: 800, py: 2.5 }}>Raseed Number</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Talib-e-Ilm</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Maktab Level</TableCell>
@@ -518,7 +539,7 @@ export default function PaymentsSummary() {
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>{r.grade || 'N/A'}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip label={r.feeHead} size="small" sx={{ fontWeight: 700, bgcolor: 'grey.100' }} />
+                      <Chip label={r.feeHead} size="small" sx={{ fontWeight: 700, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.100' }} />
                     </TableCell>
                     <TableCell>
                       <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>₹{r.amount.toLocaleString()}</Typography>

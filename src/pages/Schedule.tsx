@@ -14,7 +14,7 @@ import {
   Layout, Layers, CheckCircle, XCircle, Save,
   MoreVertical, BookOpen, GraduationCap, UserCheck, Users, Award
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, or } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { ClassSchedule, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -52,10 +52,33 @@ export default function Schedule() {
   const [openMaterialsDialog, setOpenMaterialsDialog] = useState(false);
   const [viewingSchedule, setViewingSchedule] = useState<ClassSchedule | null>(null);
 
-  const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
+  const isTeacher = isSuperAdmin || isApprovedMudaris;
 
   useEffect(() => {
-    const q = query(collection(db, 'schedules'), orderBy('startTime', 'asc'));
+    let q = query(collection(db, 'schedules'), orderBy('startTime', 'asc'));
+    
+    // Filtering schedules based on role
+    if (isSuperAdmin) {
+      q = query(collection(db, 'schedules'), orderBy('startTime', 'asc'));
+    } else if (isApprovedMudaris) {
+      q = query(
+        collection(db, 'schedules'), 
+        where('grade', 'in', currentUser?.assignedClasses || ['none']), 
+        orderBy('startTime', 'asc')
+      );
+    } else if (currentUser?.role === 'student') {
+      q = query(
+        collection(db, 'schedules'), 
+        or(
+          where('grade', '==', currentUser.maktabLevel || 'none'),
+          where('grade', '==', currentUser.grade || 'none')
+        ),
+        orderBy('startTime', 'asc')
+      );
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setSchedules(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ClassSchedule[]);
       setLoading(false);
@@ -63,7 +86,7 @@ export default function Schedule() {
       handleFirestoreError(error, OperationType.LIST, 'schedules');
     });
     return () => unsubscribe();
-  }, []);
+  }, [currentUser?.uid, currentUser?.assignedClasses, isApprovedMudaris]);
 
   const handleSave = async () => {
     if (!currentUser) return;
@@ -153,7 +176,7 @@ export default function Schedule() {
               display: 'flex', 
               bgcolor: 'background.default', 
               p: 0.8, 
-              borderRadius: 4,
+              borderRadius: 2,
               boxShadow: theme.palette.mode === 'dark'
                 ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
                 : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
@@ -219,32 +242,31 @@ export default function Schedule() {
       {/* Day Selector */}
       <Box sx={{ mb: 4, display: 'flex', gap: 2, overflowX: 'auto', pb: 2, px: 1, '&::-webkit-scrollbar': { height: 4 } }}>
         {DAYS.map((day, index) => (
-          <Button
-            key={day}
-            variant="text"
-            onClick={() => setSelectedDay(index)}
-            sx={{ 
-              borderRadius: 4, 
-              minWidth: 120, 
-              py: 2,
-              fontWeight: 900,
-              textTransform: 'none',
-              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-              bgcolor: selectedDay === index ? 'background.paper' : 'transparent',
-              color: selectedDay === index ? 'primary.main' : 'text.secondary',
-              boxShadow: selectedDay === index 
-                ? (theme.palette.mode === 'dark' 
-                    ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                    : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff')
-                : 'none',
-              transform: selectedDay === index ? 'scale(0.98)' : 'scale(1)',
-              '&:hover': {
-                bgcolor: selectedDay === index ? 'background.paper' : alpha(theme.palette.primary.main, 0.05),
-              }
-            }}
-          >
-            {day}
-          </Button>
+            <IconButton 
+              size="small" 
+              onClick={() => setSelectedDay(index)}
+              sx={{ 
+                borderRadius: 2, 
+                minWidth: 120, 
+                py: 2,
+                fontWeight: 900,
+                textTransform: 'none',
+                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                bgcolor: selectedDay === index ? 'background.paper' : 'transparent',
+                color: selectedDay === index ? 'primary.main' : 'text.secondary',
+                boxShadow: selectedDay === index 
+                  ? (theme.palette.mode === 'dark' 
+                      ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                      : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff')
+                  : 'none',
+                transform: selectedDay === index ? 'scale(0.98)' : 'scale(1)',
+                '&:hover': {
+                  bgcolor: selectedDay === index ? 'background.paper' : alpha(theme.palette.primary.main, 0.05),
+                }
+              }}
+            >
+              {day}
+            </IconButton>
         ))}
       </Box>
 
@@ -276,16 +298,16 @@ export default function Schedule() {
             </AnimatePresence>
             
             {schedules.filter(s => s.dayOfWeek === selectedDay).length === 0 && (
-                <Box sx={{ 
-                  p: 10, 
-                  textAlign: 'center', 
-                  bgcolor: 'background.paper', 
-                  borderRadius: 7, 
-                  border: 'none',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? 'inset 8px 8px 16px #060a12, inset -8px -8px 16px #182442'
-                    : 'inset 8px 8px 16px #d1d9e6, inset -8px -8px 16px #ffffff',
-                }}>
+              <Box sx={{ 
+                p: 10, 
+                textAlign: 'center', 
+                bgcolor: 'background.paper', 
+                borderRadius: 2, 
+                border: 'none',
+                boxShadow: theme.palette.mode === 'dark'
+                  ? 'inset 8px 8px 16px #060a12, inset -8px -8px 16px #182442'
+                  : 'inset 8px 8px 16px #d1d9e6, inset -8px -8px 16px #ffffff',
+              }}>
                   <Calendar size={64} color={theme.palette.divider} style={{ marginBottom: 24 }} />
                   <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 900, mb: 1 }}>No schedules found</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>There are no classes scheduled for {DAYS[selectedDay]}</Typography>
@@ -518,7 +540,7 @@ export default function Schedule() {
           </Typography>
           <List>
             {viewingSchedule?.materials?.map((m, i) => (
-              <ListItem key={i} component="a" href={m.url} target="_blank" sx={{ borderRadius: 3, mb: 1, bgcolor: 'grey.50', color: 'inherit', textDecoration: 'none' }}>
+              <ListItem key={i} component="a" href={m.url} target="_blank" sx={{ borderRadius: 3, mb: 1, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50', color: 'inherit', textDecoration: 'none' }}>
                 <ListItemIcon>
                   <BookOpen size={20} color={theme.palette.primary.main} />
                 </ListItemIcon>
@@ -547,7 +569,7 @@ function ScheduleCard({ schedule, isTeacher, onEdit, onDelete, onNotify, onViewM
   
   return (
     <Card sx={{ 
-      borderRadius: 7, 
+      borderRadius: 2, 
       transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
       position: 'relative',
       overflow: 'hidden',
@@ -575,7 +597,7 @@ function ScheduleCard({ schedule, isTeacher, onEdit, onDelete, onNotify, onViewM
               mb: 1,
               bgcolor: 'background.default',
               p: 2,
-              borderRadius: 4,
+              borderRadius: 2,
               boxShadow: isDark
                 ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
                 : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',

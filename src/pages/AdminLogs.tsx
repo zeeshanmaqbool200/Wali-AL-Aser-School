@@ -25,6 +25,12 @@ interface SystemLog {
   data: any;
   timestamp: number;
   userAgent: string;
+  ip?: string;
+  location?: string;
+  browser?: string;
+  os?: string;
+  device?: string;
+  islamicDate?: string;
 }
 
 export default function AdminLogs() {
@@ -36,13 +42,13 @@ export default function AdminLogs() {
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
   const [filterLevel, setFilterLevel] = useState<string>('all');
 
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
+  const isSuperAdmin = currentUser?.role === 'superadmin';
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isSuperAdmin) return;
 
     const q = query(
-      collection(db, 'system_logs'), 
+      collection(db, 'access_logs'), 
       orderBy('timestamp', 'desc'),
       limit(100)
     );
@@ -53,13 +59,13 @@ export default function AdminLogs() {
     });
 
     return () => unsubscribe();
-  }, [isAdmin]);
+  }, [isSuperAdmin]);
 
   const handleClearLogs = async () => {
-    if (!window.confirm('Are you sure you want to clear all logs?')) return;
+    if (!window.confirm('Are you sure you want to clear all access logs?')) return;
     
     try {
-      const snapshot = await getDocs(collection(db, 'system_logs'));
+      const snapshot = await getDocs(collection(db, 'access_logs'));
       const batch = writeBatch(db);
       snapshot.docs.forEach((doc) => {
         batch.delete(doc.ref);
@@ -101,11 +107,12 @@ export default function AdminLogs() {
     return matchesSearch && matchesLevel;
   });
 
-  if (!isAdmin) {
+  if (!isSuperAdmin) {
     return (
-      <Box sx={{ p: 4, textAlign: 'center' }}>
-        <Typography variant="h5" color="error" sx={{ fontWeight: 900 }}>Access Denied</Typography>
-        <Typography variant="body1">You do not have permission to view system logs.</Typography>
+      <Box sx={{ p: 10, textAlign: 'center' }}>
+        <Shield size={64} color="error" style={{ marginBottom: 24, opacity: 0.2 }} />
+        <Typography variant="h4" color="error" sx={{ fontWeight: 900, mb: 1 }}>Access Forbidden</Typography>
+        <Typography variant="body1" color="text.secondary">Detailed security logs are only visible to the <strong>SUPER ADMIN</strong> of EduFee Track.</Typography>
       </Box>
     );
   }
@@ -184,15 +191,15 @@ export default function AdminLogs() {
               : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
           }}>
             <CardContent sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ 
-                p: 2, 
-                borderRadius: 4, 
-                bgcolor: alpha(theme.palette.primary.main, 0.1), 
-                color: 'primary.main',
-                boxShadow: theme.palette.mode === 'dark'
-                  ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                  : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-              }}>
+            <Box sx={{ 
+              p: 2, 
+              borderRadius: 2, 
+              bgcolor: alpha(theme.palette.primary.main, 0.1), 
+              color: 'primary.main',
+              boxShadow: theme.palette.mode === 'dark'
+                ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+            }}>
                 <Zap size={24} />
               </Box>
               <Box>
@@ -212,15 +219,15 @@ export default function AdminLogs() {
               : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
           }}>
             <CardContent sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ 
-                p: 2, 
-                borderRadius: 4, 
-                bgcolor: alpha(theme.palette.error.main, 0.1), 
-                color: 'error.main',
-                boxShadow: theme.palette.mode === 'dark'
-                  ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                  : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-              }}>
+            <Box sx={{ 
+              p: 2, 
+              borderRadius: 2, 
+              bgcolor: alpha(theme.palette.error.main, 0.1), 
+              color: 'error.main',
+              boxShadow: theme.palette.mode === 'dark'
+                ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+            }}>
                 <AlertCircle size={24} />
               </Box>
               <Box>
@@ -240,15 +247,15 @@ export default function AdminLogs() {
               : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
           }}>
             <CardContent sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ 
-                p: 2, 
-                borderRadius: 4, 
-                bgcolor: alpha('#ff6000', 0.1), 
-                color: '#ff6000',
-                boxShadow: theme.palette.mode === 'dark'
-                  ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                  : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-              }}>
+            <Box sx={{ 
+              p: 2, 
+              borderRadius: 2, 
+              bgcolor: alpha('#ff6000', 0.1), 
+              color: '#ff6000',
+              boxShadow: theme.palette.mode === 'dark'
+                ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+            }}>
                 <Database size={24} />
               </Box>
               <Box>
@@ -268,15 +275,15 @@ export default function AdminLogs() {
               : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
           }}>
             <CardContent sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ 
-                p: 2, 
-                borderRadius: 4, 
-                bgcolor: alpha('#6366f1', 0.1), 
-                color: '#6366f1',
-                boxShadow: theme.palette.mode === 'dark'
-                  ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                  : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-              }}>
+            <Box sx={{ 
+              p: 2, 
+              borderRadius: 2, 
+              bgcolor: alpha('#6366f1', 0.1), 
+              color: '#6366f1',
+              boxShadow: theme.palette.mode === 'dark'
+                ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+            }}>
                 <Shield size={24} />
               </Box>
               <Box>
@@ -305,7 +312,7 @@ export default function AdminLogs() {
           gap: 3, 
           flexWrap: 'wrap', 
           alignItems: 'center',
-          bgcolor: alpha(theme.palette.background.default, 0.5),
+          bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : alpha(theme.palette.background.default, 0.5),
           backdropFilter: 'blur(10px)'
         }}>
           <Paper 
@@ -314,7 +321,7 @@ export default function AdminLogs() {
               display: 'flex', 
               alignItems: 'center', 
               px: 2.5, 
-              borderRadius: 4, 
+              borderRadius: 2, 
               border: 'none',
               bgcolor: 'background.default',
               boxShadow: theme.palette.mode === 'dark'
@@ -367,12 +374,13 @@ export default function AdminLogs() {
         <TableContainer component={Box}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: 'grey.50' }}>
+              <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'grey.100' }}>
                 <TableCell sx={{ width: 40 }} />
-                <TableCell sx={{ fontWeight: 800, py: 2 }}>Level</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Message</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Timestamp</TableCell>
-                <TableCell sx={{ fontWeight: 800 }} align="right">Details</TableCell>
+                <TableCell sx={{ fontWeight: 800, py: 2, color: 'text.primary' }}>Level</TableCell>
+                <TableCell sx={{ fontWeight: 800, color: 'text.primary' }}>IP Address</TableCell>
+                <TableCell sx={{ fontWeight: 800, color: 'text.primary' }}>Message</TableCell>
+                <TableCell sx={{ fontWeight: 800, color: 'text.primary' }}>Timestamp</TableCell>
+                <TableCell sx={{ fontWeight: 800, color: 'text.primary' }} align="right">Details</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -412,6 +420,9 @@ export default function AdminLogs() {
                           }} 
                         />
                       </TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.85rem', color: 'primary.main' }}>
+                        {log.ip || '0.0.0.0'}
+                      </TableCell>
                       <TableCell sx={{ fontWeight: 600, maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {log.message}
                       </TableCell>
@@ -427,10 +438,35 @@ export default function AdminLogs() {
                     <TableRow>
                       <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={5}>
                         <Collapse in={expandedLog === log.id} timeout="auto" unmountOnExit>
-                          <Box sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 2, m: 1, border: '1px solid', borderColor: 'divider' }}>
+                          <Box sx={{ p: 3, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50', borderRadius: 2, m: 1, border: '1px solid', borderColor: 'divider' }}>
                             <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
                               <Terminal size={16} /> Log Data
                             </Typography>
+                            
+                            <Grid container spacing={2} sx={{ mb: 2 }}>
+                              <Grid size={{ xs: 12, md: 4 }}>
+                                <Paper sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5), border: '1px solid', borderColor: 'divider' }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', mb: 0.5, color: 'text.secondary' }}>NETWORK & LOCATION</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>IP: {log.ip || 'Unknown'}</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Loc: {log.location || 'Unknown'}</Typography>
+                                </Paper>
+                              </Grid>
+                              <Grid size={{ xs: 12, md: 4 }}>
+                                <Paper sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5), border: '1px solid', borderColor: 'divider' }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', mb: 0.5, color: 'text.secondary' }}>BROWSER & OS</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{log.browser || 'Unknown'} on {log.os || 'Unknown'}</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Device: {log.device || 'Unknown'}</Typography>
+                                </Paper>
+                              </Grid>
+                              <Grid size={{ xs: 12, md: 4 }}>
+                                <Paper sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5), border: '1px solid', borderColor: 'divider' }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', mb: 0.5, color: 'text.secondary' }}>DATE & TIME</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{format(log.timestamp, 'PPPP p')}</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>Hijri: {log.islamicDate || 'N/A'}</Typography>
+                                </Paper>
+                              </Grid>
+                            </Grid>
+
                             <Box component="pre" sx={{ 
                               p: 2, bgcolor: '#1e293b', color: '#e2e8f0', borderRadius: 2, 
                               overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'monospace',

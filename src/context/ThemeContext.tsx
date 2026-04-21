@@ -84,13 +84,13 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           button: { textTransform: 'none', fontWeight: 700, letterSpacing: '0.02em' },
         },
         shape: {
-          borderRadius: 8,
+          borderRadius: 4,
         },
         components: {
           MuiButton: {
             styleOverrides: {
               root: {
-                borderRadius: 8,
+                borderRadius: 4,
                 padding: '12px 24px',
                 boxShadow: 'none',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -123,7 +123,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiCard: {
             styleOverrides: {
               root: {
-                borderRadius: 12,
+                borderRadius: 6,
                 background: isDark ? '#121212' : '#ffffff',
                 boxShadow: 'none',
                 border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
@@ -138,7 +138,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiPaper: {
             styleOverrides: {
               root: {
-                borderRadius: 8,
+                borderRadius: 4,
                 boxShadow: 'none',
                 border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
                 backgroundImage: 'none',
@@ -149,7 +149,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
             styleOverrides: {
               root: {
                 '& .MuiOutlinedInput-root': {
-                  borderRadius: 8,
+                  borderRadius: 4,
                   background: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
                   '& fieldset': {
                     borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
@@ -190,7 +190,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiChip: {
             styleOverrides: {
               root: {
-                borderRadius: 4,
+                borderRadius: 2,
                 fontWeight: 700,
                 fontSize: '0.75rem',
               },

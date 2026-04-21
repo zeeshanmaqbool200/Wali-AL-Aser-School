@@ -34,6 +34,25 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [reportType, setReportType] = useState('attendance');
   
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
+
+  // Stats filtering based on role
+  const stats = [
+    { title: 'Total Tulab-e-Ilm', value: '1,284', trend: '+12%', icon: <Users size={24} />, color: 'primary' },
+    ...(isSuperAdmin ? [{ title: 'Majmua (MTD)', value: '₹42.5k', trend: '+5%', icon: <DollarSign size={24} />, color: 'success' }] : []),
+    { title: 'Ausat Haziri', value: '94.2%', trend: '94%', icon: <Activity size={24} />, color: 'warning' },
+    { title: 'Imtihan Kamyabi', value: '82.1%', trend: '82%', icon: <Award size={24} />, color: 'error' }
+  ];
+
+  // Reports filtering based on role
+  const availableReports = [
+    { title: 'Tulab Karkardagi Report', icon: <GraduationCap size={22} />, type: 'PDF', size: '2.4 MB', color: 'primary' },
+    ...(isSuperAdmin ? [{ title: 'Fee Jama Summary', icon: <DollarSign size={22} />, type: 'XLSX', size: '1.1 MB', color: 'success' }] : []),
+    { title: 'Mudaris Haziri Log', icon: <Users size={22} />, type: 'CSV', size: '0.8 MB', color: 'warning' },
+    ...(isSuperAdmin ? [{ title: 'Asasa Report', icon: <FileText size={22} />, type: 'PDF', size: '3.2 MB', color: 'error' }] : []),
+  ];
+
   const attendanceData = [
     { name: 'Mon', present: 45, absent: 5 },
     { name: 'Tue', present: 48, absent: 2 },
@@ -41,15 +60,6 @@ export default function Reports() {
     { name: 'Thu', present: 47, absent: 3 },
     { name: 'Fri', present: 44, absent: 6 },
     { name: 'Sat', present: 40, absent: 10 },
-  ];
-
-  const feeData = [
-    { name: 'Jan', collected: 4000, pending: 1200 },
-    { name: 'Feb', collected: 3000, pending: 800 },
-    { name: 'Mar', collected: 2000, pending: 1500 },
-    { name: 'Apr', collected: 2780, pending: 3908 },
-    { name: 'May', collected: 1890, pending: 4800 },
-    { name: 'Jun', collected: 2390, pending: 3800 },
   ];
 
   const enrollmentData = [
@@ -90,7 +100,7 @@ export default function Reports() {
               variant="outlined" 
               startIcon={<Printer size={18} />} 
               sx={{ 
-                borderRadius: 4, 
+                borderRadius: 2, 
                 fontWeight: 900, 
                 px: 4, 
                 py: 1.5,
@@ -115,7 +125,7 @@ export default function Reports() {
               variant="contained" 
               startIcon={<Download size={18} />} 
               sx={{ 
-                borderRadius: 4, 
+                borderRadius: 2, 
                 fontWeight: 900, 
                 px: 4, 
                 py: 1.5,
@@ -133,12 +143,7 @@ export default function Reports() {
 
       <Grid container spacing={3}>
         {/* Quick Stats */}
-        {[
-          { title: 'Total Tulab-e-Ilm', value: '1,284', trend: '+12%', icon: <Users size={24} />, color: 'primary' },
-          { title: 'Majmua (MTD)', value: '₹42.5k', trend: '+5%', icon: <DollarSign size={24} />, color: 'success' },
-          { title: 'Ausat Haziri', value: '94.2%', trend: '94%', icon: <Activity size={24} />, color: 'warning' },
-          { title: 'Imtihan Kamyabi', value: '82.1%', trend: '82%', icon: <Award size={24} />, color: 'error' }
-        ].map((stat, i) => (
+        {stats.map((stat, i) => (
           <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -146,7 +151,7 @@ export default function Reports() {
               transition={{ delay: i * 0.1 }}
             >
               <Card sx={{ 
-                borderRadius: 7, 
+                borderRadius: 2, 
                 border: 'none',
                 bgcolor: 'background.paper',
                 boxShadow: theme.palette.mode === 'dark'
@@ -201,7 +206,7 @@ export default function Reports() {
         {/* Charts */}
         <Grid size={{ xs: 12, lg: 8 }}>
           <Card sx={{ 
-            borderRadius: 7, 
+            borderRadius: 2, 
             border: 'none',
             bgcolor: 'background.paper',
             boxShadow: theme.palette.mode === 'dark'
@@ -279,7 +284,7 @@ export default function Reports() {
 
         <Grid size={{ xs: 12, lg: 4 }}>
           <Card sx={{ 
-            borderRadius: 7, 
+            borderRadius: 2, 
             border: 'none',
             bgcolor: 'background.paper',
             boxShadow: theme.palette.mode === 'dark'
@@ -321,9 +326,9 @@ export default function Reports() {
                   </PieChart>
                 </ResponsiveContainer>
               </Box>
-              <Box sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 4 }}>
+              <Box sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}>
                 <Stack direction="row" spacing={2} alignItems="center">
-                  <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'white' }}>
+                  <Box sx={{ p: 1, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.1) : 'white' }}>
                     <Sparkles size={20} color={theme.palette.primary.main} />
                   </Box>
                   <Typography variant="caption" sx={{ fontWeight: 700, lineHeight: 1.4 }}>
@@ -342,12 +347,7 @@ export default function Reports() {
             <Button variant="text" sx={{ fontWeight: 800 }}>View Archive</Button>
           </Box>
           <Grid container spacing={3}>
-            {[
-              { title: 'Tulab Karkardagi Report', icon: <GraduationCap size={22} />, type: 'PDF', size: '2.4 MB', color: 'primary' },
-              { title: 'Fee Jama Summary', icon: <DollarSign size={22} />, type: 'XLSX', size: '1.1 MB', color: 'success' },
-              { title: 'Mudaris Haziri Log', icon: <Users size={22} />, type: 'CSV', size: '0.8 MB', color: 'warning' },
-              { title: 'Asasa Report', icon: <FileText size={22} />, type: 'PDF', size: '3.2 MB', color: 'error' },
-            ].map((report, index) => (
+            {availableReports.map((report, index) => (
               <Grid size={{ xs: 12, sm: 6, md: 3 }} key={index}>
                 <motion.div
                   whileHover={{ scale: 1.02 }}
@@ -356,7 +356,7 @@ export default function Reports() {
                   <Paper 
                     sx={{ 
                       p: 2.5, 
-                      borderRadius: 5, 
+                      borderRadius: 2, 
                       display: 'flex', 
                       alignItems: 'center', 
                       gap: 2.5, 
@@ -377,7 +377,7 @@ export default function Reports() {
                       sx={{ 
                         bgcolor: alpha(theme.palette[report.color as 'primary' | 'success' | 'warning' | 'error'].main, 0.1), 
                         color: `${report.color}.main`, 
-                        borderRadius: 3,
+                        borderRadius: 2,
                         width: 48,
                         height: 48,
                         boxShadow: theme.palette.mode === 'dark'

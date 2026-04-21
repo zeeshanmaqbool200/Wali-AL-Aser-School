@@ -17,15 +17,16 @@ export default function BottomNav({ user, unreadNotifications = 0, visible = tru
   const theme = useTheme();
 
   const role = user.role || 'student';
-  const isAdmin = role === 'admin' || role === 'super-admin';
+  const isSuperAdmin = role === 'superadmin';
+  const isMudaris = role === 'approved_mudaris';
 
   const menuItems = [
-    { label: 'Home', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'teacher', 'admin', 'super-admin'] },
-    { label: 'Tulab', icon: <Users size={22} />, path: '/users', roles: ['admin', 'super-admin', 'teacher'] },
-    { label: 'Fees', icon: <CreditCard size={22} />, path: '/fees', roles: ['student', 'teacher', 'admin', 'super-admin'] },
-    { label: 'Schedule', icon: <Calendar size={22} />, path: '/schedule', roles: ['student', 'teacher', 'admin', 'super-admin'] },
-    { label: 'Logs', icon: <Terminal size={22} />, path: '/admin/logs', roles: ['admin', 'super-admin'] },
-    { label: 'Profile', icon: <SettingsIcon size={22} />, path: '/settings', roles: ['student', 'teacher', 'admin', 'super-admin'] },
+    { label: 'Home', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
+    { label: 'Tulab', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'approved_mudaris'] },
+    { label: 'Fees', icon: <CreditCard size={22} />, path: '/fees', roles: ['student', 'approved_mudaris', 'superadmin'] },
+    { label: 'Schedule', icon: <Calendar size={22} />, path: '/schedule', roles: ['student', 'approved_mudaris', 'superadmin'] },
+    { label: 'Logs', icon: <Terminal size={22} />, path: '/admin/logs', roles: ['superadmin'] },
+    { label: 'Profile', icon: <SettingsIcon size={22} />, path: '/profile', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(role));
@@ -47,7 +48,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible = tru
             position: 'fixed', 
             bottom: { xs: 16, sm: 32 }, 
             left: '50%', 
-            zIndex: 9999, 
+            zIndex: 10000, 
             width: 'auto',
             pointerEvents: 'none',
           }}
@@ -57,10 +58,12 @@ export default function BottomNav({ user, unreadNotifications = 0, visible = tru
             sx={{ 
               borderRadius: 4,
               p: 0.75,
-              bgcolor: alpha(theme.palette.background.paper, 0.85),
+              bgcolor: theme.palette.mode === 'dark' ? alpha('#1a1a1a', 0.95) : alpha('#ffffff', 0.85),
               backdropFilter: 'blur(20px)',
               border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-              boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+              boxShadow: theme.palette.mode === 'dark' 
+                ? '0 20px 40px rgba(0,0,0,0.8)' 
+                : '0 20px 40px rgba(0,0,0,0.15)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

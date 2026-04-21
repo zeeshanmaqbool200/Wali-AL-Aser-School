@@ -60,16 +60,34 @@ export default function Exams() {
     status: 'upcoming' as const
   });
 
-  const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
+  const isTeacher = isSuperAdmin || isApprovedMudaris;
 
   useEffect(() => {
-    const q = query(collection(db, 'exams'), orderBy('date', 'desc'));
+    let q = query(collection(db, 'exams'), orderBy('date', 'desc'));
+    
+    // Filtering exams based on role
+    if (isApprovedMudaris) {
+      q = query(
+        collection(db, 'exams'), 
+        where('grade', 'in', currentUser?.assignedClasses || ['none']), 
+        orderBy('date', 'desc')
+      );
+    } else if (currentUser?.role === 'student') {
+      q = query(
+        collection(db, 'exams'), 
+        where('grade', '==', currentUser.maktabLevel || currentUser.grade || 'none'), 
+        orderBy('date', 'desc')
+      );
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setExams(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Exam[]);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [currentUser, isApprovedMudaris]);
 
   const handleSave = async () => {
     if (!currentUser) return;
@@ -150,7 +168,7 @@ export default function Exams() {
               display: 'flex', 
               bgcolor: 'background.default', 
               p: 0.8, 
-              borderRadius: 4,
+              borderRadius: 2,
               boxShadow: theme.palette.mode === 'dark'
                 ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
                 : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
@@ -192,7 +210,7 @@ export default function Exams() {
                 startIcon={<Plus size={18} />} 
                 onClick={() => setOpenDialog(true)}
                 sx={{ 
-                  borderRadius: 4, 
+                  borderRadius: 2, 
                   fontWeight: 900, 
                   px: 4, 
                   py: 1.5,
@@ -212,7 +230,7 @@ export default function Exams() {
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, lg: 8 }}>
           <Card sx={{ 
-            borderRadius: 7, 
+            borderRadius: 2, 
             overflow: 'hidden',
             bgcolor: 'background.paper',
             border: 'none',
@@ -252,7 +270,7 @@ export default function Exams() {
                     display: 'flex', 
                     alignItems: 'center', 
                     px: 3, 
-                    borderRadius: 4, 
+                    borderRadius: 2, 
                     border: 'none',
                     bgcolor: 'background.default',
                     boxShadow: theme.palette.mode === 'dark'
@@ -287,7 +305,7 @@ export default function Exams() {
                 <TableContainer component={Box} sx={{ minWidth: { xs: 800, md: '100%' } }}>
                   <Table>
                     <TableHead>
-                    <TableRow sx={{ bgcolor: 'grey.50' }}>
+                    <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50' }}>
                       <TableCell sx={{ fontWeight: 800, py: 2.5 }}>Imtihan Title</TableCell>
                       <TableCell sx={{ fontWeight: 800 }}>Mazmoon</TableCell>
                       <TableCell sx={{ fontWeight: 800 }}>Date & Time</TableCell>
@@ -348,7 +366,7 @@ export default function Exams() {
                                 </Tooltip>
                               )}
                               <Tooltip title="View Analytics">
-                                <IconButton size="small" sx={{ bgcolor: 'grey.100', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}>
+                                <IconButton size="small" sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.4) : 'grey.100', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}>
                                   <TrendingUp size={16} />
                                 </IconButton>
                               </Tooltip>
@@ -591,7 +609,7 @@ function ExamCard({ exam, isTeacher, onDelete }: any) {
   
   return (
     <Card sx={{ 
-      borderRadius: 7, 
+      borderRadius: 2, 
       transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
       position: 'relative',
       overflow: 'hidden',

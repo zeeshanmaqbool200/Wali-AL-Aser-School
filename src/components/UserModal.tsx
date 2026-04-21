@@ -89,7 +89,7 @@ export default function UserModal({ open, onClose, onSubmit }: UserModalProps) {
             />
           )}
 
-          {formData.role === 'teacher' && (
+          {formData.role === 'approved_mudaris' && (
             <TextField
               name="subject"
               label="Primary Subject"

@@ -28,7 +28,7 @@
     --border: #262626;
     --input: #262626;
     --ring: #d4d4d8;
-    --radius: 0.5rem;
+    --radius: 0.2rem;
 
     --safe-area-top: env(safe-area-inset-top);
     --safe-area-bottom: env(safe-area-inset-bottom);

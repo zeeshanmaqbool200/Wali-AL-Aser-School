@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import { Camera, Save, User, Mail, Phone, MapPin } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError } from '../firebase';
+import { db, OperationType, handleFirestoreError, smartUpdateDoc } from '../firebase';
 import { UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
@@ -48,8 +48,12 @@ export default function Profile() {
       
       // Sanitize data: remove immutable fields
       const { uid, email, role, createdAt, ...sanitizedData } = profileData as any;
+      const finalData = {
+        ...sanitizedData,
+        updatedAt: Date.now()
+      };
       
-      await updateDoc(doc(db, 'users', currentUser.uid), sanitizedData);
+      await smartUpdateDoc(doc(db, 'users', currentUser.uid), finalData);
       setSnackbar({ open: true, message: "Profile updated successfully!", severity: 'success' });
       logger.success('Profile Updated');
     } catch (err) {
@@ -180,6 +184,17 @@ export default function Profile() {
 
           <CardContent sx={{ pt: isMobile ? 12 : 8, px: 3, pb: 3 }}>
             <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  label={profileData.role === 'student' ? 'Admission No' : 'Staff ID'}
+                  value={profileData.studentId || profileData.teacherId || 'N/A'}
+                  disabled
+                  InputProps={{ 
+                    sx: { borderRadius: 1.5, bgcolor: alpha(theme.palette.action.disabledBackground, 0.05) }
+                  }}
+                />
+              </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth

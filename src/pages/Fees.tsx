@@ -16,7 +16,7 @@ import {
   AlertCircle, Check, Edit, Save, X
 } from 'lucide-react';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDoc } from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError } from '../firebase';
+import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc } from '../firebase';
 import { UserProfile, FeeReceipt } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -52,7 +52,9 @@ export default function Fees() {
     remarks: ''
   });
 
-  const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
+  const isTeacher = isSuperAdmin || isApprovedMudaris;
 
   const [settings, setSettings] = React.useState<any>(null);
 
@@ -75,9 +77,12 @@ export default function Fees() {
 
     let q = query(collection(db, 'receipts'), orderBy('createdAt', 'desc'));
     
-    // If student, only show their receipts
+    // Filtering receipts
     if (currentUser.role === 'student') {
       q = query(collection(db, 'receipts'), where('studentId', '==', currentUser.uid), orderBy('createdAt', 'desc'));
+    } else if (isApprovedMudaris) {
+      // Mudaris can only see receipts for their grade
+      q = query(collection(db, 'receipts'), where('grade', 'in', currentUser.assignedClasses || ['none']), orderBy('createdAt', 'desc'));
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -88,7 +93,18 @@ export default function Fees() {
     });
 
     if (isTeacher) {
-      const studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+      // Fetch students for the autocomplete
+      let studentsQuery;
+      if (isSuperAdmin) {
+        studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+      } else {
+        studentsQuery = query(
+          collection(db, 'users'), 
+          where('role', '==', 'student'),
+          where('grade', 'in', currentUser.assignedClasses || ['none'])
+        );
+      }
+      
       onSnapshot(studentsQuery, (snapshot) => {
         setStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
       }, (error) => {
@@ -97,12 +113,13 @@ export default function Fees() {
     }
 
     return () => unsubscribe();
-  }, [currentUser, isTeacher]);
+  }, [currentUser, isTeacher, isSuperAdmin, isApprovedMudaris]);
 
   const handleAddReceipt = async () => {
     if (!currentUser) return;
     setSubmitting(true);
     try {
+      const student = students.find(s => s.uid === formData.studentId);
       const receiptId = `WUA-${format(new Date(), 'yyyy')}-${Math.floor(100000 + Math.random() * 900000)}`;
       const newReceipt = {
         ...formData,
@@ -112,9 +129,10 @@ export default function Fees() {
         createdAt: Date.now(),
         createdBy: currentUser.uid,
         receiptNo: receiptId,
-        receiptNumber: receiptId
+        receiptNumber: receiptId,
+        grade: student?.maktabLevel || student?.grade || ''
       };
-      await addDoc(collection(db, 'receipts'), newReceipt);
+      await smartAddDoc(collection(db, 'receipts'), newReceipt);
       
       // Trigger confetti for a delightful experience
       confetti({
@@ -172,7 +190,7 @@ export default function Fees() {
         approvedAt: Date.now()
       };
 
-      await updateDoc(doc(db, 'receipts', receipt.id), updates);
+      await smartUpdateDoc(doc(db, 'receipts', receipt.id), updates);
 
       // If it's an Admission Fee, assign an Admission No to the student
       if (receipt.feeHead === 'Admission Fee') {
@@ -181,7 +199,7 @@ export default function Fees() {
           const studentData = studentDoc.data() as UserProfile;
           if (!studentData.admissionNo) {
             const admissionNo = `ADM-${format(new Date(), 'yyyy')}-${Math.floor(1000 + Math.random() * 9000)}`;
-            await updateDoc(doc(db, 'users', receipt.studentId), {
+            await smartUpdateDoc(doc(db, 'users', receipt.studentId), {
               admissionNo: admissionNo,
               status: 'Active'
             });
@@ -206,7 +224,7 @@ export default function Fees() {
   const handleReject = async (receipt: FeeReceipt) => {
     if (!isTeacher) return;
     try {
-      await updateDoc(doc(db, 'receipts', receipt.id), {
+      await smartUpdateDoc(doc(db, 'receipts', receipt.id), {
         status: 'rejected',
         rejectedBy: currentUser?.uid,
         rejectedAt: Date.now()
@@ -346,34 +364,56 @@ export default function Fees() {
                 Export All
               </Button>
             )}
-            <Button 
-              variant="contained" 
-              startIcon={<Plus size={18} />} 
-              onClick={() => {
-                if (currentUser?.role === 'student') {
-                  setFormData({ ...formData, studentId: currentUser.uid, studentName: currentUser.displayName });
-                }
-                setOpenAddDialog(true);
-              }}
-              sx={{ 
-                borderRadius: 4, 
-                fontWeight: 900, 
-                px: 4, 
-                py: 1.5,
-                textTransform: 'none',
-                boxShadow: theme.palette.mode === 'dark'
-                  ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                  : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
-              }}
-            >
-              {isTeacher ? 'New Payment' : 'Apply for Fee'}
-            </Button>
+            {(!isTeacher && currentUser?.role === 'student' && !currentUser?.maktabLevel) ? (
+              <Tooltip title="Your class selection must be approved by a teacher before you can use this feature.">
+                <span>
+                  <Button 
+                    variant="contained" 
+                    disabled
+                    startIcon={<Plus size={18} />} 
+                    sx={{ 
+                      borderRadius: 4, 
+                      fontWeight: 900, 
+                      px: 4, 
+                      py: 1.5,
+                      textTransform: 'none',
+                      opacity: 0.7
+                    }}
+                  >
+                    Apply for Fee
+                  </Button>
+                </span>
+              </Tooltip>
+            ) : (
+              <Button 
+                variant="contained" 
+                startIcon={<Plus size={18} />} 
+                onClick={() => {
+                  if (currentUser?.role === 'student') {
+                    setFormData({ ...formData, studentId: currentUser.uid, studentName: currentUser.displayName });
+                  }
+                  setOpenAddDialog(true);
+                }}
+                sx={{ 
+                  borderRadius: 4, 
+                  fontWeight: 900, 
+                  px: 4, 
+                  py: 1.5,
+                  textTransform: 'none',
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+                    : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+                }}
+              >
+                {isTeacher ? 'New Payment' : 'Apply for Fee'}
+              </Button>
+            )}
           </Stack>
         </Box>
       </motion.div>
 
-      {/* Summary Cards - Only for Teachers/Admins */}
-      {isTeacher && (
+      {/* Summary Cards - Only for Super Admin */}
+      {isSuperAdmin && (
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <SummaryCard 
@@ -569,7 +609,15 @@ export default function Fees() {
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>{receipt.studentName}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip label={receipt.feeHead} size="small" sx={{ fontWeight: 700, bgcolor: 'grey.100' }} />
+                      <Chip 
+                        label={receipt.feeHead} 
+                        size="small" 
+                        sx={{ 
+                          fontWeight: 700, 
+                          bgcolor: alpha(theme.palette.text.primary, 0.05),
+                          color: 'text.primary'
+                        }} 
+                      />
                     </TableCell>
                     <TableCell>
                       <Typography variant="subtitle2" sx={{ fontWeight: 900, color: 'text.primary' }}>

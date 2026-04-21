@@ -8,10 +8,12 @@ import {
 import { 
   LogIn, UserPlus, Eye, EyeOff, Mail, Lock, User, 
   ShieldCheck, Sparkles, ArrowRight, GraduationCap,
-  School, CheckCircle, Github, Chrome
+  School, CheckCircle
 } from 'lucide-react';
-import { UserRole } from '../types';
+import { UserRole, InstituteSettings } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
+import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface LoginProps {
   onLogin: (email: string, pass: string) => Promise<void>;
@@ -28,6 +30,20 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
   const [role, setRole] = useState<UserRole>('student');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [institute, setInstitute] = useState<Partial<InstituteSettings>>({
+    maktabName: 'Wali Ul Aser',
+    tagline: 'First Step Towards Building Taqwa'
+  });
+
+  React.useEffect(() => {
+    const fetchBranding = async () => {
+      const snap = await getDoc(doc(db, 'settings', 'institute'));
+      if (snap.exists()) {
+        setInstitute(snap.data());
+      }
+    };
+    fetchBranding();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,22 +84,31 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
             <Box 
               sx={{ 
                 display: 'inline-flex', 
-                p: 2.5, 
+                p: institute.logoUrl ? 0 : 2.5, 
                 borderRadius: '50%', 
                 bgcolor: alpha(theme.palette.primary.main, 0.1), 
                 color: 'primary.main',
                 mb: 3,
                 border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                boxShadow: `0 0 20px ${alpha(theme.palette.primary.main, 0.2)}`
+                boxShadow: `0 0 20px ${alpha(theme.palette.primary.main, 0.2)}`,
+                overflow: 'hidden',
+                width: 100,
+                height: 100,
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
             >
-              <School size={44} />
+              {institute.logoUrl ? (
+                <Box component="img" src={institute.logoUrl} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <School size={44} />
+              )}
             </Box>
             <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: -2, mb: 1 }}>
-              Wali Ul Aser
+              {institute.maktabName}
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.5 }}>
-              First Step Towards Building Taqwa
+              {institute.tagline}
             </Typography>
           </Box>
 
@@ -239,37 +264,12 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                   </Button>
                 </Typography>
               </Box>
-
-              <Divider sx={{ my: 4 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, px: 2, letterSpacing: 1 }}>
-                  OR
-                </Typography>
-              </Divider>
-
-              <Stack direction="row" spacing={2}>
-                <Button 
-                  fullWidth 
-                  variant="outlined" 
-                  startIcon={<Chrome size={18} />}
-                  sx={{ borderRadius: 2, py: 1, fontWeight: 600, textTransform: 'none' }}
-                >
-                  Google
-                </Button>
-                <Button 
-                  fullWidth 
-                  variant="outlined" 
-                  startIcon={<Github size={18} />}
-                  sx={{ borderRadius: 2, py: 1, fontWeight: 600, textTransform: 'none' }}
-                >
-                  GitHub
-                </Button>
-              </Stack>
             </CardContent>
           </Card>
 
           <Box sx={{ mt: 6, textAlign: 'center' }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, display: 'block' }}>
-              © 2026 Idarah Wali Ul Aser
+              © {new Date().getFullYear()} {institute.maktabName}
             </Typography>
           </Box>
         </motion.div>

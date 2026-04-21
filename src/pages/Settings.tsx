@@ -63,7 +63,7 @@ export default function Settings() {
   const [showPassword, setShowPassword] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
+  const isAdmin = currentUser?.role === 'superadmin';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -99,6 +99,9 @@ export default function Settings() {
             phone: '+91 7006123456',
             email: 'idarahwaliulaser@gmail.com',
             logoUrl: 'https://idarahwaliulaser.netlify.app/favicon.ico',
+            bannerUrl: '',
+            receiptLeftImageUrl: '',
+            receiptRightImageUrl: '',
             primaryColor: '#0d9488',
             secondaryColor: '#0f766e',
             website: 'idarahwaliulaser.netlify.app',
@@ -170,7 +173,7 @@ export default function Settings() {
     }
   };
 
-  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'logo') => {
+  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'logo' | 'banner' | 'receiptLeft' | 'receiptRight') => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -185,7 +188,8 @@ export default function Settings() {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_SIZE = 400; // 400px is plenty for profile/logo
+        // Banners and receipt corners might need different max sizes but 800px-1200px is usually enough for web-compressed assets
+        const MAX_SIZE = type === 'banner' ? 1200 : 400; 
         let width = img.width;
         let height = img.height;
 
@@ -211,15 +215,22 @@ export default function Settings() {
           ctx.drawImage(img, 0, 0, width, height);
         }
 
-        // Compress to JPEG with 0.7 quality - this will be very small (usually < 50KB)
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        // Compress to JPEG with 0.8 quality
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
         
         if (type === 'profile') {
           setProfileData({ ...profileData, photoURL: compressedBase64 });
-        } else {
+        } else if (type === 'logo') {
           setInstituteData({ ...instituteData, logoUrl: compressedBase64 });
+        } else if (type === 'banner') {
+          setInstituteData({ ...instituteData, bannerUrl: compressedBase64 });
+        } else if (type === 'receiptLeft') {
+          setInstituteData({ ...instituteData, receiptLeftImageUrl: compressedBase64 });
+        } else if (type === 'receiptRight') {
+          setInstituteData({ ...instituteData, receiptRightImageUrl: compressedBase64 });
         }
-        setSnackbar({ open: true, message: `${type === 'profile' ? 'Profile photo' : 'Institute logo'} processed successfully!`, severity: 'success' });
+        
+        setSnackbar({ open: true, message: `${type} processed successfully!`, severity: 'success' });
         logger.success(`${type} photo compressed to ${Math.round(compressedBase64.length / 1024)}KB`);
       };
       img.src = e.target?.result as string;
@@ -288,12 +299,12 @@ export default function Settings() {
   };
 
   const handleResetData = async () => {
-    if (currentUser?.role !== 'super-admin') return;
+    if (currentUser?.role !== 'superadmin') return;
     setResetConfirmOpen(true);
   };
 
   const confirmResetData = async () => {
-    if (currentUser?.role !== 'super-admin') return;
+    if (currentUser?.role !== 'superadmin') return;
     
     setLoading(true);
     setResetConfirmOpen(false);
@@ -619,6 +630,118 @@ export default function Settings() {
                         <Typography variant="caption" color="text.secondary">Recommended size: 200x200px (PNG/JPG)</Typography>
                       </Box>
                     </Box>
+
+                    <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <Box sx={{ position: 'relative' }}>
+                        <Box 
+                          sx={{ 
+                            width: 150, 
+                            height: 80, 
+                            borderRadius: 1, 
+                            border: '2px solid', 
+                            borderColor: 'divider',
+                            bgcolor: 'grey.100',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden'
+                          }} 
+                        >
+                          {instituteData.bannerUrl ? (
+                            <Box component="img" src={instituteData.bannerUrl} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">No Banner</Typography>
+                          )}
+                        </Box>
+                        <IconButton 
+                          size="small"
+                          onClick={() => document.getElementById('banner-photo-input')?.click()}
+                          sx={{ 
+                            position: 'absolute', bottom: -10, right: -10, 
+                            bgcolor: 'primary.main', color: 'white',
+                            '&:hover': { bgcolor: 'primary.dark' }
+                          }}
+                        >
+                          <Camera size={14} />
+                        </IconButton>
+                        <input
+                          type="file"
+                          id="banner-photo-input"
+                          hidden
+                          accept="image/*"
+                          onChange={(e) => handlePhotoUpload(e, 'banner')}
+                        />
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>General Banner</Typography>
+                        <Typography variant="caption" color="text.secondary">Wide image for dashboard/headers</Typography>
+                      </Box>
+                    </Box>
+
+                    <Box sx={{ mb: 4, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Box sx={{ position: 'relative' }}>
+                          <Avatar 
+                            src={instituteData.receiptLeftImageUrl} 
+                            variant="rounded"
+                            sx={{ width: 60, height: 60, borderRadius: 1, border: '2px solid', borderColor: 'divider' }} 
+                          />
+                          <IconButton 
+                            size="small"
+                            onClick={() => document.getElementById('receipt-left-input')?.click()}
+                            sx={{ 
+                              position: 'absolute', bottom: -8, right: -8, 
+                              bgcolor: 'primary.main', color: 'white',
+                              '&:hover': { bgcolor: 'primary.dark' }
+                            }}
+                          >
+                            <Camera size={12} />
+                          </IconButton>
+                          <input
+                            type="file"
+                            id="receipt-left-input"
+                            hidden
+                            accept="image/*"
+                            onChange={(e) => handlePhotoUpload(e, 'receiptLeft')}
+                          />
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" sx={{ fontWeight: 800, display: 'block' }}>Receipt Top Left</Typography>
+                        </Box>
+                      </Box>
+
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Box sx={{ position: 'relative' }}>
+                          <Avatar 
+                            src={instituteData.receiptRightImageUrl} 
+                            variant="rounded"
+                            sx={{ width: 60, height: 60, borderRadius: 1, border: '2px solid', borderColor: 'divider' }} 
+                          />
+                          <IconButton 
+                            size="small"
+                            onClick={() => document.getElementById('receipt-right-input')?.click()}
+                            sx={{ 
+                              position: 'absolute', bottom: -8, right: -8, 
+                              bgcolor: 'primary.main', color: 'white',
+                              '&:hover': { bgcolor: 'primary.dark' }
+                            }}
+                          >
+                            <Camera size={12} />
+                          </IconButton>
+                          <input
+                            type="file"
+                            id="receipt-right-input"
+                            hidden
+                            accept="image/*"
+                            onChange={(e) => handlePhotoUpload(e, 'receiptRight')}
+                          />
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" sx={{ fontWeight: 800, display: 'block' }}>Receipt Top Right</Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+
                     <Grid container spacing={3}>
                       <Grid size={{ xs: 12, md: 8 }}>
                         <TextField
@@ -673,7 +796,7 @@ export default function Settings() {
                         <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 3 }}>Visual Identity</Typography>
                         <Grid container spacing={4}>
                           <Grid size={{ xs: 12, md: 6 }}>
-                            <Box sx={{ p: 3, borderRadius: 4, border: '1px solid', borderColor: 'divider', bgcolor: 'grey.50' }}>
+                            <Box sx={{ p: 3, borderRadius: 4, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50' }}>
                               <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 800 }}>Primary Brand Color</Typography>
                               <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
                                 <Box 
@@ -702,7 +825,7 @@ export default function Settings() {
                             </Box>
                           </Grid>
                           <Grid size={{ xs: 12, md: 6 }}>
-                            <Box sx={{ p: 3, borderRadius: 4, border: '1px solid', borderColor: 'divider', bgcolor: 'grey.50' }}>
+                            <Box sx={{ p: 3, borderRadius: 4, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50' }}>
                               <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 800 }}>Secondary Brand Color</Typography>
                               <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
                                 <Box 
@@ -1134,19 +1257,19 @@ export default function Settings() {
                           color="error" 
                           startIcon={<Trash2 size={18} />}
                           onClick={handleResetData}
-                          disabled={currentUser?.role !== 'super-admin'}
+                          disabled={currentUser?.role !== 'superadmin'}
                           sx={{ 
                             borderRadius: 3, 
                             fontWeight: 800, 
                             px: 4,
-                            boxShadow: currentUser?.role === 'super-admin' ? (theme.palette.mode === 'dark'
+                            boxShadow: currentUser?.role === 'superadmin' ? (theme.palette.mode === 'dark'
                               ? '6px 6px 12px #060a12, -6px -6px 12px #182442'
                               : '6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff') : 'none',
                           }}
                         >
                           Reset All Data
                         </Button>
-                        {currentUser?.role !== 'super-admin' && (
+                        {currentUser?.role !== 'superadmin' && (
                           <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1, fontWeight: 600 }}>
                             Only Super Admins can perform this action.
                           </Typography>

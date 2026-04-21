@@ -11,9 +11,9 @@ import {
   AlertCircle, Send, FileText, ClipboardList, UserCheck,
   MoreVertical, ExternalLink, Phone, MessageCircle
 } from 'lucide-react';
-import { collection, query, onSnapshot, orderBy, where, limit, updateDoc, doc, getDocs, arrayUnion } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, where, limit, updateDoc, doc, getDocs, arrayUnion, or, getDoc } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
-import { UserProfile, FeeReceipt, Notification as NotificationType, Course } from '../types';
+import { UserProfile, FeeReceipt, Notification as NotificationType, Course, InstituteSettings } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,10 +38,15 @@ export default function Dashboard({ user }: DashboardProps) {
   });
   const [recentNotifications, setRecentNotifications] = useState<NotificationType[]>([]);
   const [pendingReceipts, setPendingReceipts] = useState<FeeReceipt[]>([]);
+  const [pendingStudents, setPendingStudents] = useState<UserProfile[]>([]);
+  const [instituteData, setInstituteData] = useState<Partial<InstituteSettings>>({});
   const [fabOpen, setFabOpen] = useState(false);
 
-  const isMudaris = user.role === 'teacher' || user.role === 'admin' || user.role === 'super-admin';
-  const isMuntazim = user.role === 'admin' || user.role === 'super-admin';
+  const isSuperAdmin = user.role === 'superadmin';
+  const isApprovedMudaris = user.role === 'approved_mudaris';
+  const isMudaris = isApprovedMudaris || isSuperAdmin;
+  const isPendingMudaris = user.role === 'pending_mudaris';
+  const isMuntazim = isSuperAdmin; // Only superadmin is full muntazim now
 
   // Real data for charts will be fetched from Firestore
   const [collectionTrendData, setCollectionTrendData] = useState<{name: string, value: number}[]>([]);
@@ -51,36 +56,71 @@ export default function Dashboard({ user }: DashboardProps) {
   useEffect(() => {
     let unsubscribeNotifs = () => {};
     let unsubscribeReceipts = () => {};
+    let unsubscribeStudents = () => {};
 
     const fetchData = async () => {
       try {
         logger.info('Dashboard Initializing...');
         // Stats
         if (isMudaris) {
-          const tulabSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'student')));
-          const pendingFeesSnap = await getDocs(query(collection(db, 'receipts'), where('status', '==', 'pending')));
-          const todayHaziriSnap = await getDocs(query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present')));
+          const tulabQuery = isSuperAdmin 
+            ? query(collection(db, 'users'), where('role', '==', 'student'))
+            : query(collection(db, 'users'), where('role', '==', 'student'), where('grade', 'in', user.assignedClasses || []));
+            
+          const tulabSnap = await getDocs(tulabQuery);
+          
+          let pendingFeesCount = 0;
+          let totalFeesAmount = 0;
+
+          if (isSuperAdmin) {
+            const pendingFeesSnap = await getDocs(query(collection(db, 'receipts'), where('status', '==', 'pending')));
+            pendingFeesCount = pendingFeesSnap.size;
+            totalFeesAmount = 45000; // This should be calculated from approved receipts of current month
+          }
+
+          const todayHaziriQuery = isSuperAdmin 
+            ? query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present'))
+            : query(
+                collection(db, 'attendance'), 
+                where('date', '==', format(new Date(), 'yyyy-MM-dd')), 
+                where('status', '==', 'present'),
+                where('grade', 'in', user.assignedClasses || [])
+              );
+              
+          const todayHaziriSnap = await getDocs(todayHaziriQuery);
           
           setStats({
             totalTulab: tulabSnap.size,
-            totalFeesMonth: 45000, // Mock or calculate
-            pendingFees: pendingFeesSnap.size,
+            totalFeesMonth: totalFeesAmount,
+            pendingFees: pendingFeesCount,
             todayHaziri: todayHaziriSnap.size
           });
           logger.success('Dashboard Stats Loaded');
         }
 
         // Notifications
-        const notifQuery = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(5));
+        // Notifications
+        let notifQuery;
+        if (isMudaris) {
+          notifQuery = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(10));
+        } else {
+          // If student, use OR query to catch all relevant notifications
+          notifQuery = query(
+            collection(db, 'notifications'), 
+            or(
+              where('targetType', '==', 'all'),
+              where('targetId', '==', user.uid),
+              where('targetId', '==', user.grade || 'none'),
+              where('targetId', '==', user.maktabLevel || 'none')
+            ),
+            orderBy('createdAt', 'desc'), 
+            limit(10)
+          );
+        }
+        
         unsubscribeNotifs = onSnapshot(notifQuery, (snapshot) => {
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
-          setRecentNotifications(data.filter(n => {
-            if (isMudaris) return true;
-            if (n.targetType === 'all') return true;
-            if (n.targetType === 'individual' && n.targetId === user.uid) return true;
-            if (n.targetType === 'class' && n.targetId === user.grade) return true;
-            return false;
-          }));
+          setRecentNotifications(data);
           logger.db('Recent Notifications Updated', 'notifications', { count: snapshot.size });
         }, (error) => {
           handleFirestoreError(error, OperationType.LIST, 'notifications');
@@ -88,13 +128,45 @@ export default function Dashboard({ user }: DashboardProps) {
 
         // Pending Receipts for Mudaris
         if (isMudaris) {
-          const receiptsQuery = query(collection(db, 'receipts'), where('status', '==', 'pending'), limit(5));
+          const isSuperAdmin = user.role === 'superadmin';
+          let receiptsQuery;
+          
+          if (isSuperAdmin) {
+            receiptsQuery = query(collection(db, 'receipts'), where('status', '==', 'pending'), limit(5));
+          } else {
+            receiptsQuery = query(
+              collection(db, 'receipts'), 
+              where('status', '==', 'pending'), 
+              where('grade', 'in', user.assignedClasses || ['none']),
+              limit(5)
+            );
+          }
+          
           unsubscribeReceipts = onSnapshot(receiptsQuery, (snapshot) => {
             setPendingReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
             logger.db('Pending Fee Receipts Updated', 'receipts', { count: snapshot.size });
           }, (error) => {
             handleFirestoreError(error, OperationType.LIST, 'receipts');
           });
+
+          // Pending Student Approvals
+          const studentsQuery = query(collection(db, 'users'), where('pendingMaktabLevel', '!=', null));
+          unsubscribeStudents = onSnapshot(studentsQuery, (snapshot) => {
+            setPendingStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
+            logger.db('Pending Student Approvals Updated', 'users', { count: snapshot.size });
+          }, (error) => {
+            handleFirestoreError(error, OperationType.LIST, 'users');
+          });
+        }
+
+        // Fetch Institute Settings for Banner
+        try {
+          const settingsDoc = await getDoc(doc(db, 'settings', 'institute'));
+          if (settingsDoc.exists()) {
+            setInstituteData(settingsDoc.data() as InstituteSettings);
+          }
+        } catch (error) {
+          console.warn('Failed to fetch institute banner:', error);
         }
 
         setLoading(false);
@@ -105,15 +177,16 @@ export default function Dashboard({ user }: DashboardProps) {
       }
     };
 
-    if (user) {
+    if (user?.uid) {
       fetchData();
     }
 
     return () => {
       unsubscribeNotifs();
       unsubscribeReceipts();
+      unsubscribeStudents();
     };
-  }, [user, isMudaris]);
+  }, [user?.uid, isMudaris]);
 
   const handleApproveFee = async (id: string) => {
     try {
@@ -142,6 +215,32 @@ export default function Dashboard({ user }: DashboardProps) {
       logger.success('Fee Rejected Successfully');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `receipts/${id}`);
+    }
+  };
+
+  const handleApproveStudent = async (student: UserProfile) => {
+    try {
+      logger.db('Approving Student Class', `users/${student.uid}`);
+      await updateDoc(doc(db, 'users', student.uid), {
+        maktabLevel: student.pendingMaktabLevel,
+        pendingMaktabLevel: null,
+        status: 'Active'
+      });
+      logger.success(`Student ${student.displayName} approved for ${student.pendingMaktabLevel}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${student.uid}`);
+    }
+  };
+
+  const handleRejectStudent = async (student: UserProfile) => {
+    try {
+      logger.db('Rejecting Student Class', `users/${student.uid}`);
+      await updateDoc(doc(db, 'users', student.uid), {
+        pendingMaktabLevel: null
+      });
+      logger.info(`Student ${student.displayName} selection rejected`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${student.uid}`);
     }
   };
 
@@ -228,11 +327,26 @@ export default function Dashboard({ user }: DashboardProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Box sx={{ mb: isMobile ? 4 : 8, textAlign: 'center' }}>
-          <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontFamily: 'var(--font-serif)', fontWeight: 500, mb: 1, color: 'text.primary', letterSpacing: -0.5 }}>
+        <Box 
+          sx={{ 
+            mb: isMobile ? 4 : 8, 
+            textAlign: 'center',
+            position: 'relative',
+            borderRadius: 6,
+            overflow: 'hidden',
+            p: { xs: 4, md: 8 },
+            bgcolor: instituteData.bannerUrl ? 'transparent' : 'action.hover',
+            backgroundImage: instituteData.bannerUrl ? `linear-gradient(${alpha('#000000', 0.4)}, ${alpha('#000000', 0.4)}), url(${instituteData.bannerUrl})` : 'none',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            color: instituteData.bannerUrl ? 'white' : 'text.primary',
+            boxShadow: instituteData.bannerUrl ? '0 20px 40px rgba(0,0,0,0.2)' : 'none'
+          }}
+        >
+          <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontFamily: 'var(--font-serif)', fontWeight: 500, mb: 1, color: 'inherit', letterSpacing: -0.5 }}>
             Asslamualikum, {user.displayName.split(' ')[0]}! 👋
           </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500, letterSpacing: 0.5, opacity: 0.8 }}>
+          <Typography variant="body1" sx={{ fontWeight: 500, letterSpacing: 0.5, opacity: 0.9 }}>
             {isMuntazim ? 'Muntazim Portal (Intizamiya)' : isMudaris ? 'Mudaris Portal (Asatiza)' : `Talib-e-Ilm Portal • ${user.grade || 'Not Assigned'}`}
           </Typography>
           
@@ -242,16 +356,17 @@ export default function Dashboard({ user }: DashboardProps) {
                 px: 2, 
                 py: 0.5, 
                 borderRadius: 1, 
-                bgcolor: alpha(theme.palette.primary.main, 0.05),
-                color: 'primary.main', 
+                bgcolor: instituteData.bannerUrl ? alpha('#ffffff', 0.1) : alpha(theme.palette.primary.main, 0.05),
+                color: instituteData.bannerUrl ? 'white' : 'primary.main', 
                 fontWeight: 700,
                 fontSize: '0.75rem',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 1,
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                border: `1px solid ${instituteData.bannerUrl ? alpha('#ffffff', 0.2) : alpha(theme.palette.primary.main, 0.1)}`,
                 textTransform: 'uppercase',
-                letterSpacing: 1
+                letterSpacing: 1,
+                backdropFilter: instituteData.bannerUrl ? 'blur(10px)' : 'none'
               }}
             >
               <Calendar size={14} />
@@ -268,12 +383,16 @@ export default function Dashboard({ user }: DashboardProps) {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <StatCard title="Kul Tulab-e-Ilm" value={stats.totalTulab} icon={<Users size={20} />} color="#3b82f6" />
             </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-              <StatCard title="Mahana Majmua" value={`₹${stats.totalFeesMonth.toLocaleString()}`} icon={<TrendingUp size={20} />} color="#10b981" />
-            </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <StatCard title="Baqaya Fees" value={stats.pendingFees} icon={<CreditCard size={20} />} color="#f59e0b" />
-            </motion.div>
+            {isSuperAdmin && (
+              <>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                  <StatCard title="Mahana Majmua" value={`₹${stats.totalFeesMonth.toLocaleString()}`} icon={<TrendingUp size={20} />} color="#10b981" />
+                </motion.div>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                  <StatCard title="Baqaya Fees" value={stats.pendingFees} icon={<CreditCard size={20} />} color="#f59e0b" />
+                </motion.div>
+              </>
+            )}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
               <StatCard title="Aaj ki Haziri" value={stats.todayHaziri} icon={<UserCheck size={20} />} color="#06b6d4" />
             </motion.div>
@@ -283,7 +402,7 @@ export default function Dashboard({ user }: DashboardProps) {
             <Box sx={{ gridColumn: { xs: 'span 1', md: 'span 2' } }}>
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
                 <Card variant="outlined" sx={{ 
-                  borderRadius: 4, 
+                  borderRadius: 2, 
                   background: theme.palette.mode === 'dark' ? '#0a0a0a' : '#ffffff',
                   height: '100%',
                   position: 'relative',
@@ -344,11 +463,11 @@ export default function Dashboard({ user }: DashboardProps) {
           )}
 
           {/* Charts Section */}
-          {isMudaris && (
+          {isSuperAdmin && (
             <Grid container spacing={3} sx={{ mb: 4 }}>
               <Grid size={{ xs: 12 }}>
                 <Card variant="outlined" sx={{ 
-                  borderRadius: 6, 
+                  borderRadius: 2, 
                   bgcolor: 'background.paper',
                 }}>
                   <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -379,9 +498,9 @@ export default function Dashboard({ user }: DashboardProps) {
             </Grid>
           )}
 
-          {/* Pending Fee Approvals (Mudaris Only) */}
+          {/* Pending Fee Approvals (Mudaris & Admin) */}
           {isMudaris && pendingReceipts.length > 0 && (
-            <Card variant="outlined" sx={{ borderRadius: 4, mb: 6, overflow: 'hidden' }}>
+            <Card variant="outlined" sx={{ borderRadius: 2, mb: 4, overflow: 'hidden' }}>
               <Box sx={{ 
                 p: 2.5, 
                 bgcolor: alpha(theme.palette.warning.main, 0.05), 
@@ -435,6 +554,71 @@ export default function Dashboard({ user }: DashboardProps) {
                     <ListItemText 
                       primary={receipt.studentName} 
                       secondary={`₹${receipt.amount} • ${receipt.feeHead}`} 
+                      primaryTypographyProps={{ fontWeight: 700 }}
+                      secondaryTypographyProps={{ fontWeight: 500, fontSize: '0.75rem' }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Card>
+          )}
+
+          {/* Pending Student Approvals (Mudaris & Admin) */}
+          {isMudaris && pendingStudents.length > 0 && (
+            <Card variant="outlined" sx={{ borderRadius: 2, mb: 6, overflow: 'hidden' }}>
+              <Box sx={{ 
+                p: 2.5, 
+                bgcolor: alpha(theme.palette.info.main, 0.05), 
+                color: 'info.main', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                borderBottom: `1px solid ${theme.palette.divider}`
+              }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <UserCheck size={18} /> Pending Student Approvals
+                </Typography>
+                <Button 
+                  size="small" 
+                  onClick={() => navigate('/users')} 
+                  sx={{ fontWeight: 700, textTransform: 'none' }}
+                >
+                  Manage Users
+                </Button>
+              </Box>
+              <List sx={{ p: 0 }}>
+                {pendingStudents.map((student, index) => (
+                  <ListItem 
+                    key={student.uid} 
+                    divider={index !== pendingStudents.length - 1}
+                    sx={{ py: 2, px: 3 }}
+                    secondaryAction={
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <IconButton 
+                          size="small" 
+                          sx={{ color: 'success.main', border: `1px solid ${theme.palette.divider}` }} 
+                          onClick={() => handleApproveStudent(student)}
+                        >
+                          <Check size={16} />
+                        </IconButton>
+                        <IconButton 
+                          size="small" 
+                          sx={{ color: 'error.main', border: `1px solid ${theme.palette.divider}` }} 
+                          onClick={() => handleRejectStudent(student)}
+                        >
+                          <X size={16} />
+                        </IconButton>
+                      </Box>
+                    }
+                  >
+                    <ListItemAvatar>
+                      <Avatar src={student.photoURL} sx={{ bgcolor: 'action.hover' }}>
+                        {student.displayName.charAt(0)}
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText 
+                      primary={student.displayName} 
+                      secondary={`Requesting: ${student.pendingMaktabLevel}`} 
                       primaryTypographyProps={{ fontWeight: 700 }}
                       secondaryTypographyProps={{ fontWeight: 500, fontSize: '0.75rem' }}
                     />
@@ -500,7 +684,7 @@ export default function Dashboard({ user }: DashboardProps) {
         {/* Right Column: Profile & Team */}
         <Grid size={{ xs: 12, md: 4 }}>
           {/* Profile Card */}
-          <Card variant="outlined" sx={{ borderRadius: 4, mb: 4, overflow: 'hidden' }}>
+          <Card variant="outlined" sx={{ borderRadius: 2, mb: 4, overflow: 'hidden' }}>
             <Box sx={{ height: 80, bgcolor: 'primary.main', opacity: 0.1 }} />
             <CardContent sx={{ pt: 0, pb: 4, textAlign: 'center', mt: -5 }}>
               <Avatar 
@@ -554,7 +738,7 @@ export default function Dashboard({ user }: DashboardProps) {
           </Card>
 
           {/* Team Members */}
-          <Card variant="outlined" sx={{ borderRadius: 4 }}>
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
             <CardContent sx={{ p: 3 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 3 }}>Idarah Team</Typography>
               <Stack spacing={2}>
@@ -613,9 +797,9 @@ export default function Dashboard({ user }: DashboardProps) {
           <AnimatePresence>
             {fabOpen && (
               <Box sx={{ position: 'absolute', bottom: 80, right: 0, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
-                <FabAction label="Haziri Lagayein" icon={<ClipboardList size={20} />} color="success" onClick={() => navigate('/attendance')} delay={0.1} />
-                <FabAction label="Adaigi Darj Karein" icon={<CreditCard size={20} />} color="info" onClick={() => navigate('/fees')} delay={0.2} />
-                <FabAction label="Ittila Bhejein" icon={<Send size={20} />} color="primary" onClick={() => navigate('/notifications')} delay={0.3} />
+                <FabAction label="Haziri Lagayein" icon={<ClipboardList size={24} />} color="success" onClick={() => navigate('/attendance')} delay={0.1} />
+                <FabAction label="Adaigi Darj Karein" icon={<CreditCard size={24} />} color="info" onClick={() => navigate('/fees')} delay={0.2} />
+                <FabAction label="Ittila Bhejein" icon={<Send size={24} />} color="primary" onClick={() => navigate('/notifications')} delay={0.3} />
               </Box>
             )}
           </AnimatePresence>
@@ -672,23 +856,23 @@ const ActionButton = React.memo(({ label, icon, onClick, color }: any) => {
       onClick={onClick}
       startIcon={icon}
       fullWidth={isMobile}
-      sx={{ 
-        borderRadius: 100, 
-        px: 4, 
-        py: isMobile ? 1.5 : 2, 
-        border: `1.5px solid ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.2)}`,
-        bgcolor: alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.02),
-        '&:hover': { 
-          bgcolor: alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.1),
-          transform: 'translateY(-2px)',
-          borderColor: theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main,
-          boxShadow: `0 8px 20px ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.15)}`
-        },
-        fontWeight: 800,
-        textTransform: 'none',
-        fontSize: '0.9rem',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      }}
+        sx={{ 
+          borderRadius: 24, 
+          px: 4, 
+          py: isMobile ? 1.5 : 2, 
+          border: `1.5px solid ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.2)}`,
+          bgcolor: alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.02),
+          '&:hover': { 
+            bgcolor: alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.1),
+            transform: 'translateY(-2px)',
+            borderColor: theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main,
+            boxShadow: `0 8px 20px ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.15)}`
+          },
+          fontWeight: 800,
+          textTransform: 'none',
+          fontSize: '0.9rem',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
     >
       {label}
     </Button>
@@ -710,7 +894,7 @@ function FabAction({ label, icon, color, onClick, delay }: any) {
         sx={{ 
           px: 3, 
           py: 1.2, 
-          borderRadius: 100, 
+          borderRadius: 2, 
           fontWeight: 800, 
           fontSize: '0.875rem',
           bgcolor: alpha(theme.palette.background.paper, 0.9),

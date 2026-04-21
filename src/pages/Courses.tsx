@@ -41,7 +41,7 @@ export default function Courses() {
     teacherId: ''
   });
 
-  const isTeacher = currentUser?.role === 'teacher' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin';
+  const isTeacher = currentUser?.role === 'approved_mudaris' || currentUser?.role === 'superadmin';
 
   useEffect(() => {
     const q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'));
