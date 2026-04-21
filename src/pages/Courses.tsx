@@ -44,9 +44,9 @@ export default function Courses() {
   const isTeacher = currentUser?.role === 'approved_mudaris' || currentUser?.role === 'superadmin';
 
   useEffect(() => {
-    const q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[]);
+      setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[];
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'courses');
@@ -121,7 +121,7 @@ export default function Courses() {
   );
 
   return (
-    <Box sx={{ pb: 8 }}>
+    <Box sx={{ pb: { xs: 4, sm: 6, md: 8 }, px: { xs: 1.5, sm: 2, md: 0 } }}>
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

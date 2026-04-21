@@ -9,6 +9,22 @@ export interface HardwarePermissions {
   microphone: PermissionStatus;
 }
 
+// Keys for localStorage
+const PERMISSION_CHOICES_KEY = 'permission-choices';
+const PERMISSION_ASKED_KEY = 'permission-asked';
+
+interface PermissionChoices {
+  notifications?: 'granted' | 'denied';
+  camera?: 'granted' | 'denied';
+  microphone?: 'granted' | 'denied';
+}
+
+interface PermissionAsked {
+  notifications?: boolean;
+  camera?: boolean;
+  microphone?: boolean;
+}
+
 export function useHardwarePermissions() {
   const [permissions, setPermissions] = useState<HardwarePermissions>({
     notifications: 'prompt',
@@ -18,12 +34,22 @@ export function useHardwarePermissions() {
 
   const checkPermissions = async () => {
     const newPermissions: HardwarePermissions = { ...permissions };
+    
+    // Load saved choices from localStorage
+    const savedChoices: PermissionChoices = JSON.parse(
+      localStorage.getItem(PERMISSION_CHOICES_KEY) || '{}'
+    );
 
     // Check Notifications
     if (!('Notification' in window)) {
       newPermissions.notifications = 'not-supported';
     } else {
-      newPermissions.notifications = Notification.permission as PermissionStatus;
+      // If user already made a choice, respect it
+      if (savedChoices.notifications) {
+        newPermissions.notifications = savedChoices.notifications;
+      } else {
+        newPermissions.notifications = Notification.permission as PermissionStatus;
+      }
     }
 
     // Check Camera & Microphone
@@ -34,13 +60,13 @@ export function useHardwarePermissions() {
 
       if (!hasCamera) {
         newPermissions.camera = 'not-supported';
+      } else if (savedChoices.camera) {
+        newPermissions.camera = savedChoices.camera;
       } else {
-        // Check if we already have permission by looking at labels
         const videoGranted = devices.some(d => d.kind === 'videoinput' && d.label !== '');
         if (videoGranted) {
           newPermissions.camera = 'granted';
         } else {
-          // Use Permissions API as a secondary check if available
           try {
             const status = await navigator.permissions.query({ name: 'camera' as any });
             newPermissions.camera = status.state as PermissionStatus;
@@ -52,6 +78,8 @@ export function useHardwarePermissions() {
 
       if (!hasMic) {
         newPermissions.microphone = 'not-supported';
+      } else if (savedChoices.microphone) {
+        newPermissions.microphone = savedChoices.microphone;
       } else {
         const audioGranted = devices.some(d => d.kind === 'audioinput' && d.label !== '');
         if (audioGranted) {
@@ -79,6 +107,21 @@ export function useHardwarePermissions() {
   const requestNotificationPermission = async () => {
     if (!('Notification' in window)) return 'not-supported';
     const result = await Notification.requestPermission();
+    
+    // Save user's choice to localStorage
+    const savedChoices: PermissionChoices = JSON.parse(
+      localStorage.getItem(PERMISSION_CHOICES_KEY) || '{}'
+    );
+    savedChoices.notifications = result as 'granted' | 'denied';
+    localStorage.setItem(PERMISSION_CHOICES_KEY, JSON.stringify(savedChoices));
+    
+    // Mark that we asked
+    const asked: PermissionAsked = JSON.parse(
+      localStorage.getItem(PERMISSION_ASKED_KEY) || '{}'
+    );
+    asked.notifications = true;
+    localStorage.setItem(PERMISSION_ASKED_KEY, JSON.stringify(asked));
+    
     setPermissions(prev => ({ ...prev, notifications: result as PermissionStatus }));
     return result;
   };
@@ -87,9 +130,34 @@ export function useHardwarePermissions() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       stream.getTracks().forEach(track => track.stop());
+      
+      const savedChoices: PermissionChoices = JSON.parse(
+        localStorage.getItem(PERMISSION_CHOICES_KEY) || '{}'
+      );
+      savedChoices.camera = 'granted';
+      localStorage.setItem(PERMISSION_CHOICES_KEY, JSON.stringify(savedChoices));
+      
+      const asked: PermissionAsked = JSON.parse(
+        localStorage.getItem(PERMISSION_ASKED_KEY) || '{}'
+      );
+      asked.camera = true;
+      localStorage.setItem(PERMISSION_ASKED_KEY, JSON.stringify(asked));
+      
       setPermissions(prev => ({ ...prev, camera: 'granted' }));
       return 'granted';
     } catch (err) {
+      const savedChoices: PermissionChoices = JSON.parse(
+        localStorage.getItem(PERMISSION_CHOICES_KEY) || '{}'
+      );
+      savedChoices.camera = 'denied';
+      localStorage.setItem(PERMISSION_CHOICES_KEY, JSON.stringify(savedChoices));
+      
+      const asked: PermissionAsked = JSON.parse(
+        localStorage.getItem(PERMISSION_ASKED_KEY) || '{}'
+      );
+      asked.camera = true;
+      localStorage.setItem(PERMISSION_ASKED_KEY, JSON.stringify(asked));
+      
       setPermissions(prev => ({ ...prev, camera: 'denied' }));
       return 'denied';
     }
@@ -99,9 +167,34 @@ export function useHardwarePermissions() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(track => track.stop());
+      
+      const savedChoices: PermissionChoices = JSON.parse(
+        localStorage.getItem(PERMISSION_CHOICES_KEY) || '{}'
+      );
+      savedChoices.microphone = 'granted';
+      localStorage.setItem(PERMISSION_CHOICES_KEY, JSON.stringify(savedChoices));
+      
+      const asked: PermissionAsked = JSON.parse(
+        localStorage.getItem(PERMISSION_ASKED_KEY) || '{}'
+      );
+      asked.microphone = true;
+      localStorage.setItem(PERMISSION_ASKED_KEY, JSON.stringify(asked));
+      
       setPermissions(prev => ({ ...prev, microphone: 'granted' }));
       return 'granted';
     } catch (err) {
+      const savedChoices: PermissionChoices = JSON.parse(
+        localStorage.getItem(PERMISSION_CHOICES_KEY) || '{}'
+      );
+      savedChoices.microphone = 'denied';
+      localStorage.setItem(PERMISSION_CHOICES_KEY, JSON.stringify(savedChoices));
+      
+      const asked: PermissionAsked = JSON.parse(
+        localStorage.getItem(PERMISSION_ASKED_KEY) || '{}'
+      );
+      asked.microphone = true;
+      localStorage.setItem(PERMISSION_ASKED_KEY, JSON.stringify(asked));
+      
       setPermissions(prev => ({ ...prev, microphone: 'denied' }));
       return 'denied';
     }
@@ -112,6 +205,17 @@ export function useHardwarePermissions() {
     requestNotificationPermission,
     requestCameraPermission,
     requestMicrophonePermission,
-    refresh: checkPermissions
+    refresh: checkPermissions,
+    hasAskedBefore: () => {
+      const asked: PermissionAsked = JSON.parse(
+        localStorage.getItem(PERMISSION_ASKED_KEY) || '{}'
+      );
+      return asked;
+    },
+    resetPermissionPreferences: () => {
+      localStorage.removeItem(PERMISSION_CHOICES_KEY);
+      localStorage.removeItem(PERMISSION_ASKED_KEY);
+      checkPermissions();
+    }
   };
 }

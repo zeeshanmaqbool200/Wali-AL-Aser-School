@@ -85,7 +85,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
     const q = query(
       collection(db, 'notifications'),
       orderBy('createdAt', 'desc'),
-      limit(20)
+      limit(15)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
@@ -127,7 +127,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             borderBottom: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
           }}
         >
-          <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 72, md: 88 }, px: { xs: 2, md: 4 } }}>
+          <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 56, sm: 64, md: 72 }, px: { xs: 1.5, sm: 2, md: 4 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               {isMobile && (
                 <motion.div
