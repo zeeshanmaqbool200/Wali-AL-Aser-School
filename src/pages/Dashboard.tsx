@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, Typography, Grid, Card, CardContent, Button, 
-  Avatar, Chip, Divider, List, ListItem, ListItemText, 
+import {
+  Box, Typography, Grid, Card, CardContent, Button,
+  Avatar, Chip, Divider, List, ListItem, ListItemText,
   ListItemAvatar, CircularProgress, IconButton, Tooltip as MuiTooltip,
   Paper, useTheme, useMediaQuery, Fab, Zoom, alpha, Stack
 } from '@mui/material';
-import { 
-  Users, BookOpen, Calendar, CreditCard, Bell, 
-  Check, X, Plus, ArrowRight, TrendingUp, Clock, 
+import {
+  Users, BookOpen, Calendar, CreditCard, Bell,
+  Check, X, Plus, ArrowRight, TrendingUp, Clock,
   AlertCircle, Send, FileText, ClipboardList, UserCheck,
   MoreVertical, ExternalLink, Phone, MessageCircle
 } from 'lucide-react';
@@ -49,46 +49,53 @@ export default function Dashboard({ user }: DashboardProps) {
   const isMuntazim = isSuperAdmin; // Only superadmin is full muntazim now
 
   // Real data for charts will be fetched from Firestore
-  const [collectionTrendData, setCollectionTrendData] = useState<{name: string, value: number}[]>([]);
-  const [haziriTrendData, setHaziriTrendData] = useState<{name: string, value: number}[]>([]);
-  const [subjectsTrendData, setSubjectsTrendData] = useState<{name: string, value: number}[]>([]);
+  const [collectionTrendData, setCollectionTrendData] = useState<{ name: string, value: number }[]>([]);
+  const [haziriTrendData, setHaziriTrendData] = useState<{ name: string, value: number }[]>([]);
+  const [subjectsTrendData, setSubjectsTrendData] = useState<{ name: string, value: number }[]>([]);
 
   useEffect(() => {
-    let unsubscribeNotifs = () => {};
-    let unsubscribeReceipts = () => {};
-    let unsubscribeStudents = () => {};
+    let unsubscribeNotifs = () => { };
+    let unsubscribeReceipts = () => { };
+    let unsubscribeStudents = () => { };
 
     const fetchData = async () => {
       try {
         logger.info('Dashboard Initializing...');
         // Stats
         if (isMudaris) {
-          const tulabQuery = isSuperAdmin 
+          const tulabQuery = isSuperAdmin
             ? query(collection(db, 'users'), where('role', '==', 'student'))
             : query(collection(db, 'users'), where('role', '==', 'student'), where('grade', 'in', user.assignedClasses || []));
-            
+
           const tulabSnap = await getDocs(tulabQuery);
-          
+
           let pendingFeesCount = 0;
           let totalFeesAmount = 0;
 
           if (isSuperAdmin) {
             const pendingFeesSnap = await getDocs(query(collection(db, 'receipts'), where('status', '==', 'pending')));
             pendingFeesCount = pendingFeesSnap.size;
-            totalFeesAmount = 45000; // This should be calculated from approved receipts of current month
+
+            // Calculate total fees from approved receipts of current month
+            const currentDate = new Date();
+            const currentMonth = format(currentDate, 'yyyy-MM');
+            const approvedFeesSnap = await getDocs(query(collection(db, 'receipts'), where('status', '==', 'approved')));
+            totalFeesAmount = approvedFeesSnap.docs
+              .filter(doc => (doc.data().date as string).startsWith(currentMonth))
+              .reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
           }
 
-          const todayHaziriQuery = isSuperAdmin 
+          const todayHaziriQuery = isSuperAdmin
             ? query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present'))
             : query(
-                collection(db, 'attendance'), 
-                where('date', '==', format(new Date(), 'yyyy-MM-dd')), 
-                where('status', '==', 'present'),
-                where('grade', 'in', user.assignedClasses || [])
-              );
-              
+              collection(db, 'attendance'),
+              where('date', '==', format(new Date(), 'yyyy-MM-dd')),
+              where('status', '==', 'present'),
+              where('grade', 'in', user.assignedClasses || [])
+            );
+
           const todayHaziriSnap = await getDocs(todayHaziriQuery);
-          
+
           setStats({
             totalTulab: tulabSnap.size,
             totalFeesMonth: totalFeesAmount,
@@ -106,18 +113,18 @@ export default function Dashboard({ user }: DashboardProps) {
         } else {
           // If student, use OR query to catch all relevant notifications
           notifQuery = query(
-            collection(db, 'notifications'), 
+            collection(db, 'notifications'),
             or(
               where('targetType', '==', 'all'),
               where('targetId', '==', user.uid),
               where('targetId', '==', user.grade || 'none'),
               where('targetId', '==', user.maktabLevel || 'none')
             ),
-            orderBy('createdAt', 'desc'), 
+            orderBy('createdAt', 'desc'),
             limit(10)
           );
         }
-        
+
         unsubscribeNotifs = onSnapshot(notifQuery, (snapshot) => {
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
           setRecentNotifications(data);
@@ -130,18 +137,18 @@ export default function Dashboard({ user }: DashboardProps) {
         if (isMudaris) {
           const isSuperAdmin = user.role === 'superadmin';
           let receiptsQuery;
-          
+
           if (isSuperAdmin) {
             receiptsQuery = query(collection(db, 'receipts'), where('status', '==', 'pending'), limit(5));
           } else {
             receiptsQuery = query(
-              collection(db, 'receipts'), 
-              where('status', '==', 'pending'), 
+              collection(db, 'receipts'),
+              where('status', '==', 'pending'),
               where('grade', 'in', user.assignedClasses || ['none']),
               limit(5)
             );
           }
-          
+
           unsubscribeReceipts = onSnapshot(receiptsQuery, (snapshot) => {
             setPendingReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
             logger.db('Pending Fee Receipts Updated', 'receipts', { count: snapshot.size });
@@ -255,7 +262,7 @@ export default function Dashboard({ user }: DashboardProps) {
         handleFirestoreError(error, OperationType.UPDATE, `notifications/${notif.id}`);
       }
     }
-    
+
     if (notif.type === 'fee_request') {
       navigate('/fees');
     } else if (notif.type === 'class_timing') {
@@ -327,9 +334,9 @@ export default function Dashboard({ user }: DashboardProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Box 
-          sx={{ 
-            mb: isMobile ? 4 : 8, 
+        <Box
+          sx={{
+            mb: isMobile ? 4 : 8,
             textAlign: 'center',
             position: 'relative',
             borderRadius: 6,
@@ -349,15 +356,15 @@ export default function Dashboard({ user }: DashboardProps) {
           <Typography variant="body1" sx={{ fontWeight: 500, letterSpacing: 0.5, opacity: 0.9 }}>
             {isMuntazim ? 'Muntazim Portal (Intizamiya)' : isMudaris ? 'Mudaris Portal (Asatiza)' : `Talib-e-Ilm Portal • ${user.grade || 'Not Assigned'}`}
           </Typography>
-          
+
           <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-            <Box 
-              sx={{ 
-                px: 2, 
-                py: 0.5, 
-                borderRadius: 1, 
+            <Box
+              sx={{
+                px: 2,
+                py: 0.5,
+                borderRadius: 1,
                 bgcolor: instituteData.bannerUrl ? alpha('#ffffff', 0.1) : alpha(theme.palette.primary.main, 0.05),
-                color: instituteData.bannerUrl ? 'white' : 'primary.main', 
+                color: instituteData.bannerUrl ? 'white' : 'primary.main',
                 fontWeight: 700,
                 fontSize: '0.75rem',
                 display: 'flex',
@@ -401,8 +408,8 @@ export default function Dashboard({ user }: DashboardProps) {
           <>
             <Box sx={{ gridColumn: { xs: 'span 1', md: 'span 2' } }}>
               <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
-                <Card variant="outlined" sx={{ 
-                  borderRadius: 2, 
+                <Card variant="outlined" sx={{
+                  borderRadius: 2,
                   background: theme.palette.mode === 'dark' ? '#0a0a0a' : '#ffffff',
                   height: '100%',
                   position: 'relative',
@@ -410,9 +417,9 @@ export default function Dashboard({ user }: DashboardProps) {
                 }}>
                   <CardContent sx={{ p: 4 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 4 }}>
-                      <Avatar 
-                        src={user.photoURL} 
-                        sx={{ width: 64, height: 64, border: `1px solid ${theme.palette.divider}` }} 
+                      <Avatar
+                        src={user.photoURL}
+                        sx={{ width: 64, height: 64, border: `1px solid ${theme.palette.divider}` }}
                       />
                       <Box>
                         <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: -1 }}>{user.displayName}</Typography>
@@ -466,8 +473,8 @@ export default function Dashboard({ user }: DashboardProps) {
           {isSuperAdmin && (
             <Grid container spacing={3} sx={{ mb: 4 }}>
               <Grid size={{ xs: 12 }}>
-                <Card variant="outlined" sx={{ 
-                  borderRadius: 2, 
+                <Card variant="outlined" sx={{
+                  borderRadius: 2,
                   bgcolor: 'background.paper',
                 }}>
                   <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -480,8 +487,8 @@ export default function Dashboard({ user }: DashboardProps) {
                         <AreaChart data={collectionTrendData}>
                           <defs>
                             <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
+                              <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.3} />
+                              <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0} />
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme.palette.divider} />
@@ -501,21 +508,21 @@ export default function Dashboard({ user }: DashboardProps) {
           {/* Pending Fee Approvals (Mudaris & Admin) */}
           {isMudaris && pendingReceipts.length > 0 && (
             <Card variant="outlined" sx={{ borderRadius: 2, mb: 4, overflow: 'hidden' }}>
-              <Box sx={{ 
-                p: 2.5, 
-                bgcolor: alpha(theme.palette.warning.main, 0.05), 
-                color: 'warning.main', 
-                display: 'flex', 
-                justifyContent: 'space-between', 
+              <Box sx={{
+                p: 2.5,
+                bgcolor: alpha(theme.palette.warning.main, 0.05),
+                color: 'warning.main',
+                display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 borderBottom: `1px solid ${theme.palette.divider}`
               }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <AlertCircle size={18} /> Pending Fee Approvals
                 </Typography>
-                <Button 
-                  size="small" 
-                  onClick={() => navigate('/fees')} 
+                <Button
+                  size="small"
+                  onClick={() => navigate('/fees')}
                   sx={{ fontWeight: 700, textTransform: 'none' }}
                 >
                   View All
@@ -523,22 +530,22 @@ export default function Dashboard({ user }: DashboardProps) {
               </Box>
               <List sx={{ p: 0 }}>
                 {pendingReceipts.map((receipt, index) => (
-                  <ListItem 
-                    key={receipt.id} 
+                  <ListItem
+                    key={receipt.id}
                     divider={index !== pendingReceipts.length - 1}
                     sx={{ py: 2, px: 3 }}
                     secondaryAction={
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        <IconButton 
-                          size="small" 
-                          sx={{ color: 'success.main', border: `1px solid ${theme.palette.divider}` }} 
+                        <IconButton
+                          size="small"
+                          sx={{ color: 'success.main', border: `1px solid ${theme.palette.divider}` }}
                           onClick={() => handleApproveFee(receipt.id)}
                         >
                           <Check size={16} />
                         </IconButton>
-                        <IconButton 
-                          size="small" 
-                          sx={{ color: 'error.main', border: `1px solid ${theme.palette.divider}` }} 
+                        <IconButton
+                          size="small"
+                          sx={{ color: 'error.main', border: `1px solid ${theme.palette.divider}` }}
                           onClick={() => handleRejectFee(receipt.id)}
                         >
                           <X size={16} />
@@ -551,9 +558,9 @@ export default function Dashboard({ user }: DashboardProps) {
                         {receipt.studentName.charAt(0)}
                       </Avatar>
                     </ListItemAvatar>
-                    <ListItemText 
-                      primary={receipt.studentName} 
-                      secondary={`₹${receipt.amount} • ${receipt.feeHead}`} 
+                    <ListItemText
+                      primary={receipt.studentName}
+                      secondary={`₹${receipt.amount} • ${receipt.feeHead}`}
                       primaryTypographyProps={{ fontWeight: 700 }}
                       secondaryTypographyProps={{ fontWeight: 500, fontSize: '0.75rem' }}
                     />
@@ -566,21 +573,21 @@ export default function Dashboard({ user }: DashboardProps) {
           {/* Pending Student Approvals (Mudaris & Admin) */}
           {isMudaris && pendingStudents.length > 0 && (
             <Card variant="outlined" sx={{ borderRadius: 2, mb: 6, overflow: 'hidden' }}>
-              <Box sx={{ 
-                p: 2.5, 
-                bgcolor: alpha(theme.palette.info.main, 0.05), 
-                color: 'info.main', 
-                display: 'flex', 
-                justifyContent: 'space-between', 
+              <Box sx={{
+                p: 2.5,
+                bgcolor: alpha(theme.palette.info.main, 0.05),
+                color: 'info.main',
+                display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 borderBottom: `1px solid ${theme.palette.divider}`
               }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <UserCheck size={18} /> Pending Student Approvals
                 </Typography>
-                <Button 
-                  size="small" 
-                  onClick={() => navigate('/users')} 
+                <Button
+                  size="small"
+                  onClick={() => navigate('/users')}
                   sx={{ fontWeight: 700, textTransform: 'none' }}
                 >
                   Manage Users
@@ -588,22 +595,22 @@ export default function Dashboard({ user }: DashboardProps) {
               </Box>
               <List sx={{ p: 0 }}>
                 {pendingStudents.map((student, index) => (
-                  <ListItem 
-                    key={student.uid} 
+                  <ListItem
+                    key={student.uid}
                     divider={index !== pendingStudents.length - 1}
                     sx={{ py: 2, px: 3 }}
                     secondaryAction={
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        <IconButton 
-                          size="small" 
-                          sx={{ color: 'success.main', border: `1px solid ${theme.palette.divider}` }} 
+                        <IconButton
+                          size="small"
+                          sx={{ color: 'success.main', border: `1px solid ${theme.palette.divider}` }}
                           onClick={() => handleApproveStudent(student)}
                         >
                           <Check size={16} />
                         </IconButton>
-                        <IconButton 
-                          size="small" 
-                          sx={{ color: 'error.main', border: `1px solid ${theme.palette.divider}` }} 
+                        <IconButton
+                          size="small"
+                          sx={{ color: 'error.main', border: `1px solid ${theme.palette.divider}` }}
                           onClick={() => handleRejectStudent(student)}
                         >
                           <X size={16} />
@@ -616,9 +623,9 @@ export default function Dashboard({ user }: DashboardProps) {
                         {student.displayName.charAt(0)}
                       </Avatar>
                     </ListItemAvatar>
-                    <ListItemText 
-                      primary={student.displayName} 
-                      secondary={`Requesting: ${student.pendingMaktabLevel}`} 
+                    <ListItemText
+                      primary={student.displayName}
+                      secondary={`Requesting: ${student.pendingMaktabLevel}`}
                       primaryTypographyProps={{ fontWeight: 700 }}
                       secondaryTypographyProps={{ fontWeight: 500, fontSize: '0.75rem' }}
                     />
@@ -632,9 +639,9 @@ export default function Dashboard({ user }: DashboardProps) {
           <Card variant="outlined" sx={{ borderRadius: 2 }}>
             <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${theme.palette.divider}` }}>
               <Typography variant="h6" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 600 }}>Recent Notifications</Typography>
-              <Button 
-                size="small" 
-                onClick={() => navigate('/notifications')} 
+              <Button
+                size="small"
+                onClick={() => navigate('/notifications')}
                 endIcon={<ArrowRight size={16} />}
                 sx={{ fontWeight: 700, textTransform: 'none', opacity: 0.8 }}
               >
@@ -643,15 +650,15 @@ export default function Dashboard({ user }: DashboardProps) {
             </Box>
             <List sx={{ p: 0 }}>
               {recentNotifications.map((notif, index) => (
-                <ListItem 
-                  key={notif.id} 
+                <ListItem
+                  key={notif.id}
                   divider={index !== recentNotifications.length - 1}
                   onClick={() => handleNotificationClick(notif)}
-                  sx={{ 
-                    py: 2, 
-                    px: 3, 
+                  sx={{
+                    py: 2,
+                    px: 3,
                     cursor: 'pointer',
-                    '&:hover': { bgcolor: 'action.hover' }, 
+                    '&:hover': { bgcolor: 'action.hover' },
                     opacity: notif.readBy.includes(user.uid) ? 0.5 : 1
                   }}
                 >
@@ -660,9 +667,9 @@ export default function Dashboard({ user }: DashboardProps) {
                       {notif.type === 'fee_request' ? <CreditCard size={18} /> : <Bell size={18} />}
                     </Avatar>
                   </ListItemAvatar>
-                  <ListItemText 
-                    primary={notif.title} 
-                    secondary={notif.message} 
+                  <ListItemText
+                    primary={notif.title}
+                    secondary={notif.message}
                     primaryTypographyProps={{ fontWeight: 700, fontSize: '0.9rem' }}
                     secondaryTypographyProps={{ noWrap: true, fontWeight: 500, fontSize: '0.75rem' }}
                   />
@@ -687,34 +694,34 @@ export default function Dashboard({ user }: DashboardProps) {
           <Card variant="outlined" sx={{ borderRadius: 2, mb: 4, overflow: 'hidden' }}>
             <Box sx={{ height: 80, bgcolor: 'primary.main', opacity: 0.1 }} />
             <CardContent sx={{ pt: 0, pb: 4, textAlign: 'center', mt: -5 }}>
-              <Avatar 
-                src={user.photoURL} 
-                sx={{ 
-                  width: 80, height: 80, 
+              <Avatar
+                src={user.photoURL}
+                sx={{
+                  width: 80, height: 80,
                   mx: 'auto',
                   border: `4px solid ${theme.palette.background.paper}`,
                   mb: 2
-                }} 
+                }}
               />
               <Typography variant="h6" sx={{ fontWeight: 800 }}>{user.displayName}</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 3 }}>
                 {isMuntazim ? 'Muntazim' : isMudaris ? 'Mudaris' : 'Talib-e-Ilm'}
               </Typography>
-              
+
               <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 4, flexWrap: 'wrap' }}>
                 {user.subjectsEnrolled?.map(sub => (
-                  <Chip 
-                    key={sub} 
-                    label={sub} 
-                    size="small" 
+                  <Chip
+                    key={sub}
+                    label={sub}
+                    size="small"
                     variant="outlined"
-                    sx={{ fontWeight: 600, borderRadius: 1 }} 
+                    sx={{ fontWeight: 600, borderRadius: 1 }}
                   />
                 ))}
               </Box>
 
               <Divider sx={{ mb: 3 }} />
-              
+
               <Stack spacing={2}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>Admission No</Typography>
@@ -726,10 +733,10 @@ export default function Dashboard({ user }: DashboardProps) {
                 </Box>
               </Stack>
 
-              <Button 
-                fullWidth 
-                variant="outlined" 
-                sx={{ mt: 4, borderRadius: 2, fontWeight: 700 }} 
+              <Button
+                fullWidth
+                variant="outlined"
+                sx={{ mt: 4, borderRadius: 2, fontWeight: 700 }}
                 onClick={() => navigate('/settings')}
               >
                 Edit Profile
@@ -747,10 +754,10 @@ export default function Dashboard({ user }: DashboardProps) {
                   { name: 'Bashir Ahmad', role: 'Finance Manager' },
                   { name: 'Irfan Hussain', role: 'Supervisor' },
                 ].map((member, idx) => (
-                  <Box 
-                    key={idx} 
-                    sx={{ 
-                      p: 1.5, 
+                  <Box
+                    key={idx}
+                    sx={{
+                      p: 1.5,
                       borderRadius: 2,
                       display: 'flex',
                       alignItems: 'center',
@@ -778,22 +785,22 @@ export default function Dashboard({ user }: DashboardProps) {
       {isMudaris && (
         <Box sx={{ position: 'fixed', bottom: { xs: 80, md: 32 }, right: 32, zIndex: 1000 }}>
           <Zoom in={true}>
-              <Fab 
-                color="primary" 
-                aria-label="add" 
-                onClick={() => setFabOpen(!fabOpen)}
-                sx={{ 
-                  width: 64, 
-                  height: 64, 
-                  boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.4)}`,
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  transform: fabOpen ? 'rotate(45deg)' : 'rotate(0deg)'
-                }}
-              >
+            <Fab
+              color="primary"
+              aria-label="add"
+              onClick={() => setFabOpen(!fabOpen)}
+              sx={{
+                width: 64,
+                height: 64,
+                boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.4)}`,
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                transform: fabOpen ? 'rotate(45deg)' : 'rotate(0deg)'
+              }}
+            >
               <Plus size={32} />
             </Fab>
           </Zoom>
-          
+
           <AnimatePresence>
             {fabOpen && (
               <Box sx={{ position: 'absolute', bottom: 80, right: 0, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
@@ -812,24 +819,24 @@ export default function Dashboard({ user }: DashboardProps) {
 const StatCard = React.memo(({ title, value, icon, color }: any) => {
   const theme = useTheme();
   return (
-    <Card variant="outlined" sx={{ 
-      borderRadius: 2, 
-      height: '100%', 
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
+    <Card variant="outlined" sx={{
+      borderRadius: 2,
+      height: '100%',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       bgcolor: 'background.paper',
       border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-      '&:hover': { 
+      '&:hover': {
         borderColor: color,
         transform: 'translateY(-4px)',
       },
     }}>
       <CardContent sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Box sx={{ 
-            p: 1.2, 
-            borderRadius: 1, 
-            bgcolor: alpha(color, 0.03), 
-            color: color, 
+          <Box sx={{
+            p: 1.2,
+            borderRadius: 1,
+            bgcolor: alpha(color, 0.03),
+            color: color,
             display: 'flex',
             border: `1px solid ${alpha(color, 0.08)}`
           }}>
@@ -856,23 +863,23 @@ const ActionButton = React.memo(({ label, icon, onClick, color }: any) => {
       onClick={onClick}
       startIcon={icon}
       fullWidth={isMobile}
-        sx={{ 
-          borderRadius: 24, 
-          px: 4, 
-          py: isMobile ? 1.5 : 2, 
-          border: `1.5px solid ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.2)}`,
-          bgcolor: alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.02),
-          '&:hover': { 
-            bgcolor: alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.1),
-            transform: 'translateY(-2px)',
-            borderColor: theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main,
-            boxShadow: `0 8px 20px ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.15)}`
-          },
-          fontWeight: 800,
-          textTransform: 'none',
-          fontSize: '0.9rem',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        }}
+      sx={{
+        borderRadius: 24,
+        px: 4,
+        py: isMobile ? 1.5 : 2,
+        border: `1.5px solid ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.2)}`,
+        bgcolor: alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.02),
+        '&:hover': {
+          bgcolor: alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.1),
+          transform: 'translateY(-2px)',
+          borderColor: theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main,
+          boxShadow: `0 8px 20px ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.15)}`
+        },
+        fontWeight: 800,
+        textTransform: 'none',
+        fontSize: '0.9rem',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      }}
     >
       {label}
     </Button>
@@ -889,13 +896,13 @@ function FabAction({ label, icon, color, onClick, delay }: any) {
       transition={{ delay, duration: 0.2 }}
       style={{ display: 'flex', alignItems: 'center', gap: 12 }}
     >
-      <Paper 
-        elevation={0} 
-        sx={{ 
-          px: 3, 
-          py: 1.2, 
-          borderRadius: 2, 
-          fontWeight: 800, 
+      <Paper
+        elevation={0}
+        sx={{
+          px: 3,
+          py: 1.2,
+          borderRadius: 2,
+          fontWeight: 800,
           fontSize: '0.875rem',
           bgcolor: alpha(theme.palette.background.paper, 0.9),
           backdropFilter: 'blur(10px)',
@@ -905,11 +912,11 @@ function FabAction({ label, icon, color, onClick, delay }: any) {
       >
         {label}
       </Paper>
-      <Fab 
-        size="medium" 
-        color={color} 
+      <Fab
+        size="medium"
+        color={color}
         onClick={onClick}
-        sx={{ 
+        sx={{
           border: `1px solid ${theme.palette.divider}`,
           '&:hover': {
             transform: 'scale(1.1)',
