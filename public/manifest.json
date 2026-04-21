@@ -1,0 +1,23 @@
+{
+  "name": "Idarah Wali Ul Aser",
+  "short_name": "Wali Ul Aser",
+  "description": "Maktab Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f766e",
+  "icons": [
+    {
+      "src": "https://idarahwaliulaser.netlify.app/img/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://idarahwaliulaser.netlify.app/img/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile data including roles and permissions",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["superadmin", "approved_mudaris", "pending_mudaris", "student"] },
+        "displayName": { "type": "string" },
+        "assignedClasses": { "type": "array", "items": { "type": "string" } },
+        "maktabLevel": { "type": "string" },
+        "grade": { "type": "string" },
+        "phone": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "FeeReceipt": {
+      "title": "FeeReceipt",
+      "description": "Student fee payment receipts",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "feeHead": { "type": "string" },
+        "paymentMode": { "type": "string" },
+        "grade": { "type": "string" },
+        "receiptNo": { "type": "string" },
+        "month": { "type": "string" },
+        "year": { "type": "number" },
+        "uploadedAt": { "type": "number" }
+      },
+      "required": ["studentId", "amount", "status"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily student attendance logs",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "grade": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["present", "absent", "late", "excused"] },
+        "markedBy": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["studentId", "status", "date"]
+    },
+    "LogEntry": {
+      "title": "LogEntry",
+      "description": "Security and system logs",
+      "type": "object",
+      "properties": {
+        "level": { "type": "string" },
+        "message": { "type": "string" },
+        "ip": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "InstituteSettings": {
+      "title": "InstituteSettings",
+      "description": "Global settings for the institute",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "maktabName": { "type": "string" },
+        "tagline": { "type": "string" },
+        "address": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "bannerUrl": { "type": "string" },
+        "receiptLeftImageUrl": { "type": "string" },
+        "receiptRightImageUrl": { "type": "string" },
+        "primaryColor": { "type": "string" },
+        "secondaryColor": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/settings/{settingId}": {
+      "schema": "InstituteSettings",
+      "description": "Institute settings"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles"
+    },
+    "/receipts/{receiptId}": {
+      "schema": "FeeReceipt",
+      "description": "Fee payments"
+    },
+    "/attendance/{recordId}": {
+      "schema": "AttendanceRecord",
+      "description": "Attendance logs"
+    },
+    "/exams/{examId}": {
+      "schema": { "$ref": "#/entities/Exam" },
+      "description": "Exam schedules"
+    },
+    "/schedules/{scheduleId}": {
+      "schema": { "$ref": "#/entities/Schedule" },
+      "description": "Class schedules"
+    },
+    "/access_logs/{logId}": {
+      "schema": "LogEntry",
+      "description": "Security access logs"
+    },
+    "/system_logs/{logId}": {
+      "schema": "LogEntry",
+      "description": "General system logs"
+    }
+  }
+}

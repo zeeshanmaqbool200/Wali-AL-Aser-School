@@ -1,0 +1,197 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default deny catch-all MUST be first
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // -------------------------------------------------------------------------
+    // PUBLIC SETTINGS
+    // -------------------------------------------------------------------------
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+    
+    // -------------------------------------------------------------------------
+    // GLOBAL HELPERS
+    // -------------------------------------------------------------------------
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'zeeshanmaqbool200@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin')
+      );
+    }
+    
+    function isApprovedMudaris() {
+      return isSignedIn() && getUserData().role == 'approved_mudaris';
+    }
+    
+    function isPendingMudaris() {
+      return isSignedIn() && getUserData().role == 'pending_mudaris';
+    }
+    
+    function isStudent() {
+      return isSignedIn() && getUserData().role == 'student';
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // -------------------------------------------------------------------------
+    // USERS COLLECTION
+    // -------------------------------------------------------------------------
+    match /users/{userId} {
+      allow read: if isSuperAdmin() || 
+                    (isSignedIn() && request.auth.uid == userId) ||
+                    (isApprovedMudaris() && (
+                      (existing().role == 'student' && (existing().grade in getUserData().assignedClasses || existing().maktabLevel in getUserData().assignedClasses)) ||
+                      (existing().pendingMaktabLevel != null && existing().pendingMaktabLevel in (getUserData().assignedClasses || []))
+                    ));
+      
+      allow create: if isSignedIn() && (
+        isSuperAdmin() || 
+        (request.auth.uid == userId && (incoming().role == 'student' || incoming().role == 'pending_mudaris'))
+      );
+      
+      allow update: if isSuperAdmin() || 
+                      (request.auth.uid == userId && incoming().role == existing().role && incoming().email == existing().email &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phone', 'whatsapp', 'address', 'photoURL', 'updatedAt', 'hardwareStatus', 'notificationPrefs', 'uiPrefs', 'pendingMaktabLevel']));
+      
+      allow delete: if isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // COURSES (MAZAMEEN)
+    // -------------------------------------------------------------------------
+    match /courses/{courseId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin() || isApprovedMudaris();
+    }
+
+    // -------------------------------------------------------------------------
+    // RECEIPTS (FEES)
+    // -------------------------------------------------------------------------
+    match /receipts/{receiptId} {
+      allow read: if isSuperAdmin() || 
+                    (isApprovedMudaris() && (existing().grade in getUserData().assignedClasses)) ||
+                    (isSignedIn() && existing().studentId == request.auth.uid);
+      
+      allow create: if isSuperAdmin() || 
+                      (isApprovedMudaris() && (incoming().grade in getUserData().assignedClasses));
+      
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // ATTENDANCE
+    // -------------------------------------------------------------------------
+    match /attendance/{recordId} {
+      allow read: if isSuperAdmin() || 
+                    (isApprovedMudaris() && (existing().grade in getUserData().assignedClasses)) ||
+                    (isSignedIn() && existing().studentId == request.auth.uid);
+      
+      allow create, update: if isSuperAdmin() || 
+                             (isApprovedMudaris() && (incoming().grade in getUserData().assignedClasses));
+      
+      allow delete: if isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // EXAMS
+    // -------------------------------------------------------------------------
+    match /exams/{examId} {
+      allow read: if isSuperAdmin() || 
+                    (isApprovedMudaris() && (existing().grade in getUserData().assignedClasses)) ||
+                    (isSignedIn() && (getUserData().maktabLevel == existing().grade || getUserData().grade == existing().grade));
+      
+      allow create, update: if isSuperAdmin() || 
+                             (isApprovedMudaris() && (incoming().grade in getUserData().assignedClasses));
+      
+      allow delete: if isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // SCHEDULES
+    // -------------------------------------------------------------------------
+    match /schedules/{scheduleId} {
+      allow read: if isSuperAdmin() || 
+                    (isApprovedMudaris() && (existing().grade in getUserData().assignedClasses)) ||
+                    (isSignedIn() && (getUserData().maktabLevel == existing().grade || getUserData().grade == existing().grade));
+      
+      allow create, update: if isSuperAdmin() || 
+                             (isApprovedMudaris() && (incoming().grade in getUserData().assignedClasses));
+      
+      allow delete: if isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // NOTES (STUDY MATERIALS)
+    // -------------------------------------------------------------------------
+    match /notes/{noteId} {
+      allow read: if isSuperAdmin() || 
+                    (isApprovedMudaris() && (existing().grade == 'All' || existing().grade in getUserData().assignedClasses)) ||
+                    (isSignedIn() && (existing().grade == 'All' || getUserData().maktabLevel == existing().grade || getUserData().grade == existing().grade));
+      
+      allow create: if isSuperAdmin() || isApprovedMudaris();
+      
+      allow update, delete: if isSuperAdmin() || (isApprovedMudaris() && existing().uploadedBy == request.auth.uid);
+    }
+
+    // -------------------------------------------------------------------------
+    // NOTIFICATIONS
+    // -------------------------------------------------------------------------
+    match /notifications/{notifId} {
+      allow read: if isSuperAdmin() || isApprovedMudaris() || (
+        isSignedIn() && (
+          existing().targetType == 'all' ||
+          (existing().targetType == 'individual' && existing().targetId == request.auth.uid) ||
+          (existing().targetType == 'class' && (existing().targetId == getUserData().maktabLevel || existing().targetId == getUserData().grade))
+        )
+      );
+      allow create: if isSuperAdmin() || isApprovedMudaris();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // LOGS (SECURITY & SYSTEM)
+    // -------------------------------------------------------------------------
+    match /access_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    match /system_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if true;
+      allow update, delete: if false;
+    }
+  }
+}
