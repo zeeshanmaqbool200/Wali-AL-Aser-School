@@ -130,6 +130,7 @@ export default function Fees() {
         createdBy: currentUser.uid,
         receiptNo: receiptId,
         receiptNumber: receiptId,
+        studentOfficialId: student?.admissionNo || student?.studentId || '',
         grade: student?.maktabLevel || student?.grade || ''
       };
       await smartAddDoc(collection(db, 'receipts'), newReceipt);
@@ -180,14 +181,32 @@ export default function Fees() {
     document.body.removeChild(link);
   };
 
+  const [isIndexing, setIsIndexing] = useState(false);
+
+  useEffect(() => {
+    if (loading === false) {
+      setIsIndexing(true);
+      const timer = setTimeout(() => setIsIndexing(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, receipts.length]);
+
   const handleApprove = async (receipt: FeeReceipt) => {
     if (!isTeacher) return;
     try {
+      // Optimistic concurrency check: if the receipt was updated by someone else
+      const currentDoc = await getDoc(doc(db, 'receipts', receipt.id));
+      if (currentDoc.exists() && currentDoc.data().approvedAt && currentDoc.data().status === 'approved') {
+        setSnackbar({ open: true, message: "This receipt was already approved by another admin.", severity: 'info' });
+        return;
+      }
+
       const updates: any = {
         status: 'approved',
         approvedBy: currentUser?.uid,
         approvedByName: currentUser?.displayName,
-        approvedAt: Date.now()
+        approvedAt: Date.now(),
+        updatedAt: Date.now()
       };
 
       await smartUpdateDoc(doc(db, 'receipts', receipt.id), updates);
@@ -524,38 +543,58 @@ export default function Fees() {
           </Tabs>
           
           <Box sx={{ px: 2, py: 2, flex: { xs: 1, md: 'none' }, minWidth: { xs: '100%', md: 350 } }}>
-            <Paper 
-              elevation={0} 
-              sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                px: 2.5, 
-                borderRadius: 4, 
-                border: 'none',
-                bgcolor: 'background.default',
-                boxShadow: theme.palette.mode === 'dark'
-                  ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                  : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-              }}
-            >
-              <Search size={20} color={theme.palette.text.secondary} />
-              <Box 
-                component="input" 
-                placeholder="Search receipt or Talib-e-Ilm..." 
-                value={searchQuery}
-                onChange={(e: any) => setSearchQuery(e.target.value)}
+              <Paper 
+                elevation={0} 
                 sx={{ 
-                  border: 'none', 
-                  outline: 'none', 
-                  p: 1.5, 
-                  width: '100%', 
-                  fontWeight: 700,
-                  bgcolor: 'transparent',
-                  color: 'text.primary',
-                  '&::placeholder': { color: 'text.disabled' }
-                }} 
-              />
-            </Paper>
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  px: 2.5, 
+                  borderRadius: 4, 
+                  border: 'none',
+                  bgcolor: 'background.default',
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                    : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                  position: 'relative'
+                }}
+              >
+                <Search size={20} color={theme.palette.text.secondary} />
+                <Box 
+                  component="input" 
+                  placeholder="Search receipt or Talib-e-Ilm..." 
+                  value={searchQuery}
+                  onChange={(e: any) => setSearchQuery(e.target.value)}
+                  sx={{ 
+                    border: 'none', 
+                    outline: 'none', 
+                    p: 1.5, 
+                    width: '100%', 
+                    fontWeight: 700,
+                    bgcolor: 'transparent',
+                    color: 'text.primary',
+                    '&::placeholder': { color: 'text.disabled' }
+                  }} 
+                />
+                {isIndexing && (
+                  <Box sx={{ 
+                    position: 'absolute', 
+                    right: 16, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1,
+                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    px: 1.5,
+                    py: 0.5,
+                    borderRadius: 2,
+                    animation: 'pulse 2s infinite'
+                  }}>
+                    <CircularProgress size={12} thickness={6} />
+                    <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem', color: 'primary.main' }}>
+                      SYNCING...
+                    </Typography>
+                  </Box>
+                )}
+              </Paper>
           </Box>
         </Box>
         

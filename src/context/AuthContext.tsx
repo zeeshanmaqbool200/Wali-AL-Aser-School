@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, onSnapshot, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, OperationType, handleFirestoreError } from '../firebase';
-import { collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { UserProfile, UserRole } from '../types';
-import { logger } from '../lib/logger';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -14,6 +12,8 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+import { logger } from '../lib/logger';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -52,48 +52,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'pending_mudaris' });
               }
               setUser(profile);
-              setLoading(false);
               logger.success(`Profile Updated: ${profile.displayName} (${profile.role})`);
             } else {
               // Try to find if user was pre-registered by admin using email
               const findExistingByEmail = async () => {
-                try {
-                  const q = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
-                  const querySnapshot = await getDocs(q);
+                const { getDocs, query, collection, where, deleteDoc } = await import('firebase/firestore');
+                const q = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
+                const querySnapshot = await getDocs(q);
+                
+                if (!querySnapshot.empty) {
+                  const existingDoc = querySnapshot.docs[0];
+                  const existingData = existingDoc.data() as UserProfile;
                   
-                  if (!querySnapshot.empty) {
-                    const existingDoc = querySnapshot.docs[0];
-                    const existingData = existingDoc.data() as UserProfile;
-                    
-                    // Create the UID-based doc with the existing data
-                    const newUser: UserProfile = {
-                      ...existingData,
-                      uid: firebaseUser.uid, // Ensure UID is set
-                      photoURL: firebaseUser.photoURL || existingData.photoURL || `https://ui-avatars.com/api/?name=${existingData.displayName}&background=random`
-                    };
-                    
-                    // Force superadmin role if it's the specific email
-                    if (firebaseUser.email === 'zeeshanmaqbool200@gmail.com') {
-                      newUser.role = 'superadmin';
-                    }
-                    
-                    await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
-                    
-                    // Delete the old doc (id-less or with different ID)
-                    if (existingDoc.id !== firebaseUser.uid) {
-                      await deleteDoc(existingDoc.ref);
-                      logger.info(`Merged pre-registered account: ${firebaseUser.email}`);
-                    }
-                    
-                    setUser(newUser);
-                    setLoading(false);
-                    return true;
+                  // Create the UID-based doc with the existing data
+                  const newUser: UserProfile = {
+                    ...existingData,
+                    uid: firebaseUser.uid, // Ensure UID is set
+                    photoURL: firebaseUser.photoURL || existingData.photoURL || `https://ui-avatars.com/api/?name=${existingData.displayName}&background=random`
+                  };
+                  
+                  await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+                  
+                  // Delete the old doc (id-less or with different ID)
+                  if (existingDoc.id !== firebaseUser.uid) {
+                    await deleteDoc(existingDoc.ref);
+                    logger.info(`Merged pre-registered account: ${firebaseUser.email}`);
                   }
-                  return false;
-                } catch (err) {
-                  logger.error('findExistingByEmail error', err);
-                  return false;
+                  
+                  setUser(newUser);
+                  return true;
                 }
+                return false;
               };
 
               findExistingByEmail().then((found) => {
@@ -108,17 +97,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     createdAt: Date.now(),
                     photoURL: firebaseUser.photoURL || undefined,
                   };
-                  setDoc(doc(db, 'users', firebaseUser.uid), newUser).then(() => {
-                    setUser(newUser);
-                    setLoading(false);
-                    logger.success('New User Profile Created', newUser);
-                  });
+                  setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+                  setUser(newUser);
+                  logger.success('New User Profile Created', newUser);
                 }
               }).catch(err => {
                 logger.error('Failed to merge pre-registered account', err);
-                setLoading(false);
               });
             }
+            setLoading(false);
           }, (error) => {
             handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
             setLoading(false);

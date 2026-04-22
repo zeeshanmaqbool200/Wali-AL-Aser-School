@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box, Typography, Card, CardContent, Grid, Button,
-  TextField, Dialog, DialogTitle, DialogContent,
+import { 
+  Box, Typography, Card, CardContent, Grid, Button, 
+  TextField, Dialog, DialogTitle, DialogContent, 
   DialogActions, CircularProgress, IconButton, Chip,
   Avatar, List, ListItem, ListItemText, ListItemAvatar,
   Divider, InputAdornment, Paper, Tooltip, useTheme,
   useMediaQuery, alpha, Stack, Zoom, Fade
 } from '@mui/material';
-import {
-  Plus, Search, Edit2, Trash2, BookOpen,
+import { 
+  Plus, Search, Edit2, Trash2, BookOpen, 
   Clock, User, Users, Filter, CheckCircle,
   MoreVertical, Book, GraduationCap, ArrowRight,
   Star, Share2, Bookmark, Layout, Layers
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, limit } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { Course, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -30,7 +30,7 @@ export default function Courses() {
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-
+  
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -44,7 +44,7 @@ export default function Courses() {
   const isTeacher = currentUser?.role === 'approved_mudaris' || currentUser?.role === 'superadmin';
 
   useEffect(() => {
-    const q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'), limit(50));
+    const q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[]);
       setLoading(false);
@@ -69,7 +69,7 @@ export default function Courses() {
         await updateDoc(doc(db, 'courses', editingCourse.id), data);
       } else {
         await addDoc(collection(db, 'courses'), data);
-
+        
         // Trigger confetti for a delightful experience
         confetti({
           particleCount: 150,
@@ -78,7 +78,7 @@ export default function Courses() {
           colors: ['#6366f1', '#a855f7', '#ec4899']
         });
       }
-
+      
       setOpenDialog(false);
       setEditingCourse(null);
       setFormData({ name: '', code: '', description: '', duration: '', fee: '', teacherName: '', teacherId: '' });
@@ -109,8 +109,8 @@ export default function Courses() {
     setOpenDialog(true);
   };
 
-  const filteredCourses = courses.filter(c =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const filteredCourses = courses.filter(c => 
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     c.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -121,7 +121,7 @@ export default function Courses() {
   );
 
   return (
-    <Box sx={{ pb: { xs: 4, sm: 6, md: 8 }, px: { xs: 1.5, sm: 2, md: 0 } }}>
+    <Box sx={{ pb: 8 }}>
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -135,22 +135,22 @@ export default function Courses() {
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
-            <Box sx={{
-              display: 'flex',
-              bgcolor: 'background.default',
-              p: 0.8,
+            <Box sx={{ 
+              display: 'flex', 
+              bgcolor: 'background.default', 
+              p: 0.8, 
               borderRadius: 4,
               boxShadow: theme.palette.mode === 'dark'
                 ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
                 : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
             }}>
-              <IconButton
-                size="small"
+              <IconButton 
+                size="small" 
                 onClick={() => setViewMode('grid')}
-                sx={{
-                  borderRadius: 3,
-                  bgcolor: viewMode === 'grid' ? 'background.paper' : 'transparent',
-                  boxShadow: viewMode === 'grid'
+                sx={{ 
+                  borderRadius: 3, 
+                  bgcolor: viewMode === 'grid' ? 'background.paper' : 'transparent', 
+                  boxShadow: viewMode === 'grid' 
                     ? (theme.palette.mode === 'dark' ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff')
                     : 'none',
                   color: viewMode === 'grid' ? 'primary.main' : 'text.secondary',
@@ -159,13 +159,13 @@ export default function Courses() {
               >
                 <Layout size={18} />
               </IconButton>
-              <IconButton
-                size="small"
+              <IconButton 
+                size="small" 
                 onClick={() => setViewMode('list')}
-                sx={{
-                  borderRadius: 3,
-                  bgcolor: viewMode === 'list' ? 'background.paper' : 'transparent',
-                  boxShadow: viewMode === 'list'
+                sx={{ 
+                  borderRadius: 3, 
+                  bgcolor: viewMode === 'list' ? 'background.paper' : 'transparent', 
+                  boxShadow: viewMode === 'list' 
                     ? (theme.palette.mode === 'dark' ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff')
                     : 'none',
                   color: viewMode === 'list' ? 'primary.main' : 'text.secondary',
@@ -176,18 +176,18 @@ export default function Courses() {
               </IconButton>
             </Box>
             {isTeacher && (
-              <Button
-                variant="contained"
-                startIcon={<Plus size={18} />}
+              <Button 
+                variant="contained" 
+                startIcon={<Plus size={18} />} 
                 onClick={() => {
                   setEditingCourse(null);
                   setFormData({ name: '', code: '', description: '', duration: '', fee: '', teacherName: '', teacherId: '' });
                   setOpenDialog(true);
                 }}
-                sx={{
-                  borderRadius: 4,
-                  fontWeight: 900,
-                  px: 4,
+                sx={{ 
+                  borderRadius: 4, 
+                  fontWeight: 900, 
+                  px: 4, 
                   py: 1.5,
                   textTransform: 'none',
                   boxShadow: theme.palette.mode === 'dark'
@@ -203,13 +203,13 @@ export default function Courses() {
       </motion.div>
 
       <Box sx={{ mb: 4 }}>
-        <Paper
-          elevation={0}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            px: 3,
-            borderRadius: 5,
+        <Paper 
+          elevation={0} 
+          sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            px: 3, 
+            borderRadius: 5, 
             border: 'none',
             bgcolor: 'background.default',
             boxShadow: theme.palette.mode === 'dark'
@@ -218,29 +218,29 @@ export default function Courses() {
           }}
         >
           <Search size={22} color={theme.palette.text.secondary} />
-          <Box
-            component="input"
-            placeholder="Search mazameen by name, code, or Mudaris..."
+          <Box 
+            component="input" 
+            placeholder="Search mazameen by name, code, or Mudaris..." 
             value={searchQuery}
             onChange={(e: any) => setSearchQuery(e.target.value)}
-            sx={{
-              border: 'none',
-              outline: 'none',
-              p: 2.5,
-              width: '100%',
+            sx={{ 
+              border: 'none', 
+              outline: 'none', 
+              p: 2.5, 
+              width: '100%', 
               fontWeight: 800,
               fontSize: '1rem',
               bgcolor: 'transparent',
               color: 'text.primary',
               '&::placeholder': { color: 'text.disabled' }
-            }}
+            }} 
           />
-          <IconButton sx={{
-            bgcolor: 'background.paper',
-            borderRadius: 3,
-            boxShadow: theme.palette.mode === 'dark'
-              ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
-              : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff'
+          <IconButton sx={{ 
+            bgcolor: 'background.paper', 
+            borderRadius: 3, 
+            boxShadow: theme.palette.mode === 'dark' 
+              ? '4px 4px 8px #060a12, -4px -4px 8px #182442' 
+              : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' 
           }}>
             <Filter size={20} />
           </IconButton>
@@ -258,10 +258,10 @@ export default function Courses() {
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
               >
-                <CourseCard
-                  course={course}
-                  isTeacher={isTeacher}
-                  onEdit={() => handleEdit(course)}
+                <CourseCard 
+                  course={course} 
+                  isTeacher={isTeacher} 
+                  onEdit={() => handleEdit(course)} 
                   onDelete={() => handleDelete(course.id)}
                   viewMode={viewMode}
                 />
@@ -280,11 +280,11 @@ export default function Courses() {
       )}
 
       {/* Add/Edit Dialog */}
-      <Dialog
-        open={openDialog}
-        onClose={() => setOpenDialog(false)}
-        maxWidth="sm"
-        fullWidth
+      <Dialog 
+        open={openDialog} 
+        onClose={() => setOpenDialog(false)} 
+        maxWidth="sm" 
+        fullWidth 
         PaperProps={{ sx: { borderRadius: 5, p: 1 } }}
       >
         <DialogTitle sx={{ fontWeight: 900, fontSize: '1.5rem', pb: 1 }}>
@@ -342,7 +342,7 @@ export default function Courses() {
                 fullWidth
                 label="Mazmoon Fee"
                 type="number"
-                InputProps={{
+                InputProps={{ 
                   startAdornment: <InputAdornment position="start">₹</InputAdornment>,
                   sx: { borderRadius: 3 }
                 }}
@@ -354,10 +354,10 @@ export default function Courses() {
         </DialogContent>
         <DialogActions sx={{ p: 3, gap: 1 }}>
           <Button onClick={() => setOpenDialog(false)} sx={{ fontWeight: 800, color: 'text.secondary' }}>Cancel</Button>
-          <Button
-            onClick={handleSave}
-            variant="contained"
-            startIcon={<CheckCircle size={18} />}
+          <Button 
+            onClick={handleSave} 
+            variant="contained" 
+            startIcon={<CheckCircle size={18} />} 
             disabled={!formData.name || !formData.code}
             sx={{ borderRadius: 3, fontWeight: 800, px: 3, boxShadow: '0 8px 24px rgba(15, 118, 110, 0.3)' }}
           >
@@ -372,31 +372,31 @@ export default function Courses() {
 function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-
+  
   if (viewMode === 'list') {
     return (
-      <Card sx={{
-        borderRadius: 7,
-        mb: 3,
+      <Card sx={{ 
+        borderRadius: 7, 
+        mb: 3, 
         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
         border: 'none',
         bgcolor: 'background.paper',
-        boxShadow: isDark
+        boxShadow: isDark 
           ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
           : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
-        '&:hover': {
-          transform: 'translateX(10px)',
-          boxShadow: isDark
+        '&:hover': { 
+          transform: 'translateX(10px)', 
+          boxShadow: isDark 
             ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
             : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
         }
       }}>
         <CardContent sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Avatar sx={{
-            bgcolor: 'background.default',
-            color: 'primary.main',
-            borderRadius: 4,
-            width: 64,
+          <Avatar sx={{ 
+            bgcolor: 'background.default', 
+            color: 'primary.main', 
+            borderRadius: 4, 
+            width: 64, 
             height: 64,
             boxShadow: isDark
               ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
@@ -426,21 +426,21 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
           <Box sx={{ display: 'flex', gap: 1.5 }}>
             {isTeacher && (
               <>
-                <IconButton
-                  size="small"
-                  onClick={onEdit}
-                  sx={{
+                <IconButton 
+                  size="small" 
+                  onClick={onEdit} 
+                  sx={{ 
                     bgcolor: 'background.default',
                     boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff'
                   }}
                 >
                   <Edit2 size={18} />
                 </IconButton>
-                <IconButton
-                  size="small"
-                  color="error"
-                  onClick={onDelete}
-                  sx={{
+                <IconButton 
+                  size="small" 
+                  color="error" 
+                  onClick={onDelete} 
+                  sx={{ 
                     bgcolor: 'background.default',
                     boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff'
                   }}
@@ -449,13 +449,13 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
                 </IconButton>
               </>
             )}
-            <IconButton
-              size="small"
-              sx={{
-                bgcolor: 'primary.main',
-                color: 'white',
+            <IconButton 
+              size="small" 
+              sx={{ 
+                bgcolor: 'primary.main', 
+                color: 'white', 
                 boxShadow: '0 8px 16px rgba(15, 118, 110, 0.3)',
-                '&:hover': { bgcolor: 'primary.dark' }
+                '&:hover': { bgcolor: 'primary.dark' } 
               }}
             >
               <ArrowRight size={20} />
@@ -467,45 +467,45 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
   }
 
   return (
-    <Card sx={{
-      borderRadius: 7,
-      height: '100%',
-      display: 'flex',
+    <Card sx={{ 
+      borderRadius: 7, 
+      height: '100%', 
+      display: 'flex', 
       flexDirection: 'column',
       transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
       overflow: 'hidden',
       border: 'none',
       bgcolor: 'background.paper',
-      boxShadow: isDark
+      boxShadow: isDark 
         ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
         : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
-      '&:hover': {
-        transform: 'translateY(-12px)',
-        boxShadow: isDark
+      '&:hover': { 
+        transform: 'translateY(-12px)', 
+        boxShadow: isDark 
           ? '18px 18px 36px #060a12, -18px -18px 36px #182442'
           : '18px 18px 36px #d1d9e6, -18px -18px 36px #ffffff',
         '& .course-image': { transform: 'scale(1.15)' }
       }
     }}>
       <Box sx={{ position: 'relative', height: 200, overflow: 'hidden' }}>
-        <Box
+        <Box 
           className="course-image"
           component="img"
           src={`https://picsum.photos/seed/${course.code}/600/400`}
           sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
         />
         <Box sx={{ position: 'absolute', top: 20, left: 20, display: 'flex', gap: 1.5 }}>
-          <Chip
-            label={course.code}
-            size="small"
-            sx={{
-              bgcolor: alpha(theme.palette.background.paper, 0.85),
-              backdropFilter: 'blur(12px)',
-              fontWeight: 900,
-              color: 'primary.main',
+          <Chip 
+            label={course.code} 
+            size="small" 
+            sx={{ 
+              bgcolor: alpha(theme.palette.background.paper, 0.85), 
+              backdropFilter: 'blur(12px)', 
+              fontWeight: 900, 
+              color: 'primary.main', 
               border: 'none',
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-            }}
+            }} 
           />
         </Box>
         <Box sx={{ position: 'absolute', top: 20, right: 20 }}>
@@ -525,7 +525,7 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
             </Box>
           )}
         </Box>
-
+        
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3.5, fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', height: 44, lineHeight: 1.6 }}>
           {course.description}
         </Typography>
@@ -545,8 +545,8 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Avatar sx={{
-              width: 36, height: 36, fontSize: '0.9rem', fontWeight: 900,
+            <Avatar sx={{ 
+              width: 36, height: 36, fontSize: '0.9rem', fontWeight: 900, 
               bgcolor: 'background.default', color: 'primary.main',
               boxShadow: isDark ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff'
             }}>
@@ -557,20 +557,20 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
           <Typography variant="h4" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: -1.5 }}>₹{course.fee}</Typography>
         </Box>
       </CardContent>
-
-      <Button
-        fullWidth
-        variant="contained"
+      
+      <Button 
+        fullWidth 
+        variant="contained" 
         endIcon={<ArrowRight size={20} />}
-        sx={{
-          borderRadius: 0,
-          py: 2.5,
-          fontWeight: 900,
-          bgcolor: isDark ? 'background.default' : 'grey.900',
+        sx={{ 
+          borderRadius: 0, 
+          py: 2.5, 
+          fontWeight: 900, 
+          bgcolor: isDark ? 'background.default' : 'grey.900', 
           color: 'white',
           textTransform: 'none',
           fontSize: '1rem',
-          '&:hover': { bgcolor: 'primary.main' }
+          '&:hover': { bgcolor: 'primary.main' } 
         }}
       >
         View Details

@@ -51,7 +51,7 @@ export default function Notifications() {
     if (!currentUser) return;
     logger.info('Notifications Page Loading...');
 
-    const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(50));
+    const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notification[];
       
@@ -72,7 +72,7 @@ export default function Notifications() {
     });
 
     if (isTeacher) {
-      const studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'), limit(500));
+      const studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
       onSnapshot(studentsQuery, (snapshot) => {
         setStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
         logger.db('Students List Loaded (Admin)', 'users', { count: snapshot.size });
@@ -195,7 +195,7 @@ export default function Notifications() {
   );
 
   return (
-    <Box sx={{ pb: { xs: 4, sm: 6, md: 8 }, px: { xs: 1.5, sm: 2, md: 0 } }}>
+    <Box sx={{ pb: 8 }}>
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

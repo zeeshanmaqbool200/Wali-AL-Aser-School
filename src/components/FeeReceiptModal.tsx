@@ -6,26 +6,27 @@ import {
 } from '@mui/material';
 import { Printer, Download, X, FileText, CheckCircle, Clock } from 'lucide-react';
 import { FeeReceipt, InstituteSettings } from '../types';
-import { toWords } from 'number-to-words';
+import { numberToIndianWords } from '../lib/indianNumberSystem';
 import { format } from 'date-fns';
 import { 
   Document, Page, Text, View, StyleSheet, PDFDownloadLink, Image, Font 
 } from '@react-pdf/renderer';
 
-// Register fonts if needed (Inter is good for professional looks)
+// Register fonts that support Unicode characters like ₹ and Roman Urdu
 Font.register({
-  family: 'Inter',
-  fonts: [
-    { src: 'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-EkCc.woff2', fontWeight: 400 },
-    { src: 'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGkyAZ9hjp-EkCc.woff2', fontWeight: 700 },
-    { src: 'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFu8AZ9hjp-EkCc.woff2', fontWeight: 900 },
-  ],
+  family: 'Noto Sans',
+  src: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSans/NotoSans-Regular.ttf',
+});
+
+Font.register({
+  family: 'Noto Sans Bold',
+  src: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSans/NotoSans-Bold.ttf',
 });
 
 const pdfStyles = StyleSheet.create({
   page: {
     padding: 40,
-    fontFamily: 'Inter',
+    fontFamily: 'Noto Sans',
     backgroundColor: '#FFFFFF',
     color: '#1a1a1a',
   },
@@ -64,12 +65,14 @@ const pdfStyles = StyleSheet.create({
   },
   instituteName: {
     fontSize: 18,
-    fontWeight: 900,
+    fontWeight: 'bold',
+    fontFamily: 'Noto Sans Bold',
     color: '#0d9488',
   },
   maktabName: {
     fontSize: 12,
-    fontWeight: 700,
+    fontWeight: 'bold',
+    fontFamily: 'Noto Sans Bold',
     color: '#0f766e',
     marginVertical: 4,
   },
@@ -83,13 +86,15 @@ const pdfStyles = StyleSheet.create({
   },
   receiptTitle: {
     fontSize: 24,
-    fontWeight: 900,
+    fontWeight: 'bold',
+    fontFamily: 'Noto Sans Bold',
     color: '#E5E7EB',
     marginBottom: 5,
   },
   receiptNo: {
     fontSize: 10,
-    fontWeight: 700,
+    fontWeight: 'bold',
+    fontFamily: 'Noto Sans Bold',
     color: '#0d9488',
   },
   date: {
@@ -108,7 +113,8 @@ const pdfStyles = StyleSheet.create({
   },
   label: {
     fontSize: 7,
-    fontWeight: 900,
+    fontWeight: 'bold',
+    fontFamily: 'Noto Sans Bold',
     color: '#9ca3af',
     textTransform: 'uppercase',
     letterSpacing: 1,
@@ -116,7 +122,8 @@ const pdfStyles = StyleSheet.create({
   },
   value: {
     fontSize: 11,
-    fontWeight: 700,
+    fontWeight: 'bold',
+    fontFamily: 'Noto Sans Bold',
   },
   subValue: {
     fontSize: 9,
@@ -169,7 +176,8 @@ const pdfStyles = StyleSheet.create({
   signatureLabel: {
     fontSize: 8,
     color: '#4b5563',
-    fontWeight: 700,
+    fontWeight: 'bold',
+    fontFamily: 'Noto Sans Bold',
   },
   verifiedStamp: {
     textAlign: 'center',
@@ -177,7 +185,8 @@ const pdfStyles = StyleSheet.create({
   },
   verifiedText: {
     fontSize: 8,
-    fontWeight: 900,
+    fontWeight: 'bold',
+    fontFamily: 'Noto Sans Bold',
     color: '#22c55e',
   },
   verifiedBy: {
@@ -231,7 +240,7 @@ const ReceiptPDF = ({ receipt, settings }: { receipt: FeeReceipt, settings: Inst
         <View style={pdfStyles.detailColumn}>
           <Text style={pdfStyles.label}>Talib-e-Ilm Details</Text>
           <Text style={[pdfStyles.value, { fontSize: 13 }]}>{receipt.studentName}</Text>
-          <Text style={pdfStyles.subValue}>Admission No: {receipt.studentId}</Text>
+          <Text style={pdfStyles.subValue}>Admission No: {receipt.studentOfficialId || receipt.studentId}</Text>
           <Text style={pdfStyles.subValue}>Maktab Level: {receipt.grade || 'N/A'}</Text>
         </View>
         <View style={[pdfStyles.detailColumn, { textAlign: 'right' }]}>
@@ -246,26 +255,26 @@ const ReceiptPDF = ({ receipt, settings }: { receipt: FeeReceipt, settings: Inst
 
       <View style={pdfStyles.table}>
         <View style={pdfStyles.tableHeader}>
-          <Text style={[pdfStyles.colDesc, { fontSize: 9, fontWeight: 900 }]}>Tafseel (Description)</Text>
-          <Text style={[pdfStyles.colAmount, { fontSize: 9, fontWeight: 900 }]}>Raqam (Amount)</Text>
+          <Text style={[pdfStyles.colDesc, { fontSize: 9, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>Tafseel (Description)</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 9, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>Raqam (Amount)</Text>
         </View>
         <View style={pdfStyles.tableRow}>
           <View style={pdfStyles.colDesc}>
-            <Text style={{ fontSize: 11, fontWeight: 700 }}>{receipt.feeHead}</Text>
+            <Text style={{ fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }}>{receipt.feeHead}</Text>
             <Text style={{ fontSize: 8, color: '#4b5563', marginTop: 4 }}>{receipt.remarks || 'Standard fee payment for the current academic session.'}</Text>
           </View>
-          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 700 }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
         </View>
         <View style={pdfStyles.tableFooter}>
-          <Text style={[pdfStyles.colDesc, { textAlign: 'right', fontSize: 10, fontWeight: 900 }]}>Kul Ada-shuda Raqam</Text>
-          <Text style={[pdfStyles.colAmount, { fontSize: 12, fontWeight: 900, color: '#0d9488' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+          <Text style={[pdfStyles.colDesc, { textAlign: 'right', fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>Kul Ada-shuda Raqam</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 12, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', color: '#0d9488' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
         </View>
       </View>
 
       <View style={pdfStyles.wordsBox}>
         <Text style={pdfStyles.label}>Amount in Words</Text>
-        <Text style={{ fontSize: 10, fontWeight: 700, textTransform: 'capitalize', marginTop: 5 }}>
-          {toWords(receipt.amount)} Rupees Only
+        <Text style={{ fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', textTransform: 'capitalize', marginTop: 5 }}>
+          {numberToIndianWords(receipt.amount)}
         </Text>
       </View>
 
@@ -419,7 +428,7 @@ export default function FeeReceiptModal({ open, onClose, receipt, settings: prop
             <Grid size={6}>
               <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important' }}>TALIB-E-ILM</Typography>
               <Typography variant="h6" sx={{ fontWeight: 900 }}>{receipt.studentName}</Typography>
-              <Typography variant="body2">ID: {receipt.studentId}</Typography>
+              <Typography variant="body2">ID: {receipt.studentOfficialId || receipt.studentId}</Typography>
             </Grid>
             <Grid size={6} sx={{ textAlign: 'right' }}>
               <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important' }}>AMOUNT</Typography>
@@ -430,7 +439,7 @@ export default function FeeReceiptModal({ open, onClose, receipt, settings: prop
           
           <Box sx={{ bgcolor: '#f9fafb', p: 2, borderRadius: 1, mb: 4 }}>
             <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important' }}>IN WORDS</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>{toWords(receipt.amount)} Rupees Only</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>{numberToIndianWords(receipt.amount)}</Typography>
           </Box>
           
           <Typography variant="caption" sx={{ color: '#9ca3af !important', display: 'block', textAlign: 'center', mt: 4 }}>
@@ -439,8 +448,22 @@ export default function FeeReceiptModal({ open, onClose, receipt, settings: prop
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ p: 3, gap: 2, bgcolor: 'background.paper' }}>
-        <Button onClick={onClose} sx={{ fontWeight: 800 }}>Band Karein</Button>
+      <DialogActions sx={{ 
+        p: { xs: 2, sm: 3 }, 
+        gap: { xs: 1, sm: 2 }, 
+        bgcolor: 'background.paper',
+        flexDirection: { xs: 'column-reverse', sm: 'row' },
+        alignItems: { xs: 'stretch', sm: 'center' }
+      }}>
+        <Button 
+          onClick={onClose} 
+          sx={{ 
+            fontWeight: 800,
+            py: { xs: 1.5, sm: 1 } 
+          }}
+        >
+          Band Karein
+        </Button>
         <PDFDownloadLink 
           document={<ReceiptPDF receipt={receipt} settings={settings} />} 
           fileName={`Receipt_${receiptNo}.pdf`}
@@ -448,10 +471,17 @@ export default function FeeReceiptModal({ open, onClose, receipt, settings: prop
         >
           {({ loading: pdfLoading }) => (
             <Button 
+              fullWidth={isMobile}
               variant="contained" 
               disabled={pdfLoading}
               startIcon={<Download size={18} />}
-              sx={{ borderRadius: 2, fontWeight: 800, px: 4 }}
+              sx={{ 
+                borderRadius: 2, 
+                fontWeight: 800, 
+                px: 4,
+                py: { xs: 1.5, sm: 1 },
+                whiteSpace: 'nowrap'
+              }}
             >
               {pdfLoading ? 'PDF Bana rahe hain...' : 'PDF Download Karein'}
             </Button>

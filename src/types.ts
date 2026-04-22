@@ -122,6 +122,7 @@ export interface FeeReceipt {
   receiptNumber: string; // INST-2026-000045
   receiptNo?: string;
   studentId: string;
+  studentOfficialId?: string; // N21E5... or Admission No
   studentName: string;
   fatherName?: string;
   grade: string; // Maktab Level

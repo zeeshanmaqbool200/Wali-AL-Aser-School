@@ -26,7 +26,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible = tru
     { label: 'Fees', icon: <CreditCard size={22} />, path: '/fees', roles: ['student', 'approved_mudaris', 'superadmin'] },
     { label: 'Schedule', icon: <Calendar size={22} />, path: '/schedule', roles: ['student', 'approved_mudaris', 'superadmin'] },
     { label: 'Logs', icon: <Terminal size={22} />, path: '/admin/logs', roles: ['superadmin'] },
-    { label: 'Profile', icon: <SettingsIcon size={22} />, path: '/profile', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
+    { label: 'Settings', icon: <SettingsIcon size={22} />, path: '/settings', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(role));
@@ -56,7 +56,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible = tru
           <Paper 
             elevation={0}
             sx={{ 
-              borderRadius: 4,
+              borderRadius: 1,
               p: 0.75,
               bgcolor: theme.palette.mode === 'dark' ? alpha('#1a1a1a', 0.95) : alpha('#ffffff', 0.85),
               backdropFilter: 'blur(20px)',
@@ -100,7 +100,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible = tru
                       style={{
                         position: 'absolute',
                         inset: 4,
-                        borderRadius: 8,
+                        borderRadius: 1,
                         backgroundColor: alpha(theme.palette.primary.main, 0.1),
                         border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
                         zIndex: -1

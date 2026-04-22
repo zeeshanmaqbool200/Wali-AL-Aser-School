@@ -3,12 +3,12 @@ import {
   Box, Container, AppBar, Toolbar, Typography, IconButton, 
   Avatar, useMediaQuery, useTheme, Badge, 
   Tooltip, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider,
-  InputBase, alpha, Paper
+  InputBase, alpha, Paper, Menu, MenuItem
 } from '@mui/material';
 import { 
   LogOut, User, Bell, Menu as MenuIcon, Search,
-  LayoutDashboard, Users, Calendar, BookOpen, Settings, CreditCard, ClipboardList, FileText,
-  ChevronRight, X
+  LayoutDashboard, Users, Calendar, BookOpen, CreditCard, ClipboardList, FileText,
+  ChevronRight, X, Shield
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserProfile, Notification as NotificationType } from '../types';
@@ -37,8 +37,16 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   const [instituteName, setInstituteName] = useState('Maktab Wali Ul Aser');
   const [logoUrl, setLogoUrl] = useState('https://idarahwaliulaser.netlify.app/img/logo.png');
   const [bottomNavVisible, setBottomNavVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const [profileAnchorEl, setProfileAnchorEl] = useState<null | HTMLElement>(null);
   const mainRef = React.useRef<HTMLDivElement>(null);
+
+  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setProfileAnchorEl(event.currentTarget);
+  };
+
+  const handleProfileMenuClose = () => {
+    setProfileAnchorEl(null);
+  };
 
   useEffect(() => {
     // Nav should always be visible on mobile to avoid confusion
@@ -50,25 +58,26 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
     const unsubscribe = onSnapshot(doc(db, 'settings', 'institute'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.maktabName) {
-          setInstituteName(data.maktabName);
-          document.title = data.maktabName;
+        if (data.maktabName !== undefined) {
+          setInstituteName(data.maktabName || 'Maktab Wali Ul Aser');
+          document.title = data.maktabName || 'Maktab Wali Ul Aser';
         }
-        if (data.logoUrl) {
-          setLogoUrl(data.logoUrl);
+        if (data.logoUrl !== undefined) {
+          const finalLogo = data.logoUrl || 'https://idarahwaliulaser.netlify.app/img/logo.png';
+          setLogoUrl(finalLogo);
           // Dynamically update favicon
           const link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
           if (link) {
-            link.href = data.logoUrl;
+            link.href = finalLogo;
           } else {
             const newLink = document.createElement('link');
             newLink.rel = 'icon';
-            newLink.href = data.logoUrl;
+            newLink.href = finalLogo;
             document.head.appendChild(newLink);
           }
           const appleLink: HTMLLinkElement | null = document.querySelector("link[rel~='apple-touch-icon']");
           if (appleLink) {
-            appleLink.href = data.logoUrl;
+            appleLink.href = finalLogo;
           }
         }
       }
@@ -85,7 +94,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
     const q = query(
       collection(db, 'notifications'),
       orderBy('createdAt', 'desc'),
-      limit(15)
+      limit(20)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
@@ -127,7 +136,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             borderBottom: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
           }}
         >
-          <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 56, sm: 64, md: 72 }, px: { xs: 1.5, sm: 2, md: 4 } }}>
+          <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 72, md: 88 }, px: { xs: 2, md: 4 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               {isMobile && (
                 <motion.div
@@ -163,7 +172,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                     alignItems: 'center',
                     width: 280,
                     bgcolor: 'background.default',
-                    borderRadius: 4,
+                    borderRadius: 1,
                     boxShadow: theme.palette.mode === 'dark'
                       ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
                       : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
@@ -222,12 +231,12 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 1 }}>
                 <IconButton 
-                  onClick={() => navigate('/profile')} 
+                  onClick={handleProfileMenuOpen} 
                   size="small" 
                   sx={{ 
                     p: 0.5, 
                     border: '2px solid', 
-                    borderColor: location.pathname === '/profile' ? 'primary.main' : 'divider',
+                    borderColor: profileAnchorEl ? 'primary.main' : (location.pathname === '/profile' ? 'primary.main' : 'divider'),
                     transition: 'all 0.2s',
                     '&:hover': { borderColor: 'primary.main' }
                   }}
@@ -239,6 +248,54 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                     {user.displayName.charAt(0)}
                   </Avatar>
                 </IconButton>
+                <Menu
+                  anchorEl={profileAnchorEl}
+                  open={Boolean(profileAnchorEl)}
+                  onClose={handleProfileMenuClose}
+                  onClick={handleProfileMenuClose}
+                  transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                  anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                  PaperProps={{
+                    sx: {
+                      mt: 1.5,
+                      borderRadius: 1,
+                      minWidth: 200,
+                      boxShadow: theme.palette.mode === 'dark'
+                        ? '10px 10px 20px #060a12, -10px -10px 20px #182442'
+                        : '10px 10px 20px #d1d9e6, -10px -10px 20px #ffffff',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      '& .MuiMenuItem-root': {
+                        py: 1.5,
+                        px: 2,
+                        borderRadius: 1,
+                        mx: 1,
+                        fontWeight: 700,
+                        fontSize: '0.9rem',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) }
+                      }
+                    }
+                  }}
+                >
+                  <Box sx={{ px: 2, py: 1.5 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{user.displayName}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{user.email}</Typography>
+                  </Box>
+                  <Divider sx={{ my: 1, opacity: 0.5 }} />
+                  <MenuItem onClick={() => navigate('/profile')}>
+                    <ListItemIcon><User size={18} /></ListItemIcon>
+                    Manage Profile
+                  </MenuItem>
+                  <MenuItem onClick={() => navigate('/settings?tab=security')}>
+                    <ListItemIcon><Shield size={18} /></ListItemIcon>
+                    Security & Privacy
+                  </MenuItem>
+                  <Divider sx={{ my: 1, opacity: 0.5 }} />
+                  <MenuItem onClick={onLogout} sx={{ color: 'error.main' }}>
+                    <ListItemIcon><LogOut size={18} color={theme.palette.error.main} /></ListItemIcon>
+                    Logout Account
+                  </MenuItem>
+                </Menu>
               </Box>
             </Box>
           </Toolbar>
@@ -252,7 +309,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           sx={{ 
             flexGrow: 1,
             p: { xs: 2, sm: 3, md: 4 },
-            pb: { xs: 20, md: 4 }, // Increased padding for mobile to clear bottom nav
+            pb: { xs: 12, md: 4 }, // Optimized padding for mobile
             overflowY: 'auto',
             overflowX: 'hidden',
             WebkitOverflowScrolling: 'touch',

@@ -55,7 +55,6 @@
     padding-left: var(--safe-area-left);
     padding-right: var(--safe-area-right);
     background: #000000;
-    font-size: clamp(14px, 2vw, 16px);
   }
 
   /* Custom Scrollbar */
@@ -77,23 +76,6 @@
   * {
     backface-visibility: hidden;
     -webkit-font-smoothing: antialiased;
-  }
-
-  /* Responsive spacing utility */
-  @media (max-width: 640px) {
-    .page-padding {
-      padding: 12px;
-    }
-  }
-  @media (min-width: 641px) and (max-width: 1024px) {
-    .page-padding {
-      padding: 16px;
-    }
-  }
-  @media (min-width: 1025px) {
-    .page-padding {
-      padding: 24px;
-    }
   }
 }
 

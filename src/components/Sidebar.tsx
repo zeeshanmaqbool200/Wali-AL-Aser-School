@@ -74,15 +74,12 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
               style={{ display: 'flex', alignItems: 'center', gap: 12 }}
             >
               <Box sx={{ 
-                bgcolor: alpha(theme.palette.primary.main, 0.1), 
+                bgcolor: 'transparent', 
                 p: 0, 
-                borderRadius: '50%', 
-                color: 'primary.main', 
                 display: 'flex',
                 overflow: 'hidden',
-                width: 44,
-                height: 44,
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                width: 48,
+                height: 48,
               }}>
                 <img 
                   src={logoUrl} 
@@ -108,7 +105,7 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
           <IconButton 
             onClick={onToggle} 
             sx={{ 
-              borderRadius: 3,
+              borderRadius: 1,
               border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
               '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } 
             }}
@@ -129,7 +126,7 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
                       minHeight: 48,
                       justifyContent: open ? 'initial' : 'center',
                       px: 2,
-                      borderRadius: 3,
+                      borderRadius: 1,
                       bgcolor: active ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
                       color: active ? 'primary.main' : 'text.secondary',
                       border: active ? `1px solid ${alpha(theme.palette.primary.main, 0.2)}` : '1px solid transparent',
@@ -176,7 +173,7 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
               minHeight: 52,
               justifyContent: open ? 'initial' : 'center',
               px: 2.5,
-              borderRadius: 4,
+              borderRadius: 1,
               color: 'error.main',
               '&:hover': { 
                 bgcolor: alpha(theme.palette.error.main, 0.08),
