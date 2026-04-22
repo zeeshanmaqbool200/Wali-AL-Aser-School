@@ -148,7 +148,7 @@ export default function Users() {
           setInstituteSettings(settingsDoc.data() as InstituteSettings);
         }
       } catch (error) {
-        console.warn('Failed to fetch institute settings:', error);
+        // Silent fail for non-critical settings
       }
     };
     fetchSettings();
@@ -373,33 +373,45 @@ export default function Users() {
               </Button>
             )}
             {isAdmin && (
-              <Button 
-                variant="contained" 
-                color="primary"
-                startIcon={<UserPlus size={18} />} 
-                onClick={() => {
-                  setEditingUser(null);
-                  setFormData({ 
-                    displayName: '', email: '', role: tabValue === 0 ? 'student' : 'approved_mudaris', 
-                    phone: '', maktabLevel: '' as MaktabLevel, admissionNo: '', teacherId: '', 
-                    fatherName: '', motherName: '', rollNo: '', admissionDate: format(new Date(), 'yyyy-MM-dd'),
-                    address: '', subject: '', subjectsEnrolled: [], assignedClasses: [], status: 'Active'
-                  });
-                  setOpenDialog(true);
-                }}
-                sx={{ 
-                  borderRadius: 2, 
-                  fontWeight: 900, 
-                  px: 4, 
-                  py: 1.5,
-                  textTransform: 'none',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                    : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
-                }}
-              >
-                Add {tabValue === 0 ? 'Talib' : 'Mudaris'}
-              </Button>
+              <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1000 }}>
+                <Zoom in={true}>
+                  <Button 
+                    variant="contained" 
+                    color="primary"
+                    startIcon={<UserPlus size={24} />} 
+                    onClick={() => {
+                      setEditingUser(null);
+                      setFormData({ 
+                        displayName: '', email: '', role: tabValue === 0 ? 'student' : 'approved_mudaris', 
+                        phone: '', maktabLevel: '' as MaktabLevel, admissionNo: '', teacherId: '', 
+                        fatherName: '', motherName: '', rollNo: '', admissionDate: format(new Date(), 'yyyy-MM-dd'),
+                        address: '', subject: '', subjectsEnrolled: [], assignedClasses: [], status: 'Active'
+                      });
+                      setOpenDialog(true);
+                    }}
+                    sx={{ 
+                      borderRadius: '50px', 
+                      fontWeight: 900, 
+                      px: isMobile ? 3 : 4, 
+                      py: 2,
+                      minHeight: 64,
+                      textTransform: 'none',
+                      fontSize: '1rem',
+                      boxShadow: theme.palette.mode === 'dark'
+                        ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
+                        : '12px 12px 24px #cbd5e1, -12px -12px 24px #ffffff',
+                      '&:hover': {
+                        transform: 'scale(1.05)',
+                        boxShadow: theme.palette.mode === 'dark'
+                          ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
+                          : '16px 16px 32px #cbd5e1, -16px -16px 32px #ffffff',
+                      }
+                    }}
+                  >
+                    {!isMobile && (tabValue === 0 ? 'Add Talib' : 'Add Mudaris')}
+                  </Button>
+                </Zoom>
+              </Box>
             )}
           </Stack>
         </Box>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Paper, BottomNavigation, BottomNavigationAction, alpha, useTheme, Badge, Avatar, Tooltip } from '@mui/material';
-import { LayoutDashboard, Users, CreditCard, Bell, Terminal, Settings as SettingsIcon, Calendar } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, Bell, Terminal, Settings as SettingsIcon, Calendar, BarChart3, BookOpen } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '../types';
@@ -11,10 +11,41 @@ interface BottomNavProps {
   visible?: boolean;
 }
 
-export default function BottomNav({ user, unreadNotifications = 0, visible = true }: BottomNavProps) {
+export default function BottomNav({ user, unreadNotifications = 0, visible: controlledVisible = true }: BottomNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
+  const [internalVisible, setInternalVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      // If we are at the very top, always show it
+      if (currentScrollY < 50) {
+        setInternalVisible(true);
+        setLastScrollY(currentScrollY);
+        return;
+      }
+
+      // User said: hide bottom nav on scroll up and show on scroll down
+      if (currentScrollY < lastScrollY) {
+        // Scrolling UP
+        setInternalVisible(false);
+      } else {
+        // Scrolling DOWN
+        if (Math.abs(currentScrollY - lastScrollY) > 5) { // Add small threshold
+          setInternalVisible(true);
+        }
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
 
   const role = user.role || 'student';
   const isSuperAdmin = role === 'superadmin';
@@ -22,10 +53,10 @@ export default function BottomNav({ user, unreadNotifications = 0, visible = tru
 
   const menuItems = [
     { label: 'Home', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
+    { label: 'Courses', icon: <BookOpen size={22} />, path: '/courses', roles: ['student', 'approved_mudaris', 'superadmin'] },
     { label: 'Tulab', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'approved_mudaris'] },
     { label: 'Fees', icon: <CreditCard size={22} />, path: '/fees', roles: ['student', 'approved_mudaris', 'superadmin'] },
-    { label: 'Schedule', icon: <Calendar size={22} />, path: '/schedule', roles: ['student', 'approved_mudaris', 'superadmin'] },
-    { label: 'Logs', icon: <Terminal size={22} />, path: '/admin/logs', roles: ['superadmin'] },
+    { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['approved_mudaris', 'superadmin'] },
     { label: 'Settings', icon: <SettingsIcon size={22} />, path: '/settings', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
   ];
 
@@ -33,11 +64,13 @@ export default function BottomNav({ user, unreadNotifications = 0, visible = tru
   
   const activeIndex = filteredMenu.findIndex(item => item.path === location.pathname);
 
+  const isActuallyVisible = controlledVisible && internalVisible;
+
   if (filteredMenu.length === 0) return null;
 
   return (
     <AnimatePresence>
-      {visible && (
+      {isActuallyVisible && (
         <Box 
           component={motion.div}
           initial={{ y: 100, x: '-50%', opacity: 0 }}

@@ -98,7 +98,7 @@ export default function Settings() {
           setInstituteData(instDoc.data() as InstituteSettings);
         }
       } catch (err) {
-        console.error('Error fetching settings:', err);
+        logger.error('Error fetching settings', err as Error);
         setError('Failed to load settings');
       } finally {
         setLoading(false);

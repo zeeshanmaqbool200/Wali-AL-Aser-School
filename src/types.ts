@@ -94,6 +94,13 @@ export interface Note {
   grade: string; // Maktab Level
 }
 
+export interface CourseSection {
+  title: string;
+  content: string;
+  type: 'text' | 'image' | 'video' | 'quiz' | 'file';
+  mediaUrl?: string;
+}
+
 export interface Course {
   id: string;
   name: string;
@@ -105,6 +112,12 @@ export interface Course {
   duration: string;
   fee: number;
   createdAt: number;
+  thumbnailUrl?: string;
+  sections?: CourseSection[];
+  enrolledStudents?: string[]; // Array of student UIDs
+  assignedMudaris?: string[]; // Array of mudaris UIDs
+  gradeId?: string; // Maktab level it's targeted for
+  isPublished?: boolean;
 }
 
 export interface Student {

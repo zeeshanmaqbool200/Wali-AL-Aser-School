@@ -11,14 +11,25 @@ export default function NotificationBanner() {
   const [showDeniedBanner, setShowDeniedBanner] = useState(false);
 
   useEffect(() => {
-    if (isSupported && permission === 'default') {
+    const isDismissed = localStorage.getItem('notification_prompt_dismissed');
+    if (isSupported && permission === 'default' && !isDismissed) {
       const timer = setTimeout(() => setShowPrompt(true), 3000);
       return () => clearTimeout(timer);
     }
-    if (isSupported && permission === 'denied') {
+    if (isSupported && permission === 'denied' && !isDismissed) {
       setShowDeniedBanner(true);
     }
   }, [isSupported, permission]);
+
+  const handleDismissPrompt = () => {
+    setShowPrompt(false);
+    localStorage.setItem('notification_prompt_dismissed', 'true');
+  };
+
+  const handleDismissDenied = () => {
+    setShowDeniedBanner(false);
+    localStorage.setItem('notification_prompt_dismissed', 'true');
+  };
 
   const handleRequest = async () => {
     const result = await requestPermission();
@@ -52,7 +63,7 @@ export default function NotificationBanner() {
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.7rem' }}>Enable notifications for important alerts.</Typography>
               </Box>
               <Box sx={{ display: 'flex', gap: 0.5 }}>
-                <Button size="small" onClick={() => setShowPrompt(false)} sx={{ fontWeight: 700, color: 'text.secondary', borderRadius: 100 }}>Later</Button>
+                <Button size="small" onClick={handleDismissPrompt} sx={{ fontWeight: 700, color: 'text.secondary', borderRadius: 100 }}>Later</Button>
                 <Button size="small" variant="contained" onClick={handleRequest} sx={{ fontWeight: 800, borderRadius: 100, px: 3 }}>Enable</Button>
               </Box>
             </Box>
@@ -78,7 +89,7 @@ export default function NotificationBanner() {
               <Typography variant="caption" sx={{ flexGrow: 1, fontWeight: 700, color: 'error.dark' }}>
                 Notifications are blocked. Please enable them in your browser settings for a better experience.
               </Typography>
-              <IconButton size="small" onClick={() => setShowDeniedBanner(false)} sx={{ color: 'error.main' }}><X size={16} /></IconButton>
+              <IconButton size="small" onClick={handleDismissDenied} sx={{ color: 'error.main' }}><X size={16} /></IconButton>
             </Box>
           </motion.div>
         )}

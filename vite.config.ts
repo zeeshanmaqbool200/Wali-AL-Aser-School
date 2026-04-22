@@ -15,30 +15,36 @@ export default defineConfig(({mode}) => {
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         workbox: {
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
         },
         manifest: {
-          name: 'EduFee Track',
-          short_name: 'EduFee',
-          description: 'Expert Student Fee Management System with PWA support',
-          theme_color: '#0d9488',
+          name: 'Idarah Wali Ul Aser',
+          short_name: 'Wali Ul Aser',
+          description: 'Integrated Maktab Management System with offline support',
+          theme_color: '#0f766e',
           background_color: '#ffffff',
           display: 'standalone',
+          orientation: 'portrait',
+          scope: '/',
+          start_url: '/',
           icons: [
             {
-              src: 'pwa-192x192.png',
+              src: 'https://idarahwaliulaser.netlify.app/img/logo.png',
               sizes: '192x192',
-              type: 'image/png'
+              type: 'image/png',
+              purpose: 'any'
             },
             {
-              src: 'pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png'
-            },
-            {
-              src: 'pwa-512x512.png',
+              src: 'https://idarahwaliulaser.netlify.app/img/logo.png',
               sizes: '512x512',
               type: 'image/png',
-              purpose: 'any maskable'
+              purpose: 'any'
+            },
+            {
+              src: 'https://idarahwaliulaser.netlify.app/img/logo.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable'
             }
           ]
         }

@@ -28,7 +28,7 @@ export function useNotifications() {
       setState(prev => ({ ...prev, permission }));
       return permission;
     } catch (error) {
-      console.error('Error requesting notification permission:', error);
+      // Permission request failed or was dismissed
       return 'denied';
     }
   };

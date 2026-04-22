@@ -46,23 +46,9 @@ const saveLogToDb = async (level: string, message: string, data?: any) => {
     // Detailed User Agent Info
     const result = parser.getResult();
     
-    // IP address
-    let ip = 'Unknown';
-    let location = 'Unknown';
-    try {
-      // Use a faster IP service that also gives some geo info if possible
-      const response = await fetch('https://ipapi.co/json/');
-      const json = await response.json();
-      ip = json.ip;
-      location = `${json.city}, ${json.region}, ${json.country_name}`;
-    } catch (e) {
-      // Fallback
-      try {
-        const response = await fetch('https://api.ipify.org?format=json');
-        const json = await response.json();
-        ip = json.ip;
-      } catch (e) {}
-    }
+    // IP address - Removed external API calls to prevent 429/CORS errors in console
+    const ip = 'Logged';
+    const location = 'Session';
 
     const logData = {
       level,
@@ -100,8 +86,7 @@ export const logger = {
         `%c ℹ️ INFO %c [${getTimestamp()}] %c ${message}`,
         `background: ${INFO_COLOR}; color: white; border-radius: 4px; padding: 2px 6px; font-weight: bold;`,
         'color: #6b7280; font-size: 0.8rem;',
-        'color: #1f2937; font-weight: 500;',
-        data || ''
+        'color: #1f2937; font-weight: 500;'
       );
     }
     saveLogToDb('info', message, data);
@@ -113,8 +98,7 @@ export const logger = {
         `%c ✅ SUCCESS %c [${getTimestamp()}] %c ${message}`,
         `background: ${BRAND_COLOR}; color: white; border-radius: 4px; padding: 2px 6px; font-weight: bold;`,
         'color: #6b7280; font-size: 0.8rem;',
-        'color: #065f46; font-weight: 600;',
-        data || ''
+        'color: #065f46; font-weight: 600;'
       );
     }
     saveLogToDb('success', message, data);
@@ -126,15 +110,14 @@ export const logger = {
         `%c ⚠️ WARN %c [${getTimestamp()}] %c ${message}`,
         `background: ${WARN_COLOR}; color: white; border-radius: 4px; padding: 2px 6px; font-weight: bold;`,
         'color: #6b7280; font-size: 0.8rem;',
-        'color: #92400e; font-weight: 500;',
-        data || ''
+        'color: #92400e; font-weight: 500;'
       );
     }
     saveLogToDb('warn', message, data);
   },
 
   error: (message: string, data?: any) => {
-    // Always log errors to console but sanitize data in prod
+    // Always log errors to console but sanitize data
     const ERROR_COLOR = '#ef4444';
     console.error(
       `%c 🚨 ERROR %c [${getTimestamp()}] %c ${message}`,
@@ -142,11 +125,6 @@ export const logger = {
       'color: #6b7280; font-size: 0.8rem;',
       'color: #991b1b; font-weight: 600;'
     );
-    
-    const isDev = process.env.NODE_ENV === 'development';
-    if (isDev) {
-      console.log('%c Debug Info:', 'color: #9ca3af; font-weight: bold;', data || '');
-    }
     
     saveLogToDb('error', message, data);
   },
@@ -158,8 +136,7 @@ export const logger = {
         `background: #ff6000; color: white; border-radius: 4px; padding: 2px 6px; font-weight: bold;`,
         'color: #6b7280; font-size: 0.8rem;',
         'color: #ff6000; font-weight: 800;',
-        'color: #4b5563; font-family: monospace;',
-        data || ''
+        'color: #4b5563; font-family: monospace;'
       );
     }
     saveLogToDb('db', `${operation}: ${path}`, data);
@@ -171,8 +148,7 @@ export const logger = {
         `%c 🔐 AUTH %c [${getTimestamp()}] %c ${event}`,
         `background: #6366f1; color: white; border-radius: 4px; padding: 2px 6px; font-weight: bold;`,
         'color: #6b7280; font-size: 0.8rem;',
-        'color: #4338ca; font-weight: 700;',
-        user || ''
+        'color: #4338ca; font-weight: 700;'
       );
     }
     saveLogToDb('auth', event, user);

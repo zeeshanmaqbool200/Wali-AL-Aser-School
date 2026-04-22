@@ -17,6 +17,7 @@ import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
+import { logger } from '../lib/logger';
 
 interface SystemLog {
   id: string;
@@ -72,7 +73,7 @@ export default function AdminLogs() {
       });
       await batch.commit();
     } catch (error) {
-      console.error("Error clearing logs:", error);
+      logger.error('Error clearing logs', error as Error);
     }
   };
 

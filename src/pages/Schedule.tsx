@@ -29,9 +29,12 @@ export default function Schedule() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
+  const [openEventDialog, setOpenEventDialog] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<ClassSchedule | null>(null);
+  const [editingEvent, setEditingEvent] = useState<any | null>(null);
   const [selectedDay, setSelectedDay] = useState(new Date().getDay() === 0 ? 0 : new Date().getDay() - 1); // 0 = Monday
   const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
   
@@ -51,6 +54,14 @@ export default function Schedule() {
   const [newMaterial, setNewMaterial] = useState({ title: '', url: '', type: 'link' as 'pdf' | 'text' | 'link' });
   const [openMaterialsDialog, setOpenMaterialsDialog] = useState(false);
   const [viewingSchedule, setViewingSchedule] = useState<ClassSchedule | null>(null);
+
+  const [eventFormData, setEventFormData] = useState({
+    title: '',
+    date: format(new Date(), 'yyyy-MM-dd'),
+    time: '14:00',
+    type: 'general',
+    color: 'primary'
+  });
 
   const isSuperAdmin = currentUser?.role === 'superadmin';
   const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
@@ -78,6 +89,12 @@ export default function Schedule() {
         orderBy('startTime', 'asc')
       );
     }
+    
+    // Events sync
+    const eventsQuery = query(collection(db, 'events'), orderBy('date', 'asc'));
+    const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
+      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setSchedules(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ClassSchedule[]);
@@ -85,8 +102,35 @@ export default function Schedule() {
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'schedules');
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribe();
+      unsubscribeEvents();
+    };
   }, [currentUser?.uid, currentUser?.assignedClasses, isApprovedMudaris]);
+
+  const handleSaveEvent = async () => {
+    try {
+      if (editingEvent) {
+        await updateDoc(doc(db, 'events', editingEvent.id), eventFormData);
+      } else {
+        await addDoc(collection(db, 'events'), { ...eventFormData, createdAt: Date.now() });
+      }
+      setOpenEventDialog(false);
+      setEditingEvent(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'events');
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!window.confirm('Delete this event?')) return;
+    try {
+      await deleteDoc(doc(db, 'events', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `events/${id}`);
+    }
+  };
 
   const handleSave = async () => {
     if (!currentUser) return;
@@ -356,17 +400,40 @@ export default function Schedule() {
 
             <Card sx={{ borderRadius: 5 }}>
               <CardContent sx={{ p: 3 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 2.5 }}>Upcoming Events</Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Upcoming Events</Typography>
+                  {isTeacher && (
+                    <IconButton size="small" color="primary" onClick={() => {
+                      setEditingEvent(null);
+                      setEventFormData({ title: '', date: format(new Date(), 'yyyy-MM-dd'), time: '14:00', type: 'general', color: 'primary' });
+                      setOpenEventDialog(true);
+                    }}>
+                      <Plus size={18} />
+                    </IconButton>
+                  )}
+                </Box>
                 <List disablePadding>
-                  {[
-                    { title: 'Parent Teacher Meeting', date: 'Oct 15', time: '02:00 PM', icon: <Users size={20} />, color: 'primary' },
-                    { title: 'Annual Sports Day', date: 'Oct 20', time: '08:00 AM', icon: <Award size={20} />, color: 'success' },
-                    { title: 'Science Exhibition', date: 'Oct 24', time: '10:00 AM', icon: <BookOpen size={20} />, color: 'warning' }
-                  ].map((event, i) => (
-                    <ListItem key={i} disableGutters sx={{ py: 1.5, borderBottom: i < 2 ? '1px solid' : 'none', borderColor: 'divider' }}>
+                  {events.map((event, i) => (
+                    <ListItem 
+                      key={event.id} 
+                      disableGutters 
+                      sx={{ py: 1.5, borderBottom: i < events.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}
+                      secondaryAction={isTeacher && (
+                        <Box>
+                          <IconButton size="small" onClick={() => {
+                            setEditingEvent(event);
+                            setEventFormData({ title: event.title, date: event.date, time: event.time, type: event.type, color: event.color });
+                            setOpenEventDialog(true);
+                          }}><Edit2 size={14} /></IconButton>
+                          <IconButton size="small" color="error" onClick={() => handleDeleteEvent(event.id)}><Trash2 size={14} /></IconButton>
+                        </Box>
+                      )}
+                    >
                       <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: alpha(theme.palette[event.color as 'primary' | 'success' | 'warning'].main, 0.1), color: `${event.color}.main`, borderRadius: 2 }}>
-                          {event.icon}
+                        <Avatar sx={{ bgcolor: alpha(theme.palette[event.color as 'primary' | 'success' | 'warning' | 'error']?.main || theme.palette.primary.main, 0.1), color: `${event.color}.main`, borderRadius: 2 }}>
+                          {event.type === 'meeting' ? <Users size={18} /> : 
+                           event.type === 'sports' ? <Award size={18} /> : 
+                           <Calendar size={18} />}
                         </Avatar>
                       </ListItemAvatar>
                       <ListItemText 
@@ -377,6 +444,9 @@ export default function Schedule() {
                       />
                     </ListItem>
                   ))}
+                  {events.length === 0 && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>No upcoming events</Typography>
+                  )}
                 </List>
               </CardContent>
             </Card>
@@ -557,6 +627,40 @@ export default function Schedule() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenMaterialsDialog(false)} sx={{ fontWeight: 800 }}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Event Add/Edit Dialog */}
+      <Dialog open={openEventDialog} onClose={() => setOpenEventDialog(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 4 } }}>
+        <DialogTitle sx={{ fontWeight: 900 }}>{editingEvent ? 'Edit Event' : 'Add New Event'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <TextField fullWidth label="Event Title" value={eventFormData.title} onChange={(e) => setEventFormData({ ...eventFormData, title: e.target.value })} />
+            <TextField fullWidth type="date" label="Date" value={eventFormData.date} onChange={(e) => setEventFormData({ ...eventFormData, date: e.target.value })} />
+            <TextField fullWidth type="time" label="Time" value={eventFormData.time} onChange={(e) => setEventFormData({ ...eventFormData, time: e.target.value })} />
+            <FormControl fullWidth>
+              <InputLabel>Type</InputLabel>
+              <Select value={eventFormData.type} label="Type" onChange={(e) => setEventFormData({ ...eventFormData, type: e.target.value })}>
+                <MenuItem value="general">General</MenuItem>
+                <MenuItem value="meeting">Meeting</MenuItem>
+                <MenuItem value="sports">Sports</MenuItem>
+                <MenuItem value="exam">Exam</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Color</InputLabel>
+              <Select value={eventFormData.color} label="Color" onChange={(e) => setEventFormData({ ...eventFormData, color: e.target.value })}>
+                <MenuItem value="primary">Teal (Primary)</MenuItem>
+                <MenuItem value="success">Green (Success)</MenuItem>
+                <MenuItem value="warning">Orange (Warning)</MenuItem>
+                <MenuItem value="error">Red (Error)</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setOpenEventDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleSaveEvent} disabled={!eventFormData.title} sx={{ borderRadius: 2 }}>Save Event</Button>
         </DialogActions>
       </Dialog>
     </Box>

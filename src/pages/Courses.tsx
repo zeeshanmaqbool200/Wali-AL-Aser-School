@@ -5,7 +5,8 @@ import {
   DialogActions, CircularProgress, IconButton, Chip,
   Avatar, List, ListItem, ListItemText, ListItemAvatar,
   Divider, InputAdornment, Paper, Tooltip, useTheme,
-  useMediaQuery, alpha, Stack, Zoom, Fade
+  useMediaQuery, alpha, Stack, Zoom, Fade,
+  FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import { 
   Plus, Search, Edit2, Trash2, BookOpen, 
@@ -13,9 +14,9 @@ import {
   MoreVertical, Book, GraduationCap, ArrowRight,
   Star, Share2, Bookmark, Layout, Layers
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
-import { Course, UserProfile } from '../types';
+import { Course, CourseSection, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -27,6 +28,8 @@ export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
+  const [openReader, setOpenReader] = useState(false);
+  const [viewingCourse, setViewingCourse] = useState<Course | null>(null);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -38,13 +41,47 @@ export default function Courses() {
     duration: '',
     fee: '',
     teacherName: '',
-    teacherId: ''
+    teacherId: '',
+    thumbnailUrl: '',
+    sections: [] as CourseSection[],
+    isPublished: false,
+    gradeId: ''
   });
 
-  const isTeacher = currentUser?.role === 'approved_mudaris' || currentUser?.role === 'superadmin';
+  const [newSection, setNewSection] = useState<CourseSection>({ title: '', content: '', type: 'text', mediaUrl: '' });
+
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const isMudaris = currentUser?.role === 'approved_mudaris';
+  const isTeacher = isSuperAdmin || isMudaris;
 
   useEffect(() => {
-    const q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'));
+    let q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'));
+    
+    // Students only see published courses or courses assigned specifically to them/their class
+    // For now, let's just filter by isPublished and gradeId
+    if (!isTeacher && currentUser) {
+      q = query(
+        collection(db, 'courses'), 
+        and(
+          where('isPublished', '==', true),
+          or(
+            where('gradeId', '==', currentUser.maktabLevel || 'none'),
+            where('gradeId', '==', 'all'),
+            where('enrolledStudents', 'array-contains', currentUser.uid)
+          )
+        )
+      );
+    } else if (isMudaris && !isSuperAdmin) {
+      // Mudaris sees courses assigned to them
+      q = query(
+        collection(db, 'courses'), 
+        or(
+          where('teacherId', '==', currentUser.uid),
+          where('assignedMudaris', 'array-contains', currentUser.uid)
+        )
+      );
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[]);
       setLoading(false);
@@ -52,7 +89,7 @@ export default function Courses() {
       handleFirestoreError(error, OperationType.LIST, 'courses');
     });
     return () => unsubscribe();
-  }, []);
+  }, [currentUser, isTeacher]);
 
   const handleSave = async () => {
     if (!currentUser) return;
@@ -60,31 +97,31 @@ export default function Courses() {
       const data = {
         ...formData,
         fee: Number(formData.fee),
-        teacherName: currentUser.displayName,
-        teacherId: currentUser.uid,
-        createdAt: Date.now()
+        // If teacher is mudaris, they stay teacher. If admin is creating, they might assign someone else.
+        teacherName: formData.teacherName || currentUser.displayName,
+        teacherId: formData.teacherId || currentUser.uid,
+        updatedAt: Date.now()
       };
 
       if (editingCourse) {
         await updateDoc(doc(db, 'courses', editingCourse.id), data);
       } else {
-        await addDoc(collection(db, 'courses'), data);
-        
-        // Trigger confetti for a delightful experience
-        confetti({
-          particleCount: 150,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ['#6366f1', '#a855f7', '#ec4899']
-        });
+        await addDoc(collection(db, 'courses'), { ...data, createdAt: Date.now() });
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
       }
       
       setOpenDialog(false);
       setEditingCourse(null);
-      setFormData({ name: '', code: '', description: '', duration: '', fee: '', teacherName: '', teacherId: '' });
+      setFormData({ name: '', code: '', description: '', duration: '', fee: '', teacherName: '', teacherId: '', thumbnailUrl: '', sections: [], isPublished: false, gradeId: '' });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'courses');
     }
+  };
+
+  const handleAddSection = () => {
+    if (!newSection.title || !newSection.content) return;
+    setFormData({ ...formData, sections: [...formData.sections, newSection] });
+    setNewSection({ title: '', content: '', type: 'text', mediaUrl: '' });
   };
 
   const handleDelete = async (id: string) => {
@@ -104,7 +141,11 @@ export default function Courses() {
       duration: course.duration,
       fee: course.fee.toString(),
       teacherName: course.teacherName,
-      teacherId: course.teacherId
+      teacherId: course.teacherId,
+      thumbnailUrl: course.thumbnailUrl || '',
+      sections: course.sections || [],
+      isPublished: course.isPublished || false,
+      gradeId: course.gradeId || ''
     });
     setOpenDialog(true);
   };
@@ -176,27 +217,51 @@ export default function Courses() {
               </IconButton>
             </Box>
             {isTeacher && (
-              <Button 
-                variant="contained" 
-                startIcon={<Plus size={18} />} 
-                onClick={() => {
-                  setEditingCourse(null);
-                  setFormData({ name: '', code: '', description: '', duration: '', fee: '', teacherName: '', teacherId: '' });
-                  setOpenDialog(true);
-                }}
-                sx={{ 
-                  borderRadius: 4, 
-                  fontWeight: 900, 
-                  px: 4, 
-                  py: 1.5,
-                  textTransform: 'none',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                    : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
-                }}
-              >
-                Add New Mazmoon
-              </Button>
+              <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1000 }}>
+                <Zoom in={true}>
+                  <Button 
+                    variant="contained" 
+                    startIcon={<Plus size={24} />} 
+                    onClick={() => {
+                      setEditingCourse(null);
+                      setFormData({
+                        name: '',
+                        code: '',
+                        description: '',
+                        duration: '',
+                        fee: '',
+                        teacherName: currentUser?.displayName || '',
+                        teacherId: currentUser?.uid || '',
+                        thumbnailUrl: '',
+                        sections: [],
+                        isPublished: true,
+                        gradeId: 'all'
+                      });
+                      setOpenDialog(true);
+                    }}
+                    sx={{ 
+                      borderRadius: '50px', 
+                      fontWeight: 900, 
+                      px: isMobile ? 3 : 4, 
+                      py: 2,
+                      minHeight: 64,
+                      textTransform: 'none',
+                      fontSize: '1rem',
+                      boxShadow: theme.palette.mode === 'dark'
+                        ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
+                        : '12px 12px 24px #cbd5e1, -12px -12px 24px #ffffff',
+                      '&:hover': {
+                        transform: 'scale(1.05)',
+                        boxShadow: theme.palette.mode === 'dark'
+                          ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
+                          : '16px 16px 32px #cbd5e1, -16px -16px 32px #ffffff',
+                      }
+                    }}
+                  >
+                    {!isMobile && "Add New Mazmoon"}
+                  </Button>
+                </Zoom>
+              </Box>
             )}
           </Stack>
         </Box>
@@ -263,6 +328,10 @@ export default function Courses() {
                   isTeacher={isTeacher} 
                   onEdit={() => handleEdit(course)} 
                   onDelete={() => handleDelete(course.id)}
+                  onRead={(c: Course) => {
+                    setViewingCourse(c);
+                    setOpenReader(true);
+                  }}
                   viewMode={viewMode}
                 />
               </motion.div>
@@ -337,19 +406,40 @@ export default function Courses() {
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Mazmoon Fee"
-                type="number"
-                InputProps={{ 
-                  startAdornment: <InputAdornment position="start">₹</InputAdornment>,
-                  sx: { borderRadius: 3 }
-                }}
-                value={formData.fee}
-                onChange={(e) => setFormData({ ...formData, fee: e.target.value })}
-              />
+            <Grid size={12}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>Course Modules (Blog Style Content)</Typography>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, mb: 3 }}>
+                <Stack spacing={2}>
+                  <TextField fullWidth size="small" label="Module Title" value={newSection.title} onChange={(e) => setNewSection({ ...newSection, title: e.target.value })} />
+                  <TextField fullWidth multiline rows={3} label="Module Content" placeholder="Supports rich text descriptions..." value={newSection.content} onChange={(e) => setNewSection({ ...newSection, content: e.target.value })} />
+                  <Stack direction="row" spacing={2}>
+                    <FormControl size="small" sx={{ flex: 1 }}>
+                      <InputLabel>Type</InputLabel>
+                      <Select value={newSection.type} label="Type" onChange={(e) => setNewSection({ ...newSection, type: e.target.value as any })}>
+                        <MenuItem value="text">Text</MenuItem>
+                        <MenuItem value="image">Image</MenuItem>
+                        <MenuItem value="video">Video</MenuItem>
+                        <MenuItem value="file">Downloadable File</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <TextField fullWidth size="small" sx={{ flex: 2 }} label="Media URL (Optional)" value={newSection.mediaUrl} onChange={(e) => setNewSection({ ...newSection, mediaUrl: e.target.value })} />
+                  </Stack>
+                  <Button variant="outlined" fullWidth onClick={handleAddSection} sx={{ borderRadius: 2 }}>Add Module</Button>
+                </Stack>
+              </Paper>
+              <Stack spacing={1}>
+                {formData.sections.map((s, i) => (
+                  <Chip key={i} label={s.title} color="primary" variant="outlined" onDelete={() => setFormData({ ...formData, sections: formData.sections.filter((_, idx) => idx !== i) })} sx={{ borderRadius: 2, fontWeight: 700 }} />
+                ))}
+              </Stack>
             </Grid>
+            {isSuperAdmin && (
+              <Grid size={12}>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2 }}>Assignment Controls (Admin Only)</Typography>
+                <TextField fullWidth label="Restrict to Level (e.g. Level 1, all)" value={formData.gradeId} onChange={(e) => setFormData({ ...formData, gradeId: e.target.value })} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
+              </Grid>
+            )}
           </Grid>
         </DialogContent>
         <DialogActions sx={{ p: 3, gap: 1 }}>
@@ -369,7 +459,7 @@ export default function Courses() {
   );
 }
 
-function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
+function CourseCard({ course, isTeacher, onEdit, onDelete, onRead, viewMode }: any) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   
@@ -450,7 +540,9 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
               </>
             )}
             <IconButton 
+              aria-label="Read course"
               size="small" 
+              onClick={() => onRead(course)}
               sx={{ 
                 bgcolor: 'primary.main', 
                 color: 'white', 
@@ -488,12 +580,7 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
       }
     }}>
       <Box sx={{ position: 'relative', height: 200, overflow: 'hidden' }}>
-        <Box 
-          className="course-image"
-          component="img"
-          src={`https://picsum.photos/seed/${course.code}/600/400`}
-          sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
-        />
+        <Box className="course-image" component="img" src={`https://picsum.photos/seed/${course.code}/600/400`} alt={course.name} loading="lazy" decoding="async" sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }} />
         <Box sx={{ position: 'absolute', top: 20, left: 20, display: 'flex', gap: 1.5 }}>
           <Chip 
             label={course.code} 
@@ -520,8 +607,8 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
           <Typography variant="h5" sx={{ fontWeight: 900, lineHeight: 1.2, letterSpacing: -1 }}>{course.name}</Typography>
           {isTeacher && (
             <Box sx={{ display: 'flex', gap: 1.5 }}>
-              <IconButton size="small" onClick={onEdit} sx={{ p: 1, bgcolor: alpha(theme.palette.primary.main, 0.05) }}><Edit2 size={16} /></IconButton>
-              <IconButton size="small" color="error" onClick={onDelete} sx={{ p: 1, bgcolor: alpha(theme.palette.error.main, 0.05) }}><Trash2 size={16} /></IconButton>
+              <IconButton aria-label="Edit course" size="small" onClick={onEdit} sx={{ p: 1, bgcolor: alpha(theme.palette.primary.main, 0.05) }}><Edit2 size={16} /></IconButton>
+              <IconButton aria-label="Delete course" size="small" color="error" onClick={onDelete} sx={{ p: 1, bgcolor: alpha(theme.palette.error.main, 0.05) }}><Trash2 size={16} /></IconButton>
             </Box>
           )}
         </Box>
@@ -561,6 +648,7 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
       <Button 
         fullWidth 
         variant="contained" 
+        onClick={() => onRead(course)}
         endIcon={<ArrowRight size={20} />}
         sx={{ 
           borderRadius: 0, 
@@ -573,7 +661,7 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, viewMode }: any) {
           '&:hover': { bgcolor: 'primary.main' } 
         }}
       >
-        View Details
+        Read Mazmoon
       </Button>
     </Card>
   );

@@ -8,6 +8,7 @@ import { Calendar, Clock, MapPin, User, BookOpen } from 'lucide-react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserProfile } from '../types';
+import { logger } from '../lib/logger';
 
 interface ScheduleModalProps {
   open: boolean;
@@ -39,7 +40,7 @@ export default function ScheduleModal({ open, onClose, onSubmit }: ScheduleModal
         })) as UserProfile[];
         setTeachers(teacherList);
       } catch (err) {
-        console.error('Error fetching teachers:', err);
+        logger.error('Error fetching teachers', err as Error);
       } finally {
         setLoading(false);
       }

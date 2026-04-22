@@ -22,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import { logger } from '../lib/logger';
 
 interface Exam {
   id: string;
@@ -116,7 +117,7 @@ export default function Exams() {
         maxMarks: 100, type: 'test', status: 'upcoming' 
       });
     } catch (error) {
-      console.error("Error creating exam:", error);
+      logger.error('Error creating exam', error as Error);
     } finally {
       setSubmitting(false);
     }
@@ -132,7 +133,7 @@ export default function Exams() {
       await deleteDoc(doc(db, 'exams', deleteConfirm.id));
       setDeleteConfirm({ open: false, id: '' });
     } catch (error) {
-      console.error("Error deleting exam:", error);
+      logger.error('Error deleting exam', error as Error);
     }
   };
 

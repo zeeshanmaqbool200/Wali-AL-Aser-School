@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { initializeFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { initializeFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
 
 // Import the Firebase configuration
 import firebaseConfig from '../firebase-applet-config.json';
@@ -12,6 +12,17 @@ export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
 }, firebaseConfig.firestoreDatabaseId);
+
+// Enable persistence
+if (typeof window !== 'undefined') {
+  enableMultiTabIndexedDbPersistence(db).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
+    } else if (err.code === 'unimplemented') {
+      console.warn('The current browser doesn\'t support all of the features needed to enable persistence');
+    }
+  });
+}
 
 export const googleProvider = new GoogleAuthProvider();
 

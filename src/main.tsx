@@ -12,7 +12,7 @@ registerSW({
     }
   },
   onOfflineReady() {
-    console.log('App ready to work offline');
+    // App is ready for offline use
   },
 });
 

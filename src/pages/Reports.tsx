@@ -33,17 +33,29 @@ export default function Reports() {
   const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [reportType, setReportType] = useState('attendance');
+  const [counts, setCounts] = useState({ students: 0, fees: 0, attendance: 0 });
   
   const isSuperAdmin = currentUser?.role === 'superadmin';
   const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
 
-  // Stats filtering based on role
-  const stats = [
-    { title: 'Total Tulab-e-Ilm', value: '1,284', trend: '+12%', icon: <Users size={24} />, color: 'primary' },
-    ...(isSuperAdmin ? [{ title: 'Majmua (MTD)', value: '₹42.5k', trend: '+5%', icon: <DollarSign size={24} />, color: 'success' }] : []),
-    { title: 'Ausat Haziri', value: '94.2%', trend: '94%', icon: <Activity size={24} />, color: 'warning' },
-    { title: 'Imtihan Kamyabi', value: '82.1%', trend: '82%', icon: <Award size={24} />, color: 'error' }
-  ];
+  useEffect(() => {
+    // Real stats fetching
+    const unsubscribeStudents = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const studentCount = snapshot.docs.filter(doc => doc.data().role === 'student').length;
+      setCounts(prev => ({ ...prev, students: studentCount }));
+    });
+
+    const unsubscribeFees = onSnapshot(collection(db, 'receipts'), (snapshot) => {
+      const totalAmount = snapshot.docs.reduce((acc, doc) => acc + (doc.data().amount || 0), 0);
+      setCounts(prev => ({ ...prev, fees: totalAmount }));
+    });
+
+    setLoading(false);
+    return () => {
+      unsubscribeStudents();
+      unsubscribeFees();
+    };
+  }, []);
 
   // Reports filtering based on role
   const availableReports = [
@@ -69,11 +81,12 @@ export default function Reports() {
     { name: 'Akhlaq', value: 200 },
   ];
 
-  useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => setLoading(false), 1000);
-    return () => clearTimeout(timer);
-  }, []);
+  const stats = [
+    { title: 'Total Tulab-e-Ilm', value: counts.students.toLocaleString(), trend: '+0%', icon: <Users size={24} />, color: 'primary' },
+    ...(isSuperAdmin ? [{ title: 'Majmua (MTD)', value: `₹${counts.fees.toLocaleString()}`, trend: '+0%', icon: <DollarSign size={24} />, color: 'success' }] : []),
+    { title: 'Ausat Haziri', value: '94.2%', trend: '94%', icon: <Activity size={24} />, color: 'warning' },
+    { title: 'Imtihan Kamyabi', value: '82.1%', trend: '82%', icon: <Award size={24} />, color: 'error' }
+  ];
 
   if (loading) return (
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>

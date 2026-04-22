@@ -9,6 +9,7 @@ import { MaktabLevel } from '../types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { motion } from 'framer-motion';
+import { logger } from '../lib/logger';
 
 interface ClassSelectionProps {
   open: boolean;
@@ -35,7 +36,7 @@ export default function ClassSelection({ open, userId, onComplete }: ClassSelect
       });
       onComplete();
     } catch (error) {
-      console.error("Error updating class selection:", error);
+      logger.error('Error updating class selection', error as Error);
     } finally {
       setLoading(false);
     }

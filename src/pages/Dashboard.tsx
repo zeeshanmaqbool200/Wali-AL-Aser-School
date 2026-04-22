@@ -31,11 +31,14 @@ export default function Dashboard({ user }: DashboardProps) {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<any>({
     totalTulab: 0,
     totalFeesMonth: 0,
     pendingFees: 0,
-    todayHaziri: 0
+    todayHaziri: 0,
+    attendanceRate: 0,
+    recentFees: [],
+    availableCourses: []
   });
   const [recentNotifications, setRecentNotifications] = useState<NotificationType[]>([]);
   const [pendingReceipts, setPendingReceipts] = useState<FeeReceipt[]>([]);
@@ -54,15 +57,24 @@ export default function Dashboard({ user }: DashboardProps) {
   const [haziriTrendData, setHaziriTrendData] = useState<{name: string, value: number}[]>([]);
   const [subjectsTrendData, setSubjectsTrendData] = useState<{name: string, value: number}[]>([]);
 
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
+
   useEffect(() => {
     let unsubscribeNotifs = () => {};
     let unsubscribeReceipts = () => {};
     let unsubscribeStudents = () => {};
+    let unsubscribeEvents = () => {};
+    let unsubscribeTulab = () => {};
+    let unsubscribePendingFees = () => {};
+    let unsubscribeApprovedFees = () => {};
+    let unsubscribeHaziri = () => {};
+    let unsubscribeStudentHaziri = () => {};
+    let unsubscribeStudentCourses = () => {};
 
     const fetchData = async () => {
       try {
         logger.info('Dashboard Initializing...');
-        // Stats
+        // Stats Real-time Sync
         if (isMudaris) {
           const tulabQuery = isSuperAdmin 
             ? query(collection(db, 'users'), where('role', '==', 'student'))
@@ -75,23 +87,24 @@ export default function Dashboard({ user }: DashboardProps) {
                 )
               ));
             
-          const tulabSnap = await getDocs(tulabQuery);
-          
-          let pendingFeesCount = 0;
-          let totalFeesAmount = 0;
+          unsubscribeTulab = onSnapshot(tulabQuery, (tulabSnap) => {
+            setStats(prev => ({ ...prev, totalTulab: tulabSnap.size }));
+          });
 
           if (isSuperAdmin) {
-            const pendingFeesSnap = await getDocs(query(collection(db, 'receipts'), where('status', '==', 'pending')));
-            pendingFeesCount = pendingFeesSnap.size;
-            
-            // Calculate real total fees for the current month
+            unsubscribePendingFees = onSnapshot(query(collection(db, 'receipts'), where('status', '==', 'pending')), (snap) => {
+              setStats(prev => ({ ...prev, pendingFees: snap.size }));
+            });
+
             const currentMonthStart = format(new Date(), 'yyyy-MM-01');
-            const approvedFeesSnap = await getDocs(query(
+            unsubscribeApprovedFees = onSnapshot(query(
               collection(db, 'receipts'), 
               where('status', '==', 'approved'),
               where('date', '>=', currentMonthStart)
-            ));
-            totalFeesAmount = approvedFeesSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+            ), (snap) => {
+              const amount = snap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+              setStats(prev => ({ ...prev, totalFeesMonth: amount }));
+            });
           }
 
           const todayHaziriQuery = isSuperAdmin 
@@ -103,15 +116,21 @@ export default function Dashboard({ user }: DashboardProps) {
                 where('grade', 'in', user.assignedClasses || [])
               );
               
-          const todayHaziriSnap = await getDocs(todayHaziriQuery);
-          
-          setStats({
-            totalTulab: tulabSnap.size,
-            totalFeesMonth: totalFeesAmount,
-            pendingFees: pendingFeesCount,
-            todayHaziri: todayHaziriSnap.size
+          unsubscribeHaziri = onSnapshot(todayHaziriQuery, (snap) => {
+            setStats(prev => ({ ...prev, todayHaziri: snap.size }));
           });
-          logger.success('Dashboard Stats Loaded');
+        } else {
+          // Student Stats logic
+          unsubscribeStudentHaziri = onSnapshot(query(collection(db, 'attendance'), where('studentId', '==', user.uid)), (snap) => {
+            const totalAt = snap.docs.length;
+            const presentAt = snap.docs.filter(d => d.data().status === 'present').length;
+            const attendanceRate = totalAt > 0 ? Math.round((presentAt / totalAt) * 100) : 0;
+            setStats(prev => ({ ...prev, attendanceRate }));
+          });
+
+          unsubscribeStudentCourses = onSnapshot(query(collection(db, 'courses'), where('isPublished', '==', true), limit(3)), (snap) => {
+            setStats(prev => ({ ...prev, availableCourses: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+          });
         }
 
         // Notifications
@@ -187,8 +206,13 @@ export default function Dashboard({ user }: DashboardProps) {
             setInstituteData(settingsDoc.data() as InstituteSettings);
           }
         } catch (error) {
-          console.warn('Failed to fetch institute banner:', error);
+          // logger.warn('Failed to fetch institute banner', error as Error);
         }
+
+        // Sync Upcoming Events
+        unsubscribeEvents = onSnapshot(query(collection(db, 'events'), where('date', '>=', format(new Date(), 'yyyy-MM-dd')), orderBy('date', 'asc'), limit(5)), (snapshot) => {
+          setUpcomingEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
 
         setLoading(false);
       } catch (error) {
@@ -206,8 +230,15 @@ export default function Dashboard({ user }: DashboardProps) {
       unsubscribeNotifs();
       unsubscribeReceipts();
       unsubscribeStudents();
+      unsubscribeEvents();
+      unsubscribeTulab();
+      unsubscribePendingFees();
+      unsubscribeApprovedFees();
+      unsubscribeHaziri();
+      unsubscribeStudentHaziri();
+      unsubscribeStudentCourses();
     };
-  }, [user?.uid, isMudaris]);
+  }, [user?.uid, isMudaris, isSuperAdmin]); // Added isSuperAdmin to deps
 
   const handleApproveFee = async (id: string) => {
     try {
@@ -460,7 +491,7 @@ export default function Dashboard({ user }: DashboardProps) {
               <StatCard title="Subjects" value={user.subjectsEnrolled?.length || 0} icon={<BookOpen size={20} />} color="#3b82f6" />
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <StatCard title="Haziri Rate" value="94%" icon={<TrendingUp size={20} />} color="#10b981" />
+              <StatCard title="Haziri Rate" value={`${stats.attendanceRate}%`} icon={<TrendingUp size={20} />} color="#10b981" />
             </motion.div>
           </>
         )}
@@ -649,6 +680,52 @@ export default function Dashboard({ user }: DashboardProps) {
             </Card>
           )}
 
+          {/* Upcoming Events */}
+          {upcomingEvents.length > 0 && (
+            <Card variant="outlined" sx={{ borderRadius: 2, mb: 4, overflow: 'hidden' }}>
+              <Box sx={{ p: 2.5, bgcolor: alpha(theme.palette.secondary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Calendar size={18} /> Agli Ittela'at (Upcoming Events)
+                </Typography>
+                <Button size="small" onClick={() => navigate('/schedule')} sx={{ fontWeight: 800 }}>Daikhein</Button>
+              </Box>
+              <List sx={{ p: 0 }}>
+                {upcomingEvents.map((event, idx) => (
+                  <ListItem key={event.id} divider={idx < upcomingEvents.length - 1} sx={{ py: 2, px: 3 }}>
+                    <Box sx={{ 
+                      width: 48, height: 54, borderRadius: 2, bgcolor: 'background.default', 
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      border: `1px solid ${theme.palette.divider}`, mr: 3
+                    }}>
+                      <Typography variant="caption" sx={{ fontWeight: 900, color: 'primary.main', fontSize: '0.65rem', textTransform: 'uppercase' }}>
+                        {format(new Date(event.date), 'MMM')}
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1 }}>
+                        {format(new Date(event.date), 'dd')}
+                      </Typography>
+                    </Box>
+                    <ListItemText 
+                      primary={event.title} 
+                      secondary={`${event.time} • ${event.type}`} 
+                      primaryTypographyProps={{ fontWeight: 800, fontSize: '1rem' }}
+                      secondaryTypographyProps={{ fontWeight: 600, fontSize: '0.8rem' }}
+                    />
+                    <Chip 
+                      label={event.type} 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: alpha(event.color || theme.palette.primary.main, 0.1), 
+                        color: event.color || theme.palette.primary.main,
+                        fontWeight: 800,
+                        borderRadius: 1
+                      }} 
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Card>
+          )}
+
           {/* Recent Notifications */}
           <Card variant="outlined" sx={{ borderRadius: 2 }}>
             <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${theme.palette.divider}` }}>
@@ -700,6 +777,31 @@ export default function Dashboard({ user }: DashboardProps) {
               )}
             </List>
           </Card>
+
+          {/* Student Courses (Only for students) */}
+          {!isMudaris && stats.availableCourses?.length > 0 && (
+            <Card variant="outlined" sx={{ borderRadius: 2, mb: 4, overflow: 'hidden' }}>
+              <Box sx={{ p: 2.5, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <BookOpen size={18} /> Courses For You
+                </Typography>
+                <Button size="small" onClick={() => navigate('/courses')} sx={{ fontWeight: 800 }}>Daikhein</Button>
+              </Box>
+              <Grid container spacing={0}>
+                {stats.availableCourses.map((course: any, idx: number) => (
+                  <Grid size={{ xs: 12, sm: 4 }} key={course.id}>
+                    <Box sx={{ p: 2.5, borderRight: idx < stats.availableCourses.length - 1 ? `1px solid ${theme.palette.divider}` : 'none', textAlign: 'center' }}>
+                      <Box sx={{ width: 48, height: 48, mx: 'auto', mb: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main' }}>
+                        <BookOpen size={24} />
+                      </Box>
+                      <Typography variant="body2" sx={{ fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{course.name}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{course.code}</Typography>
+                    </Box>
+                  </Grid>
+                ))}
+              </Grid>
+            </Card>
+          )}
         </Grid>
 
         {/* Right Column: Profile & Team */}
@@ -823,7 +925,7 @@ export default function Dashboard({ user }: DashboardProps) {
         if (currentActions.length === 0) return null;
 
         return (
-          <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1000 }}>
+          <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1200 }}>
             <Zoom in={true}>
               <Fab 
                 color="primary" 

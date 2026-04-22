@@ -84,7 +84,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
     }, (error) => {
       // Don't use handleFirestoreError for this passive background task
       // as it would throw and potentially crash the SDK loop or React render
-      console.warn('Institute settings listener failed:', error.message);
+      // console.warn('Institute settings listener failed:', error.message);
     });
     return () => unsubscribe();
   }, []);
@@ -310,7 +310,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             flexGrow: 1,
             p: { xs: 2, sm: 3, md: 4 },
             pb: { xs: 12, md: 4 }, // Optimized padding for mobile
-            overflowY: 'auto',
+            overflowY: 'visible', // Changed from auto to let window scroll
             overflowX: 'hidden',
             WebkitOverflowScrolling: 'touch',
             position: 'relative',

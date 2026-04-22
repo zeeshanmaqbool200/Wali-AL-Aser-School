@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import FeeReceiptModal from '../components/FeeReceiptModal';
 import confetti from 'canvas-confetti';
 import { format } from 'date-fns';
+import { logger } from '../lib/logger';
 
 export default function Fees() {
   const { user: currentUser } = useAuth();
@@ -66,7 +67,7 @@ export default function Fees() {
           setSettings(settingsDoc.data());
         }
       } catch (error) {
-        console.error("Error fetching settings:", error);
+        logger.error('Error fetching settings', error as Error);
       }
     };
     fetchSettings();
@@ -391,47 +392,63 @@ export default function Fees() {
               </Button>
             )}
             {(!isTeacher && currentUser?.role === 'student' && !currentUser?.maktabLevel) ? (
-              <Tooltip title="Your class selection must be approved by a teacher before you can use this feature.">
-                <span>
+              <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1000 }}>
+                <Tooltip title="Your class selection must be approved by a teacher before you can use this feature.">
+                  <span>
+                    <Button 
+                      variant="contained" 
+                      disabled
+                      startIcon={<Plus size={24} />} 
+                      sx={{ 
+                        borderRadius: '50px', 
+                        fontWeight: 900, 
+                        px: isMobile ? 3 : 4, 
+                        py: 2,
+                        minHeight: 64,
+                        textTransform: 'none',
+                        opacity: 0.7
+                      }}
+                    >
+                      {!isMobile && "Apply for Fee"}
+                    </Button>
+                  </span>
+                </Tooltip>
+              </Box>
+            ) : (
+              <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1000 }}>
+                <Zoom in={true}>
                   <Button 
                     variant="contained" 
-                    disabled
-                    fullWidth={isMobile}
-                    startIcon={<Plus size={18} />} 
+                    startIcon={<Plus size={24} />} 
+                    onClick={() => {
+                      if (currentUser?.role === 'student') {
+                        setFormData({ ...formData, studentId: currentUser.uid, studentName: currentUser.displayName });
+                      }
+                      setOpenAddDialog(true);
+                    }}
                     sx={{ 
-                      borderRadius: 1, 
+                      borderRadius: '50px', 
                       fontWeight: 900, 
-                      px: 4, 
-                      py: 1.5,
+                      px: isMobile ? 3 : 4, 
+                      py: 2,
+                      minHeight: 64,
                       textTransform: 'none',
-                      opacity: 0.7
+                      fontSize: '1rem',
+                      boxShadow: theme.palette.mode === 'dark'
+                        ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
+                        : '12px 12px 24px #cbd5e1, -12px -12px 24px #ffffff',
+                      '&:hover': {
+                        transform: 'scale(1.05)',
+                        boxShadow: theme.palette.mode === 'dark'
+                          ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
+                          : '16px 16px 32px #cbd5e1, -16px -16px 32px #ffffff',
+                      }
                     }}
                   >
-                    Apply for Fee
+                    {!isMobile && (isTeacher ? 'New Payment' : 'Apply for Fee')}
                   </Button>
-                </span>
-              </Tooltip>
-            ) : (
-              <Button 
-                variant="contained" 
-                startIcon={<Plus size={18} />} 
-                fullWidth={isMobile}
-                onClick={() => {
-                  if (currentUser?.role === 'student') {
-                    setFormData({ ...formData, studentId: currentUser.uid, studentName: currentUser.displayName });
-                  }
-                  setOpenAddDialog(true);
-                }}
-                sx={{ 
-                  borderRadius: 1, 
-                  fontWeight: 900, 
-                  px: 4, 
-                  py: 1.5,
-                  textTransform: 'none',
-                }}
-              >
-                {isTeacher ? 'New Payment' : 'Apply for Fee'}
-              </Button>
+                </Zoom>
+              </Box>
             )}
           </Stack>
         </Box>

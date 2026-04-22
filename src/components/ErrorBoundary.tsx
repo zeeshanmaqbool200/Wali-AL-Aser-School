@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Box, Typography, Button, Container, Paper } from '@mui/material';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { logger } from '../lib/logger';
 
 interface Props {
   children: ReactNode;
@@ -22,7 +23,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    logger.error('Uncaught Error Boundary', error);
   }
 
   private handleReset = () => {
