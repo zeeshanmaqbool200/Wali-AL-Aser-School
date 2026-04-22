@@ -355,7 +355,7 @@ export default function FeeReceiptModal({ open, onClose, receipt, settings: prop
       fullWidth 
       PaperProps={{ 
         sx: { 
-          borderRadius: { xs: 0, sm: 2 },
+          borderRadius: { xs: 0, sm: 1 },
           m: { xs: 0, sm: 2 },
           bgcolor: 'background.paper',
           overflow: 'hidden'
@@ -388,7 +388,7 @@ export default function FeeReceiptModal({ open, onClose, receipt, settings: prop
         <Box sx={{ 
           bgcolor: 'white', 
           p: { xs: 2, sm: 6 }, 
-          borderRadius: 2, 
+          borderRadius: 1, 
           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           maxWidth: '800px',
           mx: 'auto',

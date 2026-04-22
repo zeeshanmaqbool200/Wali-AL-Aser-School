@@ -857,7 +857,7 @@ export default function Settings() {
                             });
                           }
                         }}
-                        sx={{ borderRadius: 2, fontWeight: 800 }}
+                        sx={{ borderRadius: 1, fontWeight: 800 }}
                       >
                         Request Permission
                       </Button>

@@ -15,7 +15,7 @@ import {
   ArrowUpRight, ArrowDownRight, Wallet, History,
   AlertCircle, Check, Edit, Save, X
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDoc, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc } from '../firebase';
 import { UserProfile, FeeReceipt } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -81,8 +81,15 @@ export default function Fees() {
     if (currentUser.role === 'student') {
       q = query(collection(db, 'receipts'), where('studentId', '==', currentUser.uid), orderBy('createdAt', 'desc'));
     } else if (isApprovedMudaris) {
-      // Mudaris can only see receipts for their grade
-      q = query(collection(db, 'receipts'), where('grade', 'in', currentUser.assignedClasses || ['none']), orderBy('createdAt', 'desc'));
+      // Mudaris can only see receipts for their grade and Example grade
+      q = query(
+        collection(db, 'receipts'), 
+        or(
+          where('grade', 'in', currentUser.assignedClasses || ['none']),
+          where('grade', '==', 'Example')
+        ),
+        orderBy('createdAt', 'desc')
+      );
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -100,8 +107,13 @@ export default function Fees() {
       } else {
         studentsQuery = query(
           collection(db, 'users'), 
-          where('role', '==', 'student'),
-          where('grade', 'in', currentUser.assignedClasses || ['none'])
+          and(
+            where('role', '==', 'student'),
+            or(
+              where('grade', 'in', currentUser.assignedClasses || ['none']),
+              where('grade', '==', 'Example')
+            )
+          )
         );
       }
       
@@ -349,38 +361,33 @@ export default function Fees() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Fees & Payments</Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
+            <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Fees & Payments</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
               Manage Tulab-e-Ilm payments and official receipts
             </Typography>
           </Box>
-          <Stack direction="row" spacing={2}>
+          <Stack direction={isMobile ? "column" : "row"} spacing={2} sx={{ width: isMobile ? '100%' : 'auto' }}>
             {isTeacher && (
               <Button 
                 variant="outlined" 
                 startIcon={<Download size={18} />} 
                 onClick={handleExport}
+                fullWidth={isMobile}
                 sx={{ 
-                  borderRadius: 4, 
+                  borderRadius: 1, 
                   fontWeight: 900, 
                   px: 4, 
                   py: 1.5,
                   textTransform: 'none',
-                  border: 'none',
                   bgcolor: 'background.paper',
                   color: 'text.primary',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                    : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+                  border: `1px solid ${theme.palette.divider}`,
                   '&:hover': {
-                    bgcolor: 'background.paper',
-                    boxShadow: theme.palette.mode === 'dark'
-                      ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                      : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                    bgcolor: 'action.hover',
                   }
                 }}
               >
-                Export All
+                Export CSV
               </Button>
             )}
             {(!isTeacher && currentUser?.role === 'student' && !currentUser?.maktabLevel) ? (
@@ -389,9 +396,10 @@ export default function Fees() {
                   <Button 
                     variant="contained" 
                     disabled
+                    fullWidth={isMobile}
                     startIcon={<Plus size={18} />} 
                     sx={{ 
-                      borderRadius: 4, 
+                      borderRadius: 1, 
                       fontWeight: 900, 
                       px: 4, 
                       py: 1.5,
@@ -407,6 +415,7 @@ export default function Fees() {
               <Button 
                 variant="contained" 
                 startIcon={<Plus size={18} />} 
+                fullWidth={isMobile}
                 onClick={() => {
                   if (currentUser?.role === 'student') {
                     setFormData({ ...formData, studentId: currentUser.uid, studentName: currentUser.displayName });
@@ -414,14 +423,11 @@ export default function Fees() {
                   setOpenAddDialog(true);
                 }}
                 sx={{ 
-                  borderRadius: 4, 
+                  borderRadius: 1, 
                   fontWeight: 900, 
                   px: 4, 
                   py: 1.5,
                   textTransform: 'none',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                    : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
                 }}
               >
                 {isTeacher ? 'New Payment' : 'Apply for Fee'}
@@ -498,13 +504,13 @@ export default function Fees() {
       )}
 
       <Card sx={{ 
-        borderRadius: 6, 
+        borderRadius: 1, 
         overflow: 'hidden',
-        border: 'none',
+        border: `1px solid ${theme.palette.divider}`,
         bgcolor: 'background.paper',
         boxShadow: theme.palette.mode === 'dark'
-          ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
-          : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
+          ? '0 4px 12px rgba(0,0,0,0.5)'
+          : '0 4px 12px rgba(0,0,0,0.05)',
       }}>
         <Box sx={{ 
           borderBottom: 1, 
@@ -520,10 +526,13 @@ export default function Fees() {
           <Tabs 
             value={tabValue} 
             onChange={(e, v) => setTabValue(v)} 
+            variant={isMobile ? "scrollable" : "standard"}
+            scrollButtons="auto"
             sx={{ 
-              '& .MuiTab-root': { fontWeight: 900, py: 3, minWidth: 120, color: 'text.secondary', textTransform: 'none', fontSize: '0.95rem' },
+              flex: 1,
+              '& .MuiTab-root': { fontWeight: 800, py: 2, minWidth: isMobile ? 80 : 120, color: 'text.secondary', textTransform: 'none', fontSize: isMobile ? '0.8rem' : '0.95rem' },
               '& .Mui-selected': { color: 'primary.main' },
-              '& .MuiTabs-indicator': { height: 4, borderRadius: '4px 4px 0 0' }
+              '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' }
             }}
           >
             <Tab label="All Receipts" />
@@ -548,30 +557,28 @@ export default function Fees() {
                 sx={{ 
                   display: 'flex', 
                   alignItems: 'center', 
-                  px: 2.5, 
-                  borderRadius: 4, 
-                  border: 'none',
+                  px: 2, 
+                  borderRadius: 1, 
+                  border: `1px solid ${theme.palette.divider}`,
                   bgcolor: 'background.default',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                    : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
                   position: 'relative'
                 }}
               >
-                <Search size={20} color={theme.palette.text.secondary} />
+                <Search size={18} color={theme.palette.text.secondary} />
                 <Box 
                   component="input" 
-                  placeholder="Search receipt or Talib-e-Ilm..." 
+                  placeholder={isMobile ? "Search..." : "Search receipt or Talib-e-Ilm..."} 
                   value={searchQuery}
                   onChange={(e: any) => setSearchQuery(e.target.value)}
                   sx={{ 
                     border: 'none', 
                     outline: 'none', 
-                    p: 1.5, 
+                    p: 1.2, 
                     width: '100%', 
-                    fontWeight: 700,
+                    fontWeight: 600,
                     bgcolor: 'transparent',
                     color: 'text.primary',
+                    fontSize: '0.9rem',
                     '&::placeholder': { color: 'text.disabled' }
                   }} 
                 />
@@ -1031,47 +1038,36 @@ export default function Fees() {
 
 const SummaryCard = React.memo(({ title, value, icon, color, trend }: any) => {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const mainColor = theme.palette[color as 'primary' | 'success' | 'error' | 'warning'].main;
   
   return (
     <Card sx={{ 
-      borderRadius: 2, 
+      borderRadius: 1, 
       height: '100%', 
       transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-      border: '1px solid',
-      borderColor: 'divider',
+      border: `1px solid ${theme.palette.divider}`,
       bgcolor: 'background.paper',
       boxShadow: 'none',
       '&:hover': { 
-        transform: 'translateY(-6px)', 
+        transform: 'translateY(-4px)', 
         borderColor: mainColor
       }
     }}>
-      <CardContent sx={{ p: 3.5 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+      <CardContent sx={{ p: 2.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <Box sx={{ 
-            p: 1.8, 
-            borderRadius: 1.5, 
+            p: 1.2, 
+            borderRadius: 0.5, 
             bgcolor: alpha(mainColor, 0.1), 
             color: mainColor,
+            border: `1px solid ${alpha(mainColor, 0.1)}`
           }}>
             {icon}
           </Box>
-          <Chip 
-            label={trend} 
-            size="small" 
-            sx={{ 
-              fontWeight: 900, 
-              fontSize: '0.65rem', 
-              bgcolor: alpha(mainColor, 0.1), 
-              color: mainColor,
-              borderRadius: '8px'
-            }} 
-          />
+          <Typography variant="caption" sx={{ fontWeight: 800, color: mainColor, fontSize: '0.65rem', bgcolor: alpha(mainColor, 0.05), px: 1, py: 0.5, borderRadius: 0.5 }}>{trend}</Typography>
         </Box>
-        <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5, letterSpacing: -1.5 }}>{value}</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.75rem' }}>{title}</Typography>
+        <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5, letterSpacing: -1 }}>{value}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.65rem' }}>{title}</Typography>
       </CardContent>
     </Card>
   );

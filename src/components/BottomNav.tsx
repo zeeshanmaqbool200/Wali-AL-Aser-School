@@ -85,7 +85,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible = tru
                     width: 48,
                     height: 48,
                     cursor: 'pointer',
-                    borderRadius: 2,
+                    borderRadius: 1,
                     color: isActive ? 'primary.main' : 'text.secondary',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:hover': {

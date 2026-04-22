@@ -17,7 +17,7 @@ import {
   Layers, CheckCircle, XCircle, Clock, Save,
   Bell, Camera, X, Printer
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDocs, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDocs, writeBatch, getDoc, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartDeleteDoc } from '../firebase';
 import { UserProfile, UserRole, MaktabLevel, InstituteSettings } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -114,11 +114,16 @@ export default function Users() {
     if (isSuperAdmin) {
       q = query(collection(db, 'users'), orderBy('displayName', 'asc'));
     } else if (isApprovedMudaris) {
-      // Mudaris can only see students in their assigned classes
+      // Mudaris can only see students in their assigned classes or Example class
       q = query(
         collection(db, 'users'), 
-        where('role', '==', 'student'),
-        where('grade', 'in', currentUser?.assignedClasses || ['none']),
+        and(
+          where('role', '==', 'student'),
+          or(
+            where('grade', 'in', currentUser?.assignedClasses || ['none']),
+            where('grade', '==', 'Example')
+          )
+        ),
         orderBy('displayName', 'asc')
       );
     } else {

@@ -9,9 +9,10 @@ import {
   Users, BookOpen, Calendar, CreditCard, Bell, 
   Check, X, Plus, ArrowRight, TrendingUp, Clock, 
   AlertCircle, Send, FileText, ClipboardList, UserCheck,
-  MoreVertical, ExternalLink, Phone, MessageCircle
+  MoreVertical, ExternalLink, Phone, MessageCircle,
+  UserPlus, BarChart3, User
 } from 'lucide-react';
-import { collection, query, onSnapshot, orderBy, where, limit, updateDoc, doc, getDocs, arrayUnion, or, getDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, where, limit, updateDoc, doc, getDocs, arrayUnion, or, and, getDoc } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { UserProfile, FeeReceipt, Notification as NotificationType, Course, InstituteSettings } from '../types';
 import { useNavigate } from 'react-router-dom';
@@ -65,10 +66,13 @@ export default function Dashboard({ user }: DashboardProps) {
         if (isMudaris) {
           const tulabQuery = isSuperAdmin 
             ? query(collection(db, 'users'), where('role', '==', 'student'))
-            : query(collection(db, 'users'), where('role', '==', 'student'), or(
-                where('grade', 'in', user.assignedClasses || ['none']),
-                where('grade', '==', 'Example'),
-                where('maktabLevel', '==', 'Example')
+            : query(collection(db, 'users'), and(
+                where('role', '==', 'student'), 
+                or(
+                  where('grade', 'in', user.assignedClasses || ['none']),
+                  where('grade', '==', 'Example'),
+                  where('maktabLevel', '==', 'Example')
+                )
               ));
             
           const tulabSnap = await getDocs(tulabQuery);
@@ -148,8 +152,13 @@ export default function Dashboard({ user }: DashboardProps) {
           } else {
             receiptsQuery = query(
               collection(db, 'receipts'), 
-              where('status', '==', 'pending'), 
-              where('grade', 'in', user.assignedClasses || ['none']),
+              and(
+                where('status', '==', 'pending'), 
+                or(
+                  where('grade', 'in', user.assignedClasses || ['none']),
+                  where('grade', '==', 'Example')
+                )
+              ),
               limit(5)
             );
           }
@@ -789,36 +798,84 @@ export default function Dashboard({ user }: DashboardProps) {
       </Grid>
 
       {/* Mudaris Quick Action FAB */}
-      {isMudaris && (
-        <Box sx={{ position: 'fixed', bottom: { xs: 80, md: 32 }, right: 32, zIndex: 1000 }}>
-          <Zoom in={true}>
+      {/* Role-based Floating Action Button */}
+      {(() => {
+        const fabActions = {
+          superadmin: [
+            { label: 'Naya Tulab', icon: <UserPlus size={24} />, color: 'primary' as const, onClick: () => navigate('/users?action=add') },
+            { label: 'Feat ADAIGI', icon: <CreditCard size={24} />, color: 'info' as const, onClick: () => navigate('/fees') },
+            { label: 'Reports', icon: <BarChart3 size={24} />, color: 'secondary' as const, onClick: () => navigate('/reports') },
+          ],
+          approved_mudaris: [
+            { label: 'Haziri Lagayein', icon: <ClipboardList size={24} />, color: 'success' as const, onClick: () => navigate('/attendance') },
+            { label: 'Adaigi Darj Karein', icon: <CreditCard size={24} />, color: 'info' as const, onClick: () => navigate('/fees') },
+            { label: 'Ittila Bhejein', icon: <Send size={24} />, color: 'primary' as const, onClick: () => navigate('/notifications') },
+          ],
+          pending_mudaris: [],
+          student: [
+            { label: 'Fees Jama Karein', icon: <CreditCard size={24} />, color: 'success' as const, onClick: () => navigate('/fees') },
+            { label: 'Nizam-ul-Auqat', icon: <Calendar size={24} />, color: 'info' as const, onClick: () => navigate('/schedule') },
+            { label: 'Ittila\'at', icon: <Bell size={24} />, color: 'primary' as const, onClick: () => navigate('/notifications') },
+          ]
+        };
+
+        const currentActions = fabActions[user.role as keyof typeof fabActions] || [];
+        if (currentActions.length === 0) return null;
+
+        return (
+          <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1000 }}>
+            <Zoom in={true}>
               <Fab 
                 color="primary" 
                 aria-label="add" 
                 onClick={() => setFabOpen(!fabOpen)}
                 sx={{ 
-                  width: 64, 
-                  height: 64, 
+                  width: { xs: 56, md: 64 }, 
+                  height: { xs: 56, md: 64 }, 
                   boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.4)}`,
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  transform: fabOpen ? 'rotate(45deg)' : 'rotate(0deg)'
+                  transform: fabOpen ? 'rotate(45deg)' : 'rotate(0deg)',
+                  '&:hover': { transform: fabOpen ? 'rotate(45deg) scale(1.1)' : 'scale(1.1)' }
                 }}
               >
-              <Plus size={32} />
-            </Fab>
-          </Zoom>
-          
-          <AnimatePresence>
-            {fabOpen && (
-              <Box sx={{ position: 'absolute', bottom: 80, right: 0, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
-                <FabAction label="Haziri Lagayein" icon={<ClipboardList size={24} />} color="success" onClick={() => navigate('/attendance')} delay={0.1} />
-                <FabAction label="Adaigi Darj Karein" icon={<CreditCard size={24} />} color="info" onClick={() => navigate('/fees')} delay={0.2} />
-                <FabAction label="Ittila Bhejein" icon={<Send size={24} />} color="primary" onClick={() => navigate('/notifications')} delay={0.3} />
-              </Box>
-            )}
-          </AnimatePresence>
-        </Box>
-      )}
+                <Plus size={isMobile ? 28 : 32} />
+              </Fab>
+            </Zoom>
+            
+            <AnimatePresence>
+              {fabOpen && (
+                <Box 
+                  sx={{ 
+                    position: 'absolute', 
+                    bottom: { xs: 70, md: 80 }, 
+                    right: 0, 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: 2, 
+                    alignItems: 'flex-end',
+                    pointerEvents: 'none',
+                    '& > *': { pointerEvents: 'auto' }
+                  }}
+                >
+                  {currentActions.map((action, index) => (
+                    <FabAction 
+                      key={action.label}
+                      label={action.label} 
+                      icon={action.icon} 
+                      color={action.color} 
+                      onClick={() => {
+                        action.onClick();
+                        setFabOpen(false);
+                      }} 
+                      delay={index * 0.1} 
+                    />
+                  ))}
+                </Box>
+              )}
+            </AnimatePresence>
+          </Box>
+        );
+      })()}
     </Box>
   );
 }
@@ -892,6 +949,7 @@ const ActionButton = React.memo(({ label, icon, onClick, color }: any) => {
 
 function FabAction({ label, icon, color, onClick, delay }: any) {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   return (
     <motion.div
       initial={{ opacity: 0, x: 20, scale: 0.8 }}
@@ -903,31 +961,35 @@ function FabAction({ label, icon, color, onClick, delay }: any) {
       <Paper 
         elevation={0} 
         sx={{ 
-          px: 3, 
-          py: 1.2, 
-          borderRadius: 2, 
+          px: 2, 
+          py: 0.8, 
+          borderRadius: 1, 
           fontWeight: 800, 
-          fontSize: '0.875rem',
-          bgcolor: alpha(theme.palette.background.paper, 0.9),
+          fontSize: '0.75rem',
+          bgcolor: alpha(theme.palette.background.paper, 0.95),
           backdropFilter: 'blur(10px)',
           border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+          whiteSpace: 'nowrap',
+          textTransform: 'uppercase',
+          letterSpacing: 0.5
         }}
       >
         {label}
       </Paper>
       <Fab 
-        size="medium" 
+        size={isMobile ? "small" : "medium"} 
         color={color} 
         onClick={onClick}
         sx={{ 
-          border: `1px solid ${theme.palette.divider}`,
+          border: `1px solid ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'error' | 'warning'].main, 0.2)}`,
           '&:hover': {
             transform: 'scale(1.1)',
-          }
+          },
+          boxShadow: `0 4px 16px ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'error' | 'warning'].main, 0.3)}`
         }}
       >
-        {icon}
+        {React.cloneElement(icon as React.ReactElement<any>, { size: isMobile ? 18 : 22 })}
       </Fab>
     </motion.div>
   );

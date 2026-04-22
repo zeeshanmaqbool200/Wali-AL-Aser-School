@@ -12,7 +12,7 @@ import {
   Download, Search, UserCheck, UserMinus,
   Clock, Info, MoreVertical, FileText, TrendingUp
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, getDocs, where, setDoc, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, getDocs, where, setDoc, orderBy, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartSetDoc } from '../firebase';
 import { UserProfile, Attendance } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -44,9 +44,14 @@ export default function AttendancePage() {
           studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
         } else if (isApprovedMudaris) {
           studentsQuery = query(
-            collection(db, 'users'), 
-            where('role', '==', 'student'), 
-            where('grade', 'in', currentUser?.assignedClasses || ['none'])
+            collection(db, 'users'),
+            and(
+              where('role', '==', 'student'), 
+              or(
+                where('grade', 'in', currentUser?.assignedClasses || ['none']),
+                where('grade', '==', 'Example')
+              )
+            )
           );
         } else {
           setLoading(false);
@@ -72,8 +77,13 @@ export default function AttendancePage() {
           // Mudaris can only fetch attendance for their assigned classes
           attendanceQuery = query(
             collection(db, 'attendance'), 
-            where('date', '==', dateStr),
-            where('grade', 'in', currentUser?.assignedClasses || ['none'])
+            and(
+              where('date', '==', dateStr),
+              or(
+                where('grade', 'in', currentUser?.assignedClasses || ['none']),
+                where('grade', '==', 'Example')
+              )
+            )
           );
         }
 
