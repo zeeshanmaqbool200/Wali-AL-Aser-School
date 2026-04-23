@@ -302,116 +302,85 @@ export default function Users() {
               Manage Tulab-e-Ilm, Mudaris, and administrative Muntazim
             </Typography>
           </Box>
-          <Stack direction="row" spacing={2}>
+          <Stack direction="row" spacing={2} sx={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', alignItems: 'center' }}>
             <Box sx={{ 
               display: 'flex', 
               bgcolor: 'background.default', 
-              p: 0.8, 
+              p: 0.6, 
               borderRadius: 2,
               boxShadow: theme.palette.mode === 'dark'
-                ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                ? 'inset 2px 2px 4px #060a12, inset -2px -2px 4px #182442'
+                : 'inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff',
             }}>
               <IconButton 
                 size="small" 
                 onClick={() => setViewMode('grid')}
                 sx={{ 
-                  borderRadius: 3, 
+                  borderRadius: 2.5, 
+                  p: 1,
                   bgcolor: viewMode === 'grid' ? 'background.paper' : 'transparent', 
                   boxShadow: viewMode === 'grid' 
-                    ? (theme.palette.mode === 'dark' ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff')
+                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff')
                     : 'none',
                   color: viewMode === 'grid' ? 'primary.main' : 'text.secondary',
                   transition: 'all 0.3s ease'
                 }}
               >
-                <Layout size={18} />
+                <Layout size={isMobile ? 16 : 18} />
               </IconButton>
               <IconButton 
                 size="small" 
                 onClick={() => setViewMode('list')}
                 sx={{ 
-                  borderRadius: 3, 
+                  borderRadius: 2.5, 
+                  p: 1,
                   bgcolor: viewMode === 'list' ? 'background.paper' : 'transparent', 
                   boxShadow: viewMode === 'list' 
-                    ? (theme.palette.mode === 'dark' ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff')
+                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff')
                     : 'none',
                   color: viewMode === 'list' ? 'primary.main' : 'text.secondary',
                   transition: 'all 0.3s ease'
                 }}
               >
-                <Layers size={18} />
+                <Layers size={isMobile ? 16 : 18} />
               </IconButton>
             </Box>
-            {isSuperAdmin && (
+            {isAdmin && (
               <Button 
-                variant="outlined" 
-                color="error" 
-                startIcon={<Trash2 size={18} />} 
-                onClick={handleSystemReset}
+                variant="contained" 
+                color="primary"
+                startIcon={<UserPlus size={isMobile ? 18 : 22} />} 
+                onClick={() => {
+                  setEditingUser(null);
+                  setFormData({ 
+                    displayName: '', email: '', role: tabValue === 0 ? 'student' : 'approved_mudaris', 
+                    phone: '', maktabLevel: '' as MaktabLevel, admissionNo: '', teacherId: '', 
+                    fatherName: '', motherName: '', rollNo: '', admissionDate: format(new Date(), 'yyyy-MM-dd'),
+                    address: '', subject: '', subjectsEnrolled: [], assignedClasses: [], status: 'Active'
+                  });
+                  setOpenDialog(true);
+                }}
                 sx={{ 
                   borderRadius: 2, 
-                  fontWeight: 900, 
-                  px: 4, 
-                  py: 1.5,
+                  fontWeight: 800, 
+                  px: isMobile ? 2 : 3, 
+                  py: isMobile ? 1 : 1.2,
+                  minHeight: isMobile ? 40 : 48,
                   textTransform: 'none',
-                  border: 'none',
-                  bgcolor: 'background.paper',
-                  color: 'error.main',
+                  fontSize: isMobile ? '0.8rem' : '0.9rem',
                   boxShadow: theme.palette.mode === 'dark'
-                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                    : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+                    ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
+                    : '4px 4px 10px #cbd5e1, -4px -4px 10px #ffffff',
                   '&:hover': {
-                    bgcolor: 'background.paper',
+                    transform: 'translateY(-2px)',
                     boxShadow: theme.palette.mode === 'dark'
-                      ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                      : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                      ? '6px 6px 14px #060a12, -6px -6px 14px #182442'
+                      : '6px 6px 14px #cbd5e1, -6px -6px 14px #ffffff',
                   }
                 }}
               >
-                Reset Users
+                {isMobile ? "Add" : (tabValue === 0 ? 'Add Talib' : 'Add Mudaris')}
               </Button>
-            )}
-            {isAdmin && (
-              <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1000 }}>
-                <Zoom in={true}>
-                  <Button 
-                    variant="contained" 
-                    color="primary"
-                    startIcon={<UserPlus size={24} />} 
-                    onClick={() => {
-                      setEditingUser(null);
-                      setFormData({ 
-                        displayName: '', email: '', role: tabValue === 0 ? 'student' : 'approved_mudaris', 
-                        phone: '', maktabLevel: '' as MaktabLevel, admissionNo: '', teacherId: '', 
-                        fatherName: '', motherName: '', rollNo: '', admissionDate: format(new Date(), 'yyyy-MM-dd'),
-                        address: '', subject: '', subjectsEnrolled: [], assignedClasses: [], status: 'Active'
-                      });
-                      setOpenDialog(true);
-                    }}
-                    sx={{ 
-                      borderRadius: '50px', 
-                      fontWeight: 900, 
-                      px: isMobile ? 3 : 4, 
-                      py: 2,
-                      minHeight: 64,
-                      textTransform: 'none',
-                      fontSize: '1rem',
-                      boxShadow: theme.palette.mode === 'dark'
-                        ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
-                        : '12px 12px 24px #cbd5e1, -12px -12px 24px #ffffff',
-                      '&:hover': {
-                        transform: 'scale(1.05)',
-                        boxShadow: theme.palette.mode === 'dark'
-                          ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-                          : '16px 16px 32px #cbd5e1, -16px -16px 32px #ffffff',
-                      }
-                    }}
-                  >
-                    {!isMobile && (tabValue === 0 ? 'Add Talib' : 'Add Mudaris')}
-                  </Button>
-                </Zoom>
-              </Box>
             )}
           </Stack>
         </Box>

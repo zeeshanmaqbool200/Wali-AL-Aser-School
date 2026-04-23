@@ -402,7 +402,7 @@ export default function Dashboard({ user }: DashboardProps) {
             {isMuntazim ? 'Muntazim Portal (Intizamiya)' : isMudaris ? 'Mudaris Portal (Asatiza)' : `Talib-e-Ilm Portal • ${user.grade || 'Not Assigned'}`}
           </Typography>
           
-          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
             <Box 
               sx={{ 
                 px: 2, 
@@ -424,6 +424,51 @@ export default function Dashboard({ user }: DashboardProps) {
               <Calendar size={14} />
               {format(new Date(), 'EEEE, do MMMM')}
             </Box>
+          </Box>
+
+          {/* Quick Actions in Header */}
+          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+            {(() => {
+              const actions = {
+                superadmin: [
+                  { label: 'Naya Talib', icon: <UserPlus size={18} />, color: 'primary' as const, path: '/users?action=add' },
+                  { label: 'Fees', icon: <CreditCard size={18} />, color: 'info' as const, path: '/fees' },
+                  { label: 'Reports', icon: <BarChart3 size={18} />, color: 'secondary' as const, path: '/reports' },
+                ],
+                approved_mudaris: [
+                  { label: 'Haziri', icon: <ClipboardList size={18} />, color: 'success' as const, path: '/attendance' },
+                  { label: 'Payments', icon: <CreditCard size={18} />, color: 'info' as const, path: '/fees' },
+                ],
+                pending_mudaris: [],
+                student: [
+                  { label: 'Fees', icon: <CreditCard size={18} />, color: 'success' as const, path: '/fees' },
+                  { label: 'Time Table', icon: <Calendar size={18} />, color: 'info' as const, path: '/schedule' },
+                ]
+              };
+              const currentActions = actions[user.role as keyof typeof actions] || [];
+              return currentActions.map((action) => (
+                <Button
+                  key={action.label}
+                  variant="contained"
+                  color={action.color}
+                  size="small"
+                  startIcon={action.icon}
+                  onClick={() => navigate(action.path)}
+                  sx={{ 
+                    borderRadius: 1.5, 
+                    fontWeight: 800, 
+                    px: 2, 
+                    py: 1,
+                    textTransform: 'none',
+                    fontSize: '0.8rem',
+                    boxShadow: 'none',
+                    '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }
+                  }}
+                >
+                  {action.label}
+                </Button>
+              ));
+            })()}
           </Box>
         </Box>
       </motion.div>
@@ -899,85 +944,6 @@ export default function Dashboard({ user }: DashboardProps) {
         </Grid>
       </Grid>
 
-      {/* Mudaris Quick Action FAB */}
-      {/* Role-based Floating Action Button */}
-      {(() => {
-        const fabActions = {
-          superadmin: [
-            { label: 'Naya Tulab', icon: <UserPlus size={24} />, color: 'primary' as const, onClick: () => navigate('/users?action=add') },
-            { label: 'Feat ADAIGI', icon: <CreditCard size={24} />, color: 'info' as const, onClick: () => navigate('/fees') },
-            { label: 'Reports', icon: <BarChart3 size={24} />, color: 'secondary' as const, onClick: () => navigate('/reports') },
-          ],
-          approved_mudaris: [
-            { label: 'Haziri Lagayein', icon: <ClipboardList size={24} />, color: 'success' as const, onClick: () => navigate('/attendance') },
-            { label: 'Adaigi Darj Karein', icon: <CreditCard size={24} />, color: 'info' as const, onClick: () => navigate('/fees') },
-            { label: 'Ittila Bhejein', icon: <Send size={24} />, color: 'primary' as const, onClick: () => navigate('/notifications') },
-          ],
-          pending_mudaris: [],
-          student: [
-            { label: 'Fees Jama Karein', icon: <CreditCard size={24} />, color: 'success' as const, onClick: () => navigate('/fees') },
-            { label: 'Nizam-ul-Auqat', icon: <Calendar size={24} />, color: 'info' as const, onClick: () => navigate('/schedule') },
-            { label: 'Ittila\'at', icon: <Bell size={24} />, color: 'primary' as const, onClick: () => navigate('/notifications') },
-          ]
-        };
-
-        const currentActions = fabActions[user.role as keyof typeof fabActions] || [];
-        if (currentActions.length === 0) return null;
-
-        return (
-          <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1200 }}>
-            <Zoom in={true}>
-              <Fab 
-                color="primary" 
-                aria-label="add" 
-                onClick={() => setFabOpen(!fabOpen)}
-                sx={{ 
-                  width: { xs: 56, md: 64 }, 
-                  height: { xs: 56, md: 64 }, 
-                  boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.4)}`,
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  transform: fabOpen ? 'rotate(45deg)' : 'rotate(0deg)',
-                  '&:hover': { transform: fabOpen ? 'rotate(45deg) scale(1.1)' : 'scale(1.1)' }
-                }}
-              >
-                <Plus size={isMobile ? 28 : 32} />
-              </Fab>
-            </Zoom>
-            
-            <AnimatePresence>
-              {fabOpen && (
-                <Box 
-                  sx={{ 
-                    position: 'absolute', 
-                    bottom: { xs: 70, md: 80 }, 
-                    right: 0, 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: 2, 
-                    alignItems: 'flex-end',
-                    pointerEvents: 'none',
-                    '& > *': { pointerEvents: 'auto' }
-                  }}
-                >
-                  {currentActions.map((action, index) => (
-                    <FabAction 
-                      key={action.label}
-                      label={action.label} 
-                      icon={action.icon} 
-                      color={action.color} 
-                      onClick={() => {
-                        action.onClick();
-                        setFabOpen(false);
-                      }} 
-                      delay={index * 0.1} 
-                    />
-                  ))}
-                </Box>
-              )}
-            </AnimatePresence>
-          </Box>
-        );
-      })()}
     </Box>
   );
 }
@@ -1036,7 +1002,7 @@ const ActionButton = React.memo(({ label, icon, onClick, color }: any) => {
             bgcolor: alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.1),
             transform: 'translateY(-2px)',
             borderColor: theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main,
-            boxShadow: `0 8px 20px ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.15)}`
+            boxShadow: `0 4px 12px ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'info'].main, 0.1)}`
           },
           fontWeight: 800,
           textTransform: 'none',
@@ -1071,7 +1037,7 @@ function FabAction({ label, icon, color, onClick, delay }: any) {
           bgcolor: alpha(theme.palette.background.paper, 0.95),
           backdropFilter: 'blur(10px)',
           border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
           whiteSpace: 'nowrap',
           textTransform: 'uppercase',
           letterSpacing: 0.5
@@ -1086,9 +1052,9 @@ function FabAction({ label, icon, color, onClick, delay }: any) {
         sx={{ 
           border: `1px solid ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'error' | 'warning'].main, 0.2)}`,
           '&:hover': {
-            transform: 'scale(1.1)',
+            transform: 'scale(1.05)',
           },
-          boxShadow: `0 4px 16px ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'error' | 'warning'].main, 0.3)}`
+          boxShadow: `0 2px 8px ${alpha(theme.palette[color as 'primary' | 'secondary' | 'success' | 'error' | 'warning'].main, 0.25)}`
         }}
       >
         {React.cloneElement(icon as React.ReactElement<any>, { size: isMobile ? 18 : 22 })}

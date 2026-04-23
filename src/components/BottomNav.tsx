@@ -29,15 +29,13 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
         return;
       }
 
-      // User said: hide bottom nav on scroll up and show on scroll down
-      if (currentScrollY < lastScrollY) {
-        // Scrolling UP
-        setInternalVisible(false);
-      } else {
+      // Hide on scroll down, show on scroll up
+      if (currentScrollY > lastScrollY && currentScrollY > 100) {
         // Scrolling DOWN
-        if (Math.abs(currentScrollY - lastScrollY) > 5) { // Add small threshold
-          setInternalVisible(true);
-        }
+        setInternalVisible(false);
+      } else if (currentScrollY < lastScrollY || currentScrollY < 50) {
+        // Scrolling UP or at the top
+        setInternalVisible(true);
       }
       
       setLastScrollY(currentScrollY);
@@ -52,12 +50,12 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   const isMudaris = role === 'approved_mudaris';
 
   const menuItems = [
-    { label: 'Home', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
-    { label: 'Courses', icon: <BookOpen size={22} />, path: '/courses', roles: ['student', 'approved_mudaris', 'superadmin'] },
-    { label: 'Tulab', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'approved_mudaris'] },
-    { label: 'Fees', icon: <CreditCard size={22} />, path: '/fees', roles: ['student', 'approved_mudaris', 'superadmin'] },
-    { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['approved_mudaris', 'superadmin'] },
-    { label: 'Settings', icon: <SettingsIcon size={22} />, path: '/settings', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
+    { label: 'Home', icon: <LayoutDashboard size={20} />, path: '/', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
+    { label: 'Courses', icon: <BookOpen size={20} />, path: '/courses', roles: ['student', 'approved_mudaris', 'superadmin'] },
+    { label: 'Tulab', icon: <Users size={20} />, path: '/users', roles: ['superadmin', 'approved_mudaris'] },
+    { label: 'Fees', icon: <CreditCard size={20} />, path: '/fees', roles: ['student', 'approved_mudaris', 'superadmin'] },
+    { label: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['approved_mudaris', 'superadmin'] },
+    { label: 'Settings', icon: <SettingsIcon size={20} />, path: '/settings', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(role));
@@ -90,17 +88,17 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
             elevation={0}
             sx={{ 
               borderRadius: 1,
-              p: 0.75,
+              p: 0.5,
               bgcolor: theme.palette.mode === 'dark' ? alpha('#1a1a1a', 0.95) : alpha('#ffffff', 0.85),
               backdropFilter: 'blur(20px)',
               border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
               boxShadow: theme.palette.mode === 'dark' 
-                ? '0 20px 40px rgba(0,0,0,0.8)' 
-                : '0 20px 40px rgba(0,0,0,0.15)',
+                ? '0 8px 20px rgba(0,0,0,0.5)' 
+                : '0 8px 20px rgba(0,0,0,0.08)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 0.5,
+              gap: 0.25,
               pointerEvents: 'auto',
             }} 
           >
@@ -115,8 +113,8 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: 48,
-                    height: 48,
+                    width: 44,
+                    height: 44,
                     cursor: 'pointer',
                     borderRadius: 1,
                     color: isActive ? 'primary.main' : 'text.secondary',

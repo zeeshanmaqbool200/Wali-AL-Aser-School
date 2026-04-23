@@ -95,6 +95,8 @@ export interface Note {
 }
 
 export interface CourseSection {
+  id?: string;
+  order?: number;
   title: string;
   content: string;
   type: 'text' | 'image' | 'video' | 'quiz' | 'file';

@@ -367,88 +367,76 @@ export default function Fees() {
               Manage Tulab-e-Ilm payments and official receipts
             </Typography>
           </Box>
-          <Stack direction={isMobile ? "column" : "row"} spacing={2} sx={{ width: isMobile ? '100%' : 'auto' }}>
+          <Stack direction="row" spacing={2} sx={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', alignItems: 'center' }}>
             {isTeacher && (
-              <Button 
-                variant="outlined" 
-                startIcon={<Download size={18} />} 
+              <IconButton 
                 onClick={handleExport}
-                fullWidth={isMobile}
                 sx={{ 
                   borderRadius: 1, 
-                  fontWeight: 900, 
-                  px: 4, 
-                  py: 1.5,
-                  textTransform: 'none',
                   bgcolor: 'background.paper',
-                  color: 'text.primary',
                   border: `1px solid ${theme.palette.divider}`,
+                  p: isMobile ? 1 : 1.5,
                   '&:hover': {
                     bgcolor: 'action.hover',
                   }
                 }}
               >
-                Export CSV
-              </Button>
+                <Download size={isMobile ? 18 : 22} />
+              </IconButton>
             )}
             {(!isTeacher && currentUser?.role === 'student' && !currentUser?.maktabLevel) ? (
-              <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1000 }}>
-                <Tooltip title="Your class selection must be approved by a teacher before you can use this feature.">
-                  <span>
-                    <Button 
-                      variant="contained" 
-                      disabled
-                      startIcon={<Plus size={24} />} 
-                      sx={{ 
-                        borderRadius: '50px', 
-                        fontWeight: 900, 
-                        px: isMobile ? 3 : 4, 
-                        py: 2,
-                        minHeight: 64,
-                        textTransform: 'none',
-                        opacity: 0.7
-                      }}
-                    >
-                      {!isMobile && "Apply for Fee"}
-                    </Button>
-                  </span>
-                </Tooltip>
-              </Box>
-            ) : (
-              <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1000 }}>
-                <Zoom in={true}>
+              <Tooltip title="Your class selection must be approved by a teacher before you can use this feature.">
+                <span>
                   <Button 
                     variant="contained" 
-                    startIcon={<Plus size={24} />} 
-                    onClick={() => {
-                      if (currentUser?.role === 'student') {
-                        setFormData({ ...formData, studentId: currentUser.uid, studentName: currentUser.displayName });
-                      }
-                      setOpenAddDialog(true);
-                    }}
+                    disabled
+                    startIcon={<Plus size={isMobile ? 18 : 24} />} 
                     sx={{ 
-                      borderRadius: '50px', 
-                      fontWeight: 900, 
-                      px: isMobile ? 3 : 4, 
-                      py: 2,
-                      minHeight: 64,
+                      borderRadius: 2, 
+                      fontWeight: 800, 
+                      px: isMobile ? 2 : 3, 
+                      py: isMobile ? 1 : 1.2,
+                      minHeight: isMobile ? 40 : 48,
                       textTransform: 'none',
-                      fontSize: '1rem',
-                      boxShadow: theme.palette.mode === 'dark'
-                        ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
-                        : '12px 12px 24px #cbd5e1, -12px -12px 24px #ffffff',
-                      '&:hover': {
-                        transform: 'scale(1.05)',
-                        boxShadow: theme.palette.mode === 'dark'
-                          ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-                          : '16px 16px 32px #cbd5e1, -16px -16px 32px #ffffff',
-                      }
+                      fontSize: isMobile ? '0.8rem' : '0.9rem',
+                      opacity: 0.7
                     }}
                   >
-                    {!isMobile && (isTeacher ? 'New Payment' : 'Apply for Fee')}
+                    {isMobile ? "Add" : "Apply for Fee"}
                   </Button>
-                </Zoom>
-              </Box>
+                </span>
+              </Tooltip>
+            ) : (
+              <Button 
+                variant="contained" 
+                startIcon={<Plus size={isMobile ? 18 : 22} />} 
+                onClick={() => {
+                  if (currentUser?.role === 'student') {
+                    setFormData({ ...formData, studentId: currentUser.uid, studentName: currentUser.displayName });
+                  }
+                  setOpenAddDialog(true);
+                }}
+                sx={{ 
+                  borderRadius: 2, 
+                  fontWeight: 800, 
+                  px: isMobile ? 2 : 3, 
+                  py: isMobile ? 1 : 1.2,
+                  minHeight: isMobile ? 40 : 48,
+                  textTransform: 'none',
+                  fontSize: isMobile ? '0.8rem' : '0.9rem',
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
+                    : '4px 4px 10px #cbd5e1, -4px -4px 10px #ffffff',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: theme.palette.mode === 'dark'
+                      ? '6px 6px 14px #060a12, -6px -6px 14px #182442'
+                      : '6px 6px 14px #cbd5e1, -6px -6px 14px #ffffff',
+                  }
+                }}
+              >
+                {isMobile ? "Add" : (isTeacher ? 'New Payment' : 'Apply for Fee')}
+              </Button>
             )}
           </Stack>
         </Box>

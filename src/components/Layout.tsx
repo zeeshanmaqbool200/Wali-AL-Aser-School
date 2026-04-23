@@ -136,7 +136,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             borderBottom: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
           }}
         >
-          <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 72, md: 88 }, px: { xs: 2, md: 4 } }}>
+          <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 60, md: 88 }, px: { xs: 1.5, md: 4 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               {isMobile && (
                 <motion.div
@@ -174,14 +174,14 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                     bgcolor: 'background.default',
                     borderRadius: 1,
                     boxShadow: theme.palette.mode === 'dark'
-                      ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                      : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                      ? 'inset 2px 2px 4px #060a12, inset -2px -2px 4px #182442'
+                      : 'inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:focus-within': {
                       width: 340,
                       boxShadow: theme.palette.mode === 'dark'
-                        ? 'inset 6px 6px 12px #060a12, inset -6px -6px 12px #182442'
-                        : 'inset 6px 6px 12px #d1d9e6, inset -6px -6px 12px #ffffff',
+                        ? 'inset 3px 3px 6px #060a12, inset -3px -3px 6px #182442'
+                        : 'inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff',
                     }
                   }}
                 >
@@ -204,11 +204,13 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                   sx={{ 
                     bgcolor: 'background.default',
                     color: unreadCount > 0 ? 'primary.main' : 'text.secondary',
+                    width: isMobile ? 36 : 48,
+                    height: isMobile ? 36 : 48,
                     boxShadow: theme.palette.mode === 'dark'
-                      ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
-                      : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
+                      ? '2px 2px 4px #060a12, -2px -2px 4px #182442'
+                      : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff',
                     '&:hover': { 
-                      transform: 'scale(1.1)',
+                      transform: 'scale(1.05)',
                       color: 'primary.main' 
                     }
                   }}
@@ -220,11 +222,14 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                       '& .MuiBadge-badge': { 
                         animation: unreadCount > 0 ? 'pulse 2s infinite' : 'none',
                         fontWeight: 900,
-                        border: `2px solid ${theme.palette.background.default}`
+                        border: `2px solid ${theme.palette.background.default}`,
+                        height: isMobile ? 16 : 20,
+                        minWidth: isMobile ? 16 : 20,
+                        fontSize: isMobile ? '0.6rem' : '0.75rem'
                       } 
                     }}
                   >
-                    <Bell size={22} />
+                    <Bell size={isMobile ? 18 : 22} />
                   </Badge>
                 </IconButton>
               </Tooltip>
@@ -235,7 +240,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                   size="small" 
                   sx={{ 
                     p: 0.5, 
-                    border: '2px solid', 
+                    border: '1.5px solid', 
                     borderColor: profileAnchorEl ? 'primary.main' : (location.pathname === '/profile' ? 'primary.main' : 'divider'),
                     transition: 'all 0.2s',
                     '&:hover': { borderColor: 'primary.main' }
@@ -243,7 +248,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                 >
                   <Avatar 
                     src={user.photoURL} 
-                    sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontWeight: 600, fontSize: '1rem' }}
+                    sx={{ width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, bgcolor: 'primary.main', fontWeight: 600, fontSize: isMobile ? '0.85rem' : '1rem' }}
                   >
                     {user.displayName.charAt(0)}
                   </Avatar>

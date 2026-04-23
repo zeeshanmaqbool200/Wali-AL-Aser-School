@@ -6,20 +6,23 @@ import {
   Avatar, List, ListItem, ListItemText, ListItemAvatar,
   Divider, InputAdornment, Paper, Tooltip, useTheme,
   useMediaQuery, alpha, Stack, Zoom, Fade,
-  FormControl, InputLabel, Select, MenuItem
+  FormControl, InputLabel, Select, MenuItem,
+  AppBar, Toolbar, Container
 } from '@mui/material';
 import { 
   Plus, Search, Edit2, Trash2, BookOpen, 
   Clock, User, Users, Filter, CheckCircle,
   MoreVertical, Book, GraduationCap, ArrowRight,
-  Star, Share2, Bookmark, Layout, Layers
+  Star, Share2, Bookmark, Layout, Layers, X,
+  Image as ImageIcon, Paperclip, Zap, FileText, Globe
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, or, and } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, or, and, limit } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { Course, CourseSection, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import { logger } from '../lib/logger';
 
 export default function Courses() {
   const { user: currentUser } = useAuth();
@@ -30,25 +33,60 @@ export default function Courses() {
   const [openDialog, setOpenDialog] = useState(false);
   const [openReader, setOpenReader] = useState(false);
   const [viewingCourse, setViewingCourse] = useState<Course | null>(null);
-  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     code: '',
     description: '',
     duration: '',
     fee: '',
-    teacherName: '',
-    teacherId: '',
+    teacherName: currentUser?.displayName || '',
+    teacherId: currentUser?.uid || '',
     thumbnailUrl: '',
     sections: [] as CourseSection[],
-    isPublished: false,
-    gradeId: ''
+    isPublished: true,
+    gradeId: 'all'
   });
 
-  const [newSection, setNewSection] = useState<CourseSection>({ title: '', content: '', type: 'text', mediaUrl: '' });
+  const [newSection, setNewSection] = useState({
+    title: '',
+    content: '',
+    type: 'text' as const,
+    mediaUrl: ''
+  });
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, target: 'thumbnail' | 'section') => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 800 * 1024) {
+      logger.error('File too large', new Error('Limit is 800KB for Firestore storage (base64)'));
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        if (target === 'thumbnail') {
+          setFormData(prev => ({ ...prev, thumbnailUrl: base64String }));
+        } else {
+          setNewSection(prev => ({ ...prev, mediaUrl: base64String }));
+        }
+        setIsUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      logger.error('File read error', error as Error);
+      setIsUploading(false);
+    }
+  };
+
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
 
   const isSuperAdmin = currentUser?.role === 'superadmin';
   const isMudaris = currentUser?.role === 'approved_mudaris';
@@ -97,7 +135,6 @@ export default function Courses() {
       const data = {
         ...formData,
         fee: Number(formData.fee),
-        // If teacher is mudaris, they stay teacher. If admin is creating, they might assign someone else.
         teacherName: formData.teacherName || currentUser.displayName,
         teacherId: formData.teacherId || currentUser.uid,
         updatedAt: Date.now()
@@ -112,7 +149,19 @@ export default function Courses() {
       
       setOpenDialog(false);
       setEditingCourse(null);
-      setFormData({ name: '', code: '', description: '', duration: '', fee: '', teacherName: '', teacherId: '', thumbnailUrl: '', sections: [], isPublished: false, gradeId: '' });
+      setFormData({ 
+        name: '', 
+        code: '', 
+        description: '', 
+        duration: '', 
+        fee: '', 
+        teacherName: currentUser?.displayName || '', 
+        teacherId: currentUser?.uid || '', 
+        thumbnailUrl: '', 
+        sections: [], 
+        isPublished: true, 
+        gradeId: 'all' 
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'courses');
     }
@@ -120,7 +169,15 @@ export default function Courses() {
 
   const handleAddSection = () => {
     if (!newSection.title || !newSection.content) return;
-    setFormData({ ...formData, sections: [...formData.sections, newSection] });
+    const section: CourseSection = { 
+      ...newSection, 
+      id: Date.now().toString(), 
+      order: formData.sections.length 
+    };
+    setFormData({
+      ...formData,
+      sections: [...formData.sections, section]
+    });
     setNewSection({ title: '', content: '', type: 'text', mediaUrl: '' });
   };
 
@@ -175,93 +232,91 @@ export default function Courses() {
               Manage Islamic curriculum, Tulab enrollment, and learning paths
             </Typography>
           </Box>
-          <Stack direction="row" spacing={2}>
+          <Stack direction="row" spacing={2} sx={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', alignItems: 'center' }}>
             <Box sx={{ 
               display: 'flex', 
               bgcolor: 'background.default', 
-              p: 0.8, 
-              borderRadius: 4,
+              p: 0.6, 
+              borderRadius: 3,
               boxShadow: theme.palette.mode === 'dark'
-                ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                ? 'inset 2px 2px 4px #060a12, inset -2px -2px 4px #182442'
+                : 'inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff',
             }}>
               <IconButton 
                 size="small" 
                 onClick={() => setViewMode('grid')}
                 sx={{ 
-                  borderRadius: 3, 
+                  borderRadius: 2.5, 
+                  p: 1,
                   bgcolor: viewMode === 'grid' ? 'background.paper' : 'transparent', 
                   boxShadow: viewMode === 'grid' 
-                    ? (theme.palette.mode === 'dark' ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff')
+                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff')
                     : 'none',
                   color: viewMode === 'grid' ? 'primary.main' : 'text.secondary',
                   transition: 'all 0.3s ease'
                 }}
               >
-                <Layout size={18} />
+                <Layout size={isMobile ? 16 : 18} />
               </IconButton>
               <IconButton 
                 size="small" 
                 onClick={() => setViewMode('list')}
                 sx={{ 
-                  borderRadius: 3, 
+                  borderRadius: 2.5, 
+                  p: 1,
                   bgcolor: viewMode === 'list' ? 'background.paper' : 'transparent', 
                   boxShadow: viewMode === 'list' 
-                    ? (theme.palette.mode === 'dark' ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff')
+                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff')
                     : 'none',
                   color: viewMode === 'list' ? 'primary.main' : 'text.secondary',
                   transition: 'all 0.3s ease'
                 }}
               >
-                <Layers size={18} />
+                <Layers size={isMobile ? 16 : 18} />
               </IconButton>
             </Box>
             {isTeacher && (
-              <Box sx={{ position: 'fixed', bottom: { xs: 90, md: 40 }, right: { xs: 20, md: 40 }, zIndex: 1000 }}>
-                <Zoom in={true}>
-                  <Button 
-                    variant="contained" 
-                    startIcon={<Plus size={24} />} 
-                    onClick={() => {
-                      setEditingCourse(null);
-                      setFormData({
-                        name: '',
-                        code: '',
-                        description: '',
-                        duration: '',
-                        fee: '',
-                        teacherName: currentUser?.displayName || '',
-                        teacherId: currentUser?.uid || '',
-                        thumbnailUrl: '',
-                        sections: [],
-                        isPublished: true,
-                        gradeId: 'all'
-                      });
-                      setOpenDialog(true);
-                    }}
-                    sx={{ 
-                      borderRadius: '50px', 
-                      fontWeight: 900, 
-                      px: isMobile ? 3 : 4, 
-                      py: 2,
-                      minHeight: 64,
-                      textTransform: 'none',
-                      fontSize: '1rem',
-                      boxShadow: theme.palette.mode === 'dark'
-                        ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
-                        : '12px 12px 24px #cbd5e1, -12px -12px 24px #ffffff',
-                      '&:hover': {
-                        transform: 'scale(1.05)',
-                        boxShadow: theme.palette.mode === 'dark'
-                          ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-                          : '16px 16px 32px #cbd5e1, -16px -16px 32px #ffffff',
-                      }
-                    }}
-                  >
-                    {!isMobile && "Add New Mazmoon"}
-                  </Button>
-                </Zoom>
-              </Box>
+              <Button 
+                variant="contained" 
+                startIcon={<Plus size={isMobile ? 18 : 22} />} 
+                onClick={() => {
+                  setEditingCourse(null);
+                  setFormData({
+                    name: '',
+                    code: '',
+                    description: '',
+                    duration: '',
+                    fee: '',
+                    teacherName: currentUser?.displayName || '',
+                    teacherId: currentUser?.uid || '',
+                    thumbnailUrl: '',
+                    sections: [],
+                    isPublished: true,
+                    gradeId: 'all'
+                  });
+                  setOpenDialog(true);
+                }}
+                sx={{ 
+                  borderRadius: 2, 
+                  fontWeight: 800, 
+                  px: isMobile ? 2 : 3, 
+                  py: isMobile ? 1 : 1.2,
+                  minHeight: isMobile ? 40 : 48,
+                  textTransform: 'none',
+                  fontSize: isMobile ? '0.8rem' : '0.9rem',
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
+                    : '4px 4px 10px #cbd5e1, -4px -4px 10px #ffffff',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: theme.palette.mode === 'dark'
+                      ? '6px 6px 14px #060a12, -6px -6px 14px #182442'
+                      : '6px 6px 14px #cbd5e1, -6px -6px 14px #ffffff',
+                  }
+                }}
+              >
+                {isMobile ? "Add" : "Add Mazmoon"}
+              </Button>
             )}
           </Stack>
         </Box>
@@ -274,12 +329,12 @@ export default function Courses() {
             display: 'flex', 
             alignItems: 'center', 
             px: 3, 
-            borderRadius: 5, 
+            borderRadius: 3, 
             border: 'none',
             bgcolor: 'background.default',
             boxShadow: theme.palette.mode === 'dark'
-              ? 'inset 6px 6px 12px #060a12, inset -6px -6px 12px #182442'
-              : 'inset 6px 6px 12px #d1d9e6, inset -6px -6px 12px #ffffff',
+              ? 'inset 3px 3px 6px #060a12, inset -3px -3px 6px #182442'
+              : 'inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff',
           }}
         >
           <Search size={22} color={theme.palette.text.secondary} />
@@ -302,10 +357,10 @@ export default function Courses() {
           />
           <IconButton sx={{ 
             bgcolor: 'background.paper', 
-            borderRadius: 3, 
+            borderRadius: 2, 
             boxShadow: theme.palette.mode === 'dark' 
-              ? '4px 4px 8px #060a12, -4px -4px 8px #182442' 
-              : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' 
+              ? '2px 2px 4px #060a12, -2px -2px 4px #182442' 
+              : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff' 
           }}>
             <Filter size={20} />
           </IconButton>
@@ -352,108 +407,483 @@ export default function Courses() {
       <Dialog 
         open={openDialog} 
         onClose={() => setOpenDialog(false)} 
-        maxWidth="sm" 
-        fullWidth 
-        PaperProps={{ sx: { borderRadius: 5, p: 1 } }}
+        maxWidth="lg" 
+        fullWidth
+        fullScreen={isMobile}
+        PaperProps={{ 
+          sx: { 
+            borderRadius: isMobile ? 0 : 5, 
+            p: { xs: 0, md: 2 },
+            bgcolor: 'background.paper',
+            backgroundImage: 'none'
+          } 
+        }}
       >
-        <DialogTitle sx={{ fontWeight: 900, fontSize: '1.5rem', pb: 1 }}>
-          {editingCourse ? 'Edit Mazmoon' : 'Create New Mazmoon'}
+        <DialogTitle sx={{ 
+          fontWeight: 900, 
+          fontSize: isMobile ? '1.25rem' : '1.75rem', 
+          pb: 1, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          pt: isMobile ? 3 : 2
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }}>
+              <BookOpen size={isMobile ? 24 : 32} />
+            </Box>
+            {editingCourse ? 'Update Mazmoon' : 'Create New Mazmoon'}
+          </Box>
+          <IconButton onClick={() => setOpenDialog(false)} size="small" sx={{ color: 'text.disabled' }}>
+            <X size={24} />
+          </IconButton>
         </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 500 }}>
-            Fill in the details below to {editingCourse ? 'update the' : 'add a new'} mazmoon to the curriculum.
+        <DialogContent sx={{ px: isMobile ? 2 : 4 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 4, fontWeight: 500, fontSize: '1rem' }}>
+            {editingCourse ? 'Update the details for this course. Your changes will be reflected immediately.' : 'Fill in the information below to add a new course to your Islamic curriculum.'}
           </Typography>
-          <Grid container spacing={3}>
-            <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField
-                fullWidth
-                label="Mazmoon Name"
-                placeholder="e.g. Quran with Tajweed"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
-              />
+
+          <Grid container spacing={4}>
+            {/* Left Column: Basic Info */}
+            <Grid size={{ xs: 12, md: 5 }}>
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 1, display: 'block' }}>
+                    Course Identity
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        label="Mazmoon Name"
+                        placeholder="e.g. Quran with Tajweed"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        variant="filled"
+                        sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}
+                      />
+                    </Grid>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        label="Mazmoon Code"
+                        placeholder="e.g. QRN-101"
+                        value={formData.code}
+                        onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                        variant="filled"
+                        sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
+
+                <Box>
+                  <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 1, display: 'block' }}>
+                    Branding & Media
+                  </Typography>
+                  <Paper 
+                    variant="outlined" 
+                    sx={{ 
+                      p: 3, 
+                      borderRadius: 4, 
+                      textAlign: 'center',
+                      borderStyle: 'dashed',
+                      borderColor: formData.thumbnailUrl ? 'primary.main' : 'divider',
+                      bgcolor: alpha(theme.palette.background.default, 0.5),
+                    }}
+                  >
+                    {formData.thumbnailUrl ? (
+                      <Box sx={{ position: 'relative' }}>
+                        <Box 
+                          component="img" 
+                          src={formData.thumbnailUrl} 
+                          sx={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 3, mb: 2 }} 
+                        />
+                        <Button 
+                          variant="contained" 
+                          color="error" 
+                          size="small" 
+                          onClick={() => setFormData(prev => ({ ...prev, thumbnailUrl: '' }))}
+                          sx={{ position: 'absolute', top: 10, right: 10, borderRadius: 2 }}
+                        >
+                          Remove
+                        </Button>
+                      </Box>
+                    ) : (
+                      <Box sx={{ py: 2 }}>
+                        <Box sx={{ p: 2, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.05), display: 'inline-flex', mb: 2 }}>
+                          <ImageIcon size={40} className="text-primary-500" />
+                        </Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>Course Thumbnail</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                          Upload a high-quality cover image (Max 2MB)
+                        </Typography>
+                        <Button 
+                          component="label" 
+                          variant="outlined" 
+                          sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
+                        >
+                          Choose File
+                          <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, 'thumbnail')} />
+                        </Button>
+                      </Box>
+                    )}
+                  </Paper>
+                </Box>
+
+                <Box>
+                  <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 1, display: 'block' }}>
+                    Course Logistics
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={6}>
+                      <TextField
+                        fullWidth
+                        label="Duration"
+                        placeholder="6 Months"
+                        value={formData.duration}
+                        onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                        variant="filled"
+                        sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}
+                      />
+                    </Grid>
+                    <Grid size={6}>
+                      <TextField
+                        fullWidth
+                        label="Fee (₹)"
+                        type="number"
+                        placeholder="500"
+                        value={formData.fee}
+                        onChange={(e) => setFormData({ ...formData, fee: e.target.value })}
+                        variant="filled"
+                        sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}
+                      />
+                    </Grid>
+                    {isSuperAdmin && (
+                      <Grid size={12}>
+                        <TextField
+                          fullWidth
+                          label="Restrict to Class/Grade"
+                          placeholder="e.g. Grade 1 or all"
+                          value={formData.gradeId}
+                          onChange={(e) => setFormData({ ...formData, gradeId: e.target.value })}
+                          variant="filled"
+                          sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}
+                        />
+                      </Grid>
+                    )}
+                  </Grid>
+                </Box>
+              </Stack>
             </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Mazmoon Code"
-                placeholder="e.g. QRN-101"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
-              />
+
+            {/* Right Column: Content/Modules */}
+            <Grid size={{ xs: 12, md: 7 }}>
+              <Box>
+                <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 1.5, display: 'block' }}>
+                  Educational Content (Modules)
+                </Typography>
+                
+                <Paper variant="outlined" sx={{ p: 4, borderRadius: 4, bgcolor: alpha(theme.palette.background.default, 0.3), mb: 3 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Zap size={20} className="text-amber-500" />
+                    Quick Add Module
+                  </Typography>
+                  <Stack spacing={3}>
+                    <TextField 
+                      fullWidth 
+                      label="Module Title" 
+                      variant="outlined"
+                      value={newSection.title} 
+                      onChange={(e) => setNewSection({ ...newSection, title: e.target.value })} 
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                    />
+                    <TextField 
+                      fullWidth 
+                      multiline 
+                      rows={4} 
+                      label="Module Description / Main Content" 
+                      placeholder="Share initial lessons or reference text..." 
+                      value={newSection.content} 
+                      onChange={(e) => setNewSection({ ...newSection, content: e.target.value })} 
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                    />
+                    
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                      <FormControl sx={{ minWidth: 140 }}>
+                        <InputLabel>Content Type</InputLabel>
+                        <Select 
+                          value={newSection.type} 
+                          label="Content Type" 
+                          onChange={(e) => setNewSection({ ...newSection, type: e.target.value as any })}
+                          sx={{ borderRadius: 3 }}
+                        >
+                          <MenuItem value="text">Rich Text Only</MenuItem>
+                          <MenuItem value="image">Diagram / Image</MenuItem>
+                          <MenuItem value="video">Lecture Video</MenuItem>
+                          <MenuItem value="file">Manual / Document</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <Box sx={{ flex: 1, display: 'flex', gap: 1 }}>
+                        <TextField 
+                          fullWidth 
+                          placeholder="Paste URL or upload file" 
+                          value={newSection.mediaUrl} 
+                          onChange={(e) => setNewSection({ ...newSection, mediaUrl: e.target.value })} 
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                        />
+                        <IconButton 
+                          component="label" 
+                          sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', borderRadius: 2 }}
+                        >
+                          <Paperclip size={20} />
+                          <input type="file" hidden onChange={(e) => handleFileUpload(e, 'section')} />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                    
+                    <Button 
+                      variant="contained" 
+                      color="primary" 
+                      onClick={handleAddSection} 
+                      startIcon={<Plus size={20} />}
+                      sx={{ borderRadius: 3, fontWeight: 800, py: 1.5, textTransform: 'none', fontSize: '1rem' }}
+                    >
+                      Add Module to Course
+                    </Button>
+                  </Stack>
+                </Paper>
+
+                <Box sx={{ maxHeight: 400, overflow: 'auto', pr: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    Course Path Preview ({formData.sections.length} Modules)
+                  </Typography>
+                  {formData.sections.length === 0 ? (
+                    <Box sx={{ p: 4, textAlign: 'center', bgcolor: 'action.hover', borderRadius: 3, border: '1px dashed divider' }}>
+                      <Typography variant="body2" color="text.disabled">No modules added yet. Start by adding one above.</Typography>
+                    </Box>
+                  ) : (
+                    <Stack spacing={2}>
+                      {formData.sections.map((s, i) => (
+                        <Card key={i} variant="outlined" sx={{ borderRadius: 3, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Box sx={{ 
+                              width: 32, height: 32, 
+                              borderRadius: 1, 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              bgcolor: 'primary.main', 
+                              color: 'white',
+                              fontWeight: 900
+                            }}>
+                              {i + 1}
+                            </Box>
+                            <Box>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800, lineHeight: 1 }}>{s.title}</Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>{s.type} content</Typography>
+                            </Box>
+                          </Box>
+                          <IconButton size="small" color="error" onClick={() => setFormData({ ...formData, sections: formData.sections.filter((_, idx) => idx !== i) })}>
+                            <Trash2 size={18} />
+                          </IconButton>
+                        </Card>
+                      ))}
+                    </Stack>
+                  )}
+                </Box>
+              </Box>
             </Grid>
+
+            {/* Full Width Description */}
             <Grid size={12}>
+              <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 1, display: 'block' }}>
+                Course Overview (Bio)
+              </Typography>
               <TextField
                 fullWidth
-                label="Description"
-                placeholder="Briefly describe what Tulab will learn..."
+                label="Long Description"
+                placeholder="Give a detailed overview of the curriculum and what makes it special..."
                 multiline
                 rows={4}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                variant="filled"
+                sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Duration"
-                placeholder="e.g. 6 Months / 1 Year"
-                value={formData.duration}
-                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
-              />
-            </Grid>
-            <Grid size={12}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>Course Modules (Blog Style Content)</Typography>
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 3, mb: 3 }}>
-                <Stack spacing={2}>
-                  <TextField fullWidth size="small" label="Module Title" value={newSection.title} onChange={(e) => setNewSection({ ...newSection, title: e.target.value })} />
-                  <TextField fullWidth multiline rows={3} label="Module Content" placeholder="Supports rich text descriptions..." value={newSection.content} onChange={(e) => setNewSection({ ...newSection, content: e.target.value })} />
-                  <Stack direction="row" spacing={2}>
-                    <FormControl size="small" sx={{ flex: 1 }}>
-                      <InputLabel>Type</InputLabel>
-                      <Select value={newSection.type} label="Type" onChange={(e) => setNewSection({ ...newSection, type: e.target.value as any })}>
-                        <MenuItem value="text">Text</MenuItem>
-                        <MenuItem value="image">Image</MenuItem>
-                        <MenuItem value="video">Video</MenuItem>
-                        <MenuItem value="file">Downloadable File</MenuItem>
-                      </Select>
-                    </FormControl>
-                    <TextField fullWidth size="small" sx={{ flex: 2 }} label="Media URL (Optional)" value={newSection.mediaUrl} onChange={(e) => setNewSection({ ...newSection, mediaUrl: e.target.value })} />
-                  </Stack>
-                  <Button variant="outlined" fullWidth onClick={handleAddSection} sx={{ borderRadius: 2 }}>Add Module</Button>
-                </Stack>
-              </Paper>
-              <Stack spacing={1}>
-                {formData.sections.map((s, i) => (
-                  <Chip key={i} label={s.title} color="primary" variant="outlined" onDelete={() => setFormData({ ...formData, sections: formData.sections.filter((_, idx) => idx !== i) })} sx={{ borderRadius: 2, fontWeight: 700 }} />
-                ))}
-              </Stack>
-            </Grid>
-            {isSuperAdmin && (
-              <Grid size={12}>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2 }}>Assignment Controls (Admin Only)</Typography>
-                <TextField fullWidth label="Restrict to Level (e.g. Level 1, all)" value={formData.gradeId} onChange={(e) => setFormData({ ...formData, gradeId: e.target.value })} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
-              </Grid>
-            )}
           </Grid>
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button onClick={() => setOpenDialog(false)} sx={{ fontWeight: 800, color: 'text.secondary' }}>Cancel</Button>
+        <DialogActions sx={{ p: isMobile ? 2 : 4, pt: 0, gap: 2 }}>
+          <Button 
+            onClick={() => setOpenDialog(false)} 
+            sx={{ fontWeight: 800, color: 'text.secondary', px: 4 }}
+          >
+            Cancel
+          </Button>
           <Button 
             onClick={handleSave} 
             variant="contained" 
-            startIcon={<CheckCircle size={18} />} 
-            disabled={!formData.name || !formData.code}
-            sx={{ borderRadius: 3, fontWeight: 800, px: 3, boxShadow: '0 8px 24px rgba(15, 118, 110, 0.3)' }}
+            size="large"
+            startIcon={<CheckCircle size={20} />} 
+            disabled={!formData.name || !formData.code || isUploading}
+            sx={{ 
+              borderRadius: 3, 
+              fontWeight: 800, 
+              px: 6, 
+              py: 2,
+              fontSize: '1.1rem',
+              boxShadow: '0 8px 32px rgba(13, 148, 136, 0.3)',
+              textTransform: 'none'
+            }}
           >
-            {editingCourse ? 'Update Mazmoon' : 'Create Mazmoon'}
+            {isUploading ? <CircularProgress size={24} color="inherit" /> : editingCourse ? 'Save Changes' : 'Publish Course'}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Course Reader Dialog */}
+      <Dialog
+        fullScreen
+        open={openReader}
+        onClose={() => setOpenReader(false)}
+        TransitionComponent={Fade}
+        TransitionProps={{ timeout: 500 }}
+      >
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+          <AppBar sx={{ position: 'relative', bgcolor: 'background.paper', color: 'text.primary', borderBottom: 1, borderColor: 'divider' }} elevation={0}>
+            <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 4 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <IconButton edge="start" color="inherit" onClick={() => setOpenReader(false)} aria-label="close">
+                  <X />
+                </IconButton>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1 }}>{viewingCourse?.name}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{viewingCourse?.code} • {viewingCourse?.teacherName}</Typography>
+                </Box>
+              </Box>
+              <Stack direction="row" spacing={1}>
+                {isTeacher && (
+                  <Button 
+                    variant="outlined" 
+                    size="small" 
+                    startIcon={<Edit2 size={16} />}
+                    onClick={() => {
+                      if (viewingCourse) {
+                        setOpenReader(false);
+                        handleEdit(viewingCourse);
+                      }
+                    }}
+                    sx={{ borderRadius: 2, fontWeight: 700 }}
+                  >
+                    Edit
+                  </Button>
+                )}
+                <Chip icon={<Globe size={14} />} label="Live" color="success" size="small" variant="outlined" sx={{ fontWeight: 900 }} />
+              </Stack>
+            </Toolbar>
+          </AppBar>
+
+          <Box sx={{ flexGrow: 1, overflow: 'auto', py: { xs: 4, md: 8 } }}>
+            <Container maxWidth="md">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                {viewingCourse?.thumbnailUrl && (
+                  <Box 
+                    component="img" 
+                    src={viewingCourse.thumbnailUrl} 
+                    sx={{ width: '100%', height: { xs: 200, md: 400 }, objectFit: 'cover', borderRadius: 6, mb: 6, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }} 
+                  />
+                )}
+
+                <Box sx={{ mb: 8 }}>
+                  <Typography variant="h3" component="h1" sx={{ fontWeight: 900, mb: 3, letterSpacing: -1.5 }}>
+                    {viewingCourse?.name}
+                  </Typography>
+                  <Typography variant="h6" color="text.secondary" sx={{ lineHeight: 1.8, fontWeight: 500, fontSize: '1.25rem' }}>
+                    {viewingCourse?.description}
+                  </Typography>
+                </Box>
+
+                <Divider sx={{ mb: 8, opacity: 0.6 }} />
+
+                <Stack spacing={10}>
+                  {viewingCourse?.sections?.map((section, index) => (
+                    <Box key={section.id || index} id={`section-${index}`}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
+                        <Box sx={{ 
+                          width: 44, height: 44, 
+                          borderRadius: 2, 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          bgcolor: 'primary.main', 
+                          color: 'white',
+                          fontWeight: 900,
+                          fontSize: '1.25rem',
+                          boxShadow: '0 8px 16px rgba(15, 118, 110, 0.2)'
+                        }}>
+                          {index + 1}
+                        </Box>
+                        <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1 }}>
+                          {section.title}
+                        </Typography>
+                      </Box>
+
+                      {section.mediaUrl && (
+                        <Box sx={{ mb: 4 }}>
+                          {section.type === 'video' ? (
+                            <Box sx={{ position: 'relative', pt: '56.25%', borderRadius: 4, overflow: 'hidden', bgcolor: 'black' }}>
+                              <iframe
+                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+                                src={section.mediaUrl.includes('youtube') ? section.mediaUrl.replace('watch?v=', 'embed/') : section.mediaUrl}
+                                title={section.title}
+                                allowFullScreen
+                              />
+                            </Box>
+                          ) : section.type === 'image' ? (
+                            <Box component="img" src={section.mediaUrl} sx={{ width: '100%', borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
+                          ) : (
+                            <Button 
+                              variant="outlined" 
+                              startIcon={<FileText size={20} />}
+                              href={section.mediaUrl}
+                              target="_blank"
+                              sx={{ borderRadius: 3, p: 2, fontWeight: 700 }}
+                            >
+                              View/Download Attachment
+                            </Button>
+                          )}
+                        </Box>
+                      )}
+
+                      <Typography 
+                        variant="body1" 
+                        sx={{ 
+                          fontSize: '1.15rem', 
+                          lineHeight: 1.8, 
+                          color: 'text.primary',
+                          whiteSpace: 'pre-wrap'
+                        }}
+                      >
+                        {section.content}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+
+                <Box sx={{ mt: 12, p: 6, borderRadius: 6, bgcolor: alpha(theme.palette.primary.main, 0.05), textAlign: 'center', border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
+                  <GraduationCap size={48} className="text-primary-500 mb-4 mx-auto" />
+                  <Typography variant="h5" sx={{ fontWeight: 900, mb: 1 }}>Course Milestone</Typography>
+                  <Typography variant="body1" color="text.secondary">You've reached the end of the available modules in this course.</Typography>
+                </Box>
+              </motion.div>
+            </Container>
+          </Box>
+        </Box>
       </Dialog>
     </Box>
   );
@@ -580,7 +1010,15 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, onRead, viewMode }: a
       }
     }}>
       <Box sx={{ position: 'relative', height: 200, overflow: 'hidden' }}>
-        <Box className="course-image" component="img" src={`https://picsum.photos/seed/${course.code}/600/400`} alt={course.name} loading="lazy" decoding="async" sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+        <Box 
+          className="course-image" 
+          component="img" 
+          src={course.thumbnailUrl || `https://picsum.photos/seed/${course.code}/600/400`} 
+          alt={course.name} 
+          loading="lazy" 
+          decoding="async" 
+          sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }} 
+        />
         <Box sx={{ position: 'absolute', top: 20, left: 20, display: 'flex', gap: 1.5 }}>
           <Chip 
             label={course.code} 
