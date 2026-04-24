@@ -4,8 +4,9 @@ import {
   TextField, CircularProgress, IconButton, Chip,
   Table, TableBody, TableCell, TableContainer, 
   TableHead, TableRow, Paper, InputAdornment,
-  useTheme, alpha, Stack, Tooltip, Collapse
+  Stack, Tooltip, Collapse
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Search, Trash2, Filter, Calendar, Clock, 
   AlertCircle, CheckCircle, Info, Database,
@@ -16,7 +17,7 @@ import { collection, query, onSnapshot, orderBy, limit, deleteDoc, doc, getDocs,
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { logger } from '../lib/logger';
 
 interface SystemLog {
@@ -43,7 +44,7 @@ export default function AdminLogs() {
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
   const [filterLevel, setFilterLevel] = useState<string>('all');
 
-  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -113,7 +114,7 @@ export default function AdminLogs() {
       <Box sx={{ p: 10, textAlign: 'center' }}>
         <Shield size={64} color="error" style={{ marginBottom: 24, opacity: 0.2 }} />
         <Typography variant="h4" color="error" sx={{ fontWeight: 900, mb: 1 }}>Access Forbidden</Typography>
-        <Typography variant="body1" color="text.secondary">Detailed security logs are only visible to the <strong>SUPER ADMIN</strong> of EduFee Track.</Typography>
+        <Typography variant="body1" color="text.secondary">Detailed security logs are only visible to the <strong>SUPER ADMIN</strong> of Maktab Wali Ul Aser.</Typography>
       </Box>
     );
   }

@@ -1,9 +1,8 @@
 {
-  "name": "EduFee Track",
+  "name": "Maktab Wali Ul Aser",
   "description": "Student Fee Management System. Managing Tulab records, fees, attendance, and academic schedules with professional reports and PWA support.",
   "requestFramePermissions": [
     "camera",
-    "microphone",
     "geolocation"
   ]
 }

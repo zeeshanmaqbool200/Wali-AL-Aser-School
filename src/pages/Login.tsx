@@ -2,16 +2,17 @@ import React, { useState } from 'react';
 import { 
   Box, Button, Card, CardContent, Typography, Container, Alert, 
   TextField, Link, FormControl, InputLabel, Select, MenuItem,
-  IconButton, InputAdornment, useTheme, alpha, Stack,
+  IconButton, InputAdornment, Stack,
   Paper, Divider, Fade, Zoom, CircularProgress, Grid
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   LogIn, UserPlus, Eye, EyeOff, Mail, Lock, User, 
   ShieldCheck, Sparkles, ArrowRight, GraduationCap,
   School, CheckCircle
 } from 'lucide-react';
 import { UserRole, InstituteSettings } from '../types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -104,7 +105,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                 <School size={44} />
               )}
             </Box>
-            <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: -2, mb: 1 }}>
+            <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: -0.5, mb: 1, fontFamily: 'var(--font-calligraphy)' }}>
               {institute.maktabName}
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.5 }}>

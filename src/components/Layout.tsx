@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Box, Container, AppBar, Toolbar, Typography, IconButton, 
-  Avatar, useMediaQuery, useTheme, Badge, 
+  Avatar, useMediaQuery, Badge, 
   Tooltip, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider,
-  InputBase, alpha, Paper, Menu, MenuItem
+  InputBase, Paper, Menu, MenuItem
 } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
 import { 
   LogOut, User, Bell, Menu as MenuIcon, Search,
   LayoutDashboard, Users, Calendar, BookOpen, CreditCard, ClipboardList, FileText,
@@ -14,9 +15,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { UserProfile, Notification as NotificationType } from '../types';
 import BottomNav from './BottomNav';
 import Sidebar from './Sidebar';
-import { collection, query, onSnapshot, orderBy, limit, updateDoc, doc, arrayUnion, getDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, limit, updateDoc, doc, arrayUnion, getDoc, where, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { InstituteSettings } from '../types';
 
 interface LayoutProps {
@@ -91,11 +92,32 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(
-      collection(db, 'notifications'),
-      orderBy('createdAt', 'desc'),
-      limit(20)
-    );
+    
+    let q;
+    const isSuperAdmin = user.email === 'zeeshanmaqbool200@gmail.com';
+    const isMuntazim = user.role === 'muntazim';
+    const isMudarisRole = user.role === 'mudaris';
+    
+    if (isSuperAdmin || isMuntazim || isMudarisRole) {
+      q = query(
+        collection(db, 'notifications'),
+        orderBy('createdAt', 'desc'),
+        limit(20)
+      );
+    } else {
+      q = query(
+        collection(db, 'notifications'),
+        or(
+          where('targetType', '==', 'all'),
+          where('targetId', '==', user.uid),
+          where('targetId', '==', user.grade || 'none'),
+          where('targetId', '==', user.maktabLevel || 'none')
+        ),
+        orderBy('createdAt', 'desc'),
+        limit(20)
+      );
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
       const unread = notifs.filter(n => !n.readBy.includes(user.uid)).length;
@@ -131,19 +153,36 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           elevation={0} 
           sx={{ 
             zIndex: theme.zIndex.drawer + 1,
-            bgcolor: alpha(theme.palette.background.default, 0.7),
+            bgcolor: alpha(theme.palette.background.default, 0.85),
             backdropFilter: 'blur(20px)',
-            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
+            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
           }}
         >
-          <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 60, md: 88 }, px: { xs: 1.5, md: 4 } }}>
+          <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 60, md: 80 }, px: { xs: 2, md: 4 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               {isMobile && (
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10 }}
                 >
-                  <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: -1.5 }}>
+                  <Box sx={{ width: 32, height: 32, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {logoUrl ? (
+                      <img 
+                        src={logoUrl} 
+                        alt="Logo" 
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                        referrerPolicy="no-referrer"
+                        onError={(e: any) => {
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:teal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8 7h6"/><path d="M8 11h8"/></svg></div>';
+                        }}
+                      />
+                    ) : (
+                      <BookOpen size={24} color={theme.palette.primary.main} />
+                    )}
+                  </Box>
+                  <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: -0.5, fontFamily: 'var(--font-calligraphy)', fontSize: '1.2rem' }}>
                     {instituteName}
                   </Typography>
                 </motion.div>
@@ -322,7 +361,13 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           }}
         >
           <Container maxWidth="xl" sx={{ p: 0 }}>
-            {children}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+            >
+              {children}
+            </motion.div>
           </Container>
         </Box>
       </Box>

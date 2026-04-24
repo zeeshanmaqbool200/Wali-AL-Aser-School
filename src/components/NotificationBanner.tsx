@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, IconButton, alpha, useTheme, Slide } from '@mui/material';
+import { Box, Typography, Button, IconButton, Slide } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { Bell, X, Info, AlertCircle } from 'lucide-react';
 import { useNotifications } from '../services/notificationService';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function NotificationBanner() {
   const theme = useTheme();

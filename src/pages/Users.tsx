@@ -5,10 +5,11 @@ import {
   DialogActions, CircularProgress, IconButton, Chip,
   Avatar, Table, TableBody, TableCell, TableContainer, 
   TableHead, TableRow, Paper, InputAdornment, Tab, Tabs,
-  FormControl, InputLabel, Select, MenuItem, useTheme,
-  useMediaQuery, alpha, Stack, Tooltip, Zoom, Fade,
+  FormControl, InputLabel, Select, MenuItem,
+  useMediaQuery, Stack, Tooltip, Zoom, Fade,
   LinearProgress, Divider, Snackbar, Alert
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Plus, Search, Edit2, Trash2, UserPlus, 
   Filter, Mail, Phone, MapPin, Shield,
@@ -17,13 +18,13 @@ import {
   Layers, CheckCircle, XCircle, Clock, Save,
   Bell, Camera, X, Printer
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDocs, writeBatch, getDoc, or, and } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDocs, writeBatch, getDoc, or, and, documentId } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartDeleteDoc } from '../firebase';
 import { UserProfile, UserRole, MaktabLevel, InstituteSettings } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { logger } from '../lib/logger';
 import { format } from 'date-fns';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function Users() {
   const { user: currentUser } = useAuth();
@@ -74,10 +75,12 @@ export default function Users() {
     'haftum', 'hashtum', 'dahum', 'Hafiz', 'muntazim [m]', 'muntazimah [f]'
   ];
 
-  const isSuperAdmin = currentUser?.role === 'superadmin';
-  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
-  const isAdmin = isSuperAdmin || isApprovedMudaris;
-  const isMudaris = isApprovedMudaris || isSuperAdmin;
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const role = currentUser?.role || 'student';
+  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
+  const isMudarisRole = role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isSuperAdmin || isMuntazim || isMudarisRole;
 
   const handleSystemReset = async () => {
     if (!isSuperAdmin) return;
@@ -111,16 +114,16 @@ export default function Users() {
 
   useEffect(() => {
     let q;
-    if (isSuperAdmin) {
+    if (isSuperAdmin || isMuntazim) {
       q = query(collection(db, 'users'), orderBy('displayName', 'asc'));
-    } else if (isApprovedMudaris) {
+    } else if (isMudarisRole) {
       // Mudaris can only see students in their assigned classes or Example class
       q = query(
         collection(db, 'users'), 
         and(
           where('role', '==', 'student'),
           or(
-            where('grade', 'in', currentUser?.assignedClasses || ['none']),
+            where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
             where('grade', '==', 'Example')
           )
         ),
@@ -128,7 +131,7 @@ export default function Users() {
       );
     } else {
       // Pending mudaris see nothing or just themselves
-      q = query(collection(db, 'users'), where('uid', '==', currentUser?.uid));
+      q = query(collection(db, 'users'), where(documentId(), '==', currentUser?.uid || 'none'));
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -138,7 +141,7 @@ export default function Users() {
       handleFirestoreError(error, OperationType.LIST, 'users');
     });
     return () => unsubscribe();
-  }, [isSuperAdmin, isApprovedMudaris, currentUser?.assignedClasses, currentUser?.uid]);
+  }, [isSuperAdmin, isMuntazim, isMudarisRole, currentUser?.assignedClasses, currentUser?.uid]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -170,7 +173,7 @@ export default function Users() {
         finalFormData.admissionNo = `ADM-${year}-${namePart}-${timestamp}`;
       }
 
-      // Check for duplicate email if creating a new user
+      /* // Skipping duplicate email check to avoid permission errors for non-superadmins
       if (!editingUser) {
         const q = query(collection(db, 'users'), where('email', '==', formData.email));
         const checkSnap = await getDocs(q);
@@ -183,6 +186,7 @@ export default function Users() {
           return;
         }
       }
+      */
 
       if (editingUser) {
         await smartUpdateDoc(doc(db, 'users', editingUser.uid), finalFormData);
@@ -234,7 +238,7 @@ export default function Users() {
   const handleApproveMudaris = async (user: UserProfile) => {
     try {
       await smartUpdateDoc(doc(db, 'users', user.uid), {
-        role: 'approved_mudaris',
+        role: 'mudaris',
         status: 'Active'
       });
       logger.success(`Mudaris ${user.displayName} approved`);
@@ -277,7 +281,7 @@ export default function Users() {
                          (u.teacherId && u.teacherId.toLowerCase().includes(searchQuery.toLowerCase()));
     
     if (tabValue === 0) return u.role === 'student' && matchesSearch;
-    if (tabValue === 1) return (u.role === 'approved_mudaris' || u.role === 'pending_mudaris') && matchesSearch;
+    if (tabValue === 1) return (u.role === 'mudaris' || u.role === 'muntazim' || u.role === 'superadmin' || u.role === 'pending_mudaris') && matchesSearch;
     if (tabValue === 2) return (u.pendingMaktabLevel || u.role === 'pending_mudaris') && matchesSearch;
     return matchesSearch;
   });
@@ -353,7 +357,7 @@ export default function Users() {
                 onClick={() => {
                   setEditingUser(null);
                   setFormData({ 
-                    displayName: '', email: '', role: tabValue === 0 ? 'student' : 'approved_mudaris', 
+                    displayName: '', email: '', role: tabValue === 0 ? 'student' : 'mudaris', 
                     phone: '', maktabLevel: '' as MaktabLevel, admissionNo: '', teacherId: '', 
                     fatherName: '', motherName: '', rollNo: '', admissionDate: format(new Date(), 'yyyy-MM-dd'),
                     address: '', subject: '', subjectsEnrolled: [], assignedClasses: [], status: 'Active'
@@ -392,13 +396,13 @@ export default function Users() {
           <SummaryCard title="Total Tulab-e-Ilm" value={users.filter(u => u.role === 'student').length} icon={<GraduationCap size={24} />} color="primary" />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <SummaryCard title="Total Mudaris" value={users.filter(u => u.role === 'approved_mudaris').length} icon={<UserCheck size={24} />} color="success" />
+          <SummaryCard title="Total Mudaris" value={users.filter(u => u.role === 'mudaris').length} icon={<UserCheck size={24} />} color="success" />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <SummaryCard title="Active Now" value={users.filter(u => u.status === 'Active').length} icon={<Clock size={24} />} color="warning" />
+          <SummaryCard title="Muntazim" value={users.filter(u => u.role === 'muntazim').length} icon={<Shield size={24} />} color="secondary" />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <SummaryCard title="New This Month" value={users.filter(u => u.createdAt && u.createdAt > Date.now() - 30 * 24 * 60 * 60 * 1000).length} icon={<Plus size={24} />} color="error" />
+          <SummaryCard title="Active Now" value={users.filter(u => u.status === 'Active').length} icon={<Clock size={24} />} color="warning" />
         </motion.div>
       </Box>
 
@@ -782,7 +786,8 @@ export default function Users() {
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                 >
                   <MenuItem value="student">Talib-e-Ilm</MenuItem>
-                  <MenuItem value="approved_mudaris">Approved Mudaris</MenuItem>
+                  <MenuItem value="muntazim">Muntazim (Admin)</MenuItem>
+                  <MenuItem value="mudaris">Mudaris (Teacher)</MenuItem>
                   <MenuItem value="pending_mudaris">Pending Mudaris</MenuItem>
                   <MenuItem value="superadmin">Super Admin</MenuItem>
                 </Select>
@@ -1227,7 +1232,7 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, onEdit, onDelete, on
       <CardContent sx={{ pt: 7, textAlign: 'center', pb: 4, px: 3.5 }}>
         <Typography variant="h6" sx={{ fontWeight: 900, mb: 0.5, letterSpacing: -1 }}>{user.displayName}</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, display: 'block', mb: 3, textTransform: 'uppercase', letterSpacing: 1.5 }}>
-          {user.role} • {user.role === 'student' ? user.grade : user.subject}
+          {user.role === 'superadmin' ? 'Super Admin' : user.role === 'muntazim' ? 'Muntazim' : user.role === 'mudaris' ? 'Mudaris' : user.role === 'pending_mudaris' ? 'Pending Mudaris' : user.role} • {user.role === 'student' ? user.grade : (user.assignedClasses?.join(', ') || user.subject || 'General')}
         </Typography>
         
         <Stack spacing={2} sx={{ mb: 3.5 }}>
@@ -1335,7 +1340,7 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, onEdit, onDelete, on
               </IconButton>
             </>
           )}
-          {!isSuperAdmin && isAdmin && (
+          {!isSuperAdmin && isAdmin && user.role !== 'superadmin' && (
             <IconButton size="small" sx={{ bgcolor: 'background.paper', boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }} onClick={onEdit}>
               <Edit2 size={16} />
             </IconButton>

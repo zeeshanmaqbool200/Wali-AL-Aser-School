@@ -4,9 +4,10 @@ import {
   Box, Typography, Card, CardContent, Grid, Button, 
   TextField, Avatar, Divider, Switch, FormControlLabel, 
   IconButton, Chip, CircularProgress, Alert, Paper,
-  useTheme, Tab, Tabs, List, ListItem, ListItemText,
-  alpha, Stack, Tooltip, Fade, Zoom, ListItemIcon, Snackbar
+  Tab, Tabs, List, ListItem, ListItemText,
+  Stack, Tooltip, Fade, Zoom, ListItemIcon, Snackbar
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Settings as SettingsIcon, User, Shield, Palette, 
   Bell, Globe, Save, Camera, Trash2, Plus, 
@@ -24,7 +25,7 @@ import { UserProfile, InstituteSettings } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useHardwarePermissions } from '../services/hardwareService';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useMediaQuery, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { logger } from '../lib/logger';
 
@@ -38,12 +39,14 @@ export default function Settings() {
   const { permissions } = useHardwarePermissions();
   const [searchParams] = useSearchParams();
 
-  const isSuperAdmin = currentUser?.role === 'superadmin' || currentUser?.email === 'zeeshanmaqbool200@gmail.com';
-  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
-  const isAdmin = isSuperAdmin || isApprovedMudaris;
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const isMuntazim = currentUser?.role === 'muntazim';
+  const isMudarisRole = currentUser?.role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isAdmin || isMudarisRole;
 
   const [loading, setLoading] = useState(true);
-  const [tabValue, setTabValue] = useState(searchParams.get('tab') || (isAdmin ? 'branding' : 'appearance'));
+  const [tabValue, setTabValue] = useState(searchParams.get('tab') || (isSuperAdmin ? 'branding' : 'appearance'));
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -130,10 +133,19 @@ export default function Settings() {
   const handleSaveInstitute = async () => {
     try {
       setLoading(true);
-      await setDoc(doc(db, 'settings', 'institute'), {
+      
+      // Safety check for Firestore 1MB limit
+      const dataToSave = {
         ...instituteData,
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      };
+      const dataSize = JSON.stringify(dataToSave).length;
+      
+      if (dataSize > 1048576) {
+        throw new Error(`Data is too large (${(dataSize / 1024 / 1024).toFixed(2)} MB). Please use smaller or fewer branding images. Firestore limit is 1MB.`);
+      }
+
+      await setDoc(doc(db, 'settings', 'institute'), dataToSave, { merge: true });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
@@ -224,9 +236,15 @@ export default function Settings() {
     }
   };
 
-  const handleImageUpload = (field: 'logoUrl' | 'bannerUrl') => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (field: 'logoUrl' | 'bannerUrl' | 'receiptLeftImageUrl' | 'receiptRightImageUrl') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Check file size before processing
+    if (file.size > 2 * 1024 * 1024) {
+      setSnackbar({ open: true, message: 'Image is too large. Please select a file under 2MB.', severity: 'error' });
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -235,7 +253,11 @@ export default function Settings() {
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
-        const max = field === 'logoUrl' ? 400 : 1200;
+        
+        // Stricter limits to keep document size under 1MB
+        let max = 600; 
+        if (field === 'bannerUrl') max = 1000;
+        if (field.includes('receipt')) max = 400; // Receipt corner images don't need to be huge
         
         if (width > height) {
           if (width > max) {
@@ -252,21 +274,35 @@ export default function Settings() {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-        const base64 = canvas.toDataURL('image/png');
+        
+        // Fill white background for JPEGs (to handle transparent PNGs)
+        if (ctx) {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+        
+        // Use JPEG with 0.7 quality to significantly reduce base64 size
+        const base64 = canvas.toDataURL('image/jpeg', 0.7);
         setInstituteData(prev => ({ ...prev, [field]: base64 }));
+        
+        // Check if the resulting total data might be too large
+        const estimate = JSON.stringify({ ...instituteData, [field]: base64 }).length;
+        if (estimate > 900000) { // Keep safety margin for 1MB limit
+          setSnackbar({ open: true, message: 'Warning: Institute data is reaching Firestore limits. Try smaller images.', severity: 'error' });
+        }
       };
       img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveImage = (field: 'logoUrl' | 'bannerUrl') => {
+  const handleRemoveImage = (field: 'logoUrl' | 'bannerUrl' | 'receiptLeftImageUrl' | 'receiptRightImageUrl') => {
     setInstituteData(prev => ({ ...prev, [field]: '' }));
   };
 
   const menuItems = [
-    { id: 'branding', label: 'Maktab Branding', icon: <Globe size={20} />, role: 'admin' },
+    { id: 'branding', label: 'Maktab Branding', icon: <Globe size={20} />, role: 'superadmin' },
     { id: 'system', label: 'System & Data', icon: <Database size={20} />, role: 'superadmin' },
     { id: 'appearance', label: 'Theme & Appearance', icon: <Palette size={20} />, role: 'all' },
     { id: 'hardware', label: 'Device & Permissions', icon: <Camera size={20} />, role: 'all' },
@@ -406,7 +442,7 @@ export default function Settings() {
 
         <Grid size={{ xs: 12, md: 8, lg: 9 }}>
           <AnimatePresence mode="wait">
-            {tabValue === 'branding' && isAdmin && (
+            {tabValue === 'branding' && isSuperAdmin && (
               <motion.div key="branding" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
                 <Card variant="outlined" sx={{ borderRadius: 2, bgcolor: 'background.paper' }}>
                   <CardContent sx={{ p: 4 }}>
@@ -512,6 +548,90 @@ export default function Settings() {
                                 }} component="label">
                                   <input type="file" hidden accept="image/*" onChange={handleImageUpload('bannerUrl')} />
                                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 900 }}>CHANGE BANNER</Typography>
+                                </Box>
+                              </Box>
+                            </Grid>
+
+                            <Grid size={{ xs: 12, md: 6 }}>
+                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Receipt Left Image</Typography>
+                              <Box sx={{ 
+                                position: 'relative', 
+                                border: '2px dashed', 
+                                borderColor: 'divider',
+                                borderRadius: 1.5,
+                                height: 160,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'
+                              }}>
+                                {instituteData.receiptLeftImageUrl ? (
+                                  <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <img src={instituteData.receiptLeftImageUrl} alt="Left" style={{ maxHeight: '90%', maxWidth: '90%', objectFit: 'contain' }} />
+                                    <IconButton 
+                                      size="small" 
+                                      onClick={() => handleRemoveImage('receiptLeftImageUrl')}
+                                      sx={{ 
+                                        position: 'absolute', top: 8, right: 8, bgcolor: 'error.main', color: 'white',
+                                        '&:hover': { bgcolor: 'error.dark' }, zIndex: 10
+                                      }}
+                                    >
+                                      <X size={14} />
+                                    </IconButton>
+                                  </Box>
+                                ) : (
+                                  <Monitor size={32} color={theme.palette.text.disabled} />
+                                )}
+                                <Box sx={{ 
+                                  position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.6)', opacity: 0, 
+                                  transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  '&:hover': { opacity: 1 }, cursor: 'pointer'
+                                }} component="label">
+                                  <input type="file" hidden accept="image/*" onChange={handleImageUpload('receiptLeftImageUrl')} />
+                                  <Typography variant="caption" sx={{ color: 'white', fontWeight: 900 }}>UPLOAD LEFT</Typography>
+                                </Box>
+                              </Box>
+                            </Grid>
+
+                            <Grid size={{ xs: 12, md: 6 }}>
+                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Receipt Right Image</Typography>
+                              <Box sx={{ 
+                                position: 'relative', 
+                                border: '2px dashed', 
+                                borderColor: 'divider',
+                                borderRadius: 1.5,
+                                height: 160,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'
+                              }}>
+                                {instituteData.receiptRightImageUrl ? (
+                                  <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <img src={instituteData.receiptRightImageUrl} alt="Right" style={{ maxHeight: '90%', maxWidth: '90%', objectFit: 'contain' }} />
+                                    <IconButton 
+                                      size="small" 
+                                      onClick={() => handleRemoveImage('receiptRightImageUrl')}
+                                      sx={{ 
+                                        position: 'absolute', top: 8, right: 8, bgcolor: 'error.main', color: 'white',
+                                        '&:hover': { bgcolor: 'error.dark' }, zIndex: 10
+                                      }}
+                                    >
+                                      <X size={14} />
+                                    </IconButton>
+                                  </Box>
+                                ) : (
+                                  <Monitor size={32} color={theme.palette.text.disabled} />
+                                )}
+                                <Box sx={{ 
+                                  position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.6)', opacity: 0, 
+                                  transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  '&:hover': { opacity: 1 }, cursor: 'pointer'
+                                }} component="label">
+                                  <input type="file" hidden accept="image/*" onChange={handleImageUpload('receiptRightImageUrl')} />
+                                  <Typography variant="caption" sx={{ color: 'white', fontWeight: 900 }}>UPLOAD RIGHT</Typography>
                                 </Box>
                               </Box>
                             </Grid>
@@ -795,10 +915,12 @@ export default function Settings() {
                   <CardContent sx={{ p: 4 }}>
                     <Typography variant="h6" sx={{ fontWeight: 900, mb: 4, letterSpacing: -0.5 }}>Device & Permissions</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 4, fontWeight: 500 }}>
-                      The following hardware permissions are required for certain features like scanning QR codes or recording audio lessons.
+                      The following hardware permissions are required for certain features like scanning QR codes or taking student photographs.
                     </Typography>
                     <Stack spacing={3}>
-                      {Object.entries(permissions).map(([name, status]) => (
+                      {Object.entries(permissions)
+                        .filter(([name]) => name !== 'microphone')
+                        .map(([name, status]) => (
                         <Box 
                           key={name}
                           sx={{ 
@@ -813,7 +935,7 @@ export default function Settings() {
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                             <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex' }}>
-                              {name === 'camera' ? <Camera size={22} /> : <Mic size={22} />}
+                              {name === 'camera' ? <Camera size={22} /> : <Bell size={22} />}
                             </Box>
                             <Box>
                               <Typography variant="body1" sx={{ fontWeight: 900, textTransform: 'capitalize' }}>{name}</Typography>

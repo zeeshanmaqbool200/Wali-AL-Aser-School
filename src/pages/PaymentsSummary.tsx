@@ -3,9 +3,10 @@ import {
   Box, Typography, Grid, Card, CardContent, Button, 
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
   Paper, Chip, TextField, InputAdornment, MenuItem, Select, FormControl, 
-  InputLabel, CircularProgress, Avatar, Divider, Tooltip, useTheme, alpha,
+  InputLabel, CircularProgress, Avatar, Divider, Tooltip,
   Stack, Fade, Zoom
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Search, Download, Filter, TrendingUp, Users, CreditCard, 
   CheckCircle, Clock, Calendar, ArrowUpRight, ArrowDownRight,
@@ -22,7 +23,7 @@ import {
   AreaChart, Area
 } from 'recharts';
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval } from 'date-fns';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -37,17 +38,21 @@ export default function PaymentsSummary() {
   const [filterMode, setFilterMode] = useState('All');
   const [timeRange, setTimeRange] = useState('month'); // today, month, year
 
-  const isSuperAdmin = currentUser?.role === 'superadmin';
-  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const role = currentUser?.role || 'student';
+  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
+  const isMudarisRole = role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isAdmin || isMudarisRole;
 
   useEffect(() => {
     let q = query(collection(db, 'receipts'), orderBy('createdAt', 'desc'));
     
     // Filtering based on role
-    if (isApprovedMudaris) {
+    if (isMudarisRole && !isSuperAdmin) {
       q = query(
         collection(db, 'receipts'), 
-        where('grade', 'in', currentUser?.assignedClasses || ['none']), 
+        where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']), 
         orderBy('createdAt', 'desc')
       );
     } else if (currentUser?.role === 'student') {
@@ -66,7 +71,7 @@ export default function PaymentsSummary() {
       handleFirestoreError(error, OperationType.LIST, 'receipts');
     });
     return () => unsubscribe();
-  }, [currentUser, isApprovedMudaris]);
+  }, [currentUser, isStaff, isMudarisRole]);
 
   const filteredReceipts = receipts.filter(r => {
     const matchesSearch = r.studentName.toLowerCase().includes(searchTerm.toLowerCase()) || 

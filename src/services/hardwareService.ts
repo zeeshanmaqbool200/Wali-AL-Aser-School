@@ -26,44 +26,25 @@ export function useHardwarePermissions() {
       newPermissions.notifications = Notification.permission as PermissionStatus;
     }
 
-    // Check Camera & Microphone
+    // Check Devices (Camera & Microphone)
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
+      
       const hasCamera = devices.some(device => device.kind === 'videoinput');
       const hasMic = devices.some(device => device.kind === 'audioinput');
 
       if (!hasCamera) {
         newPermissions.camera = 'not-supported';
       } else {
-        // Check if we already have permission by looking at labels
         const videoGranted = devices.some(d => d.kind === 'videoinput' && d.label !== '');
-        if (videoGranted) {
-          newPermissions.camera = 'granted';
-        } else {
-          // Use Permissions API as a secondary check if available
-          try {
-            const status = await navigator.permissions.query({ name: 'camera' as any });
-            newPermissions.camera = status.state as PermissionStatus;
-          } catch (e) {
-            newPermissions.camera = 'prompt';
-          }
-        }
+        newPermissions.camera = videoGranted ? 'granted' : 'prompt';
       }
 
       if (!hasMic) {
         newPermissions.microphone = 'not-supported';
       } else {
         const audioGranted = devices.some(d => d.kind === 'audioinput' && d.label !== '');
-        if (audioGranted) {
-          newPermissions.microphone = 'granted';
-        } else {
-          try {
-            const status = await navigator.permissions.query({ name: 'microphone' as any });
-            newPermissions.microphone = status.state as PermissionStatus;
-          } catch (e) {
-            newPermissions.microphone = 'prompt';
-          }
-        }
+        newPermissions.microphone = audioGranted ? 'granted' : 'prompt';
       }
     } catch (err) {
       logger.error('Error checking hardware devices', err);

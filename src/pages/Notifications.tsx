@@ -4,21 +4,22 @@ import {
   List, ListItem, ListItemText, ListItemAvatar, Avatar, 
   Chip, IconButton, Dialog, DialogTitle, DialogContent, 
   DialogActions, FormControl, InputLabel, Select, MenuItem, 
-  CircularProgress, Badge, Divider, Tab, Tabs, useTheme,
-  alpha, Stack, Tooltip, Paper, Fade, Zoom
+  CircularProgress, Badge, Divider, Tab, Tabs,
+  Stack, Tooltip, Paper, Fade, Zoom
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Bell, Send, Trash2, CheckCircle, Info, AlertTriangle, 
   Users, User, BookOpen, CreditCard, Calendar, Filter, Search,
   Check, X, MoreVertical, Megaphone, MessageSquare, Clock,
   ArrowRight, Sparkles, ShieldCheck, Mail
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, arrayUnion } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, arrayUnion, and, or } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { Notification, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
@@ -45,25 +46,35 @@ export default function Notifications() {
     targetId: ''
   });
 
-  const isTeacher = currentUser?.role === 'approved_mudaris' || currentUser?.role === 'superadmin';
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const role = currentUser?.role || 'student';
+  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
+  const isMudarisRole = role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isAdmin || isMudarisRole;
 
   useEffect(() => {
     if (!currentUser) return;
     logger.info('Notifications Page Loading...');
 
-    const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'));
+    let q;
+    if (isStaff) {
+      q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'));
+    } else {
+      q = query(
+        collection(db, 'notifications'),
+        or(
+          where('targetType', '==', 'all'),
+          where('targetId', '==', currentUser.uid),
+          where('targetId', '==', currentUser.grade || 'none'),
+          where('targetId', '==', currentUser.maktabLevel || 'none')
+        ),
+        orderBy('createdAt', 'desc')
+      );
+    }
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notification[];
-      
-      // Filter notifications based on role and target
-      const filtered = data.filter(n => {
-        if (isTeacher) return true; // Teachers see all sent notifications
-        if (n.targetType === 'all') return true;
-        if (n.targetType === 'individual' && n.targetId === currentUser.uid) return true;
-        if (n.targetType === 'class' && n.targetId === currentUser.grade) return true;
-        return false;
-      });
-
+      const filtered = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notification[];
       setNotifications(filtered);
       setLoading(false);
       logger.db('Notifications List Updated', 'notifications', { count: filtered.length });
@@ -71,8 +82,19 @@ export default function Notifications() {
       handleFirestoreError(error, OperationType.LIST, 'notifications');
     });
 
-    if (isTeacher) {
-      const studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+    if (isStaff) {
+      const studentsQuery = isSuperAdmin
+        ? query(collection(db, 'users'), where('role', '==', 'student'))
+        : query(
+            collection(db, 'users'),
+            and(
+              where('role', '==', 'student'),
+              or(
+                where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
+                where('grade', '==', 'Example')
+              )
+            )
+          );
       onSnapshot(studentsQuery, (snapshot) => {
         setStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
         logger.db('Students List Loaded (Admin)', 'users', { count: snapshot.size });
@@ -82,7 +104,7 @@ export default function Notifications() {
     }
 
     return () => unsubscribe();
-  }, [currentUser, isTeacher]);
+  }, [currentUser, isStaff, isSuperAdmin]);
 
   const handleMarkAsRead = async (id: string) => {
     if (!currentUser) return;
@@ -208,7 +230,7 @@ export default function Notifications() {
               Idarah ke elanat aur zaati ittila'at se bakhabar rahein
             </Typography>
           </Box>
-          {isTeacher && (
+          {isStaff && (
             <Button 
               variant="contained" 
               startIcon={<Send size={18} />} 
@@ -371,7 +393,7 @@ export default function Notifications() {
                     <NotificationItem 
                       notif={notif} 
                       currentUser={currentUser} 
-                      isTeacher={isTeacher}
+                      isTeacher={isStaff}
                       onRead={() => handleMarkAsRead(notif.id)}
                       onDelete={() => handleDelete(notif.id)}
                       onClick={() => handleNotificationClick(notif)}

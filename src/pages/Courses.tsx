@@ -4,25 +4,33 @@ import {
   TextField, Dialog, DialogTitle, DialogContent, 
   DialogActions, CircularProgress, IconButton, Chip,
   Avatar, List, ListItem, ListItemText, ListItemAvatar,
-  Divider, InputAdornment, Paper, Tooltip, useTheme,
-  useMediaQuery, alpha, Stack, Zoom, Fade,
+  Divider, InputAdornment, Paper, Tooltip,
+  useMediaQuery, Stack, Zoom, Fade,
   FormControl, InputLabel, Select, MenuItem,
   AppBar, Toolbar, Container
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Plus, Search, Edit2, Trash2, BookOpen, 
   Clock, User, Users, Filter, CheckCircle,
   MoreVertical, Book, GraduationCap, ArrowRight,
   Star, Share2, Bookmark, Layout, Layers, X,
-  Image as ImageIcon, Paperclip, Zap, FileText, Globe
+  Image as ImageIcon, Paperclip, Zap, FileText, Globe,
+  Music, Trophy, HelpCircle, ChevronRight, ChevronLeft,
+  RotateCcw, Info, Headphones
 } from 'lucide-react';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, or, and, limit } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { Course, CourseSection, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { logger } from '../lib/logger';
+
+const isRTL = (text: string) => {
+  const rtlChars = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0590-\u05FF]/;
+  return rtlChars.test(text);
+};
 
 export default function Courses() {
   const { user: currentUser } = useAuth();
@@ -42,7 +50,7 @@ export default function Courses() {
     code: '',
     description: '',
     duration: '',
-    fee: '',
+    fee: 0, // Hidden in UI but kept in type
     teacherName: currentUser?.displayName || '',
     teacherId: currentUser?.uid || '',
     thumbnailUrl: '',
@@ -54,16 +62,39 @@ export default function Courses() {
   const [newSection, setNewSection] = useState({
     title: '',
     content: '',
-    type: 'text' as const,
-    mediaUrl: ''
+    type: 'text' as 'text' | 'image' | 'video' | 'quiz' | 'file' | 'audio',
+    mediaUrl: '',
+    quizData: {
+      questions: [] as any[],
+      passingScore: 70
+    }
   });
+
+  const [currentQuizQuestion, setCurrentQuizQuestion] = useState({
+    question: '',
+    options: ['', '', '', ''],
+    correctAnswer: 0
+  });
+
+  const handleAddQuizQuestion = () => {
+    if (!currentQuizQuestion.question || currentQuizQuestion.options.some(o => !o)) return;
+    setNewSection(prev => ({
+      ...prev,
+      quizData: {
+        ...prev.quizData,
+        questions: [...prev.quizData.questions, { ...currentQuizQuestion, id: Date.now().toString() }]
+      }
+    }));
+    setCurrentQuizQuestion({ question: '', options: ['', '', '', ''], correctAnswer: 0 });
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, target: 'thumbnail' | 'section') => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 800 * 1024) {
-      logger.error('File too large', new Error('Limit is 800KB for Firestore storage (base64)'));
+    if (file.size > 100 * 1024) {
+      logger.error('File too large', new Error('Limit is 100KB for Firestore storage (base64) to ensure stability.'));
+      alert('File too large. Please use an image smaller than 100KB or host it elsewhere and paste the URL.');
       return;
     }
 
@@ -88,16 +119,18 @@ export default function Courses() {
 
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
 
-  const isSuperAdmin = currentUser?.role === 'superadmin';
-  const isMudaris = currentUser?.role === 'approved_mudaris';
-  const isTeacher = isSuperAdmin || isMudaris;
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const isMuntazim = currentUser?.role === 'muntazim';
+  const isMudarisRole = currentUser?.role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isAdmin || isMudarisRole;
 
   useEffect(() => {
-    let q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'));
+    let q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'), limit(100));
     
     // Students only see published courses or courses assigned specifically to them/their class
     // For now, let's just filter by isPublished and gradeId
-    if (!isTeacher && currentUser) {
+    if (!isStaff && currentUser) {
       q = query(
         collection(db, 'courses'), 
         and(
@@ -107,16 +140,18 @@ export default function Courses() {
             where('gradeId', '==', 'all'),
             where('enrolledStudents', 'array-contains', currentUser.uid)
           )
-        )
+        ),
+        limit(100)
       );
-    } else if (isMudaris && !isSuperAdmin) {
+    } else if (isMudarisRole && !isSuperAdmin) {
       // Mudaris sees courses assigned to them
       q = query(
         collection(db, 'courses'), 
         or(
           where('teacherId', '==', currentUser.uid),
           where('assignedMudaris', 'array-contains', currentUser.uid)
-        )
+        ),
+        limit(100)
       );
     }
 
@@ -127,14 +162,13 @@ export default function Courses() {
       handleFirestoreError(error, OperationType.LIST, 'courses');
     });
     return () => unsubscribe();
-  }, [currentUser, isTeacher]);
+  }, [currentUser, isStaff, isMudarisRole]);
 
   const handleSave = async () => {
     if (!currentUser) return;
     try {
       const data = {
         ...formData,
-        fee: Number(formData.fee),
         teacherName: formData.teacherName || currentUser.displayName,
         teacherId: formData.teacherId || currentUser.uid,
         updatedAt: Date.now()
@@ -154,7 +188,7 @@ export default function Courses() {
         code: '', 
         description: '', 
         duration: '', 
-        fee: '', 
+        fee: 0, 
         teacherName: currentUser?.displayName || '', 
         teacherId: currentUser?.uid || '', 
         thumbnailUrl: '', 
@@ -168,7 +202,7 @@ export default function Courses() {
   };
 
   const handleAddSection = () => {
-    if (!newSection.title || !newSection.content) return;
+    if (!newSection.title || (!newSection.content && newSection.type !== 'quiz')) return;
     const section: CourseSection = { 
       ...newSection, 
       id: Date.now().toString(), 
@@ -178,7 +212,13 @@ export default function Courses() {
       ...formData,
       sections: [...formData.sections, section]
     });
-    setNewSection({ title: '', content: '', type: 'text', mediaUrl: '' });
+    setNewSection({ 
+      title: '', 
+      content: '', 
+      type: 'text', 
+      mediaUrl: '',
+      quizData: { questions: [], passingScore: 70 }
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -196,7 +236,7 @@ export default function Courses() {
       code: course.code,
       description: course.description,
       duration: course.duration,
-      fee: course.fee.toString(),
+      fee: course.fee || 0,
       teacherName: course.teacherName,
       teacherId: course.teacherId,
       thumbnailUrl: course.thumbnailUrl || '',
@@ -219,7 +259,13 @@ export default function Courses() {
   );
 
   return (
-    <Box sx={{ pb: 8 }}>
+    <Box sx={{ 
+      pb: 8,
+      minHeight: '100vh',
+      background: theme.palette.mode === 'dark' 
+        ? `linear-gradient(135deg, ${theme.palette.background.default} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`
+        : `linear-gradient(135deg, ${theme.palette.background.default} 0%, #f0f7f7 100%)`
+    }}>
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -275,7 +321,7 @@ export default function Courses() {
                 <Layers size={isMobile ? 16 : 18} />
               </IconButton>
             </Box>
-            {isTeacher && (
+            {isStaff && (
               <Button 
                 variant="contained" 
                 startIcon={<Plus size={isMobile ? 18 : 22} />} 
@@ -286,7 +332,7 @@ export default function Courses() {
                     code: '',
                     description: '',
                     duration: '',
-                    fee: '',
+                    fee: 0,
                     teacherName: currentUser?.displayName || '',
                     teacherId: currentUser?.uid || '',
                     thumbnailUrl: '',
@@ -380,7 +426,8 @@ export default function Courses() {
               >
                 <CourseCard 
                   course={course} 
-                  isTeacher={isTeacher} 
+                  isTeacher={isStaff} 
+                  isSuperAdmin={isSuperAdmin}
                   onEdit={() => handleEdit(course)} 
                   onDelete={() => handleDelete(course.id)}
                   onRead={(c: Course) => {
@@ -536,25 +583,13 @@ export default function Courses() {
                     Course Logistics
                   </Typography>
                   <Grid container spacing={2}>
-                    <Grid size={6}>
+                    <Grid size={12}>
                       <TextField
                         fullWidth
-                        label="Duration"
-                        placeholder="6 Months"
+                        label="Course Duration"
+                        placeholder="e.g. 6 Months, 1 Year"
                         value={formData.duration}
                         onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                        variant="filled"
-                        sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}
-                      />
-                    </Grid>
-                    <Grid size={6}>
-                      <TextField
-                        fullWidth
-                        label="Fee (₹)"
-                        type="number"
-                        placeholder="500"
-                        value={formData.fee}
-                        onChange={(e) => setFormData({ ...formData, fee: e.target.value })}
                         variant="filled"
                         sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}
                       />
@@ -598,19 +633,9 @@ export default function Courses() {
                       onChange={(e) => setNewSection({ ...newSection, title: e.target.value })} 
                       sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
                     />
-                    <TextField 
-                      fullWidth 
-                      multiline 
-                      rows={4} 
-                      label="Module Description / Main Content" 
-                      placeholder="Share initial lessons or reference text..." 
-                      value={newSection.content} 
-                      onChange={(e) => setNewSection({ ...newSection, content: e.target.value })} 
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
-                    />
                     
                     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                      <FormControl sx={{ minWidth: 140 }}>
+                      <FormControl sx={{ minWidth: 160 }}>
                         <InputLabel>Content Type</InputLabel>
                         <Select 
                           value={newSection.type} 
@@ -618,35 +643,114 @@ export default function Courses() {
                           onChange={(e) => setNewSection({ ...newSection, type: e.target.value as any })}
                           sx={{ borderRadius: 3 }}
                         >
-                          <MenuItem value="text">Rich Text Only</MenuItem>
+                          <MenuItem value="text">Rich Text / Notes</MenuItem>
                           <MenuItem value="image">Diagram / Image</MenuItem>
                           <MenuItem value="video">Lecture Video</MenuItem>
+                          <MenuItem value="audio">Audio Lesson</MenuItem>
                           <MenuItem value="file">Manual / Document</MenuItem>
+                          <MenuItem value="quiz">Interactive Quiz</MenuItem>
                         </Select>
                       </FormControl>
-                      <Box sx={{ flex: 1, display: 'flex', gap: 1 }}>
-                        <TextField 
-                          fullWidth 
-                          placeholder="Paste URL or upload file" 
-                          value={newSection.mediaUrl} 
-                          onChange={(e) => setNewSection({ ...newSection, mediaUrl: e.target.value })} 
-                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
-                        />
-                        <IconButton 
-                          component="label" 
-                          sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', borderRadius: 2 }}
-                        >
-                          <Paperclip size={20} />
-                          <input type="file" hidden onChange={(e) => handleFileUpload(e, 'section')} />
-                        </IconButton>
-                      </Box>
+                      
+                      {newSection.type !== 'quiz' && (
+                        <Box sx={{ flex: 1, display: 'flex', gap: 1 }}>
+                          <TextField 
+                            fullWidth 
+                            placeholder={newSection.type === 'video' ? "YouTube / Cloud Video URL" : "Paste URL or upload file"} 
+                            value={newSection.mediaUrl} 
+                            onChange={(e) => setNewSection({ ...newSection, mediaUrl: e.target.value })} 
+                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                          />
+                          {(['image', 'file', 'audio'].includes(newSection.type)) && (
+                            <IconButton 
+                              component="label" 
+                              sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', borderRadius: 2 }}
+                            >
+                              <Paperclip size={20} />
+                              <input type="file" hidden accept={newSection.type === 'audio' ? 'audio/*' : newSection.type === 'image' ? 'image/*' : '*'} onChange={(e) => handleFileUpload(e, 'section')} />
+                            </IconButton>
+                          )}
+                        </Box>
+                      )}
                     </Box>
+
+                    {newSection.type === 'quiz' ? (
+                      <Box sx={{ p: 2, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
+                        <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <HelpCircle size={18} /> Quiz Builder
+                        </Typography>
+                        <Stack spacing={2}>
+                          <TextField 
+                            fullWidth 
+                            label="Question" 
+                            size="small"
+                            value={currentQuizQuestion.question}
+                            onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, question: e.target.value })}
+                          />
+                          <Grid container spacing={1}>
+                            {currentQuizQuestion.options.map((opt, idx) => (
+                              <Grid size={6} key={idx}>
+                                <TextField 
+                                  fullWidth 
+                                  label={`Option ${idx + 1}`} 
+                                  size="small"
+                                  value={opt}
+                                  onChange={(e) => {
+                                    const newOpts = [...currentQuizQuestion.options];
+                                    newOpts[idx] = e.target.value;
+                                    setCurrentQuizQuestion({ ...currentQuizQuestion, options: newOpts });
+                                  }}
+                                  InputProps={{
+                                    endAdornment: (
+                                      <IconButton size="small" onClick={() => setCurrentQuizQuestion({ ...currentQuizQuestion, correctAnswer: idx })}>
+                                        {currentQuizQuestion.correctAnswer === idx ? <CheckCircle size={16} color="green" /> : <Box sx={{ width: 16, height: 16, borderRadius: '50%', border: '1px solid gray' }} />}
+                                      </IconButton>
+                                    )
+                                  }}
+                                />
+                              </Grid>
+                            ))}
+                          </Grid>
+                          <Button variant="outlined" size="small" onClick={handleAddQuizQuestion} disabled={!currentQuizQuestion.question}>
+                            Add Question to Quiz ({newSection.quizData.questions.length})
+                          </Button>
+                        </Stack>
+                        
+                        {newSection.quizData.questions.length > 0 && (
+                          <Box sx={{ mt: 2 }}>
+                            <Divider sx={{ mb: 1 }} />
+                            <Typography variant="caption" sx={{ fontWeight: 700 }}>Questions Added:</Typography>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                              {newSection.quizData.questions.map((q, i) => (
+                                <Chip key={i} size="small" label={`Q${i+1}`} onDelete={() => {
+                                  const newQuestions = [...newSection.quizData.questions];
+                                  newQuestions.splice(i, 1);
+                                  setNewSection({ ...newSection, quizData: { ...newSection.quizData, questions: newQuestions } });
+                                }} />
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
+                      </Box>
+                    ) : (
+                      <TextField 
+                        fullWidth 
+                        multiline 
+                        rows={4} 
+                        label="Module Description / Main Content" 
+                        placeholder="Share initial lessons or reference text..." 
+                        value={newSection.content} 
+                        onChange={(e) => setNewSection({ ...newSection, content: e.target.value })} 
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                      />
+                    )}
                     
                     <Button 
                       variant="contained" 
                       color="primary" 
                       onClick={handleAddSection} 
                       startIcon={<Plus size={20} />}
+                      disabled={newSection.type === 'quiz' ? newSection.quizData.questions.length === 0 : !newSection.content}
                       sx={{ borderRadius: 3, fontWeight: 800, py: 1.5, textTransform: 'none', fontSize: '1rem' }}
                     >
                       Add Module to Course
@@ -763,7 +867,7 @@ export default function Courses() {
                 </Box>
               </Box>
               <Stack direction="row" spacing={1}>
-                {isTeacher && (
+                {isStaff && (
                   <Button 
                     variant="outlined" 
                     size="small" 
@@ -795,12 +899,12 @@ export default function Courses() {
                   <Box 
                     component="img" 
                     src={viewingCourse.thumbnailUrl} 
-                    sx={{ width: '100%', height: { xs: 200, md: 400 }, objectFit: 'cover', borderRadius: 6, mb: 6, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }} 
+                    sx={{ width: '100%', height: { xs: 200, md: 400 }, objectFit: 'cover', borderRadius: 6, mb: 6, boxShadow: '0 20px 40px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }} 
                   />
                 )}
 
-                <Box sx={{ mb: 8 }}>
-                  <Typography variant="h3" component="h1" sx={{ fontWeight: 900, mb: 3, letterSpacing: -1.5 }}>
+                <Box sx={{ mb: 8, textAlign: isRTL(viewingCourse?.name || '') ? 'right' : 'left', dir: isRTL(viewingCourse?.name || '') ? 'rtl' : 'ltr' }}>
+                  <Typography variant="h3" component="h1" sx={{ fontWeight: 900, mb: 3, letterSpacing: -1.5, color: '#fff' }}>
                     {viewingCourse?.name}
                   </Typography>
                   <Typography variant="h6" color="text.secondary" sx={{ lineHeight: 1.8, fontWeight: 500, fontSize: '1.25rem' }}>
@@ -808,77 +912,99 @@ export default function Courses() {
                   </Typography>
                 </Box>
 
-                <Divider sx={{ mb: 8, opacity: 0.6 }} />
+                <Divider sx={{ mb: 8, opacity: 0.2, bgcolor: 'rgba(255,255,255,0.1)' }} />
 
                 <Stack spacing={10}>
-                  {viewingCourse?.sections?.map((section, index) => (
-                    <Box key={section.id || index} id={`section-${index}`}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
-                        <Box sx={{ 
-                          width: 44, height: 44, 
-                          borderRadius: 2, 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          bgcolor: 'primary.main', 
-                          color: 'white',
-                          fontWeight: 900,
-                          fontSize: '1.25rem',
-                          boxShadow: '0 8px 16px rgba(15, 118, 110, 0.2)'
-                        }}>
-                          {index + 1}
+                  {viewingCourse?.sections?.map((section, index) => {
+                    const isSectionRTL = isRTL(section.title) || isRTL(section.content);
+                    return (
+                      <Box key={section.id || index} id={`section-${index}`} sx={{ textAlign: isSectionRTL ? 'right' : 'left', dir: isSectionRTL ? 'rtl' : 'ltr' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4, flexDirection: isSectionRTL ? 'row-reverse' : 'row' }}>
+                          <Box sx={{ 
+                            width: 50, height: 50, 
+                            borderRadius: '50%', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            bgcolor: '#fff', 
+                            color: '#000',
+                            fontWeight: 900,
+                            fontSize: '1.5rem',
+                            boxShadow: '0 0 20px rgba(255,255,255,0.2)'
+                          }}>
+                            {index + 1}
+                          </Box>
+                          <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1, color: '#fff' }}>
+                            {section.title}
+                          </Typography>
+                          <Box sx={{ flex: 1, height: '1px', bgcolor: 'rgba(255,255,255,0.1)' }} />
                         </Box>
-                        <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1 }}>
-                          {section.title}
-                        </Typography>
+
+                        {section.mediaUrl && (
+                          <Box sx={{ mb: 4 }}>
+                            {section.type === 'video' ? (
+                              <Box sx={{ position: 'relative', pt: '56.25%', borderRadius: 4, overflow: 'hidden', bgcolor: 'black', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                <iframe
+                                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+                                  src={section.mediaUrl.includes('youtube') ? section.mediaUrl.replace('watch?v=', 'embed/') : section.mediaUrl}
+                                  title={section.title}
+                                  allowFullScreen
+                                />
+                              </Box>
+                            ) : section.type === 'audio' ? (
+                              <Paper sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <IconButton sx={{ bgcolor: 'primary.main', color: '#fff', '&:hover': { bgcolor: 'primary.dark' } }}>
+                                  <Headphones />
+                                </IconButton>
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography variant="subtitle2" sx={{ color: '#fff', fontWeight: 700 }}>Audio Lesson</Typography>
+                                  <audio controls style={{ width: '100%', height: '32px', marginTop: '8px' }}>
+                                    <source src={section.mediaUrl} type="audio/mpeg" />
+                                    Your browser does not support the audio element.
+                                  </audio>
+                                </Box>
+                              </Paper>
+                            ) : section.type === 'image' ? (
+                              <Box component="img" src={section.mediaUrl} sx={{ width: '100%', borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                            ) : section.type === 'file' ? (
+                              <Button 
+                                variant="outlined" 
+                                startIcon={<FileText size={20} />}
+                                href={section.mediaUrl}
+                                target="_blank"
+                                sx={{ borderRadius: 3, p: 2, fontWeight: 700, color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}
+                              >
+                                View/Download Attachment
+                              </Button>
+                            ) : null}
+                          </Box>
+                        )}
+
+                        {section.type === 'quiz' && section.quizData ? (
+                          <QuizViewer quiz={section.quizData} sectionId={section.id || index.toString()} />
+                        ) : (
+                          <Typography 
+                            variant="body1" 
+                            sx={{ 
+                              fontSize: '1.25rem', 
+                              lineHeight: 1.8, 
+                              color: 'rgba(255,255,255,0.85)',
+                              whiteSpace: 'pre-wrap',
+                              fontFamily: isSectionRTL ? 'Amiri, Georgia, serif' : 'inherit'
+                            }}
+                          >
+                            {section.content}
+                          </Typography>
+                        )}
                       </Box>
-
-                      {section.mediaUrl && (
-                        <Box sx={{ mb: 4 }}>
-                          {section.type === 'video' ? (
-                            <Box sx={{ position: 'relative', pt: '56.25%', borderRadius: 4, overflow: 'hidden', bgcolor: 'black' }}>
-                              <iframe
-                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
-                                src={section.mediaUrl.includes('youtube') ? section.mediaUrl.replace('watch?v=', 'embed/') : section.mediaUrl}
-                                title={section.title}
-                                allowFullScreen
-                              />
-                            </Box>
-                          ) : section.type === 'image' ? (
-                            <Box component="img" src={section.mediaUrl} sx={{ width: '100%', borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
-                          ) : (
-                            <Button 
-                              variant="outlined" 
-                              startIcon={<FileText size={20} />}
-                              href={section.mediaUrl}
-                              target="_blank"
-                              sx={{ borderRadius: 3, p: 2, fontWeight: 700 }}
-                            >
-                              View/Download Attachment
-                            </Button>
-                          )}
-                        </Box>
-                      )}
-
-                      <Typography 
-                        variant="body1" 
-                        sx={{ 
-                          fontSize: '1.15rem', 
-                          lineHeight: 1.8, 
-                          color: 'text.primary',
-                          whiteSpace: 'pre-wrap'
-                        }}
-                      >
-                        {section.content}
-                      </Typography>
-                    </Box>
-                  ))}
+                    );
+                  })}
                 </Stack>
 
-                <Box sx={{ mt: 12, p: 6, borderRadius: 6, bgcolor: alpha(theme.palette.primary.main, 0.05), textAlign: 'center', border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
-                  <GraduationCap size={48} className="text-primary-500 mb-4 mx-auto" />
-                  <Typography variant="h5" sx={{ fontWeight: 900, mb: 1 }}>Course Milestone</Typography>
-                  <Typography variant="body1" color="text.secondary">You've reached the end of the available modules in this course.</Typography>
+                <Box sx={{ mt: 12, p: 6, borderRadius: 6, bgcolor: 'rgba(255,255,255,0.03)', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <Trophy size={48} color="#FFD700" className="mb-4 mx-auto" />
+                  <Typography variant="h5" sx={{ fontWeight: 900, mb: 1, color: '#fff' }}>Course Milestone</Typography>
+                  <Typography variant="body1" color="text.secondary">You've reached the end of the available modules in this course. Keep up the great work!</Typography>
                 </Box>
               </motion.div>
             </Container>
@@ -889,7 +1015,102 @@ export default function Courses() {
   );
 }
 
-function CourseCard({ course, isTeacher, onEdit, onDelete, onRead, viewMode }: any) {
+function QuizViewer({ quiz, sectionId }: { quiz: any, sectionId: string }) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [score, setScore] = useState(0);
+
+  const handleSelect = (idx: number) => {
+    const newAnswers = [...selectedAnswers];
+    newAnswers[currentStep] = idx;
+    setSelectedAnswers(newAnswers);
+  };
+
+  const handleNext = () => {
+    if (currentStep < quiz.questions.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      let correct = 0;
+      quiz.questions.forEach((q: any, i: number) => {
+        if (selectedAnswers[i] === q.correctAnswer) correct++;
+      });
+      setScore(correct);
+      setShowResults(true);
+    }
+  };
+
+  if (showResults) {
+    const percentage = (score / quiz.questions.length) * 100;
+    return (
+      <Box sx={{ p: 4, textAlign: 'center', bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)' }}>
+        <Trophy size={64} color={percentage >= quiz.passingScore ? "#FFD700" : "#888"} />
+        <Typography variant="h4" sx={{ mt: 2, mb: 1, fontWeight: 900, color: '#fff' }}>
+          {percentage >= quiz.passingScore ? "Mubarak!" : "Keep Practicing"}
+        </Typography>
+        <Typography variant="h6" sx={{ mb: 3, color: 'text.secondary' }}>
+          Your Score: {score} / {quiz.questions.length} ({Math.round(percentage)}%)
+        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+           {quiz.questions.map((q: any, i: number) => (
+             <Box key={i} sx={{ textAlign: 'left', p: 2, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.02)' }}>
+               <Typography variant="body2" sx={{ color: '#fff', fontWeight: 700 }}>{i+1}. {q.question}</Typography>
+               <Typography variant="caption" sx={{ color: selectedAnswers[i] === q.correctAnswer ? '#4caf50' : '#f44336' }}>
+                 Your Answer: {q.options[selectedAnswers[i]] || 'None'}
+                 {selectedAnswers[i] !== q.correctAnswer && ` (Correct: ${q.options[q.correctAnswer]})`}
+               </Typography>
+             </Box>
+           ))}
+        </Box>
+        <Button variant="contained" sx={{ mt: 4, borderRadius: 3 }} onClick={() => { setShowResults(false); setCurrentStep(0); setSelectedAnswers([]); }}>Retry Quiz</Button>
+      </Box>
+    );
+  }
+
+  const q = quiz.questions[currentStep];
+
+  return (
+    <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4, alignItems: 'center' }}>
+        <Typography variant="h6" sx={{ color: '#fff', fontWeight: 900 }}>Question {currentStep + 1} of {quiz.questions.length}</Typography>
+        <Chip label={`${Math.floor((currentStep / quiz.questions.length) * 100)}% Complete`} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.1)', color: '#fff' }} />
+      </Box>
+      <Typography variant="h5" sx={{ mb: 4, fontWeight: 700, color: '#fff' }}>{q.question}</Typography>
+      <Stack spacing={2} sx={{ mb: 4 }}>
+        {q.options.map((opt: string, idx: number) => (
+          <Button 
+            key={idx} 
+            variant={selectedAnswers[currentStep] === idx ? "contained" : "outlined"} 
+            fullWidth 
+            onClick={() => handleSelect(idx)}
+            sx={{ 
+               justifyContent: 'flex-start', 
+               py: 2, 
+               px: 3, 
+               borderRadius: 2,
+               textTransform: 'none',
+               fontSize: '1rem',
+               borderColor: 'rgba(255,255,255,0.2)',
+               color: selectedAnswers[currentStep] === idx ? '#000' : '#fff',
+               bgcolor: selectedAnswers[currentStep] === idx ? '#fff' : 'transparent',
+               '&:hover': { bgcolor: selectedAnswers[currentStep] === idx ? '#eee' : 'rgba(255,255,255,0.05)' }
+            }}
+          >
+            {opt}
+          </Button>
+        ))}
+      </Stack>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+        <Button disabled={currentStep === 0} onClick={() => setCurrentStep(prev => prev - 1)} sx={{ color: 'rgba(255,255,255,0.6)' }}>Back</Button>
+        <Button variant="contained" onClick={handleNext} disabled={selectedAnswers[currentStep] === undefined}>
+          {currentStep === quiz.questions.length - 1 ? "Submit Quiz" : "Next Question"}
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+
+function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead, viewMode }: any) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   
@@ -939,8 +1160,8 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, onRead, viewMode }: a
               <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{course.duration}</Typography>
             </Box>
             <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1.5 }}>FEE</Typography>
-              <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'primary.main' }}>₹{course.fee}</Typography>
+              <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1.5 }}>MODULES</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'primary.main' }}>{course.sections?.length || 0}</Typography>
             </Box>
           </Stack>
           <Box sx={{ display: 'flex', gap: 1.5 }}>
@@ -956,17 +1177,19 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, onRead, viewMode }: a
                 >
                   <Edit2 size={18} />
                 </IconButton>
-                <IconButton 
-                  size="small" 
-                  color="error" 
-                  onClick={onDelete} 
-                  sx={{ 
-                    bgcolor: 'background.default',
-                    boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff'
-                  }}
-                >
-                  <Trash2 size={18} />
-                </IconButton>
+                {isSuperAdmin && (
+                  <IconButton 
+                    size="small" 
+                    color="error" 
+                    onClick={onDelete} 
+                    sx={{ 
+                      bgcolor: 'background.default',
+                      boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff'
+                    }}
+                  >
+                    <Trash2 size={18} />
+                  </IconButton>
+                )}
               </>
             )}
             <IconButton 
@@ -1046,7 +1269,9 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, onRead, viewMode }: a
           {isTeacher && (
             <Box sx={{ display: 'flex', gap: 1.5 }}>
               <IconButton aria-label="Edit course" size="small" onClick={onEdit} sx={{ p: 1, bgcolor: alpha(theme.palette.primary.main, 0.05) }}><Edit2 size={16} /></IconButton>
-              <IconButton aria-label="Delete course" size="small" color="error" onClick={onDelete} sx={{ p: 1, bgcolor: alpha(theme.palette.error.main, 0.05) }}><Trash2 size={16} /></IconButton>
+              {isSuperAdmin && (
+                <IconButton aria-label="Delete course" size="small" color="error" onClick={onDelete} sx={{ p: 1, bgcolor: alpha(theme.palette.error.main, 0.05) }}><Trash2 size={16} /></IconButton>
+              )}
             </Box>
           )}
         </Box>
@@ -1077,9 +1302,15 @@ function CourseCard({ course, isTeacher, onEdit, onDelete, onRead, viewMode }: a
             }}>
               {course.teacherName.charAt(0)}
             </Avatar>
-            <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary' }}>{course.teacherName}</Typography>
+            <Box>
+              <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', display: 'block' }}>{course.teacherName}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Mudaris</Typography>
+            </Box>
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: -1.5 }}>₹{course.fee}</Typography>
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1 }}>MODULES</Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 900, color: 'primary.main' }}>{course.sections?.length || 0}</Typography>
+          </Box>
         </Box>
       </CardContent>
       

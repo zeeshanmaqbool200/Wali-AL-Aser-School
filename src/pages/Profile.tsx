@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
+/* Profile Page - Allows users to manage their personal information */
 import { 
   Box, Typography, Card, CardContent, Grid, Button, 
   TextField, Avatar, IconButton, Chip, CircularProgress, 
-  alpha, Stack, useTheme, Snackbar, useMediaQuery
+  Stack, Snackbar, useMediaQuery
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { Camera, Save, User, Mail, Phone, MapPin } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartUpdateDoc } from '../firebase';
 import { UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { logger } from '../lib/logger';
 
 export default function Profile() {

@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { 
   Dialog, DialogTitle, DialogContent, DialogActions, 
   Button, Typography, Grid, Card, CardActionArea, 
-  CardContent, Box, alpha, useTheme 
+  CardContent, Box
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { BookOpen, CheckCircle } from 'lucide-react';
 import { MaktabLevel } from '../types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { logger } from '../lib/logger';
 
 interface ClassSelectionProps {

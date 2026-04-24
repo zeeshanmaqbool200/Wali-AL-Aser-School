@@ -2,8 +2,9 @@ import React from 'react';
 import { 
   Box, List, ListItem, ListItemButton, ListItemIcon, 
   ListItemText, Typography, Divider, Drawer, IconButton, 
-  Tooltip, Badge, alpha, useTheme
+  Tooltip, Badge
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   LayoutDashboard, Users, Calendar, BookOpen, 
   Settings, CreditCard, Bell, LogOut, ChevronLeft, 
@@ -13,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserRole } from '../types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface SidebarProps {
   role: UserRole;
@@ -31,14 +32,14 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
   const theme = useTheme();
 
   const menuItems = [
-    { label: 'Dashboard', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
-    { label: 'Tulab-e-Ilm', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'approved_mudaris'] },
-    { label: role === 'student' ? 'My Payments' : 'Fees & Adaigi', icon: <DollarSign size={22} />, path: '/fees', roles: ['student', 'approved_mudaris', 'superadmin'] },
-    { label: 'Haziri (Attendance)', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['approved_mudaris', 'superadmin'] },
-    { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['approved_mudaris', 'superadmin'] },
-    { label: 'Ittila\'at', icon: <Badge badgeContent={unreadNotifications} color="error"><Bell size={22} /></Badge>, path: '/notifications', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
+    { label: 'Dashboard', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
+    { label: 'Tulab-e-Ilm', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'muntazim'] },
+    { label: role === 'student' ? 'My Payments' : 'Fees & Adaigi', icon: <DollarSign size={22} />, path: '/fees', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
+    { label: 'Haziri (Attendance)', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['mudaris', 'muntazim', 'superadmin'] },
+    { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['superadmin'] },
+    { label: 'Ittila\'at', icon: <Badge badgeContent={unreadNotifications} color="error"><Bell size={22} /></Badge>, path: '/notifications', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
     { label: 'System Logs', icon: <Terminal size={22} />, path: '/admin/logs', roles: ['superadmin'] },
-    { label: 'Settings', icon: <Settings size={22} />, path: '/settings', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
+    { label: 'Settings', icon: <Settings size={22} />, path: '/settings', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(role));
@@ -93,7 +94,7 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
                 />
               </Box>
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900, letterSpacing: -1, color: 'text.primary', lineHeight: 1.1, fontSize: '1rem' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, letterSpacing: -0.5, color: 'text.primary', lineHeight: 1.1, fontSize: '1.25rem', fontFamily: 'var(--font-calligraphy)' }}>
                   {instituteName}
                 </Typography>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.6rem' }}>

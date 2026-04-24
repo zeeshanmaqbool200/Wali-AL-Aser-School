@@ -11,15 +11,18 @@ export const auth = getAuth(app);
 // Use initializeFirestore with forceLongPolling to improve stability in sandboxed iframes
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
+  cacheSizeBytes: 5 * 1024 * 1024, // Limit cache size
 }, firebaseConfig.firestoreDatabaseId);
 
-// Enable persistence
-if (typeof window !== 'undefined') {
+// Enable persistence with better error handling
+if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
   enableMultiTabIndexedDbPersistence(db).catch((err) => {
     if (err.code === 'failed-precondition') {
       console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
     } else if (err.code === 'unimplemented') {
       console.warn('The current browser doesn\'t support all of the features needed to enable persistence');
+    } else {
+      console.error('Persistence error:', err);
     }
   });
 }
@@ -60,8 +63,16 @@ interface FirestoreErrorInfo {
 import { logger, initLoggerDb } from './lib/logger';
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errorMsg = error instanceof Error ? error.message : String(error);
+  
+  // Check for rate limit or quota issues
+  if (errorMsg.includes('quota') || errorMsg.includes('limit') || errorMsg.includes('resource-exhausted') || errorMsg.includes('Rate exceeded')) {
+    const event = new CustomEvent('firestore-rate-limit', { detail: { error: errorMsg } });
+    window.dispatchEvent(event);
+  }
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMsg,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,

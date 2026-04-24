@@ -33,7 +33,7 @@ export const initLoggerDb = (db: Firestore) => {
   firestoreDb = db;
   // Print initial beautiful header only once
   console.log(
-    `%c EduFee Track V${APP_VERSION} %c ${getIslamicDate()} %c ${new Date().toLocaleDateString()} `,
+    `%c Maktab Wali Ul Aser V${APP_VERSION} %c ${getIslamicDate()} %c ${new Date().toLocaleDateString()} `,
     `background: ${BRAND_COLOR}; color: white; border-radius: 4px; padding: 4px 8px; font-weight: 900; font-size: 1.1rem;`,
     'background: #111827; color: #fbbf24; border-radius: 4px; padding: 4px 8px; font-weight: 700;',
     'color: #6b7280; font-size: 0.9rem; font-weight: 500;'
@@ -81,7 +81,8 @@ const isDev = process.env.NODE_ENV === 'development';
 
 export const logger = {
   info: (message: string, data?: any) => {
-    if (isDev) {
+    // Only log to console if it's not a noisy repeating log
+    if (isDev && !message.includes('Loading') && !message.includes('Active')) {
       console.log(
         `%c ℹ️ INFO %c [${getTimestamp()}] %c ${message}`,
         `background: ${INFO_COLOR}; color: white; border-radius: 4px; padding: 2px 6px; font-weight: bold;`,
@@ -130,7 +131,8 @@ export const logger = {
   },
 
   db: (operation: string, path: string, data?: any) => {
-    if (isDev) {
+    // Quiet Firestore logs in console unless there's a specific interesting operation (writes/deletes)
+    if (isDev && (operation.toLowerCase() === 'add' || operation.toLowerCase() === 'update' || operation.toLowerCase() === 'delete')) {
       console.log(
         `%c 🔥 FIRESTORE %c [${getTimestamp()}] %c ${operation.toUpperCase()} %c ${path}`,
         `background: #ff6000; color: white; border-radius: 4px; padding: 2px 6px; font-weight: bold;`,

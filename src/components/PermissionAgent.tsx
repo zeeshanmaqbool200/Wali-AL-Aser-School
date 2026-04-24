@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { 
   Dialog, DialogTitle, DialogContent, DialogActions, 
   Button, Typography, Box, Stack, IconButton, 
-  Tooltip, alpha, useTheme, CircularProgress
+  Tooltip, CircularProgress
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Shield, Bell, Camera, Mic, CheckCircle, 
   AlertTriangle, X, Settings, Smartphone
@@ -13,7 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logger } from '../lib/logger';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function PermissionAgent() {
   const theme = useTheme();

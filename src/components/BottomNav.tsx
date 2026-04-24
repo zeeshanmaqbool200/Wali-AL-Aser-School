@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Paper, BottomNavigation, BottomNavigationAction, alpha, useTheme, Badge, Avatar, Tooltip } from '@mui/material';
+import { Box, Paper, BottomNavigation, BottomNavigationAction, Badge, Avatar, Tooltip } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { LayoutDashboard, Users, CreditCard, Bell, Terminal, Settings as SettingsIcon, Calendar, BarChart3, BookOpen } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
 
 interface BottomNavProps {
@@ -46,16 +47,19 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   }, [lastScrollY]);
 
   const role = user.role || 'student';
-  const isSuperAdmin = role === 'superadmin';
-  const isMudaris = role === 'approved_mudaris';
+  const isSuperAdmin = user.email === 'zeeshanmaqbool200@gmail.com';
+  const isMuntazim = role === 'muntazim';
+  const isMudarisRole = role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isAdmin || isMudarisRole;
 
   const menuItems = [
-    { label: 'Home', icon: <LayoutDashboard size={20} />, path: '/', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
-    { label: 'Courses', icon: <BookOpen size={20} />, path: '/courses', roles: ['student', 'approved_mudaris', 'superadmin'] },
-    { label: 'Tulab', icon: <Users size={20} />, path: '/users', roles: ['superadmin', 'approved_mudaris'] },
-    { label: 'Fees', icon: <CreditCard size={20} />, path: '/fees', roles: ['student', 'approved_mudaris', 'superadmin'] },
-    { label: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['approved_mudaris', 'superadmin'] },
-    { label: 'Settings', icon: <SettingsIcon size={20} />, path: '/settings', roles: ['student', 'approved_mudaris', 'pending_mudaris', 'superadmin'] },
+    { label: 'Home', icon: <LayoutDashboard size={20} />, path: '/', roles: ['student', 'mudaris', 'pending_mudaris', 'superadmin', 'muntazim'] },
+    { label: 'Courses', icon: <BookOpen size={20} />, path: '/courses', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
+    { label: 'Tulab', icon: <Users size={20} />, path: '/users', roles: ['superadmin', 'muntazim'] },
+    { label: 'Fees', icon: <CreditCard size={20} />, path: '/fees', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
+    { label: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['superadmin'] },
+    { label: 'Settings', icon: <SettingsIcon size={20} />, path: '/settings', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(role));

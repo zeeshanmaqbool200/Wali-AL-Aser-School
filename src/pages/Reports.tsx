@@ -4,9 +4,10 @@ import {
   CircularProgress, IconButton, Chip, Avatar, 
   Divider, Paper, List, ListItem, ListItemText, 
   ListItemAvatar, Tooltip, Select, MenuItem, 
-  FormControl, InputLabel, useTheme, alpha,
+  FormControl, InputLabel,
   Stack, Fade, Zoom
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Download, FileText, TrendingUp, Users, 
   BookOpen, Calendar, DollarSign, Filter,
@@ -21,10 +22,10 @@ import {
   PieChart, Pie, Cell, LineChart, Line, Legend,
   AreaChart, Area
 } from 'recharts';
-import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, limit, where, or, and, documentId } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 const COLORS = ['#0d9488', '#0f766e', '#14b8a6', '#2dd4bf', '#5eead4'];
 
@@ -35,34 +36,55 @@ export default function Reports() {
   const [reportType, setReportType] = useState('attendance');
   const [counts, setCounts] = useState({ students: 0, fees: 0, attendance: 0 });
   
-  const isSuperAdmin = currentUser?.role === 'superadmin';
-  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const role = currentUser?.role || 'student';
+  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
+  const isAdmin = isSuperAdmin || isMuntazim;
 
   useEffect(() => {
+    if (!currentUser) return;
+
+    let unsubscribeStudents = () => {};
+    let unsubscribeFees = () => {};
+
+    const qTulab = isSuperAdmin 
+      ? query(collection(db, 'users'), where('role', '==', 'student'))
+      : isMuntazim
+        ? query(collection(db, 'users'), where('role', '==', 'student'))
+        : query(collection(db, 'users'), where(documentId(), '==', currentUser.uid));
+
     // Real stats fetching
-    const unsubscribeStudents = onSnapshot(collection(db, 'users'), (snapshot) => {
+    unsubscribeStudents = onSnapshot(qTulab, (snapshot) => {
       const studentCount = snapshot.docs.filter(doc => doc.data().role === 'student').length;
       setCounts(prev => ({ ...prev, students: studentCount }));
+    }, (error) => {
+      // handleFirestoreError(error, OperationType.LIST, 'users_reports');
     });
 
-    const unsubscribeFees = onSnapshot(collection(db, 'receipts'), (snapshot) => {
-      const totalAmount = snapshot.docs.reduce((acc, doc) => acc + (doc.data().amount || 0), 0);
-      setCounts(prev => ({ ...prev, fees: totalAmount }));
-    });
+    if (isSuperAdmin || isMuntazim) {
+      const qFees = collection(db, 'receipts');
+
+      unsubscribeFees = onSnapshot(qFees, (snapshot) => {
+        const totalAmount = snapshot.docs.reduce((acc, doc) => acc + (doc.data().amount || 0), 0);
+        setCounts(prev => ({ ...prev, fees: totalAmount }));
+      }, (error) => {
+        // handleFirestoreError(error, OperationType.LIST, 'receipts_reports');
+      });
+    }
 
     setLoading(false);
     return () => {
       unsubscribeStudents();
       unsubscribeFees();
     };
-  }, []);
+  }, [currentUser?.uid, isSuperAdmin, isMuntazim]);
 
   // Reports filtering based on role
   const availableReports = [
     { title: 'Tulab Karkardagi Report', icon: <GraduationCap size={22} />, type: 'PDF', size: '2.4 MB', color: 'primary' },
-    ...(isSuperAdmin ? [{ title: 'Fee Jama Summary', icon: <DollarSign size={22} />, type: 'XLSX', size: '1.1 MB', color: 'success' }] : []),
+    ...((isSuperAdmin || isMuntazim) ? [{ title: 'Fee Jama Summary', icon: <DollarSign size={22} />, type: 'XLSX', size: '1.1 MB', color: 'success' }] : []),
     { title: 'Mudaris Haziri Log', icon: <Users size={22} />, type: 'CSV', size: '0.8 MB', color: 'warning' },
-    ...(isSuperAdmin ? [{ title: 'Asasa Report', icon: <FileText size={22} />, type: 'PDF', size: '3.2 MB', color: 'error' }] : []),
+    ...((isSuperAdmin || isMuntazim) ? [{ title: 'Asasa Report', icon: <FileText size={22} />, type: 'PDF', size: '3.2 MB', color: 'error' }] : []),
   ];
 
   const attendanceData = [

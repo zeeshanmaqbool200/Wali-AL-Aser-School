@@ -3,8 +3,9 @@ import {
   Box, Typography, Grid, Card, CardContent, Button, 
   Avatar, Chip, Divider, List, ListItem, ListItemText, 
   ListItemAvatar, CircularProgress, IconButton, Tooltip as MuiTooltip,
-  Paper, useTheme, useMediaQuery, Fab, Zoom, alpha, Stack
+  Paper, useMediaQuery, Fab, Zoom, Stack, Skeleton
 } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
 import { 
   Users, BookOpen, Calendar, CreditCard, Bell, 
   Check, X, Plus, ArrowRight, TrendingUp, Clock, 
@@ -17,7 +18,7 @@ import { db, OperationType, handleFirestoreError } from '../firebase';
 import { UserProfile, FeeReceipt, Notification as NotificationType, Course, InstituteSettings } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 
 import { logger } from '../lib/logger';
@@ -43,14 +44,16 @@ export default function Dashboard({ user }: DashboardProps) {
   const [recentNotifications, setRecentNotifications] = useState<NotificationType[]>([]);
   const [pendingReceipts, setPendingReceipts] = useState<FeeReceipt[]>([]);
   const [pendingStudents, setPendingStudents] = useState<UserProfile[]>([]);
+  const [staffMembers, setStaffMembers] = useState<UserProfile[]>([]);
   const [instituteData, setInstituteData] = useState<Partial<InstituteSettings>>({});
-  const [fabOpen, setFabOpen] = useState(false);
 
-  const isSuperAdmin = user.role === 'superadmin';
-  const isApprovedMudaris = user.role === 'approved_mudaris';
-  const isMudaris = isApprovedMudaris || isSuperAdmin;
+  const isSuperAdmin = user.email === 'zeeshanmaqbool200@gmail.com';
+  const role = user.role || 'student';
+  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
+  const isMudarisRole = role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isSuperAdmin || isMuntazim || isMudarisRole;
   const isPendingMudaris = user.role === 'pending_mudaris';
-  const isMuntazim = isSuperAdmin; // Only superadmin is full muntazim now
 
   // Real data for charts will be fetched from Firestore
   const [collectionTrendData, setCollectionTrendData] = useState<{name: string, value: number}[]>([]);
@@ -70,151 +73,163 @@ export default function Dashboard({ user }: DashboardProps) {
     let unsubscribeHaziri = () => {};
     let unsubscribeStudentHaziri = () => {};
     let unsubscribeStudentCourses = () => {};
+    let unsubscribeStaff = () => {};
 
     const fetchData = async () => {
       try {
-        logger.info('Dashboard Initializing...');
-        // Stats Real-time Sync
-        if (isMudaris) {
-          const tulabQuery = isSuperAdmin 
-            ? query(collection(db, 'users'), where('role', '==', 'student'))
-            : query(collection(db, 'users'), and(
-                where('role', '==', 'student'), 
-                or(
-                  where('grade', 'in', user.assignedClasses || ['none']),
-                  where('grade', '==', 'Example'),
-                  where('maktabLevel', '==', 'Example')
-                )
-              ));
-            
-          unsubscribeTulab = onSnapshot(tulabQuery, (tulabSnap) => {
-            setStats(prev => ({ ...prev, totalTulab: tulabSnap.size }));
-          });
+        setLoading(true);
 
-          if (isSuperAdmin) {
-            unsubscribePendingFees = onSnapshot(query(collection(db, 'receipts'), where('status', '==', 'pending')), (snap) => {
-              setStats(prev => ({ ...prev, pendingFees: snap.size }));
-            });
+        // Sequence listeners with small delays to avoid request bursts
+        const initSequentially = async () => {
+          // 1. Core user stats
+          if (isStaff) {
+            const tulabQuery = isAdmin 
+              ? query(collection(db, 'users'), where('role', '==', 'student'))
+              : query(collection(db, 'users'), and(
+                  where('role', '==', 'student'), 
+                  or(
+                    where('grade', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']),
+                    where('grade', '==', 'Example'),
+                    where('maktabLevel', '==', 'Example')
+                  )
+                ));
+              
+            unsubscribeTulab = onSnapshot(tulabQuery, (tulabSnap) => {
+              setStats(prev => ({ ...prev, totalTulab: tulabSnap.size }));
+            }, (error) => console.error("Tulab fetch failed:", error));
 
-            const currentMonthStart = format(new Date(), 'yyyy-MM-01');
-            unsubscribeApprovedFees = onSnapshot(query(
-              collection(db, 'receipts'), 
-              where('status', '==', 'approved'),
-              where('date', '>=', currentMonthStart)
-            ), (snap) => {
-              const amount = snap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
-              setStats(prev => ({ ...prev, totalFeesMonth: amount }));
-            });
+            if (isAdmin) {
+              await new Promise(r => setTimeout(r, 100));
+              unsubscribePendingFees = onSnapshot(query(collection(db, 'receipts'), where('status', '==', 'pending')), (snap) => {
+                setStats(prev => ({ ...prev, pendingFees: snap.size }));
+              }, (error) => console.error("Pending fees fetch failed:", error));
+
+              const currentMonthStart = format(new Date(), 'yyyy-MM-01');
+              unsubscribeApprovedFees = onSnapshot(query(
+                collection(db, 'receipts'), 
+                where('status', '==', 'approved'),
+                where('date', '>=', currentMonthStart)
+              ), (snap) => {
+                const amount = snap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+                setStats(prev => ({ ...prev, totalFeesMonth: amount }));
+              }, (error) => console.error("Approved fees fetch failed:", error));
+            }
+
+            await new Promise(r => setTimeout(r, 100));
+            const todayHaziriQuery = isAdmin 
+              ? query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present'))
+              : query(
+                  collection(db, 'attendance'), 
+                  where('date', '==', format(new Date(), 'yyyy-MM-dd')), 
+                  where('status', '==', 'present'),
+                  where('grade', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__'])
+                );
+                
+            unsubscribeHaziri = onSnapshot(todayHaziriQuery, (snap) => {
+              setStats(prev => ({ ...prev, todayHaziri: snap.size }));
+            }, (error) => console.error("Haziri fetch failed:", error));
+          } else {
+            unsubscribeStudentHaziri = onSnapshot(query(collection(db, 'attendance'), where('studentId', '==', user.uid)), (snap) => {
+              const totalAt = snap.docs.length;
+              const presentAt = snap.docs.filter(d => d.data().status === 'present').length;
+              const attendanceRate = totalAt > 0 ? Math.round((presentAt / totalAt) * 100) : 0;
+              setStats(prev => ({ ...prev, attendanceRate }));
+            }, (error) => console.error("Student haziri fetch failed:", error));
+
+            await new Promise(r => setTimeout(r, 100));
+            unsubscribeStudentCourses = onSnapshot(query(collection(db, 'courses'), where('isPublished', '==', true), limit(3)), (snap) => {
+              setStats(prev => ({ ...prev, availableCourses: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+            }, (error) => console.error("Student courses fetch failed:", error));
           }
 
-          const todayHaziriQuery = isSuperAdmin 
-            ? query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present'))
-            : query(
-                collection(db, 'attendance'), 
-                where('date', '==', format(new Date(), 'yyyy-MM-dd')), 
-                where('status', '==', 'present'),
-                where('grade', 'in', user.assignedClasses || [])
-              );
-              
-          unsubscribeHaziri = onSnapshot(todayHaziriQuery, (snap) => {
-            setStats(prev => ({ ...prev, todayHaziri: snap.size }));
-          });
-        } else {
-          // Student Stats logic
-          unsubscribeStudentHaziri = onSnapshot(query(collection(db, 'attendance'), where('studentId', '==', user.uid)), (snap) => {
-            const totalAt = snap.docs.length;
-            const presentAt = snap.docs.filter(d => d.data().status === 'present').length;
-            const attendanceRate = totalAt > 0 ? Math.round((presentAt / totalAt) * 100) : 0;
-            setStats(prev => ({ ...prev, attendanceRate }));
-          });
-
-          unsubscribeStudentCourses = onSnapshot(query(collection(db, 'courses'), where('isPublished', '==', true), limit(3)), (snap) => {
-            setStats(prev => ({ ...prev, availableCourses: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
-          });
-        }
-
-        // Notifications
-        // Notifications
-        let notifQuery;
-        if (isMudaris) {
-          notifQuery = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(10));
-        } else {
-          // If student, use OR query to catch all relevant notifications
-          notifQuery = query(
-            collection(db, 'notifications'), 
-            or(
-              where('targetType', '==', 'all'),
-              where('targetId', '==', user.uid),
-              where('targetId', '==', user.grade || 'none'),
-              where('targetId', '==', user.maktabLevel || 'none')
-            ),
-            orderBy('createdAt', 'desc'), 
-            limit(10)
-          );
-        }
-        
-        unsubscribeNotifs = onSnapshot(notifQuery, (snapshot) => {
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
-          setRecentNotifications(data);
-          logger.db('Recent Notifications Updated', 'notifications', { count: snapshot.size });
-        }, (error) => {
-          handleFirestoreError(error, OperationType.LIST, 'notifications');
-        });
-
-        // Pending Receipts for Mudaris
-        if (isMudaris) {
-          const isSuperAdmin = user.role === 'superadmin';
-          let receiptsQuery;
-          
-          if (isSuperAdmin) {
-            receiptsQuery = query(collection(db, 'receipts'), where('status', '==', 'pending'), limit(5));
+          // 2. Notifications & Staff
+          await new Promise(r => setTimeout(r, 200));
+          let notifQuery;
+          if (isStaff) {
+            notifQuery = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(10));
           } else {
-            receiptsQuery = query(
-              collection(db, 'receipts'), 
-              and(
-                where('status', '==', 'pending'), 
-                or(
-                  where('grade', 'in', user.assignedClasses || ['none']),
-                  where('grade', '==', 'Example')
-                )
+            notifQuery = query(
+              collection(db, 'notifications'), 
+              or(
+                where('targetType', '==', 'all'),
+                where('targetId', '==', user.uid),
+                where('targetId', '==', user.grade || 'none'),
+                where('targetId', '==', user.maktabLevel || 'none')
               ),
-              limit(5)
+              orderBy('createdAt', 'desc'), 
+              limit(10)
             );
           }
           
-          unsubscribeReceipts = onSnapshot(receiptsQuery, (snapshot) => {
-            setPendingReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
-            logger.db('Pending Fee Receipts Updated', 'receipts', { count: snapshot.size });
+          unsubscribeNotifs = onSnapshot(notifQuery, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
+            setRecentNotifications(data);
+          }, (error) => handleFirestoreError(error, OperationType.LIST, 'notifications'));
+
+          // 3. Events & Staff
+          await new Promise(r => setTimeout(r, 300));
+          unsubscribeEvents = onSnapshot(query(collection(db, 'events'), where('date', '>=', format(new Date(), 'yyyy-MM-dd')), orderBy('date', 'asc'), limit(5)), (snapshot) => {
+            setUpcomingEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          }, (error) => console.error("Events fetch failed:", error));
+
+          const staffQuery = query(collection(db, 'users'), where('role', 'in', ['mudaris', 'muntazim', 'superadmin']));
+          unsubscribeStaff = onSnapshot(staffQuery, (snap) => {
+            setStaffMembers(snap.docs.map(d => ({ uid: d.id, ...d.data() })) as UserProfile[]);
+            setLoading(false); // Done loading when we have the basic layout data
           }, (error) => {
-            handleFirestoreError(error, OperationType.LIST, 'receipts');
+            console.error("Staff fetch failed:", error);
+            setLoading(false);
           });
 
-          // Pending Student Approvals
-          const studentsQuery = query(collection(db, 'users'), where('pendingMaktabLevel', '!=', null));
-          unsubscribeStudents = onSnapshot(studentsQuery, (snapshot) => {
-            setPendingStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
-            logger.db('Pending Student Approvals Updated', 'users', { count: snapshot.size });
-          }, (error) => {
-            handleFirestoreError(error, OperationType.LIST, 'users');
-          });
-        }
+          // 4. Background task Queues for Staff
+          if (isStaff) {
+            await new Promise(r => setTimeout(r, 400));
+            let receiptsQuery;
+            if (isAdmin) {
+              receiptsQuery = query(collection(db, 'receipts'), where('status', '==', 'pending'), limit(5));
+            } else {
+              receiptsQuery = query(
+                collection(db, 'receipts'), 
+                and(
+                  where('status', '==', 'pending'), 
+                  or(
+                    where('grade', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']),
+                    where('grade', '==', 'Example')
+                  )
+                ),
+                limit(5)
+              );
+            }
+            
+            unsubscribeReceipts = onSnapshot(receiptsQuery, (snapshot) => {
+              setPendingReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
+            }, (error) => handleFirestoreError(error, OperationType.LIST, 'receipts'));
 
-        // Fetch Institute Settings for Banner
-        try {
-          const settingsDoc = await getDoc(doc(db, 'settings', 'institute'));
-          if (settingsDoc.exists()) {
-            setInstituteData(settingsDoc.data() as InstituteSettings);
+            await new Promise(r => setTimeout(r, 100));
+            let pendingQuery;
+            if (isAdmin) {
+              pendingQuery = query(collection(db, 'users'), where('pendingMaktabLevel', '!=', null));
+            } else {
+              pendingQuery = query(
+                collection(db, 'users'), 
+                and(
+                  where('pendingMaktabLevel', '!=', null),
+                  or(
+                    where('pendingMaktabLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']),
+                    where('pendingMaktabLevel', '==', 'Example')
+                  )
+                )
+              );
+            }
+            
+            unsubscribeStudents = onSnapshot(pendingQuery, (snapshot) => {
+              setPendingStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
+            }, (error) => handleFirestoreError(error, OperationType.LIST, 'users'));
           }
-        } catch (error) {
-          // logger.warn('Failed to fetch institute banner', error as Error);
-        }
+        };
 
-        // Sync Upcoming Events
-        unsubscribeEvents = onSnapshot(query(collection(db, 'events'), where('date', '>=', format(new Date(), 'yyyy-MM-dd')), orderBy('date', 'asc'), limit(5)), (snapshot) => {
-          setUpcomingEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-
-        setLoading(false);
+        // Start initialization
+        initSequentially();
       } catch (error) {
         logger.error('Dashboard Data Fetch Failed', error);
         handleFirestoreError(error, OperationType.LIST, 'dashboard_data');
@@ -237,8 +252,9 @@ export default function Dashboard({ user }: DashboardProps) {
       unsubscribeHaziri();
       unsubscribeStudentHaziri();
       unsubscribeStudentCourses();
+      unsubscribeStaff();
     };
-  }, [user?.uid, isMudaris, isSuperAdmin]); // Added isSuperAdmin to deps
+  }, [user?.uid, isStaff, isAdmin]); // Added isAdmin to deps
 
   const handleApproveFee = async (id: string) => {
     try {
@@ -318,13 +334,32 @@ export default function Dashboard({ user }: DashboardProps) {
   };
 
   if (loading) return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-      <CircularProgress size={60} thickness={4} />
+    <Box sx={{ p: { xs: 2, md: 4 } }}>
+      <Grid container spacing={3}>
+        {[1, 2, 3, 4].map((i) => (
+          <Grid size={{ xs: 6, sm: 3 }} key={i}>
+            <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 4 }} />
+          </Grid>
+        ))}
+        <Grid size={{ xs: 12, md: 8 }}>
+          <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 4, mb: 3 }} />
+          <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 4 }} />
+        </Grid>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Skeleton variant="rectangular" height={600} sx={{ borderRadius: 4 }} />
+        </Grid>
+      </Grid>
     </Box>
   );
 
   return (
-    <Box sx={{ pb: 8, position: 'relative', px: { xs: 1, sm: 0 } }}>
+    <Box
+      component={motion.div}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      sx={{ pb: 8, position: 'relative', px: { xs: 1, sm: 0 } }}
+    >
       {/* Animated Background Blobs */}
       <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', zIndex: -1, pointerEvents: 'none' }}>
         <motion.div
@@ -399,7 +434,7 @@ export default function Dashboard({ user }: DashboardProps) {
             Asslamualikum, {user.displayName.split(' ')[0]}! 👋
           </Typography>
           <Typography variant="body1" sx={{ fontWeight: 500, letterSpacing: 0.5, opacity: 0.9 }}>
-            {isMuntazim ? 'Muntazim Portal (Intizamiya)' : isMudaris ? 'Mudaris Portal (Asatiza)' : `Talib-e-Ilm Portal • ${user.grade || 'Not Assigned'}`}
+            {isMuntazim ? 'Muntazim Portal (Intizamiya)' : isSuperAdmin ? 'Super Admin Portal' : isMudarisRole ? 'Mudaris Portal (Asatiza)' : `Talib-e-Ilm Portal • ${user.grade || 'Not Assigned'}`}
           </Typography>
           
           <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
@@ -435,7 +470,11 @@ export default function Dashboard({ user }: DashboardProps) {
                   { label: 'Fees', icon: <CreditCard size={18} />, color: 'info' as const, path: '/fees' },
                   { label: 'Reports', icon: <BarChart3 size={18} />, color: 'secondary' as const, path: '/reports' },
                 ],
-                approved_mudaris: [
+                muntazim: [
+                  { label: 'Naya Talib', icon: <UserPlus size={18} />, color: 'primary' as const, path: '/users?action=add' },
+                  { label: 'Fees', icon: <CreditCard size={18} />, color: 'info' as const, path: '/fees' },
+                ],
+                mudaris: [
                   { label: 'Haziri', icon: <ClipboardList size={18} />, color: 'success' as const, path: '/attendance' },
                   { label: 'Payments', icon: <CreditCard size={18} />, color: 'info' as const, path: '/fees' },
                 ],
@@ -475,12 +514,12 @@ export default function Dashboard({ user }: DashboardProps) {
 
       {/* Stats Grid */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 3, mb: 6 }}>
-        {isMudaris ? (
+        {isStaff ? (
           <>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <StatCard title="Kul Tulab-e-Ilm" value={stats.totalTulab} icon={<Users size={20} />} color="#3b82f6" />
             </motion.div>
-            {isSuperAdmin && (
+            {isAdmin && (
               <>
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                   <StatCard title="Mahana Majmua" value={`₹${stats.totalFeesMonth.toLocaleString()}`} icon={<TrendingUp size={20} />} color="#10b981" />
@@ -545,8 +584,8 @@ export default function Dashboard({ user }: DashboardProps) {
       <Grid container spacing={4}>
         {/* Left Column: Notifications & Pending Tasks */}
         <Grid size={{ xs: 12, md: 8 }}>
-          {/* Quick Actions (Mudaris Only) */}
-          {isMudaris && (
+          {/* Quick Actions (Staff Only) */}
+          {isStaff && (
             <Box sx={{ mb: 6 }}>
               <Typography variant="h6" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 600, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
                 Quick Actions
@@ -560,7 +599,7 @@ export default function Dashboard({ user }: DashboardProps) {
           )}
 
           {/* Charts Section */}
-          {isSuperAdmin && (
+          {isAdmin && (
             <Grid container spacing={3} sx={{ mb: 4 }}>
               <Grid size={{ xs: 12 }}>
                 <Card variant="outlined" sx={{ 
@@ -595,8 +634,8 @@ export default function Dashboard({ user }: DashboardProps) {
             </Grid>
           )}
 
-          {/* Pending Fee Approvals (Mudaris & Admin) */}
-          {isMudaris && pendingReceipts.length > 0 && (
+          {/* Pending Fee Approvals (Staff) */}
+          {isStaff && pendingReceipts.length > 0 && (
             <Card variant="outlined" sx={{ borderRadius: 2, mb: 4, overflow: 'hidden' }}>
               <Box sx={{ 
                 p: 2.5, 
@@ -660,8 +699,8 @@ export default function Dashboard({ user }: DashboardProps) {
             </Card>
           )}
 
-          {/* Pending Student Approvals (Mudaris & Admin) */}
-          {isMudaris && pendingStudents.length > 0 && (
+          {/* Pending Student Approvals (Staff) */}
+          {isStaff && pendingStudents.length > 0 && (
             <Card variant="outlined" sx={{ borderRadius: 2, mb: 6, overflow: 'hidden' }}>
               <Box sx={{ 
                 p: 2.5, 
@@ -772,7 +811,7 @@ export default function Dashboard({ user }: DashboardProps) {
           )}
 
           {/* Recent Notifications */}
-          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <Card variant="outlined" sx={{ borderRadius: 2, mb: 4 }}>
             <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${theme.palette.divider}` }}>
               <Typography variant="h6" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 600 }}>Recent Notifications</Typography>
               <Button 
@@ -824,7 +863,7 @@ export default function Dashboard({ user }: DashboardProps) {
           </Card>
 
           {/* Student Courses (Only for students) */}
-          {!isMudaris && stats.availableCourses?.length > 0 && (
+          {!isMudarisRole && stats.availableCourses?.length > 0 && (
             <Card variant="outlined" sx={{ borderRadius: 2, mb: 4, overflow: 'hidden' }}>
               <Box sx={{ p: 2.5, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -866,7 +905,7 @@ export default function Dashboard({ user }: DashboardProps) {
               />
               <Typography variant="h6" sx={{ fontWeight: 800 }}>{user.displayName}</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 3 }}>
-                {isMuntazim ? 'Muntazim' : isMudaris ? 'Mudaris' : 'Talib-e-Ilm'}
+                {isMuntazim ? 'Muntazim' : isMudarisRole ? 'Mudaris' : 'Talib-e-Ilm'}
               </Typography>
               
               <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 4, flexWrap: 'wrap' }}>
@@ -905,41 +944,87 @@ export default function Dashboard({ user }: DashboardProps) {
             </CardContent>
           </Card>
 
-          {/* Team Members */}
-          <Card variant="outlined" sx={{ borderRadius: 1.5 }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 3 }}>Idarah Team</Typography>
-              <Stack spacing={2}>
-                {instituteData.team ? Object.entries(instituteData.team).map(([role, name], idx) => (
-                  name && (
-                    <Box 
-                      key={idx} 
+          {/* Teachers & Mudaris Section (Real-time) */}
+          <Card variant="outlined" sx={{ borderRadius: 2, mb: 4, overflow: 'hidden' }}>
+            <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}` }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1, textTransform: 'uppercase', letterSpacing: 1 }}>
+                <Users size={16} /> Hamari Team (Staff)
+              </Typography>
+            </Box>
+            <Box sx={{ p: 1.5 }}>
+              <Stack spacing={1.5}>
+                {staffMembers.length === 0 ? (
+                  <Typography variant="caption" sx={{ textAlign: 'center', py: 2, color: 'text.secondary', display: 'block' }}>
+                    No staff members found.
+                  </Typography>
+                ) : (
+                  staffMembers.map((staff) => (
+                    <Paper 
+                      key={staff.uid} 
+                      variant="outlined" 
                       sx={{ 
                         p: 1.5, 
-                        borderRadius: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                        border: `1px solid ${theme.palette.divider}`,
-                        '&:hover': { bgcolor: 'action.hover' }
+                        borderRadius: 1.5, 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 1.5,
+                        transition: '0.2s',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) }
                       }}
                     >
-                      <Avatar sx={{ bgcolor: 'primary.main', width: 32, height: 32, fontSize: '0.75rem', fontWeight: 800 }}>
-                        {(name as string).charAt(0)}
+                      <Avatar 
+                        src={staff.photoURL} 
+                        sx={{ 
+                          width: 40, 
+                          height: 40, 
+                          border: `1px solid ${theme.palette.divider}`,
+                          bgcolor: 'primary.main',
+                          fontSize: '0.9rem',
+                          fontWeight: 800
+                        }}
+                      >
+                        {staff.displayName.charAt(0)}
                       </Avatar>
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{name as string}</Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'capitalize' }}>
-                          {role.replace(/([A-Z])/g, ' $1').trim()}
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="body2" noWrap sx={{ fontWeight: 800 }}>
+                          {staff.displayName}
                         </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.2 }}>
+                          <Chip 
+                            label={staff.role === 'superadmin' ? 'Super Admin' : staff.role === 'muntazim' ? 'Muntazim' : 'Mudaris'} 
+                            size="small" 
+                            sx={{ 
+                              height: 16, 
+                              fontSize: '0.6rem', 
+                              fontWeight: 900, 
+                              bgcolor: staff.role === 'superadmin' ? 'error.main' : staff.role === 'muntazim' ? 'secondary.main' : 'primary.main', 
+                              color: 'white' 
+                            }} 
+                          />
+                          <Typography variant="caption" noWrap sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem' }}>
+                            {staff.assignedClasses?.join(', ') || staff.grade || 'General'}
+                          </Typography>
+                        </Box>
+                        {staff.phone && (
+                          <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                            <Box component="a" href={`tel:${staff.phone}`} sx={{ color: 'primary.main', display: 'flex', alignItems: 'center', gap: 0.5, textDecoration: 'none' }}>
+                              <Phone size={10} />
+                              <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem' }}>{staff.phone}</Typography>
+                            </Box>
+                            {staff.whatsapp && (
+                              <Box component="a" href={`https://wa.me/${staff.whatsapp}`} target="_blank" sx={{ color: '#25D366', display: 'flex', alignItems: 'center', gap: 0.5, textDecoration: 'none' }}>
+                                <MessageCircle size={10} />
+                                <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem' }}>WA</Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        )}
                       </Box>
-                    </Box>
-                  )
-                )) : (
-                  <Typography variant="caption" color="text.secondary">Configure team in branding settings</Typography>
+                    </Paper>
+                  ))
                 )}
               </Stack>
-            </CardContent>
+            </Box>
           </Card>
         </Grid>
       </Grid>

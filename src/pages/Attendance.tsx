@@ -3,9 +3,10 @@ import {
   Box, Typography, Card, CardContent, Grid, Button, 
   Table, TableBody, TableCell, TableRow, Avatar, Checkbox, FormControl, InputLabel, 
   Select, MenuItem, CircularProgress, Chip, IconButton,
-  Paper, Alert, useTheme, useMediaQuery, alpha, Stack,
+  Paper, Alert, useMediaQuery, Stack,
   LinearProgress, Tooltip, Zoom, Snackbar, TableHead, TableContainer
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   CheckCircle, XCircle, Calendar, Users, 
   Filter, Save, ChevronLeft, ChevronRight,
@@ -17,7 +18,7 @@ import { db, OperationType, handleFirestoreError, smartSetDoc } from '../firebas
 import { UserProfile, Attendance } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subDays, addDays } from 'date-fns';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function AttendancePage() {
   const { user: currentUser } = useAuth();
@@ -31,24 +32,27 @@ export default function AttendancePage() {
   const [classes, setClasses] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const isSuperAdmin = currentUser?.role === 'superadmin';
-  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
-  const isTeacher = isSuperAdmin || isApprovedMudaris;
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const role = currentUser?.role || 'student';
+  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
+  const isMudarisRole = role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isAdmin || isMudarisRole;
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         // Fetch students based on role
         let studentsQuery;
-        if (isSuperAdmin) {
+        if (isAdmin) {
           studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
-        } else if (isApprovedMudaris) {
+        } else if (isMudarisRole) {
           studentsQuery = query(
             collection(db, 'users'),
             and(
               where('role', '==', 'student'), 
               or(
-                where('grade', 'in', currentUser?.assignedClasses || ['none']),
+                where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
                 where('grade', '==', 'Example')
               )
             )
@@ -71,7 +75,7 @@ export default function AttendancePage() {
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
         let attendanceQuery;
         
-        if (isSuperAdmin) {
+        if (isAdmin) {
           attendanceQuery = query(collection(db, 'attendance'), where('date', '==', dateStr));
         } else {
           // Mudaris can only fetch attendance for their assigned classes
@@ -80,7 +84,7 @@ export default function AttendancePage() {
             and(
               where('date', '==', dateStr),
               or(
-                where('grade', 'in', currentUser?.assignedClasses || ['none']),
+                where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
                 where('grade', '==', 'Example')
               )
             )
@@ -107,7 +111,7 @@ export default function AttendancePage() {
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const handleMarkAttendance = async (studentId: string, status: 'present' | 'absent') => {
-    if (!isTeacher) return;
+    if (!isStaff) return;
     
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     const attendanceId = `${dateStr}_${studentId}`;
@@ -131,7 +135,7 @@ export default function AttendancePage() {
   };
 
   const handleBulkMark = async (status: 'present' | 'absent') => {
-    if (!isTeacher || !currentUser) return;
+    if (!isStaff || !currentUser) return;
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     
     try {
@@ -317,7 +321,7 @@ export default function AttendancePage() {
                       }} 
                     />
                   </Paper>
-                  {isTeacher && (
+                  {isStaff && (
                     <Box sx={{ display: 'flex', gap: 1.5 }}>
                       <Tooltip title="Mark All Present">
                         <IconButton 
@@ -442,7 +446,7 @@ export default function AttendancePage() {
                                 color="success"
                                 startIcon={<CheckCircle size={16} />}
                                 onClick={() => handleMarkAttendance(student.uid, 'present')}
-                                disabled={!isTeacher}
+                                disabled={!isStaff}
                                 sx={{ 
                                   borderRadius: 3, 
                                   minWidth: { xs: 80, sm: 100 }, 
@@ -459,7 +463,7 @@ export default function AttendancePage() {
                                 color="error"
                                 startIcon={<XCircle size={16} />}
                                 onClick={() => handleMarkAttendance(student.uid, 'absent')}
-                                disabled={!isTeacher}
+                                disabled={!isStaff}
                                 sx={{ 
                                   borderRadius: 3, 
                                   minWidth: { xs: 80, sm: 100 }, 
@@ -491,7 +495,7 @@ export default function AttendancePage() {
         </CardContent>
       </Card>
 
-      {!isTeacher && (
+      {!isStaff && (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" sx={{ fontWeight: 800, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Clock size={20} color={theme.palette.primary.main} /> Your Haziri History

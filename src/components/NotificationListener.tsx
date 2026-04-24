@@ -19,12 +19,15 @@ export default function NotificationListener() {
     if (!user?.uid) return;
 
     // Listen for the most recent notification using a rule-compliant OR query
-    const isAdmin = user.role === 'superadmin';
-    const isMudaris = user.role === 'approved_mudaris';
+    const isSuperAdmin = user.email === 'zeeshanmaqbool200@gmail.com';
+    const role = user.role || 'student';
+    const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
+    const isMudarisRole = role === 'mudaris';
+    const isStaff = isSuperAdmin || isMuntazim || isMudarisRole;
     
     let q;
-    if (isAdmin || isMudaris) {
-      // Admins/Mudaris see all relevant ones (rules permit blanket listing for them)
+    if (isStaff) {
+      // Staff see all relevant ones (rules permit blanket listing for them)
       q = query(
         collection(db, 'notifications'),
         orderBy('createdAt', 'desc'),

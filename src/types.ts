@@ -1,4 +1,4 @@
-export type UserRole = 'student' | 'superadmin' | 'approved_mudaris' | 'pending_mudaris';
+export type UserRole = 'student' | 'superadmin' | 'muntazim' | 'mudaris' | 'pending_mudaris';
 export type MaktabLevel = 'Awal' | 'Doum' | 'Soam' | 'Chaharum' | 'panjum' | 'shahsum' | 'haftum' | 'hashtum' | 'dahum' | 'Hafiz' | 'muntazim [m]' | 'muntazimah [f]';
 
 export interface UserProfile {
@@ -94,13 +94,37 @@ export interface Note {
   grade: string; // Maktab Level
 }
 
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation?: string;
+}
+
+export interface QuizData {
+  questions: QuizQuestion[];
+  passingScore: number;
+}
+
+export interface QuizAttempt {
+  studentId: string;
+  studentName: string;
+  score: number;
+  totalQuestions: number;
+  submittedAt: number;
+  answers: number[];
+}
+
 export interface CourseSection {
   id?: string;
   order?: number;
   title: string;
   content: string;
-  type: 'text' | 'image' | 'video' | 'quiz' | 'file';
+  type: 'text' | 'image' | 'video' | 'quiz' | 'file' | 'audio';
   mediaUrl?: string;
+  quizData?: QuizData;
+  quizAttempts?: QuizAttempt[];
 }
 
 export interface Course {
@@ -153,6 +177,7 @@ export interface FeeReceipt {
   approvedBy?: string; // Mudaris UID
   approvedByName?: string;
   approvedAt?: number;
+  uploadedBy?: string;
 }
 
 export interface Notification {

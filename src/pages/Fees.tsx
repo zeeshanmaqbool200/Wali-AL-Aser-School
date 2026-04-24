@@ -5,9 +5,10 @@ import {
   TableContainer, TableHead, TableRow, Paper, Chip, 
   IconButton, Dialog, DialogTitle, DialogContent, 
   DialogActions, CircularProgress, InputAdornment, 
-  Tab, Tabs, Badge, Alert, useTheme, useMediaQuery, alpha,
+  Tab, Tabs, Badge, Alert, useMediaQuery,
   Stack, Tooltip, Zoom, Fade, FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Plus, Search, Filter, Download, Printer, 
   CheckCircle, XCircle, Clock, CreditCard, 
@@ -19,7 +20,7 @@ import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, order
 import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc } from '../firebase';
 import { UserProfile, FeeReceipt } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import FeeReceiptModal from '../components/FeeReceiptModal';
 import confetti from 'canvas-confetti';
 import { format } from 'date-fns';
@@ -53,9 +54,12 @@ export default function Fees() {
     remarks: ''
   });
 
-  const isSuperAdmin = currentUser?.role === 'superadmin';
-  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
-  const isTeacher = isSuperAdmin || isApprovedMudaris;
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const role = currentUser?.role || 'student';
+  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
+  const isMudarisRole = role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isAdmin || isMudarisRole;
 
   const [settings, setSettings] = React.useState<any>(null);
 
@@ -81,12 +85,12 @@ export default function Fees() {
     // Filtering receipts
     if (currentUser.role === 'student') {
       q = query(collection(db, 'receipts'), where('studentId', '==', currentUser.uid), orderBy('createdAt', 'desc'));
-    } else if (isApprovedMudaris) {
+    } else if (isMudarisRole) {
       // Mudaris can only see receipts for their grade and Example grade
       q = query(
         collection(db, 'receipts'), 
         or(
-          where('grade', 'in', currentUser.assignedClasses || ['none']),
+          where('grade', 'in', (currentUser.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
           where('grade', '==', 'Example')
         ),
         orderBy('createdAt', 'desc')
@@ -100,10 +104,10 @@ export default function Fees() {
       handleFirestoreError(error, OperationType.LIST, 'receipts');
     });
 
-    if (isTeacher) {
+    if (isStaff) {
       // Fetch students for the autocomplete
       let studentsQuery;
-      if (isSuperAdmin) {
+      if (isAdmin) {
         studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
       } else {
         studentsQuery = query(
@@ -111,7 +115,7 @@ export default function Fees() {
           and(
             where('role', '==', 'student'),
             or(
-              where('grade', 'in', currentUser.assignedClasses || ['none']),
+              where('grade', 'in', (currentUser.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
               where('grade', '==', 'Example')
             )
           )
@@ -126,7 +130,7 @@ export default function Fees() {
     }
 
     return () => unsubscribe();
-  }, [currentUser, isTeacher, isSuperAdmin, isApprovedMudaris]);
+  }, [currentUser, isStaff, isAdmin, isMudarisRole]);
 
   const handleAddReceipt = async () => {
     if (!currentUser) return;
@@ -138,7 +142,7 @@ export default function Fees() {
         ...formData,
         amount: Number(formData.amount),
         date: format(new Date(), 'yyyy-MM-dd'),
-        status: 'pending',
+        status: isStaff ? 'approved' : 'pending',
         createdAt: Date.now(),
         createdBy: currentUser.uid,
         receiptNo: receiptId,
@@ -205,7 +209,7 @@ export default function Fees() {
   }, [loading, receipts.length]);
 
   const handleApprove = async (receipt: FeeReceipt) => {
-    if (!isTeacher) return;
+    if (!isStaff) return;
     try {
       // Optimistic concurrency check: if the receipt was updated by someone else
       const currentDoc = await getDoc(doc(db, 'receipts', receipt.id));
@@ -254,7 +258,7 @@ export default function Fees() {
   };
 
   const handleReject = async (receipt: FeeReceipt) => {
-    if (!isTeacher) return;
+    if (!isStaff) return;
     try {
       await smartUpdateDoc(doc(db, 'receipts', receipt.id), {
         status: 'rejected',
@@ -368,7 +372,7 @@ export default function Fees() {
             </Typography>
           </Box>
           <Stack direction="row" spacing={2} sx={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', alignItems: 'center' }}>
-            {isTeacher && (
+            {isStaff && (
               <IconButton 
                 onClick={handleExport}
                 sx={{ 
@@ -384,7 +388,7 @@ export default function Fees() {
                 <Download size={isMobile ? 18 : 22} />
               </IconButton>
             )}
-            {(!isTeacher && currentUser?.role === 'student' && !currentUser?.maktabLevel) ? (
+            {(!isStaff && currentUser?.role === 'student' && !currentUser?.maktabLevel) ? (
               <Tooltip title="Your class selection must be approved by a teacher before you can use this feature.">
                 <span>
                   <Button 
@@ -435,7 +439,7 @@ export default function Fees() {
                   }
                 }}
               >
-                {isMobile ? "Add" : (isTeacher ? 'New Payment' : 'Apply for Fee')}
+                {isMobile ? "Add" : (isStaff ? 'New Payment' : 'Apply for Fee')}
               </Button>
             )}
           </Stack>
@@ -485,7 +489,7 @@ export default function Fees() {
       )}
 
       {/* Student Personal Summary */}
-      {!isTeacher && currentUser?.role === 'student' && (
+      {!isStaff && currentUser?.role === 'student' && (
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid size={{ xs: 12, sm: 6 }}>
             <SummaryCard 
@@ -697,7 +701,7 @@ export default function Fees() {
                             <Eye size={18} />
                           </IconButton>
                         </Tooltip>
-                        {isTeacher && receipt.status === 'pending' && (
+                        {isStaff && receipt.status === 'pending' && (
                           <>
                             <Tooltip title="Approve">
                               <IconButton 
@@ -719,38 +723,44 @@ export default function Fees() {
                             </Tooltip>
                           </>
                         )}
-                        {isTeacher && (
+                        {isStaff && (
                           <>
-                            <Tooltip title="Edit">
-                              <IconButton 
-                                size="small" 
-                                sx={{ bgcolor: 'grey.100', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
-                                onClick={() => {
-                                  setEditingReceipt(receipt);
-                                  setFormData({
-                                    studentId: receipt.studentId,
-                                    studentName: receipt.studentName,
-                                    amount: receipt.amount.toString(),
-                                    feeHead: receipt.feeHead,
-                                    paymentMode: receipt.paymentMode,
-                                    transactionId: receipt.transactionId || '',
-                                    remarks: receipt.remarks || ''
-                                  });
-                                  setOpenEditDialog(true);
-                                }}
-                              >
-                                <Edit size={18} />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton 
-                                size="small" 
-                                sx={{ bgcolor: 'error.light', color: 'error.dark', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
-                                onClick={() => handleDelete(receipt.id)}
-                              >
-                                <Trash2 size={18} />
-                              </IconButton>
-                            </Tooltip>
+                            {(isSuperAdmin || receipt.createdBy === currentUser?.uid || receipt.uploadedBy === currentUser?.uid) && (
+                              <>
+                                <Tooltip title="Edit">
+                                  <IconButton 
+                                    size="small" 
+                                    sx={{ bgcolor: 'grey.100', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
+                                    onClick={() => {
+                                      setEditingReceipt(receipt);
+                                      setFormData({
+                                        studentId: receipt.studentId,
+                                        studentName: receipt.studentName,
+                                        amount: receipt.amount.toString(),
+                                        feeHead: receipt.feeHead,
+                                        paymentMode: receipt.paymentMode,
+                                        transactionId: receipt.transactionId || '',
+                                        remarks: receipt.remarks || ''
+                                      });
+                                      setOpenEditDialog(true);
+                                    }}
+                                  >
+                                    <Edit size={18} />
+                                  </IconButton>
+                                </Tooltip>
+                                {isSuperAdmin && (
+                                  <Tooltip title="Delete">
+                                    <IconButton 
+                                      size="small" 
+                                      sx={{ bgcolor: 'error.light', color: 'error.dark', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
+                                      onClick={() => handleDelete(receipt.id)}
+                                    >
+                                      <Trash2 size={18} />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                              </>
+                            )}
                           </>
                         )}
                       </Box>
@@ -791,14 +801,14 @@ export default function Fees() {
         }}
       >
         <DialogTitle sx={{ fontWeight: 900, fontSize: '1.6rem', pb: 1, letterSpacing: -1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          {isTeacher ? 'Record New Payment' : 'Apply for Fee / Submit Payment'}
+          {isStaff ? 'Record New Payment' : 'Apply for Fee / Submit Payment'}
           <IconButton onClick={() => setOpenAddDialog(false)} className="close-button">
             <X size={20} />
           </IconButton>
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 4, fontWeight: 600 }}>
-            {isTeacher 
+            {isStaff 
               ? 'Enter the details of the Talib-e-Ilm payment below to generate a new receipt.' 
               : 'Submit your fee payment details for verification and official receipt generation.'}
           </Typography>
@@ -913,7 +923,7 @@ export default function Fees() {
               boxShadow: 'none'
             }}
           >
-            {submitting ? 'Processing...' : (isTeacher ? 'Record Payment' : 'Submit Application')}
+            {submitting ? 'Processing...' : (isStaff ? 'Record Payment' : 'Submit Application')}
           </Button>
         </DialogActions>
       </Dialog>

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Box, Typography, alpha, useTheme, Paper } from '@mui/material';
 import { Bell, Info, CheckCircle, AlertTriangle, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface Toast {
   id: string;

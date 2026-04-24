@@ -33,23 +33,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (docSnap.exists()) {
               const profile = { ...docSnap.data(), uid: docSnap.id } as UserProfile;
               // Ensure role is consistent with admin bootstrap
-              const isAdminEmail = firebaseUser.email === 'zeeshanmaqbool200@gmail.com';
-              if (isAdminEmail && profile.role !== 'superadmin') {
+              const isSuperAdminEmail = firebaseUser.email === 'zeeshanmaqbool200@gmail.com';
+              if (isSuperAdminEmail && profile.role !== 'superadmin') {
                 profile.role = 'superadmin';
                 updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'superadmin' });
+              } else if (!isSuperAdminEmail && profile.role === 'superadmin') {
+                // Demote unauthorized superadmins to muntazim (admin)
+                profile.role = 'muntazim';
+                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'muntazim' });
               }
               // Ensure role exists, default to student if missing
               if (!profile.role) {
                 profile.role = 'student';
               }
-              // Auto-approve mudaris if they were already teachers
-              if ((profile.role as string) === 'teacher') {
-                profile.role = 'approved_mudaris';
-                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'approved_mudaris' });
+              // Migration for role name changes
+              if ((profile.role as string) === 'approved_mudaris' || (profile.role as string) === 'teacher') {
+                profile.role = 'mudaris';
+                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'mudaris' });
               }
-              if ((profile.role as string) === 'admin' && !isAdminEmail) {
-                profile.role = 'pending_mudaris';
-                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'pending_mudaris' });
+              if ((profile.role as string) === 'admin' && !isSuperAdminEmail) {
+                profile.role = 'muntazim';
+                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'muntazim' });
               }
               setUser(profile);
               logger.success(`Profile Updated: ${profile.displayName} (${profile.role})`);
@@ -88,12 +92,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               findExistingByEmail().then((found) => {
                 if (!found) {
                   // Bootstrap new user
-                  const isAdminEmail = firebaseUser.email === 'zeeshanmaqbool200@gmail.com';
+                  const isSuperAdminEmail = firebaseUser.email === 'zeeshanmaqbool200@gmail.com';
                   const newUser: UserProfile = {
                     uid: firebaseUser.uid,
                     email: firebaseUser.email || '',
                     displayName: firebaseUser.displayName || 'User',
-                    role: isAdminEmail ? 'superadmin' : (firebaseUser.displayName?.toLowerCase().includes('teacher') ? 'pending_mudaris' : 'student'),
+                    role: isSuperAdminEmail ? 'superadmin' : (firebaseUser.displayName?.toLowerCase().includes('teacher') ? 'pending_mudaris' : 'student'),
                     createdAt: Date.now(),
                     photoURL: firebaseUser.photoURL || undefined,
                   };
@@ -129,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const manualLogin = async (email: string, pass: string) => {
+  const manualLogin = React.useCallback(async (email: string, pass: string) => {
     try {
       setError(null);
       logger.auth('Attempting Manual Login', { email });
@@ -150,17 +154,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(message);
       throw err;
     }
-  };
+  }, []);
 
-  const manualSignUp = async (email: string, pass: string, name: string, role: UserRole) => {
+  const manualSignUp = React.useCallback(async (email: string, pass: string, name: string, role: UserRole) => {
     try {
       setError(null);
       logger.auth('Attempting Manual Sign Up', { email, name, role });
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
       
-      // Bootstrap the user's email as a superadmin
-      const finalRole = firebaseUser.email === 'zeeshanmaqbool200@gmail.com' ? 'superadmin' : (role === ('teacher' as any) ? 'pending_mudaris' : role);
+      const isSuperAdminEmail = firebaseUser.email === 'zeeshanmaqbool200@gmail.com';
+      const finalRole = isSuperAdminEmail ? 'superadmin' : (role === ('teacher' as any) ? 'pending_mudaris' : role);
       
       const newUser: UserProfile = {
         uid: firebaseUser.uid,
@@ -186,9 +190,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(message);
       throw err;
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = React.useCallback(async () => {
     try {
       logger.auth('Attempting Logout');
       await signOut(auth);
@@ -196,10 +200,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       logger.error('Logout Failed', err);
     }
-  };
+  }, []);
+
+  const contextValue = React.useMemo(() => ({ 
+    user, loading, error, manualLogin, manualSignUp, logout 
+  }), [user, loading, error, manualLogin, manualSignUp, logout]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, manualLogin, manualSignUp, logout }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

@@ -4,9 +4,10 @@ import {
   TextField, Dialog, DialogTitle, DialogContent, 
   DialogActions, CircularProgress, IconButton, Chip,
   Avatar, List, ListItem, ListItemText, ListItemAvatar,
-  Divider, InputAdornment, Paper, Tooltip, useTheme,
-  alpha, Stack, Fade, Zoom, FormControl, InputLabel, Select, MenuItem
+  Divider, InputAdornment, Paper, Tooltip,
+  Stack, Fade, Zoom, FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Plus, Search, FileText, Download, Trash2, 
   Filter, BookOpen, Clock, User, Share2,
@@ -18,7 +19,7 @@ import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, order
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 
 interface StudyNote {
@@ -56,23 +57,25 @@ export default function Notes() {
     'haftum', 'hashtum', 'dahum', 'Hafiz'
   ];
 
-  const isSuperAdmin = currentUser?.role === 'superadmin';
-  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
-  const isTeacher = isSuperAdmin || isApprovedMudaris;
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const isMuntazim = currentUser?.role === 'muntazim';
+  const isMudarisRole = currentUser?.role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isAdmin || isMudarisRole;
 
   useEffect(() => {
     if (!currentUser) return;
 
     let q;
-    if (isSuperAdmin) {
+    if (isAdmin) {
       q = query(collection(db, 'notes'), orderBy('uploadedAt', 'desc'));
-    } else if (isApprovedMudaris) {
+    } else if (isMudarisRole) {
       // Mudaris see 'All' or their assigned classes
       q = query(
         collection(db, 'notes'), 
         or(
           where('grade', '==', 'All'),
-          where('grade', 'in', currentUser.assignedClasses || ['none']),
+          where('grade', 'in', (currentUser.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
           where('uploadedBy', '==', currentUser.uid)
         ),
         orderBy('uploadedAt', 'desc')
@@ -98,7 +101,7 @@ export default function Notes() {
       handleFirestoreError(error, OperationType.LIST, 'notes');
     });
     return () => unsubscribe();
-  }, [currentUser, isSuperAdmin, isApprovedMudaris, isTeacher]);
+  }, [currentUser, isAdmin, isStaff, isMudarisRole]);
 
   const handleUpload = async () => {
     if (!currentUser) return;
@@ -224,7 +227,7 @@ export default function Notes() {
                 <Filter size={18} />
               </IconButton>
             </Box>
-            {isTeacher && (
+            {isStaff && (
               <Button 
                 variant="contained" 
                 startIcon={<Plus size={18} />} 
@@ -297,7 +300,7 @@ export default function Notes() {
                 {viewMode === 'grid' ? (
                   <NoteCard 
                     note={note} 
-                    isTeacher={isTeacher} 
+                    isTeacher={isStaff} 
                     onDelete={() => handleDelete(note.id)} 
                     getFileIcon={getFileIcon}
                     getFileColor={getFileColor}
@@ -305,7 +308,7 @@ export default function Notes() {
                 ) : (
                   <NoteListItem 
                     note={note} 
-                    isTeacher={isTeacher} 
+                    isTeacher={isStaff} 
                     onDelete={() => handleDelete(note.id)} 
                     getFileIcon={getFileIcon}
                     getFileColor={getFileColor}

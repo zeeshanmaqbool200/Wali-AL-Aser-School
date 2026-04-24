@@ -70,9 +70,10 @@ export default function UserModal({ open, onClose, onSubmit }: UserModalProps) {
               startAdornment={<Shield size={18} style={{ marginRight: 12, color: '#666' }} />}
             >
               <MenuItem value="student">Student</MenuItem>
-              <MenuItem value="teacher">Teacher</MenuItem>
-              <MenuItem value="admin">Admin</MenuItem>
-              <MenuItem value="super-admin">Super Admin</MenuItem>
+              <MenuItem value="mudaris">Mudaris</MenuItem>
+              <MenuItem value="muntazim">Muntazim</MenuItem>
+              <MenuItem value="superadmin">Super Admin</MenuItem>
+              <MenuItem value="pending_mudaris">Pending Mudaris</MenuItem>
             </Select>
           </FormControl>
 
@@ -89,7 +90,7 @@ export default function UserModal({ open, onClose, onSubmit }: UserModalProps) {
             />
           )}
 
-          {formData.role === 'approved_mudaris' && (
+          {(formData.role === 'mudaris' || formData.role === 'pending_mudaris') && (
             <TextField
               name="subject"
               label="Primary Subject"

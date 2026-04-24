@@ -4,9 +4,10 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, 
   TextField, FormControl, InputLabel, Select, MenuItem, 
   CircularProgress, IconButton, Chip, Paper, Divider,
-  Avatar, Tooltip, useTheme, useMediaQuery, alpha,
+  Avatar, Tooltip, useMediaQuery,
   Stack, Zoom, Fade, List, ListItem, ListItemAvatar, ListItemText, ListItemIcon
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Plus, Calendar, Clock, MapPin, User, 
   Trash2, Edit2, ChevronLeft, ChevronRight,
@@ -19,7 +20,7 @@ import { db, OperationType, handleFirestoreError } from '../firebase';
 import { ClassSchedule, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -63,20 +64,22 @@ export default function Schedule() {
     color: 'primary'
   });
 
-  const isSuperAdmin = currentUser?.role === 'superadmin';
-  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
-  const isTeacher = isSuperAdmin || isApprovedMudaris;
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const isMuntazim = currentUser?.role === 'muntazim';
+  const isMudarisRole = currentUser?.role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isAdmin || isMudarisRole;
 
   useEffect(() => {
     let q = query(collection(db, 'schedules'), orderBy('startTime', 'asc'));
     
     // Filtering schedules based on role
-    if (isSuperAdmin) {
+    if (isAdmin) {
       q = query(collection(db, 'schedules'), orderBy('startTime', 'asc'));
-    } else if (isApprovedMudaris) {
+    } else if (isMudarisRole) {
       q = query(
         collection(db, 'schedules'), 
-        where('grade', 'in', currentUser?.assignedClasses || ['none']), 
+        where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']), 
         orderBy('startTime', 'asc')
       );
     } else if (currentUser?.role === 'student') {
@@ -107,7 +110,7 @@ export default function Schedule() {
       unsubscribe();
       unsubscribeEvents();
     };
-  }, [currentUser?.uid, currentUser?.assignedClasses, isApprovedMudaris]);
+  }, [currentUser?.uid, currentUser?.assignedClasses, isMudarisRole, isAdmin]);
 
   const handleSaveEvent = async () => {
     try {
@@ -256,7 +259,7 @@ export default function Schedule() {
                 <Layers size={18} />
               </IconButton>
             </Box>
-            {isTeacher && (
+            {isStaff && (
               <Button 
                 variant="contained" 
                 startIcon={<Plus size={18} />} 
@@ -331,7 +334,7 @@ export default function Schedule() {
                   >
                     <ScheduleCard 
                       schedule={schedule} 
-                      isTeacher={isTeacher} 
+                      isTeacher={isStaff} 
                       onEdit={() => { setEditingSchedule(schedule); setFormData(schedule as any); setOpenDialog(true); }}
                       onDelete={() => handleDelete(schedule.id)}
                       onNotify={() => handleNotify(schedule)}
@@ -402,7 +405,7 @@ export default function Schedule() {
               <CardContent sx={{ p: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
                   <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Upcoming Events</Typography>
-                  {isTeacher && (
+                  {isStaff && (
                     <IconButton size="small" color="primary" onClick={() => {
                       setEditingEvent(null);
                       setEventFormData({ title: '', date: format(new Date(), 'yyyy-MM-dd'), time: '14:00', type: 'general', color: 'primary' });
@@ -418,7 +421,7 @@ export default function Schedule() {
                       key={event.id} 
                       disableGutters 
                       sx={{ py: 1.5, borderBottom: i < events.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}
-                      secondaryAction={isTeacher && (
+                      secondaryAction={isStaff && (
                         <Box>
                           <IconButton size="small" onClick={() => {
                             setEditingEvent(event);

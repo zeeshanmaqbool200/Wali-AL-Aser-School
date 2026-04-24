@@ -5,10 +5,11 @@ import {
   DialogActions, CircularProgress, IconButton, Chip,
   Avatar, Table, TableBody, TableCell, TableContainer, 
   TableHead, TableRow, Paper, InputAdornment, Tab, Tabs,
-  Divider, Tooltip, useTheme, useMediaQuery, alpha,
+  Divider, Tooltip, useMediaQuery,
   Stack, Zoom, Fade, List, ListItem, ListItemAvatar, ListItemText,
   FormControl, InputLabel, Select, MenuItem, LinearProgress
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Plus, Search, FileText, Award, Trash2, 
   Filter, Calendar, Clock, User, CheckCircle,
@@ -20,7 +21,7 @@ import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, order
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { logger } from '../lib/logger';
 
@@ -61,18 +62,20 @@ export default function Exams() {
     status: 'upcoming' as const
   });
 
-  const isSuperAdmin = currentUser?.role === 'superadmin';
-  const isApprovedMudaris = currentUser?.role === 'approved_mudaris';
-  const isTeacher = isSuperAdmin || isApprovedMudaris;
+  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const isMuntazim = currentUser?.role === 'muntazim';
+  const isMudarisRole = currentUser?.role === 'mudaris';
+  const isAdmin = isSuperAdmin || isMuntazim;
+  const isStaff = isAdmin || isMudarisRole;
 
   useEffect(() => {
     let q = query(collection(db, 'exams'), orderBy('date', 'desc'));
     
     // Filtering exams based on role
-    if (isApprovedMudaris) {
+    if (isMudarisRole) {
       q = query(
         collection(db, 'exams'), 
-        where('grade', 'in', currentUser?.assignedClasses || ['none']), 
+        where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']), 
         orderBy('date', 'desc')
       );
     } else if (currentUser?.role === 'student') {
@@ -88,7 +91,7 @@ export default function Exams() {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [currentUser, isApprovedMudaris]);
+  }, [currentUser, isMudarisRole]);
 
   const handleSave = async () => {
     if (!currentUser) return;
@@ -205,7 +208,7 @@ export default function Exams() {
                 <Layers size={18} />
               </IconButton>
             </Box>
-            {isTeacher && (
+            {isStaff && (
               <Button 
                 variant="contained" 
                 startIcon={<Plus size={18} />} 
@@ -355,7 +358,7 @@ export default function Exams() {
                           </TableCell>
                           <TableCell align="right">
                             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                              {isTeacher && (
+                              {isStaff && (
                                 <Tooltip title="Delete">
                                   <IconButton 
                                     size="small" 
@@ -396,7 +399,7 @@ export default function Exams() {
                           exit={{ opacity: 0, scale: 0.9 }}
                           transition={{ duration: 0.3, delay: index * 0.05 }}
                         >
-                          <ExamCard exam={exam} isTeacher={isTeacher} onDelete={() => handleDelete(exam.id)} />
+                          <ExamCard exam={exam} isTeacher={isStaff} onDelete={() => handleDelete(exam.id)} />
                         </motion.div>
                       </Grid>
                     ))}
