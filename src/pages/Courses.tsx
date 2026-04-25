@@ -41,7 +41,8 @@ export default function Courses() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!(window as any)._coursesLoaded);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
   const [openReader, setOpenReader] = useState(false);
   const [viewingCourse, setViewingCourse] = useState<Course | null>(null);
@@ -163,6 +164,7 @@ export default function Courses() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[]);
       setLoading(false);
+      (window as any)._coursesLoaded = true;
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'courses');
     });
@@ -264,8 +266,6 @@ export default function Courses() {
       <CircularProgress size={60} thickness={4} />
     </Box>
   );
-
-  const [scrollProgress, setScrollProgress] = useState(0);
 
   const handleScroll = (e: React.UIEvent<HTMLElement>) => {
     const target = e.currentTarget;
@@ -1063,7 +1063,12 @@ export default function Courses() {
 
                         {section.type === 'quiz' && section.quizData ? (
                           <Box id={`section-quiz-${index}`}>
-                            <QuizViewer quiz={section.quizData} sectionId={section.id || index.toString()} />
+                            <QuizViewer 
+                              quiz={section.quizData} 
+                              sectionId={section.id || index.toString()} 
+                              courseId={viewingCourse?.id || ''}
+                              currentUser={currentUser}
+                            />
                           </Box>
                         ) : (
                           <Box>
@@ -1090,7 +1095,12 @@ export default function Courses() {
                                   <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>Lesson Knowledge Check</Typography>
                                   <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>Test your understanding of this module.</Typography>
                                 </Box>
-                                <QuizViewer quiz={section.quizData} sectionId={section.id || index.toString()} />
+                                <QuizViewer 
+                                  quiz={section.quizData} 
+                                  sectionId={section.id || index.toString()} 
+                                  courseId={viewingCourse?.id || ''}
+                                  currentUser={currentUser}
+                                />
                               </Box>
                             )}
                           </Box>
@@ -1114,11 +1124,12 @@ export default function Courses() {
   );
 }
 
-function QuizViewer({ quiz, sectionId }: { quiz: any, sectionId: string }) {
+function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sectionId: string, courseId: string, currentUser: any }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [score, setScore] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSelect = (idx: number) => {
     const newAnswers = [...selectedAnswers];
@@ -1126,7 +1137,7 @@ function QuizViewer({ quiz, sectionId }: { quiz: any, sectionId: string }) {
     setSelectedAnswers(newAnswers);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < quiz.questions.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -1134,8 +1145,34 @@ function QuizViewer({ quiz, sectionId }: { quiz: any, sectionId: string }) {
       quiz.questions.forEach((q: any, i: number) => {
         if (selectedAnswers[i] === q.correctAnswer) correct++;
       });
+      
+      const percentage = (correct / quiz.questions.length) * 100;
       setScore(correct);
       setShowResults(true);
+
+      // Save results to Firestore
+      if (currentUser) {
+        setSubmitting(true);
+        try {
+          await addDoc(collection(db, 'quiz_results'), {
+            studentId: currentUser.uid,
+            studentName: currentUser.displayName,
+            courseId,
+            sectionId,
+            score: correct,
+            totalQuestions: quiz.questions.length,
+            percentage,
+            passed: percentage >= quiz.passingScore,
+            timestamp: Date.now(),
+            grade: currentUser.maktabLevel || 'N/A'
+          });
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, 'quiz_results');
+        } finally {
+          setSubmitting(false);
+        }
+      }
     }
   };
 
@@ -1201,8 +1238,8 @@ function QuizViewer({ quiz, sectionId }: { quiz: any, sectionId: string }) {
       </Stack>
       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
         <Button disabled={currentStep === 0} onClick={() => setCurrentStep(prev => prev - 1)} sx={{ color: 'rgba(255,255,255,0.6)' }}>Back</Button>
-        <Button variant="contained" onClick={handleNext} disabled={selectedAnswers[currentStep] === undefined}>
-          {currentStep === quiz.questions.length - 1 ? "Submit Quiz" : "Next Question"}
+        <Button variant="contained" onClick={handleNext} disabled={selectedAnswers[currentStep] === undefined || submitting}>
+          {submitting ? <CircularProgress size={20} color="inherit" /> : (currentStep === quiz.questions.length - 1 ? "Submit Quiz" : "Next Question")}
         </Button>
       </Box>
     </Box>

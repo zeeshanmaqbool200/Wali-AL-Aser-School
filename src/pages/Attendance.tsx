@@ -19,6 +19,7 @@ import { UserProfile, Attendance } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subDays, addDays } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
+import { exportToCSV } from '../lib/exportUtils';
 
 export default function AttendancePage() {
   const { user: currentUser } = useAuth();
@@ -26,7 +27,7 @@ export default function AttendancePage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [attendanceData, setAttendanceData] = useState<Attendance[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!(window as any)._attendanceLoaded);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedClass, setSelectedClass] = useState('');
   const [classes, setClasses] = useState<string[]>([]);
@@ -94,6 +95,7 @@ export default function AttendancePage() {
         const unsubscribe = onSnapshot(attendanceQuery, (snapshot) => {
           setAttendanceData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Attendance[]);
           setLoading(false);
+          (window as any)._attendanceLoaded = true;
         }, (error) => {
           handleFirestoreError(error, OperationType.LIST, 'attendance');
         });
@@ -169,6 +171,20 @@ export default function AttendancePage() {
   const presentCount = attendanceData.filter(a => a.status === 'present' && filteredStudents.some(s => s.uid === a.studentId)).length;
   const absentCount = attendanceData.filter(a => a.status === 'absent' && filteredStudents.some(s => s.uid === a.studentId)).length;
   const attendanceRate = filteredStudents.length > 0 ? Math.round((presentCount / filteredStudents.length) * 100) : 0;
+
+  const handleExport = () => {
+    const dataToExport = filteredStudents.map(student => {
+      const attendance = attendanceData.find(a => a.studentId === student.uid);
+      return {
+        'Student Name': student.displayName,
+        'Maktab Level': student.grade || 'N/A',
+        'Date': format(selectedDate, 'dd MMM yyyy'),
+        'Status': attendance ? (attendance.status === 'present' ? 'Present' : 'Absent') : 'Not Marked',
+        'Marked By': attendance?.markedByName || 'N/A'
+      };
+    });
+    exportToCSV(dataToExport, `Maktab_Attendance_${selectedClass}_${format(selectedDate, 'yyyy-MM-dd')}`);
+  };
 
   if (loading) return (
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
@@ -323,6 +339,21 @@ export default function AttendancePage() {
                   </Paper>
                   {isStaff && (
                     <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <Tooltip title="Export to CSV">
+                        <IconButton 
+                          onClick={handleExport}
+                          sx={{ 
+                            bgcolor: 'background.paper', 
+                            color: 'primary.main', 
+                            boxShadow: theme.palette.mode === 'dark'
+                              ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
+                              : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
+                            '&:hover': { bgcolor: 'primary.main', color: 'white' } 
+                          }}
+                        >
+                          <Download size={20} />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="Mark All Present">
                         <IconButton 
                           onClick={() => handleBulkMark('present')}

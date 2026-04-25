@@ -26,6 +26,7 @@ import FeeReceiptModal from '../components/FeeReceiptModal';
 import confetti from 'canvas-confetti';
 import { format } from 'date-fns';
 import { logger } from '../lib/logger';
+import { exportToCSV } from '../lib/exportUtils';
 
 export default function Fees() {
   const { user: currentUser } = useAuth();
@@ -33,7 +34,7 @@ export default function Fees() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [receipts, setReceipts] = useState<FeeReceipt[]>([]);
   const [students, setStudents] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!(window as any)._feesLoaded);
   const [tabValue, setTabValue] = useState(0);
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [openEditDialog, setOpenEditDialog] = useState(false);
@@ -103,6 +104,7 @@ export default function Fees() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
       setLoading(false);
+      (window as any)._feesLoaded = true;
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'receipts');
     });
@@ -172,49 +174,9 @@ export default function Fees() {
     }
   };
 
-  const handleExport = () => {
-    if (receipts.length === 0) return;
-    
-    const headers = ['Receipt No', 'Student Name', 'Fee Head', 'Amount', 'Date', 'Status', 'Payment Mode', 'Transaction ID'];
-    const csvContent = [
-      headers.join(','),
-      ...receipts.map(r => [
-        r.receiptNo,
-        `"${r.studentName}"`,
-        r.feeHead,
-        r.amount,
-        r.date,
-        r.status,
-        r.paymentMode,
-        r.transactionId || ''
-      ].join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `receipts_export_${format(new Date(), 'yyyy-MM-dd')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const [isIndexing, setIsIndexing] = useState(false);
-
-  useEffect(() => {
-    if (loading === false) {
-      setIsIndexing(true);
-      const timer = setTimeout(() => setIsIndexing(false), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [loading, receipts.length]);
-
   const handleApprove = async (receipt: FeeReceipt) => {
     if (!isStaff) return;
     try {
-      // Optimistic concurrency check: if the receipt was updated by someone else
       const currentDoc = await getDoc(doc(db, 'receipts', receipt.id));
       if (currentDoc.exists() && currentDoc.data().approvedAt && currentDoc.data().status === 'approved') {
         setSnackbar({ open: true, message: "This receipt was already approved by another admin.", severity: 'info' });
@@ -231,7 +193,6 @@ export default function Fees() {
 
       await smartUpdateDoc(doc(db, 'receipts', receipt.id), updates);
 
-      // If it's an Admission Fee, assign an Admission No to the student
       if (receipt.feeHead === 'Admission Fee') {
         const studentDoc = await getDoc(doc(db, 'users', receipt.studentId));
         if (studentDoc.exists()) {
@@ -247,8 +208,6 @@ export default function Fees() {
       }
 
       setSnackbar({ open: true, message: "Receipt approved successfully!", severity: 'success' });
-
-      // Trigger confetti for approval
       confetti({
         particleCount: 150,
         spread: 100,
@@ -362,6 +321,21 @@ export default function Fees() {
       <CircularProgress size={60} thickness={4} />
     </Box>
   );
+
+  const handleExport = () => {
+    const dataToExport = filteredReceipts.map(r => ({
+      'Receipt No': r.receiptNo || r.receiptNumber,
+      'Student Name': r.studentName,
+      'Grade': r.grade || 'N/A',
+      'Amount': r.amount,
+      'Head': r.feeHead,
+      'Status': r.status,
+      'Mode': r.paymentMode,
+      'Date': format(new Date(r.date), 'dd MMM yyyy'),
+      'Transaction ID': r.transactionId || 'N/A'
+    }));
+    exportToCSV(dataToExport, 'Maktab_Fees_Export');
+  };
 
   return (
     <Box sx={{ pb: 8 }}>

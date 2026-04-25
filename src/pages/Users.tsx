@@ -27,13 +27,30 @@ import { MAKTAB_LEVELS, SUBJECT_OPTIONS } from '../constants';
 import { logger } from '../lib/logger';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
+import { exportToCSV } from '../lib/exportUtils';
+import { useLocation } from 'react-router-dom';
 
 export default function Users() {
   const { user: currentUser } = useAuth();
+  const location = useLocation();
   const theme = useTheme();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const filter = params.get('filter');
+    const level = params.get('level');
+    
+    if (filter === 'students') setTabValue(0);
+    else if (filter === 'teachers') setTabValue(1);
+    else if (filter === 'staff') setTabValue(2);
+    
+    if (level) {
+      setLevelFilter(level as MaktabLevel);
+    }
+  }, [location.search]);
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!(window as any)._usersLoaded);
   const [tabValue, setTabValue] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
@@ -162,6 +179,7 @@ export default function Users() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id })) as UserProfile[]);
       setLoading(false);
+      (window as any)._usersLoaded = true;
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'users');
     });
@@ -333,6 +351,21 @@ export default function Users() {
     </Box>
   );
 
+  const handleExport = () => {
+    const roleLabel = tabValue === 0 ? 'Students' : tabValue === 1 ? 'Teachers' : 'Staff';
+    const usersToExport = filteredUsers.map(u => ({
+      Name: u.displayName,
+      Email: u.email,
+      Role: u.role,
+      Phone: u.phone || 'N/A',
+      Level: u.maktabLevel || 'N/A',
+      ID: u.admissionNo || u.teacherId || 'N/A',
+      Status: u.status,
+      Address: u.address || 'N/A'
+    }));
+    exportToCSV(usersToExport, `Maktab_${roleLabel}_Export`);
+  };
+
   return (
     <Box sx={{ pb: 8 }}>
       <motion.div
@@ -390,6 +423,30 @@ export default function Users() {
                 <Layers size={isMobile ? 16 : 18} />
               </IconButton>
             </Box>
+            {isAdmin && (
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<Download size={18} />}
+                onClick={handleExport}
+                sx={{
+                  borderRadius: 2,
+                  fontWeight: 800,
+                  px: isMobile ? 2 : 3,
+                  py: isMobile ? 1 : 1.2,
+                  minHeight: isMobile ? 40 : 48,
+                  textTransform: 'none',
+                  fontSize: isMobile ? '0.8rem' : '0.9rem',
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
+                    : '4px 4px 10px #cbd5e1, -4px -4px 10px #ffffff',
+                }}
+              >
+                {isMobile ? "" : "Export"}
+              </Button>
+            )}
             {isAdmin && (
               <Button 
                 variant="contained" 

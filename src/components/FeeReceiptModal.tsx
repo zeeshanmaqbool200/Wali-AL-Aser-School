@@ -1,14 +1,15 @@
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { 
   Dialog, DialogContent, Box, Typography, Button, Divider, 
   Grid, IconButton, Chip, DialogActions, useMediaQuery,
-  Stack
+  Stack, CircularProgress
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { Printer, Download, X, FileText, CheckCircle, Clock } from 'lucide-react';
+import { Printer, Download, X, FileText, CheckCircle, Clock, QrCode } from 'lucide-react';
 import { FeeReceipt, InstituteSettings } from '../types';
 import { numberToIndianWords } from '../lib/indianNumberSystem';
 import { format } from 'date-fns';
+import QRCode from 'qrcode';
 import { 
   Document, Page, Text, View, StyleSheet, PDFDownloadLink, Image, Font 
 } from '@react-pdf/renderer';
@@ -166,6 +167,12 @@ const pdfStyles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
   },
+  qrCodeBox: {
+    width: 60,
+    height: 60,
+    border: '0.5pt solid #E5E7EB',
+    padding: 2,
+  },
   verifiedStamp: {
     textAlign: 'center',
     marginBottom: 8,
@@ -191,7 +198,7 @@ const pdfStyles = StyleSheet.create({
   }
 });
 
-const ReceiptPDF = ({ receipt, settings }: { receipt: FeeReceipt, settings: InstituteSettings }) => (
+const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, settings: InstituteSettings, qrCodeUrl?: string }) => (
   <Document>
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.header}>
@@ -258,11 +265,19 @@ const ReceiptPDF = ({ receipt, settings }: { receipt: FeeReceipt, settings: Inst
         </View>
       </View>
 
-      <View style={pdfStyles.wordsBox}>
-        <Text style={pdfStyles.label}>Amount in Words</Text>
-        <Text style={{ fontSize: 9, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', textTransform: 'capitalize', marginTop: 3 }}>
-          {numberToIndianWords(receipt.amount)}
-        </Text>
+      <View style={{ flexDirection: 'row', gap: 20 }}>
+        <View style={[pdfStyles.wordsBox, { flex: 1 }]}>
+          <Text style={pdfStyles.label}>Amount in Words</Text>
+          <Text style={{ fontSize: 9, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', textTransform: 'capitalize', marginTop: 3 }}>
+            {numberToIndianWords(receipt.amount)}
+          </Text>
+        </View>
+        {qrCodeUrl && (
+          <View style={{ alignItems: 'center' }}>
+            <Text style={[pdfStyles.label, { marginBottom: 2 }]}>SECURE SCAN</Text>
+            <Image src={qrCodeUrl} style={pdfStyles.qrCodeBox} />
+          </View>
+        )}
       </View>
 
       <View style={pdfStyles.footer}>
@@ -329,7 +344,23 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const settings = propSettings || defaultSettings;
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   
+  useEffect(() => {
+    if (receipt) {
+      // Generate QR code content (verification link)
+      const verificationLink = `https://${window.location.host}/verify/receipt/${receipt.receiptNo || receipt.id}`;
+      QRCode.toDataURL(verificationLink, {
+        margin: 1,
+        width: 200,
+        color: {
+          dark: '#0d9488',
+          light: '#ffffff',
+        },
+      }).then(url => setQrCodeUrl(url));
+    }
+  }, [receipt]);
+
   if (!receipt) return null;
 
   const receiptNo = receipt.receiptNo || receipt.receiptNumber;
@@ -550,7 +581,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             Direct Print
           </Button>
           <PDFDownloadLink 
-            document={<ReceiptPDF receipt={receipt} settings={settings} />} 
+            document={<ReceiptPDF receipt={receipt} settings={settings} qrCodeUrl={qrCodeUrl} />} 
             fileName={`Receipt_${receiptNo}.pdf`}
             style={{ textDecoration: 'none' }}
           >

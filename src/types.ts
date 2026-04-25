@@ -62,6 +62,7 @@ export interface Attendance {
   date: string; // ISO string (YYYY-MM-DD)
   status: 'present' | 'absent' | 'leave';
   markedBy: string; // Mudaris UID
+  markedByName?: string;
   markedAt: number;
 }
 
