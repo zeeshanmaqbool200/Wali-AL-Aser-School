@@ -28,11 +28,13 @@ import { logger } from '../lib/logger';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { exportToCSV } from '../lib/exportUtils';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useHardwarePermissions } from '../services/hardwareService';
 
 export default function Users() {
   const { user: currentUser } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const theme = useTheme();
 
   useEffect(() => {
@@ -89,6 +91,22 @@ export default function Users() {
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const webcamRef = useRef<Webcam>(null);
+  const { permissions, requestCameraPermission } = useHardwarePermissions();
+
+  const handleOpenCamera = async () => {
+    if (permissions.camera === 'prompt') {
+      const result = await requestCameraPermission();
+      if (result === 'granted') {
+        setCameraOpen(true);
+      } else {
+        setSnackbar({ open: true, message: 'Camera permission is required to take photos', severity: 'error' });
+      }
+    } else if (permissions.camera === 'denied') {
+      setSnackbar({ open: true, message: 'Camera access is blocked. Please enable it in browser settings.', severity: 'error' });
+    } else {
+      setCameraOpen(true);
+    }
+  };
 
   const capture = useCallback(() => {
     const imageSrc = webcamRef.current?.getScreenshot();
@@ -248,11 +266,50 @@ export default function Users() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      await smartDeleteDoc(doc(db, 'users', id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
+  const handleDelete = async (id: string, userToDelete: UserProfile) => {
+    if (!isSuperAdmin) return;
+    
+    // Safety check: Cannot delete the superadmin account
+    if (userToDelete.email === 'zeeshanmaqbool200@gmail.com') {
+      setSnackbar({ open: true, message: 'Superadmin account cannot be deleted', severity: 'error' });
+      return;
+    }
+
+    const confirmDelete = window.confirm(`Are you sure you want to delete ${userToDelete.displayName}? This will remove all their records across the system.`);
+    
+    if (confirmDelete) {
+      setLoading(true);
+      try {
+        logger.db('Initiating Full User Deletion', `users/${id}`);
+        
+        // 1. Delete from Firestore users collection
+        await smartDeleteDoc(doc(db, 'users', id));
+        
+        // 2. Clear related records if student
+        if (userToDelete.role === 'student') {
+          const batch = writeBatch(db);
+          
+          // Delete attendance
+          const attQ = query(collection(db, 'attendance'), where('studentId', '==', id));
+          const attDocs = await getDocs(attQ);
+          attDocs.forEach(d => batch.delete(d.ref));
+          
+          // Delete exam records
+          const examQ = query(collection(db, 'exams'), where('studentId', '==', id));
+          const examDocs = await getDocs(examQ);
+          examDocs.forEach(d => batch.delete(d.ref));
+          
+          await batch.commit();
+        }
+        
+        setSnackbar({ open: true, message: `${userToDelete.displayName} and all associated records deleted successfully`, severity: 'success' });
+        logger.success('User and records deleted', userToDelete.email);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
+        setSnackbar({ open: true, message: 'Error deleting user records', severity: 'error' });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -368,6 +425,16 @@ export default function Users() {
 
   return (
     <Box sx={{ pb: 8 }}>
+      <Box sx={{ mb: 2 }}>
+        <Button 
+          variant="text" 
+          startIcon={<ArrowLeft size={20} />} 
+          onClick={() => navigate(-1)}
+          sx={{ fontWeight: 800, color: 'text.secondary' }}
+        >
+          Back / Wapis
+        </Button>
+      </Box>
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -498,7 +565,7 @@ export default function Users() {
           <SummaryCard title="Total Mudaris" value={users.filter(u => u.role === 'mudaris').length} icon={<UserCheck size={24} />} color="success" />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <SummaryCard title="Muntazim" value={users.filter(u => u.role === 'muntazim').length} icon={<Shield size={24} />} color="secondary" />
+          <SummaryCard title="Muntazim" value={users.filter(u => u.role === 'muntazim' || u.role === 'superadmin').length} icon={<Shield size={24} />} color="secondary" />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <SummaryCard title="Active Now" value={users.filter(u => u.status === 'Active').length} icon={<Clock size={24} />} color="warning" />
@@ -631,8 +698,8 @@ export default function Users() {
         </Box>
         
         {viewMode === 'list' ? (
-          <Box sx={{ overflowX: 'auto', width: '100%' }}>
-            <TableContainer component={Box} sx={{ minWidth: { xs: 800, md: '100%' } }}>
+          <Box sx={{ width: '100%' }}>
+            <TableContainer component={Box} sx={{ minWidth: { xs: 800, md: '100%' }, overflowX: 'auto' }}>
               <Table>
                 <TableHead>
                 <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50' }}>
@@ -814,7 +881,7 @@ export default function Users() {
                                 <IconButton 
                                   size="small" 
                                   sx={{ bgcolor: 'error.light', color: 'error.dark', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
-                                  onClick={() => handleDelete(user.uid)}
+                                  onClick={() => handleDelete(user.uid, user)}
                                   disabled={!isSuperAdmin}
                                 >
                                   <Trash2 size={16} />
@@ -858,7 +925,7 @@ export default function Users() {
                           } as any); 
                           setOpenDialog(true); 
                         }} 
-                        onDelete={() => handleDelete(user.uid)}
+                        onDelete={() => handleDelete(user.uid, user)}
                         onApproveClass={handleApproveClass}
                         onRejectClass={handleRejectClass}
                         onApproveMudaris={handleApproveMudaris}
@@ -891,7 +958,10 @@ export default function Users() {
         PaperProps={{ sx: { borderRadius: 5, p: 1 } }}
       >
         <DialogTitle sx={{ fontWeight: 900, fontSize: '1.5rem', pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          {editingUser ? 'Edit Profile' : 'Register New Tulab/Mudaris'}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <UserPlus size={28} className="text-primary-500" />
+            {editingUser ? 'Edit Profile' : 'Register New Tulab/Mudaris'}
+          </Box>
           <IconButton onClick={() => setOpenDialog(false)} className="close-button">
             <X size={20} />
           </IconButton>
@@ -911,7 +981,7 @@ export default function Users() {
                   <Button
                     variant="outlined"
                     startIcon={<Camera size={18} />}
-                    onClick={() => setCameraOpen(true)}
+                    onClick={handleOpenCamera}
                     sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
                   >
                     Take Photo
@@ -971,7 +1041,6 @@ export default function Users() {
                   <MenuItem value="muntazim">Muntazim (Admin)</MenuItem>
                   <MenuItem value="mudaris">Mudaris (Teacher)</MenuItem>
                   <MenuItem value="pending_mudaris">Pending Mudaris</MenuItem>
-                  <MenuItem value="superadmin">Super Admin</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -1133,16 +1202,22 @@ export default function Users() {
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button onClick={() => setOpenDialog(false)} sx={{ fontWeight: 800, color: 'text.secondary' }}>Cancel</Button>
+        <DialogActions sx={{ p: 3, gap: 2, justifyContent: 'flex-end' }}>
+          <Button 
+            onClick={() => setOpenDialog(false)} 
+            variant="outlined" 
+            sx={{ fontWeight: 800, color: 'text.secondary', borderRadius: 3, px: 3 }}
+          >
+            Cancel / Wapis
+          </Button>
           <Button 
             onClick={handleSave} 
             variant="contained" 
             startIcon={<Save size={18} />} 
             disabled={!formData.displayName || !formData.email}
-            sx={{ borderRadius: 3, fontWeight: 800, px: 3, boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}` }}
+            sx={{ borderRadius: 3, fontWeight: 800, px: 4, boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}` }}
           >
-            {editingUser ? 'Update Profile' : 'Register'}
+            {editingUser ? 'Update Profile' : 'Register Now'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1245,18 +1320,38 @@ export default function Users() {
           } 
         }}
       >
-        <DialogTitle className="no-print" sx={{ fontWeight: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 0 }}>
-          Student Admission Form
-          <Box>
-            <IconButton onClick={handlePrint} size="small" sx={{ mr: 1, bgcolor: 'primary.light', color: 'primary.dark' }}>
+        <DialogTitle className="no-print" sx={{ fontWeight: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <FileText size={24} className="text-primary-500" />
+            Student Admission Form
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button 
+              variant="outlined" 
+              size="small" 
+              onClick={() => setOpenViewProfile(false)}
+              sx={{ fontWeight: 800, borderRadius: 2 }}
+            >
+              Back
+            </Button>
+            <IconButton onClick={handlePrint} size="small" sx={{ bgcolor: 'primary.light', color: 'primary.dark', borderRadius: 2 }}>
               <Printer size={18} />
             </IconButton>
-            <IconButton onClick={() => setOpenViewProfile(false)} size="small">
+            <IconButton onClick={() => setOpenViewProfile(false)} size="small" sx={{ borderRadius: 2 }}>
               <X size={18} />
             </IconButton>
           </Box>
         </DialogTitle>
-        <DialogContent sx={{ p: { xs: 2, md: 4 } }}>
+        <DialogActions sx={{ p: isMobile ? 2 : 3, bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button 
+            onClick={() => setOpenViewProfile(false)} 
+            variant="contained" 
+            sx={{ borderRadius: 2, fontWeight: 900, px: 4 }}
+          >
+            Finished / Wapis
+          </Button>
+        </DialogActions>
+        <DialogContent sx={{ p: 0 }}>
           <Box id="printable-profile" className="admission-page" sx={{ position: 'relative', color: 'black', bgcolor: 'white', p: { xs: 0, md: 1 }, borderRadius: 0 }}>
              {/* Printable Form Content */}
              <Box sx={{ border: '2px solid black', p: { xs: 2, md: 3 }, position: 'relative' }}>
@@ -1287,24 +1382,24 @@ export default function Users() {
                 </Box>
 
                 {/* Student Info Grid */}
-                <Grid container spacing={3}>
+                <Grid container spacing={1.5}>
                   <Grid size={{ xs: 8 }}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                       <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, width: 140, flexShrink: 0 }}>Full Name:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.displayName}</Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
+                       <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.3 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0, fontSize: '0.7rem' }}>Full Name:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.displayName}</Typography>
                        </Box>
-                       <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, width: 140, flexShrink: 0 }}>Father's Name:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.fatherName || '____________________'}</Typography>
+                       <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.3 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0, fontSize: '0.7rem' }}>Father's Name:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.7rem' }}>{profileToView?.fatherName || '____________________'}</Typography>
                        </Box>
-                       <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, width: 140, flexShrink: 0 }}>Mother's Name:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.motherName || '____________________'}</Typography>
+                       <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.3 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0, fontSize: '0.7rem' }}>Mother's Name:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.7rem' }}>{profileToView?.motherName || '____________________'}</Typography>
                        </Box>
-                       <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, width: 140, flexShrink: 0 }}>Date of Birth:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>____________________</Typography>
+                       <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.3 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0, fontSize: '0.7rem' }}>Date of Birth:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.7rem' }}>____________________</Typography>
                        </Box>
                     </Box>
                   </Grid>
@@ -1319,35 +1414,35 @@ export default function Users() {
                   </Grid>
 
                   <Grid size={{ xs: 6 }}>
-                     <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0 }}>Admission No:</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.admissionNo || profileToView?.studentId || 'N/A'}</Typography>
+                     <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, width: 110, flexShrink: 0, fontSize: '0.75rem' }}>Admission No:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.admissionNo || profileToView?.studentId || 'N/A'}</Typography>
                      </Box>
                   </Grid>
                   <Grid size={{ xs: 6 }}>
-                     <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0 }}>Class/Grade:</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.maktabLevel || profileToView?.grade || 'N/A'}</Typography>
+                     <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, width: 110, flexShrink: 0, fontSize: '0.75rem' }}>Class/Grade:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.maktabLevel || profileToView?.grade || 'N/A'}</Typography>
                      </Box>
                   </Grid>
 
                   <Grid size={{ xs: 6 }}>
-                     <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0 }}>Email:</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.email}</Typography>
+                     <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, width: 110, flexShrink: 0, fontSize: '0.75rem' }}>Email:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.email}</Typography>
                      </Box>
                   </Grid>
                   <Grid size={{ xs: 6 }}>
-                     <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0 }}>Phone/Contact:</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.phone || '____________________'}</Typography>
+                     <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, width: 110, flexShrink: 0, fontSize: '0.75rem' }}>Phone/Contact:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.phone || '____________________'}</Typography>
                      </Box>
                   </Grid>
 
                   <Grid size={{ xs: 12 }}>
-                     <Box sx={{ borderBottom: '1px solid #ccc', display: 'flex', pb: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0 }}>Address:</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{profileToView?.address || '____________________________________________________________'}</Typography>
+                     <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, width: 110, flexShrink: 0, fontSize: '0.75rem' }}>Address:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.address || '____________________________________________________________'}</Typography>
                      </Box>
                   </Grid>
 
@@ -1456,7 +1551,19 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, onEdit, onDelete, on
       <CardContent sx={{ pt: 7, textAlign: 'center', pb: 4, px: 3.5 }}>
         <Typography variant="h6" sx={{ fontWeight: 900, mb: 0.5, letterSpacing: -1 }}>{user.displayName}</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, display: 'block', mb: 3, textTransform: 'uppercase', letterSpacing: 1.5 }}>
-          {user.role === 'superadmin' ? 'Super Admin' : user.role === 'muntazim' ? 'Muntazim' : user.role === 'mudaris' ? 'Mudaris' : user.role === 'pending_mudaris' ? 'Pending Mudaris' : user.role} • {user.role === 'student' ? user.grade : (user.assignedClasses?.join(', ') || user.subject || 'General')}
+          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+            {user.role === 'superadmin' ? (
+              <><Shield size={14} className="text-warning-500" /> Super Admin</>
+            ) : user.role === 'muntazim' ? (
+              <><Shield size={14} className="text-primary-500" /> Muntazim</>
+            ) : user.role === 'mudaris' ? (
+              <><UserCheck size={14} className="text-success-500" /> Mudaris</>
+            ) : user.role === 'pending_mudaris' ? (
+              <><Clock size={14} className="text-warning-500" /> Pending Mudaris</>
+            ) : user.role}
+          </Box>
+          {' • '}
+          {user.role === 'student' ? user.grade : (user.assignedClasses?.join(', ') || user.subject || 'General')}
         </Typography>
         
         <Stack spacing={2} sx={{ mb: 3.5 }}>

@@ -31,7 +31,7 @@ export default function Notifications() {
   const navigate = useNavigate();
   const { showToast } = useNotification();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!(window as any)._notificationsLoaded);
   const [openDialog, setOpenDialog] = useState(false);
   const [tabValue, setTabValue] = useState(0);
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -77,6 +77,7 @@ export default function Notifications() {
       const filtered = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notification[];
       setNotifications(filtered);
       setLoading(false);
+      (window as any)._notificationsLoaded = true;
       logger.db('Notifications List Updated', 'notifications', { count: filtered.length });
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'notifications');
@@ -191,7 +192,7 @@ export default function Notifications() {
   };
 
   const filteredNotifications = notifications
-    .filter(n => tabValue === 0 || !n.readBy.includes(currentUser?.uid || ''))
+    .filter(n => tabValue === 0 ? !n.readBy.includes(currentUser?.uid || '') : n.readBy.includes(currentUser?.uid || ''))
     .filter(n => typeFilter === 'all' || n.type === typeFilter)
     .filter(n => 
       n.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -285,10 +286,9 @@ export default function Notifications() {
                     '& .Mui-selected': { color: 'primary.main' }
                   }}
                 >
-                  <Tab label="Sari Ittila'at" />
                   <Tab label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                      An-Padhi
+                      Inbox (Nayi)
                       {notifications.filter(n => !n.readBy.includes(currentUser?.uid || '')).length > 0 && (
                         <Chip 
                           label={notifications.filter(n => !n.readBy.includes(currentUser?.uid || '')).length} 
@@ -299,6 +299,7 @@ export default function Notifications() {
                       )}
                     </Box>
                   } />
+                  <Tab label="Old (Sabiqa)" />
                 </Tabs>
                 
                 <Select
@@ -741,23 +742,6 @@ function NotificationItem({ notif, currentUser, isTeacher, onRead, onDelete, onC
           ml: 2
         }}
       >
-        {!isRead && (
-          <Tooltip title="Mark as Read">
-            <IconButton 
-              size="small" 
-              onClick={onRead} 
-              sx={{ 
-                bgcolor: 'background.paper', 
-                boxShadow: theme.palette.mode === 'dark'
-                  ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
-                  : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
-                '&:hover': { bgcolor: 'primary.main', color: 'white' } 
-              }}
-            >
-              <Check size={18} />
-            </IconButton>
-          </Tooltip>
-        )}
         {isTeacher && (
           <Tooltip title="Delete">
             <IconButton 

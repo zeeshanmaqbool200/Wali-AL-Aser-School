@@ -31,7 +31,7 @@ export default function Dashboard({ user }: DashboardProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!(window as any)._dashboardLoaded);
   const [stats, setStats] = useState<any>({
     totalTulab: 0,
     totalFeesMonth: 0,
@@ -182,9 +182,11 @@ export default function Dashboard({ user }: DashboardProps) {
           unsubscribeStaff = onSnapshot(staffQuery, (snap) => {
             setStaffMembers(snap.docs.map(d => ({ uid: d.id, ...d.data() })) as UserProfile[]);
             setLoading(false); // Done loading when we have the basic layout data
+            (window as any)._dashboardLoaded = true;
           }, (error) => {
             console.error("Staff fetch failed:", error);
             setLoading(false);
+            (window as any)._dashboardLoaded = true;
           });
 
           // 4. Background task Queues for Staff

@@ -11,7 +11,7 @@ import {
   CheckCircle, XCircle, Calendar, Users, 
   Filter, Save, ChevronLeft, ChevronRight,
   Download, Search, UserCheck, UserMinus,
-  Clock, Info, MoreVertical, FileText, TrendingUp
+  Clock, Info, MoreVertical, FileText, TrendingUp, ArrowLeft
 } from 'lucide-react';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, getDocs, where, setDoc, orderBy, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartSetDoc } from '../firebase';
@@ -20,9 +20,11 @@ import { useAuth } from '../context/AuthContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subDays, addDays } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { exportToCSV } from '../lib/exportUtils';
+import { useNavigate } from 'react-router-dom';
 
 export default function AttendancePage() {
   const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [students, setStudents] = useState<UserProfile[]>([]);
@@ -194,6 +196,16 @@ export default function AttendancePage() {
 
   return (
     <Box sx={{ pb: 8 }}>
+      <Box sx={{ mb: 2 }}>
+        <Button 
+          variant="text" 
+          startIcon={<ArrowLeft size={20} />} 
+          onClick={() => navigate(-1)}
+          sx={{ fontWeight: 800, color: 'text.secondary' }}
+        >
+          Back / Wapis
+        </Button>
+      </Box>
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

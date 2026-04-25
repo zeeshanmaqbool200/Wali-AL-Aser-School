@@ -29,10 +29,14 @@ export default function PermissionAgent() {
   const [open, setOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  // Show agent if any critical permission is not granted
+  // Show agent if any critical permission is not granted and not dismissed in this session
   useEffect(() => {
     if (!user) return;
     
+    // Check if dismissed in this session
+    const isDismissed = sessionStorage.getItem('permission_agent_dismissed');
+    if (isDismissed) return;
+
     const needsAttention = 
       permissions.notifications === 'prompt' || 
       permissions.camera === 'prompt' || 
@@ -44,9 +48,14 @@ export default function PermissionAgent() {
       return;
     }
 
-    const timer = setTimeout(() => setOpen(true), 3000);
+    const timer = setTimeout(() => setOpen(true), 5000);
     return () => clearTimeout(timer);
   }, [user, permissions]);
+
+  const handleDismiss = () => {
+    sessionStorage.setItem('permission_agent_dismissed', 'true');
+    setOpen(false);
+  };
 
   const syncToBackend = async () => {
     if (!user) return;
@@ -209,7 +218,21 @@ export default function PermissionAgent() {
             </Box>
           </DialogContent>
 
-          <DialogActions sx={{ p: 3, pt: 0 }}>
+          <DialogActions sx={{ p: 3, pt: 0, gap: 2 }}>
+            <Button 
+              fullWidth 
+              variant="outlined" 
+              onClick={handleDismiss}
+              disabled={syncing}
+              sx={{ 
+                borderRadius: 3, 
+                py: 1.5, 
+                fontWeight: 800,
+                textTransform: 'none'
+              }}
+            >
+              Ask Later
+            </Button>
             <Button 
               fullWidth 
               variant="contained" 

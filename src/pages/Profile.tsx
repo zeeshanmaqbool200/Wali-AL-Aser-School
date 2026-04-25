@@ -48,12 +48,18 @@ export default function Profile() {
     try {
       logger.db('Updating Profile', `users/${currentUser.uid}`);
       
-      // Sanitize data: remove immutable fields
-      const { uid, email, role, createdAt, ...sanitizedData } = profileData as any;
-      const finalData = {
-        ...sanitizedData,
+      // Specifically allow only these fields for self-update
+      const finalData: any = {
+        displayName: profileData.displayName || '',
+        phone: profileData.phone || '',
+        whatsapp: profileData.whatsapp || '',
+        address: profileData.address || '',
         updatedAt: Date.now()
       };
+      
+      if (profileData.photoURL) {
+        finalData.photoURL = profileData.photoURL;
+      }
       
       await smartUpdateDoc(doc(db, 'users', currentUser.uid), finalData);
       setSnackbar({ open: true, message: "Profile updated successfully!", severity: 'success' });

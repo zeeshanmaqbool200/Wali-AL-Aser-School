@@ -912,7 +912,15 @@ export default function Fees() {
           </Grid>
         </DialogContent>
         <DialogActions sx={{ p: 4, gap: 1.5 }}>
-          <Button onClick={() => setOpenAddDialog(false)} sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'none' }}>Cancel</Button>
+          <Button 
+            onClick={() => {
+              setOpenAddDialog(false);
+              setFormData({ studentId: '', studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '' });
+            }}
+            sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'none' }}
+          >
+            Cancel / Wapis
+          </Button>
           <Button 
             onClick={handleAddReceipt} 
             variant="contained" 
@@ -1013,7 +1021,16 @@ export default function Fees() {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button onClick={() => setOpenEditDialog(false)} sx={{ fontWeight: 800, color: 'text.secondary' }}>Cancel</Button>
+          <Button 
+            onClick={() => {
+              setOpenEditDialog(false);
+              setEditingReceipt(null);
+              setFormData({ studentId: '', studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '' });
+            }}
+            sx={{ fontWeight: 800, color: 'text.secondary' }}
+          >
+            Cancel / Wapis
+          </Button>
           <Button 
             onClick={handleUpdateReceipt} 
             variant="contained" 

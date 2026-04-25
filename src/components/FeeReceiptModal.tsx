@@ -1,4 +1,4 @@
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { 
   Dialog, DialogContent, Box, Typography, Button, Divider, 
   Grid, IconButton, Chip, DialogActions, useMediaQuery,
@@ -9,6 +9,7 @@ import { Printer, Download, X, FileText, CheckCircle, Clock, QrCode } from 'luci
 import { FeeReceipt, InstituteSettings } from '../types';
 import { numberToIndianWords } from '../lib/indianNumberSystem';
 import { format } from 'date-fns';
+import { useReactToPrint } from 'react-to-print';
 import QRCode from 'qrcode';
 import { 
   Document, Page, Text, View, StyleSheet, PDFDownloadLink, Image, Font 
@@ -27,7 +28,7 @@ Font.register({
 
 const pdfStyles = StyleSheet.create({
   page: {
-    padding: 30,
+    padding: 35,
     fontFamily: 'Noto Sans',
     backgroundColor: '#FFFFFF',
     color: '#1a1a1a',
@@ -35,77 +36,78 @@ const pdfStyles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
-    borderBottom: '2pt solid #0d9488',
-    paddingBottom: 15,
+    marginBottom: 10,
+    borderBottom: '1.5pt solid #0d9488',
+    paddingBottom: 10,
     position: 'relative',
-    paddingTop: 10,
   },
   logo: {
-    width: 60,
-    height: 60,
-    borderRadius: 4,
+    width: 50,
+    height: 50,
   },
   headerText: {
-    marginLeft: 15,
+    marginLeft: 10,
     flex: 1,
   },
   instituteName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
     color: '#0d9488',
+    textTransform: 'uppercase',
   },
   maktabName: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
     color: '#0f766e',
-    marginVertical: 3,
+    marginVertical: 1,
+    textTransform: 'uppercase',
   },
   address: {
-    fontSize: 7,
+    fontSize: 6.5,
     color: '#4b5563',
-    lineHeight: 1.3,
+    lineHeight: 1.2,
   },
   receiptMeta: {
     textAlign: 'right',
   },
   receiptTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
-    color: '#E5E7EB',
-    marginBottom: 5,
+    color: '#F3F4F6',
+    marginBottom: 2,
+    letterSpacing: 2,
   },
   receiptNo: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
     color: '#0d9488',
   },
   date: {
-    fontSize: 8,
+    fontSize: 7,
     color: '#6b7280',
-    marginTop: 2,
+    marginTop: 1,
   },
   detailsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
-    marginTop: 15,
+    marginBottom: 10,
+    marginTop: 10,
   },
   detailColumn: {
     flex: 1,
   },
   label: {
-    fontSize: 7,
+    fontSize: 6.5,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
     color: '#9ca3af',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 3,
+    marginBottom: 2,
   },
   value: {
     fontSize: 10,
@@ -113,65 +115,66 @@ const pdfStyles = StyleSheet.create({
     fontFamily: 'Noto Sans Bold',
   },
   subValue: {
-    fontSize: 8,
+    fontSize: 7,
     color: '#4b5563',
     marginTop: 1,
   },
   table: {
     width: '100%',
-    marginVertical: 15,
-    border: '1pt solid #E5E7EB',
-    borderRadius: 2,
+    marginVertical: 10,
+    border: '0.5pt solid #E5E7EB',
+    borderRadius: 4,
     overflow: 'hidden',
   },
   tableHeader: {
     backgroundColor: '#F9FAFB',
     flexDirection: 'row',
-    padding: 8,
-    borderBottom: '1pt solid #E5E7EB',
+    padding: 6,
+    borderBottom: '0.5pt solid #E5E7EB',
   },
   tableRow: {
     flexDirection: 'row',
-    padding: 12,
-    borderBottom: '1pt solid #f3f4f6',
+    padding: 8,
+    borderBottom: '0.5pt solid #f3f4f6',
   },
   tableFooter: {
     backgroundColor: '#f0f9f9',
     flexDirection: 'row',
-    padding: 12,
+    padding: 8,
   },
   colDesc: { flex: 3 },
   colAmount: { flex: 1, textAlign: 'right' },
   wordsBox: {
     backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 4,
-    border: '1pt solid #E5E7EB',
+    padding: 8,
+    borderRadius: 6,
+    border: '0.5pt solid #E5E7EB',
     marginTop: 5,
   },
   footer: {
-    marginTop: 40,
+    marginTop: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
   },
   signatureBox: {
-    borderTop: '1pt solid #E5E7EB',
-    width: 140,
-    paddingTop: 5,
+    borderTop: '0.5pt solid #E5E7EB',
+    width: 120,
+    paddingTop: 6,
     textAlign: 'center',
   },
   signatureLabel: {
-    fontSize: 7,
+    fontSize: 6.5,
     color: '#4b5563',
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
+    textTransform: 'uppercase',
   },
   qrCodeBox: {
-    width: 60,
-    height: 60,
+    width: 50,
+    height: 50,
     border: '0.5pt solid #E5E7EB',
-    padding: 2,
+    padding: 3,
   },
   verifiedStamp: {
     textAlign: 'center',
@@ -182,36 +185,38 @@ const pdfStyles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
     color: '#22c55e',
+    letterSpacing: 0.5,
   },
   verifiedBy: {
-    fontSize: 6,
-    color: '#4b5563',
-    marginTop: 1,
+    fontSize: 5,
+    color: '#6b7280',
+    marginTop: 0.5,
   },
   disclaimer: {
-    marginTop: 30,
+    marginTop: 20,
     textAlign: 'center',
-    fontSize: 6.5,
+    fontSize: 6,
     color: '#9ca3af',
-    borderTop: '1pt solid #f3f4f6',
-    paddingTop: 10,
+    borderTop: '0.5pt solid #f3f4f6',
+    paddingTop: 8,
+    lineHeight: 1.2,
   }
 });
 
 const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, settings: InstituteSettings, qrCodeUrl?: string }) => (
-  <Document>
+  <Document title={`Receipt_${receipt.receiptNo || receipt.receiptNumber}`}>
     <Page size="A4" style={pdfStyles.page}>
-      <View style={pdfStyles.header}>
-        {/* Decorative corner images with safer positioning */}
-        <View style={{ position: 'absolute', top: -20, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between' }}>
-          {settings.receiptLeftImageUrl && (
-            <Image src={settings.receiptLeftImageUrl} style={{ width: 70, height: 70, opacity: 0.3 }} />
-          )}
-          {settings.receiptRightImageUrl && (
-            <Image src={settings.receiptRightImageUrl} style={{ width: 70, height: 70, opacity: 0.3 }} />
-          )}
-        </View>
+      {/* Decorative corner images positioned behind content */}
+      <View style={{ position: 'absolute', top: 15, left: 15, right: 15, flexDirection: 'row', justifyContent: 'space-between', opacity: 0.2, zIndex: -1 }}>
+        {settings.receiptLeftImageUrl && (
+          <Image src={settings.receiptLeftImageUrl} style={{ width: 90, height: 90 }} />
+        )}
+        {settings.receiptRightImageUrl && (
+          <Image src={settings.receiptRightImageUrl} style={{ width: 90, height: 90 }} />
+        )}
+      </View>
 
+      <View style={pdfStyles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {settings.logoUrl && (
             <Image src={settings.logoUrl} style={pdfStyles.logo} />
@@ -233,7 +238,7 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
       <View style={pdfStyles.detailsGrid}>
         <View style={pdfStyles.detailColumn}>
           <Text style={pdfStyles.label}>Talib-e-Ilm Details</Text>
-          <Text style={[pdfStyles.value, { fontSize: 12 }]}>{receipt.studentName}</Text>
+          <Text style={[pdfStyles.value, { fontSize: 13 }]}>{receipt.studentName}</Text>
           <Text style={pdfStyles.subValue}>Admission No: {receipt.studentOfficialId || receipt.studentId}</Text>
           <Text style={pdfStyles.subValue}>Maktab Level: {receipt.grade || 'N/A'}</Text>
         </View>
@@ -249,32 +254,32 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
 
       <View style={pdfStyles.table}>
         <View style={pdfStyles.tableHeader}>
-          <Text style={[pdfStyles.colDesc, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>Tafseel (Description)</Text>
-          <Text style={[pdfStyles.colAmount, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>Raqam (Amount)</Text>
+          <Text style={[pdfStyles.colDesc, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>TAFSEEL (DESCRIPTION)</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>RAQAM (AMOUNT)</Text>
         </View>
         <View style={pdfStyles.tableRow}>
           <View style={pdfStyles.colDesc}>
-            <Text style={{ fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }}>{receipt.feeHead}</Text>
-            <Text style={{ fontSize: 7, color: '#4b5563', marginTop: 3 }}>{receipt.remarks || 'Standard fee payment for the current academic session.'}</Text>
+            <Text style={{ fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }}>{receipt.feeHead}</Text>
+            <Text style={{ fontSize: 8, color: '#4b5563', marginTop: 4 }}>{receipt.remarks || 'Standard fee payment for the current academic session.'}</Text>
           </View>
-          <Text style={[pdfStyles.colAmount, { fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
         </View>
         <View style={pdfStyles.tableFooter}>
-          <Text style={[pdfStyles.colDesc, { textAlign: 'right', fontSize: 9, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>Kul Ada-shuda Raqam</Text>
-          <Text style={[pdfStyles.colAmount, { fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', color: '#0d9488' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+          <Text style={[pdfStyles.colDesc, { textAlign: 'right', fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>KUL ADA-SHUDA RAQAM</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', color: '#0d9488' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
         </View>
       </View>
 
       <View style={{ flexDirection: 'row', gap: 20 }}>
         <View style={[pdfStyles.wordsBox, { flex: 1 }]}>
           <Text style={pdfStyles.label}>Amount in Words</Text>
-          <Text style={{ fontSize: 9, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', textTransform: 'capitalize', marginTop: 3 }}>
+          <Text style={{ fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', textTransform: 'capitalize', marginTop: 4 }}>
             {numberToIndianWords(receipt.amount)}
           </Text>
         </View>
         {qrCodeUrl && (
-          <View style={{ alignItems: 'center' }}>
-            <Text style={[pdfStyles.label, { marginBottom: 2 }]}>SECURE SCAN</Text>
+          <View style={{ alignItems: 'center', marginTop: 10 }}>
+            <Text style={[pdfStyles.label, { marginBottom: 4 }]}>SECURE SCAN</Text>
             <Image src={qrCodeUrl} style={pdfStyles.qrCodeBox} />
           </View>
         )}
@@ -296,6 +301,8 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
           </View>
         </View>
       </View>
+
+      <View style={{ flex: 1 }} />
 
       <Text style={pdfStyles.disclaimer}>
         This is a computer-generated document. No physical signature is required for digitally verified receipts.
@@ -364,10 +371,12 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
   if (!receipt) return null;
 
   const receiptNo = receipt.receiptNo || receipt.receiptNumber;
-
-  const handlePrint = () => {
-    window.print();
-  };
+  const contentRef = useRef<HTMLDivElement>(null);
+  
+  const handlePrint = useReactToPrint({
+    contentRef,
+    documentTitle: `Receipt_${receiptNo}`,
+  });
 
   return (
     <Dialog 
@@ -385,10 +394,14 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             m: 0,
             p: 0,
             boxShadow: 'none',
-            '& .MuiTypography-root, & .MuiBox-root, & .MuiGrid-root': { color: '#000 !important' },
+            borderRadius: 0,
             width: '100%',
-            maxWidth: 'none',
+            maxWidth: '100%',
             height: 'auto',
+            overflow: 'visible',
+            position: 'absolute',
+            top: 0,
+            left: 0,
           }
         } 
       }}
@@ -419,14 +432,15 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
       <DialogContent sx={{ 
         p: { xs: 1, sm: 3 }, 
         bgcolor: 'background.default',
-        '@media print': { p: 0, m: 0, bgcolor: 'white' }
+        '@media print': { p: 0, m: 0, bgcolor: 'white', overflow: 'visible' }
       }}>
         <Box 
           id="printable-receipt"
           className="receipt-container"
+          ref={contentRef}
           sx={{ 
             bgcolor: 'white', 
-            p: { xs: 2.5, sm: 4 }, 
+            p: { xs: 2, sm: 3 }, 
             borderRadius: 1, 
             boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
             maxWidth: '100%',
@@ -439,9 +453,10 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             '@media print': {
               boxShadow: 'none',
               border: 'none',
-              p: 2,
+              p: '20px',
               width: '100%',
-              maxHeight: '100vh',
+              pageBreakInside: 'avoid',
+              overflow: 'visible',
             }
           }}
         >
@@ -519,27 +534,35 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             </Box>
           </Box>
           
-          <Box sx={{ bgcolor: '#f9fafb', p: 1.5, borderRadius: 1, mb: 4, border: '1px solid #e5e7eb' }}>
-            <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important', letterSpacing: 0.5 }}>AMOUNT IN WORDS</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'capitalize', mt: 0.5 }}>{numberToIndianWords(receipt.amount)}</Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mb: 4 }}>
+            <Box sx={{ bgcolor: '#f9fafb', p: 1.5, borderRadius: 1, flex: 1, border: '1px solid #e5e7eb' }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important', letterSpacing: 0.5 }}>AMOUNT IN WORDS</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'capitalize', mt: 0.5 }}>{numberToIndianWords(receipt.amount)}</Typography>
+            </Box>
+            {qrCodeUrl && (
+              <Box sx={{ textAlign: 'center', minWidth: 80 }}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>SECURE SCAN</Typography>
+                <Box component="img" src={qrCodeUrl} sx={{ width: 65, height: 65, border: '1px solid #e5e7eb', p: 0.5, borderRadius: 1, bgcolor: 'white' }} />
+              </Box>
+            )}
           </Box>
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mt: 6 }}>
-            <Box sx={{ textAlign: 'center', width: 150 }}>
+            <Box sx={{ textAlign: 'center', width: 160 }}>
               <Box sx={{ borderTop: '1px solid #e5e7eb', pt: 1 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem' }}>TALIB-E-ILM KE DASTAKHAT</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase' }}>Talib-e-Ilm ke Dastakhat</Typography>
               </Box>
             </Box>
             
             <Box sx={{ textAlign: 'center' }}>
               {receipt.status === 'approved' && (
                 <Box sx={{ mb: 1 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 900, color: '#22c55e !important', letterSpacing: 1, display: 'block' }}>DIGITALLY VERIFIED</Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 900, color: '#22c55e !important', letterSpacing: 1, display: 'block', textTransform: 'uppercase' }}>Digitally Verified</Typography>
                   <Typography variant="caption" sx={{ fontSize: '0.6rem', color: '#6b7280 !important' }}>By {receipt.approvedByName || 'System'}</Typography>
                 </Box>
               )}
-              <Box sx={{ borderTop: '1px solid #e5e7eb', pt: 1, width: 150 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem' }}>TASDIQ-SHUDA DASTAKHAT</Typography>
+              <Box sx={{ borderTop: '1px solid #e5e7eb', pt: 1, width: 160 }}>
+                <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase' }}>Tasdiq-shuda Dastakhat</Typography>
               </Box>
             </Box>
           </Box>

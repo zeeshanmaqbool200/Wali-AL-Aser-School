@@ -33,6 +33,8 @@ interface SystemLog {
   os?: string;
   device?: string;
   islamicDate?: string;
+  userId?: string;
+  userEmail?: string;
 }
 
 export default function AdminLogs() {
@@ -379,7 +381,7 @@ export default function AdminLogs() {
               <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'grey.100' }}>
                 <TableCell sx={{ width: 40 }} />
                 <TableCell sx={{ fontWeight: 800, py: 2, color: 'text.primary' }}>Level</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: 'text.primary' }}>IP Address</TableCell>
+                <TableCell sx={{ fontWeight: 800, color: 'text.primary' }}>User / Email</TableCell>
                 <TableCell sx={{ fontWeight: 800, color: 'text.primary' }}>Message</TableCell>
                 <TableCell sx={{ fontWeight: 800, color: 'text.primary' }}>Timestamp</TableCell>
                 <TableCell sx={{ fontWeight: 800, color: 'text.primary' }} align="right">Details</TableCell>
@@ -388,13 +390,13 @@ export default function AdminLogs() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 10 }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 10 }}>
                     <CircularProgress />
                   </TableCell>
                 </TableRow>
               ) : filteredLogs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 10 }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 10 }}>
                     <Typography variant="body1" color="text.secondary">No logs found matching your criteria</Typography>
                   </TableCell>
                 </TableRow>
@@ -423,9 +425,14 @@ export default function AdminLogs() {
                         />
                       </TableCell>
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.85rem', color: 'primary.main' }}>
-                        {log.ip || '0.0.0.0'}
+                        <Typography variant="caption" sx={{ fontWeight: 900, display: 'block' }}>
+                          {log.userEmail || 'anonymous'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                          ID: {log.userId?.substring(0, 8) || 'none'}
+                        </Typography>
                       </TableCell>
-                      <TableCell sx={{ fontWeight: 600, maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <TableCell sx={{ fontWeight: 600, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {log.message}
                       </TableCell>
                       <TableCell sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.8rem' }}>
@@ -448,19 +455,26 @@ export default function AdminLogs() {
                             <Grid container spacing={2} sx={{ mb: 2 }}>
                               <Grid size={{ xs: 12, md: 4 }}>
                                 <Paper sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5), border: '1px solid', borderColor: 'divider' }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', mb: 0.5, color: 'text.secondary' }}>USER IDENTITY</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Email: {log.userEmail || 'N/A'}</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>UID: {log.userId || 'N/A'}</Typography>
+                                </Paper>
+                              </Grid>
+                              <Grid size={{ xs: 12, md: 3 }}>
+                                <Paper sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5), border: '1px solid', borderColor: 'divider' }}>
                                   <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', mb: 0.5, color: 'text.secondary' }}>NETWORK & LOCATION</Typography>
                                   <Typography variant="body2" sx={{ fontWeight: 700 }}>IP: {log.ip || 'Unknown'}</Typography>
                                   <Typography variant="body2" sx={{ fontWeight: 700 }}>Loc: {log.location || 'Unknown'}</Typography>
                                 </Paper>
                               </Grid>
-                              <Grid size={{ xs: 12, md: 4 }}>
+                              <Grid size={{ xs: 12, md: 3 }}>
                                 <Paper sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5), border: '1px solid', borderColor: 'divider' }}>
                                   <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', mb: 0.5, color: 'text.secondary' }}>BROWSER & OS</Typography>
                                   <Typography variant="body2" sx={{ fontWeight: 700 }}>{log.browser || 'Unknown'} on {log.os || 'Unknown'}</Typography>
                                   <Typography variant="body2" sx={{ fontWeight: 700 }}>Device: {log.device || 'Unknown'}</Typography>
                                 </Paper>
                               </Grid>
-                              <Grid size={{ xs: 12, md: 4 }}>
+                              <Grid size={{ xs: 12, md: 3 }}>
                                 <Paper sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5), border: '1px solid', borderColor: 'divider' }}>
                                   <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', mb: 0.5, color: 'text.secondary' }}>DATE & TIME</Typography>
                                   <Typography variant="body2" sx={{ fontWeight: 700 }}>{format(log.timestamp, 'PPPP p')}</Typography>

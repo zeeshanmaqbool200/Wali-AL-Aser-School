@@ -29,26 +29,30 @@ service cloud.firestore {
     }
     
     function getUserData() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
         : null;
     }
     
     function isSuperAdmin() {
-      return isSignedIn() && request.auth.token.email == 'zeeshanmaqbool200@gmail.com';
+      return isSignedIn() && 
+             request.auth.token.email == 'zeeshanmaqbool200@gmail.com' &&
+             request.auth.token.email_verified == true;
     }
     
     function isMuntazim() {
-      return isSignedIn() && getUserData() != null && (
-        getUserData().get('role', '') == 'muntazim' || 
-        (getUserData().get('role', '') == 'superadmin' && !isSuperAdmin())
+      let data = getUserData();
+      return isSignedIn() && data != null && (
+        data.get('role', '') == 'muntazim' || 
+        data.get('role', '') == 'superadmin'
       );
     }
     
     function isMudaris() {
-      return isSignedIn() && getUserData() != null && (
-        getUserData().get('role', '') == 'mudaris' || 
-        (getUserData().get('role', '') == 'pending_mudaris' && isMuntazim()) // Security margin
+      let data = getUserData();
+      return isSignedIn() && data != null && (
+        data.get('role', '') == 'mudaris' ||
+        data.get('role', '') == 'approved_mudaris'
       );
     }
 
@@ -84,31 +88,21 @@ service cloud.firestore {
     // USERS COLLECTION
     // -------------------------------------------------------------------------
     match /users/{userId} {
-      // Muntazim can list all users to verify them
-      // Teachers can list students they are assigned to
-      // Students can see only themselves
-      // SuperAdmins can see everyone
-      allow read: if isSuperAdmin() || isMuntazim() ||
-                    (isSignedIn() && (
-                      request.auth.uid == userId ||
-                      resource.data.role in ['mudaris', 'muntazim', 'superadmin']
-                    )) ||
-                    (isMudaris() && (
-                      (existing().get('role', '') == 'student' && (
-                        existing().get('grade', '') in getAssignedClasses() || 
-                        existing().get('maktabLevel', '') in getAssignedClasses() || 
-                        existing().get('grade', '') == 'Example' || 
-                        existing().get('maktabLevel', '') == 'Example' ||
-                        existing().get('grade', '') == '__none__' ||
-                        existing().get('maktabLevel', '') == '__none__'
-                      )) ||
-                      (existing().get('pendingMaktabLevel', '') != '' && (
-                        existing().get('pendingMaktabLevel', '') in getAssignedClasses() || 
-                        existing().get('pendingMaktabLevel', '') == 'Example' ||
-                        existing().get('pendingMaktabLevel', '') == '__none__' ||
-                        existing().get('pendingMaktabLevel', null) == null
-                      ))
-                    ));
+      // SuperAdmins and Admins can read all users
+      allow read: if isSuperAdmin() || isMuntazim();
+      
+      // Individual users can see themselves and staff
+      allow get: if isSignedIn() && (
+        request.auth.uid == userId || 
+        resource.data.role in ['mudaris', 'muntazim', 'superadmin']
+      );
+
+      // Mudaris can list students they teach
+      allow list: if isMudaris() && resource.data.role == 'student' && (
+        resource.data.grade in getAssignedClasses() || 
+        resource.data.maktabLevel in getAssignedClasses() ||
+        resource.data.grade == 'Example'
+      );
       
       allow create: if isSignedIn() && (
         isSuperAdmin() || isMuntazim() ||
@@ -137,11 +131,10 @@ service cloud.firestore {
     match /receipts/{receiptId} {
       allow read: if isSuperAdmin() || isMuntazim() ||
                     (isMudaris() && (
-                      existing().get('grade', '') in getAssignedClasses() || 
-                      existing().get('grade', '') == 'Example' || 
-                      existing().get('grade', '') == '__none__'
+                      resource.data.get('grade', '') in getAssignedClasses() || 
+                      resource.data.get('grade', '') == 'Example'
                     )) ||
-                    (isSignedIn() && existing().get('studentId', '') == request.auth.uid);
+                    (isSignedIn() && resource.data.get('studentId', '') == request.auth.uid);
       
       allow create: if isSuperAdmin() || isMuntazim() ||
                       (isMudaris() && (
@@ -261,13 +254,13 @@ service cloud.firestore {
     // NOTIFICATIONS
     // -------------------------------------------------------------------------
     match /notifications/{notifId} {
-      allow read: if isStaff() || (
+      allow read: if isSuperAdmin() || isMuntazim() || isMudaris() || (
         isSignedIn() && (
-          existing().get('targetType', '') == 'all' ||
-          (existing().get('targetType', '') == 'individual' && existing().get('targetId', '') == request.auth.uid) ||
-          (existing().get('targetType', '') == 'class' && (
-            existing().get('targetId', '') == getUserData().get('maktabLevel', '') || 
-            existing().get('targetId', '') == getUserData().get('grade', '')
+          resource.data.targetType == 'all' ||
+          (resource.data.targetType == 'individual' && resource.data.targetId == request.auth.uid) ||
+          (resource.data.targetType == 'class' && (
+            resource.data.targetId == getUserData().get('maktabLevel', '') || 
+            resource.data.targetId == getUserData().get('grade', '')
           ))
         )
       );

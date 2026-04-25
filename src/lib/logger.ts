@@ -5,9 +5,10 @@
 
 import { addDoc, collection, Firestore } from 'firebase/firestore';
 import { UAParser } from 'ua-parser-js';
+import { getAuth } from 'firebase/auth';
 
 const BRAND_COLOR = '#0d9488'; // Primary Teal
-const APP_VERSION = '2.1.0-gold';
+const APP_VERSION = '2.2.0-gold';
 
 const getIslamicDate = () => {
   try {
@@ -45,12 +46,15 @@ const saveLogToDb = async (level: string, message: string, data?: any) => {
   try {
     // Detailed User Agent Info
     const result = parser.getResult();
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
     
-    // IP address - Removed external API calls to prevent 429/CORS errors in console
-    const ip = 'Logged';
-    const location = 'Session';
+    // IP and Location placeholder (since we can't do direct IP lookups easily without external services)
+    // We'll use a public API for location if it's a critical log
+    let location = 'Session';
+    let ip = 'Logged';
 
-    const logData = {
+    const logData: any = {
       level,
       message,
       data: data ? JSON.parse(JSON.stringify(data)) : null,
@@ -63,7 +67,9 @@ const saveLogToDb = async (level: string, message: string, data?: any) => {
       os: result.os,
       device: result.device,
       engine: result.engine,
-      cpu: result.cpu
+      cpu: result.cpu,
+      userId: currentUser?.uid || 'anonymous',
+      userEmail: currentUser?.email || 'anonymous',
     };
 
     // If it's a security or access related event, Error, or Auth - use access_logs

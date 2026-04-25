@@ -17,12 +17,13 @@ import {
   Star, Share2, Bookmark, Layout, Layers, X,
   Image as ImageIcon, Paperclip, Zap, FileText, Globe,
   Music, Trophy, HelpCircle, ChevronRight, ChevronLeft,
-  RotateCcw, Info, Headphones
+  RotateCcw, Info, Headphones, ArrowLeft, Save
 } from 'lucide-react';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, or, and, limit } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { Course, CourseSection, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { MAKTAB_LEVELS } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -38,6 +39,7 @@ const isRTL = (text: string) => {
 
 export default function Courses() {
   const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [courses, setCourses] = useState<Course[]>([]);
@@ -281,6 +283,16 @@ export default function Courses() {
         ? `linear-gradient(135deg, ${theme.palette.background.default} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`
         : `linear-gradient(135deg, ${theme.palette.background.default} 0%, #f0f7f7 100%)`
     }}>
+      <Box sx={{ p: 2 }}>
+        <Button 
+          variant="text" 
+          startIcon={<ArrowLeft size={20} />} 
+          onClick={() => navigate(-1)}
+          sx={{ fontWeight: 800, color: 'text.secondary' }}
+        >
+          Back / Wapis
+        </Button>
+      </Box>
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -488,41 +500,46 @@ export default function Courses() {
         onClose={() => setOpenDialog(false)} 
         maxWidth="lg" 
         fullWidth
-        fullScreen={isMobile}
+        fullScreen
         PaperProps={{ 
           sx: { 
-            borderRadius: isMobile ? 0 : 5, 
-            p: { xs: 0, md: 2 },
+            borderRadius: 0,
             bgcolor: 'background.paper',
             backgroundImage: 'none'
           } 
         }}
       >
-        <DialogTitle sx={{ 
-          fontWeight: 900, 
-          fontSize: isMobile ? '1.25rem' : '1.75rem', 
-          pb: 1, 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          pt: isMobile ? 3 : 2
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }}>
-              <BookOpen size={isMobile ? 24 : 32} />
+        <AppBar position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', color: 'text.primary' }}>
+          <Toolbar sx={{ justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton onClick={() => setOpenDialog(false)} edge="start" sx={{ color: 'text.secondary' }}>
+                <X size={24} />
+              </IconButton>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                {editingCourse ? 'Update Mazmoon' : 'Create New Mazmoon'}
+              </Typography>
             </Box>
-            {editingCourse ? 'Update Mazmoon' : 'Create New Mazmoon'}
-          </Box>
-          <IconButton onClick={() => setOpenDialog(false)} size="small" sx={{ color: 'text.disabled' }}>
-            <X size={24} />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ px: isMobile ? 2 : 4 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 4, fontWeight: 500, fontSize: '1rem' }}>
-            {editingCourse ? 'Update the details for this course. Your changes will be reflected immediately.' : 'Fill in the information below to add a new course to your Islamic curriculum.'}
-          </Typography>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button 
+                onClick={() => setOpenDialog(false)} 
+                sx={{ fontWeight: 700, color: 'text.secondary' }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="contained" 
+                onClick={handleSave}
+                startIcon={<Save size={18} />}
+                sx={{ borderRadius: 2, fontWeight: 900, px: 4 }}
+              >
+                {editingCourse ? 'Update Mazmoon' : 'Create Mazmoon'}
+              </Button>
+            </Box>
+          </Toolbar>
+        </AppBar>
 
-          <Grid container spacing={4}>
+        <DialogContent sx={{ p: { xs: 2, md: 6 } }}>
+          <Grid container spacing={6}>
             {/* Left Column: Basic Info */}
             <Grid size={{ xs: 12, md: 5 }}>
               <Stack spacing={3}>
@@ -867,32 +884,12 @@ export default function Courses() {
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions sx={{ p: isMobile ? 2 : 4, pt: 0, gap: 2 }}>
-          <Button 
-            onClick={() => setOpenDialog(false)} 
-            sx={{ fontWeight: 800, color: 'text.secondary', px: 4 }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleSave} 
-            variant="contained" 
-            size="large"
-            startIcon={<CheckCircle size={20} />} 
-            disabled={!formData.name || !formData.code || isUploading}
-            sx={{ 
-              borderRadius: 3, 
-              fontWeight: 800, 
-              px: 6, 
-              py: 2,
-              fontSize: '1.1rem',
-              boxShadow: '0 8px 32px rgba(13, 148, 136, 0.3)',
-              textTransform: 'none'
-            }}
-          >
-            {isUploading ? <CircularProgress size={24} color="inherit" /> : editingCourse ? 'Save Changes' : 'Publish Course'}
-          </Button>
-        </DialogActions>
+        <Box sx={{ mt: 6, p: 4, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Info size={24} className="text-primary-500" />
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            Remember to save your changes using the "{editingCourse ? 'Update' : 'Create'} Mazmoon" button in the top right corner.
+          </Typography>
+        </Box>
       </Dialog>
 
       {/* Course Reader Dialog */}

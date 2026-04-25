@@ -31,7 +31,7 @@ export default function Schedule() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
   const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!(window as any)._scheduleLoaded);
   const [openDialog, setOpenDialog] = useState(false);
   const [openEventDialog, setOpenEventDialog] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<ClassSchedule | null>(null);
@@ -102,6 +102,7 @@ export default function Schedule() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setSchedules(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ClassSchedule[]);
       setLoading(false);
+      (window as any)._scheduleLoaded = true;
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'schedules');
     });
