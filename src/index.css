@@ -1,11 +1,60 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Aref+Ruqaa:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Aref+Ruqaa:wght@400;700&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;800;900&family=Cinzel:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-serif: "Cormorant Garamond", serif;
-  --font-calligraphy: "Aref Ruqaa", serif;
+  --font-serif: "Cinzel", "Tajawal", "Inter", serif;
+  --font-urdu: "Noto Nastaliq Urdu", serif;
+  --font-calligraphy: "Cinzel", "Aref Ruqaa", serif;
+  --font-display: "Cinzel", serif;
+}
+
+@layer base {
+  @media print {
+    body {
+      background: white !important;
+      color: black !important;
+    }
+    .no-print {
+      display: none !important;
+    }
+    .print-only {
+      display: block !important;
+    }
+    /* Specific overrides for Receipt and Admission Forms */
+    .receipt-container {
+      width: 100% !important;
+      max-width: 100% !important;
+      height: 100vh !important;
+      overflow: hidden !important;
+      page-break-after: avoid !important;
+      page-break-inside: avoid !important;
+      margin: 0 !important;
+      padding: 5mm !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: space-between !important;
+    }
+    .admission-page {
+      width: 100% !important;
+      height: 100vh !important;
+      page-break-inside: avoid !important;
+      page-break-after: always !important;
+      margin: 0 !important;
+      padding: 5mm !important;
+      box-sizing: border-box !important;
+    }
+    .admission-page > div {
+      height: 100% !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: space-between !important;
+    }
+    .MuiDialog-paper {
+      overflow: visible !important;
+    }
+  }
 }
 
 @layer base {

@@ -14,12 +14,13 @@ import {
   CheckCircle, XCircle, Clock, CreditCard, 
   FileText, Share2, MoreVertical, Trash2, Eye,
   ArrowUpRight, ArrowDownRight, Wallet, History,
-  AlertCircle, Check, Edit, Save, X
+  AlertCircle, Check, Edit, Save, X, RotateCcw
 } from 'lucide-react';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDoc, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc } from '../firebase';
 import { UserProfile, FeeReceipt } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { FEE_HEADS, PAYMENT_MODES } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 import FeeReceiptModal from '../components/FeeReceiptModal';
 import confetti from 'canvas-confetti';
@@ -40,6 +41,8 @@ export default function Fees() {
   const [editingReceipt, setEditingReceipt] = useState<FeeReceipt | null>(null);
   const [openReceiptModal, setOpenReceiptModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [feeHeadFilter, setFeeHeadFilter] = useState<string>('All');
+  const [paymentModeFilter, setPaymentModeFilter] = useState<string>('All');
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, id: string }>({ open: false, id: '' });
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
@@ -345,7 +348,10 @@ export default function Fees() {
     const matchesTab = tabValue === 0 || 
                        (tabValue === 1 && r.status === 'pending') || 
                        (tabValue === 2 && r.status === 'approved');
-    return matchesSearch && matchesTab;
+    const matchesFeeHead = feeHeadFilter === 'All' || r.feeHead === feeHeadFilter;
+    const matchesPaymentMode = paymentModeFilter === 'All' || r.paymentMode === paymentModeFilter;
+
+    return matchesSearch && matchesTab && matchesFeeHead && matchesPaymentMode;
   });
 
   const totalRevenue = receipts.filter(r => r.status === 'approved').reduce((sum, r) => sum + r.amount, 0);
@@ -560,57 +566,81 @@ export default function Fees() {
             <Tab label="Approved" />
           </Tabs>
           
-          <Box sx={{ px: 2, py: 2, flex: { xs: 1, md: 'none' }, minWidth: { xs: '100%', md: 350 } }}>
-              <Paper 
-                elevation={0} 
-                sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  px: 2, 
-                  borderRadius: 1, 
-                  border: `1px solid ${theme.palette.divider}`,
-                  bgcolor: 'background.default',
-                  position: 'relative'
-                }}
-              >
-                <Search size={18} color={theme.palette.text.secondary} />
-                <Box 
-                  component="input" 
-                  placeholder={isMobile ? "Search..." : "Search receipt or Talib-e-Ilm..."} 
-                  value={searchQuery}
-                  onChange={(e: any) => setSearchQuery(e.target.value)}
+          <Box sx={{ px: 2, py: 2, flex: { xs: 1, md: 'none' }, minWidth: { xs: '100%', md: 450 } }}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ width: '100%' }}>
+                <Paper 
+                  elevation={0} 
                   sx={{ 
-                    border: 'none', 
-                    outline: 'none', 
-                    p: 1.2, 
-                    width: '100%', 
-                    fontWeight: 600,
-                    bgcolor: 'transparent',
-                    color: 'text.primary',
-                    fontSize: '0.9rem',
-                    '&::placeholder': { color: 'text.disabled' }
-                  }} 
-                />
-                {isIndexing && (
-                  <Box sx={{ 
-                    position: 'absolute', 
-                    right: 16, 
                     display: 'flex', 
                     alignItems: 'center', 
-                    gap: 1,
-                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                    px: 1.5,
-                    py: 0.5,
-                    borderRadius: 2,
-                    animation: 'pulse 2s infinite'
-                  }}>
-                    <CircularProgress size={12} thickness={6} />
-                    <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem', color: 'primary.main' }}>
-                      SYNCING...
-                    </Typography>
-                  </Box>
-                )}
-              </Paper>
+                    px: 2, 
+                    borderRadius: 1, 
+                    border: `1px solid ${theme.palette.divider}`,
+                    bgcolor: 'background.default',
+                    flex: 1
+                  }}
+                >
+                  <Search size={18} color={theme.palette.text.secondary} />
+                  <Box 
+                    component="input" 
+                    placeholder={isMobile ? "Search..." : "Search receipt or Talib-e-Ilm..."} 
+                    value={searchQuery}
+                    onChange={(e: any) => setSearchQuery(e.target.value)}
+                    sx={{ 
+                      border: 'none', 
+                      outline: 'none', 
+                      p: 1.2, 
+                      width: '100%', 
+                      fontWeight: 600,
+                      bgcolor: 'transparent',
+                      color: 'text.primary',
+                      fontSize: '0.9rem',
+                      '&::placeholder': { color: 'text.disabled' }
+                    }} 
+                  />
+                </Paper>
+
+                <Stack direction="row" spacing={1}>
+                  <FormControl size="small" sx={{ minWidth: 140 }}>
+                    <InputLabel>Fee Head</InputLabel>
+                    <Select
+                      value={feeHeadFilter}
+                      label="Fee Head"
+                      onChange={(e) => setFeeHeadFilter(e.target.value as any)}
+                      sx={{ borderRadius: 2 }}
+                    >
+                      <MenuItem value="All">All Heads</MenuItem>
+                      {FEE_HEADS.map(head => (
+                        <MenuItem key={head} value={head}>{head}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <InputLabel>Mode</InputLabel>
+                    <Select
+                      value={paymentModeFilter}
+                      label="Mode"
+                      onChange={(e) => setPaymentModeFilter(e.target.value as any)}
+                      sx={{ borderRadius: 2 }}
+                    >
+                      <MenuItem value="All">All Modes</MenuItem>
+                      {PAYMENT_MODES.map(mode => (
+                        <MenuItem key={mode} value={mode}>{mode}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  {(feeHeadFilter !== 'All' || paymentModeFilter !== 'All') && (
+                    <IconButton 
+                      onClick={() => { setFeeHeadFilter('All'); setPaymentModeFilter('All'); }}
+                      sx={{ bgcolor: 'error.light', color: 'error.main', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
+                    >
+                      <RotateCcw size={18} />
+                    </IconButton>
+                  )}
+                </Stack>
+              </Stack>
           </Box>
         </Box>
         

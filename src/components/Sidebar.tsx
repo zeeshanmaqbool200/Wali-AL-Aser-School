@@ -94,7 +94,7 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
                 />
               </Box>
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900, letterSpacing: -0.5, color: 'text.primary', lineHeight: 1.1, fontSize: '1.25rem', fontFamily: 'var(--font-calligraphy)' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, letterSpacing: -0.5, color: 'text.primary', lineHeight: 1.1, fontSize: '1.25rem', fontFamily: 'var(--font-serif)', textTransform: 'uppercase' }}>
                   {instituteName}
                 </Typography>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.6rem' }}>

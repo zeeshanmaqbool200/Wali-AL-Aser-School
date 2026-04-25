@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Webcam from 'react-webcam';
 import { 
   Box, Typography, Card, CardContent, Grid, Button, 
   TextField, Dialog, DialogTitle, DialogContent, 
@@ -16,12 +17,13 @@ import {
   MoreVertical, User, GraduationCap, UserCheck,
   ArrowRight, ExternalLink, Download, Layout,
   Layers, CheckCircle, XCircle, Clock, Save,
-  Bell, Camera, X, Printer
+  Bell, Camera, X, Printer, RotateCcw
 } from 'lucide-react';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDocs, writeBatch, getDoc, or, and, documentId } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartDeleteDoc } from '../firebase';
 import { UserProfile, UserRole, MaktabLevel, InstituteSettings } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { MAKTAB_LEVELS, SUBJECT_OPTIONS } from '../constants';
 import { logger } from '../lib/logger';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
@@ -34,6 +36,9 @@ export default function Users() {
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
+  const [levelFilter, setLevelFilter] = useState<MaktabLevel | 'All'>('All');
+  const [roleFilter, setRoleFilter] = useState<UserRole | 'All'>('All');
   const [openDialog, setOpenDialog] = useState(false);
   const [openPromoteDialog, setOpenPromoteDialog] = useState(false);
   const [openViewProfile, setOpenViewProfile] = useState(false);
@@ -61,19 +66,39 @@ export default function Users() {
     subject: '',
     subjectsEnrolled: [] as string[],
     assignedClasses: [] as string[],
-    status: 'Active' as 'Active' | 'Inactive'
+    status: 'Active' as 'Active' | 'Inactive',
+    photoURL: ''
   });
 
-  const subjectsOptions = [
-    'Quran Recitation', 'Diniyat', 'Urdu', 'Amali Masail', 
-    'Naat Khawni', 'Surahs Learning', 'Hifz', 
-    'Fiqh & Aqeedah', 'Gez-z / Gen-x Competitions'
-  ];
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const webcamRef = useRef<Webcam>(null);
 
-  const maktabLevels: MaktabLevel[] = [
-    'Awal', 'Doum', 'Soam', 'Chaharum', 'panjum', 'shahsum', 
-    'haftum', 'hashtum', 'dahum', 'Hafiz', 'muntazim [m]', 'muntazimah [f]'
-  ];
+  const capture = useCallback(() => {
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (imageSrc) {
+      setFormData(prev => ({ ...prev, photoURL: imageSrc }));
+      setCameraOpen(false);
+      setSnackbar({ open: true, message: 'Photo captured successfully!', severity: 'success' });
+    }
+  }, [webcamRef]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1024 * 1024) { // 1MB limit for Firestore doc size
+        setSnackbar({ open: true, message: 'Image size should be less than 1MB', severity: 'error' });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, photoURL: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const subjectsOptions = SUBJECT_OPTIONS;
+  const maktabLevels = MAKTAB_LEVELS;
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
   const role = currentUser?.role || 'student';
@@ -194,7 +219,7 @@ export default function Users() {
         await smartAddDoc(collection(db, 'users'), {
           ...finalFormData,
           createdAt: Date.now(),
-          photoURL: `https://ui-avatars.com/api/?name=${formData.displayName}&background=random`
+          photoURL: finalFormData.photoURL || `https://ui-avatars.com/api/?name=${formData.displayName}&background=random`
         });
       }
       setOpenDialog(false);
@@ -215,11 +240,21 @@ export default function Users() {
 
   const handleApproveClass = async (user: UserProfile) => {
     try {
-      await smartUpdateDoc(doc(db, 'users', user.uid), {
+      const updateData: any = {
         maktabLevel: user.pendingMaktabLevel,
         pendingMaktabLevel: null,
         status: 'Active'
-      });
+      };
+
+      // Auto-assign admission number if missing on approval
+      if (user.role === 'student' && !user.admissionNo) {
+        const year = format(new Date(), 'yyyy');
+        const timestamp = Date.now().toString().slice(-4);
+        const namePart = user.displayName.slice(0, 3).toUpperCase();
+        updateData.admissionNo = `ADM-${year}-${namePart}-${timestamp}`;
+      }
+
+      await smartUpdateDoc(doc(db, 'users', user.uid), updateData);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
     }
@@ -280,6 +315,12 @@ export default function Users() {
                          (u.admissionNo && u.admissionNo.toLowerCase().includes(searchQuery.toLowerCase())) ||
                          (u.teacherId && u.teacherId.toLowerCase().includes(searchQuery.toLowerCase()));
     
+    const matchesStatus = statusFilter === 'All' || u.status === statusFilter;
+    const matchesLevel = levelFilter === 'All' || u.maktabLevel === levelFilter || u.grade === levelFilter;
+    const matchesRole = roleFilter === 'All' || u.role === roleFilter;
+
+    if (!matchesStatus || !matchesLevel || !matchesRole) return false;
+
     if (tabValue === 0) return u.role === 'student' && matchesSearch;
     if (tabValue === 1) return (u.role === 'mudaris' || u.role === 'muntazim' || u.role === 'superadmin' || u.role === 'pending_mudaris') && matchesSearch;
     if (tabValue === 2) return (u.pendingMaktabLevel || u.role === 'pending_mudaris') && matchesSearch;
@@ -360,7 +401,8 @@ export default function Users() {
                     displayName: '', email: '', role: tabValue === 0 ? 'student' : 'mudaris', 
                     phone: '', maktabLevel: '' as MaktabLevel, admissionNo: '', teacherId: '', 
                     fatherName: '', motherName: '', rollNo: '', admissionDate: format(new Date(), 'yyyy-MM-dd'),
-                    address: '', subject: '', subjectsEnrolled: [], assignedClasses: [], status: 'Active'
+                    address: '', subject: '', subjectsEnrolled: [], assignedClasses: [], status: 'Active',
+                    photoURL: ''
                   });
                   setOpenDialog(true);
                 }}
@@ -452,46 +494,82 @@ export default function Users() {
           </Tabs>
           
           <Box sx={{ px: 2, py: 2, flex: { xs: 1, md: 'none' }, minWidth: { xs: '100%', md: 400 } }}>
-            <Paper 
-              elevation={0} 
-              sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                px: 3, 
-                borderRadius: 1, 
-                border: '1px solid',
-                borderColor: 'divider',
-                bgcolor: 'background.default',
-              }}
-            >
-              <Search size={22} color={theme.palette.text.secondary} />
-              <Box 
-                component="input" 
-                placeholder={`Search ${tabValue === 0 ? 'Tulab-e-Ilm' : 'Mudaris'}...`} 
-                value={searchQuery}
-                onChange={(e: any) => setSearchQuery(e.target.value)}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ width: '100%' }}>
+              <Paper 
+                elevation={0} 
                 sx={{ 
-                  border: 'none', 
-                  outline: 'none', 
-                  p: 2, 
-                  width: '100%', 
-                  fontWeight: 800,
-                  fontSize: '1rem',
-                  bgcolor: 'transparent',
-                  color: 'text.primary',
-                  '&::placeholder': { color: 'text.disabled' }
-                }} 
-              />
-              <IconButton sx={{ 
-                bgcolor: 'background.paper', 
-                borderRadius: 2.5, 
-                boxShadow: theme.palette.mode === 'dark' 
-                  ? '4px 4px 8px #060a12, -4px -4px 8px #182442' 
-                  : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' 
-              }}>
-                <Filter size={18} />
-              </IconButton>
-            </Paper>
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  px: 2, 
+                  borderRadius: 2, 
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'background.default',
+                  flex: 1
+                }}
+              >
+                <Search size={20} color={theme.palette.text.secondary} />
+                <Box 
+                  component="input" 
+                  placeholder={`Search ${tabValue === 0 ? 'Tulab-e-Ilm' : 'Mudaris'}...`} 
+                  value={searchQuery}
+                  onChange={(e: any) => setSearchQuery(e.target.value)}
+                  sx={{ 
+                    border: 'none', 
+                    outline: 'none', 
+                    p: 1.5, 
+                    width: '100%', 
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    bgcolor: 'transparent',
+                    color: 'text.primary',
+                    '&::placeholder': { color: 'text.disabled' }
+                  }} 
+                />
+              </Paper>
+
+              <Stack direction="row" spacing={1}>
+                {tabValue === 0 && (
+                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <InputLabel>Level</InputLabel>
+                    <Select
+                      value={levelFilter}
+                      label="Level"
+                      onChange={(e) => setLevelFilter(e.target.value as any)}
+                      sx={{ borderRadius: 2 }}
+                    >
+                      <MenuItem value="All">All Levels</MenuItem>
+                      {maktabLevels.map(level => (
+                        <MenuItem key={level} value={level}>{level}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={statusFilter}
+                    label="Status"
+                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                    sx={{ borderRadius: 2 }}
+                  >
+                    <MenuItem value="All">All Status</MenuItem>
+                    <MenuItem value="Active">Active</MenuItem>
+                    <MenuItem value="Inactive">Inactive</MenuItem>
+                  </Select>
+                </FormControl>
+
+                {(levelFilter !== 'All' || statusFilter !== 'All') && (
+                  <IconButton 
+                    onClick={() => { setLevelFilter('All'); setStatusFilter('All'); }}
+                    sx={{ bgcolor: 'error.light', color: 'error.main', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
+                  >
+                    <RotateCcw size={18} />
+                  </IconButton>
+                )}
+              </Stack>
+            </Stack>
           </Box>
         </Box>
         
@@ -666,7 +744,8 @@ export default function Users() {
                                     setFormData({
                                       ...user,
                                       subjectsEnrolled: user.subjectsEnrolled || [],
-                                      assignedClasses: user.assignedClasses || []
+                                      assignedClasses: user.assignedClasses || [],
+                                      photoURL: user.photoURL || ''
                                     } as any); 
                                     setOpenDialog(true); 
                                   }}
@@ -712,7 +791,16 @@ export default function Users() {
                         user={user} 
                         isAdmin={isAdmin} 
                         isSuperAdmin={isSuperAdmin} 
-                        onEdit={() => { setEditingUser(user); setFormData(user as any); setOpenDialog(true); }} 
+                        onEdit={() => { 
+                          setEditingUser(user); 
+                          setFormData({
+                            ...user,
+                            subjectsEnrolled: user.subjectsEnrolled || [],
+                            assignedClasses: user.assignedClasses || [],
+                            photoURL: user.photoURL || ''
+                          } as any); 
+                          setOpenDialog(true); 
+                        }} 
                         onDelete={() => handleDelete(user.uid)}
                         onApproveClass={handleApproveClass}
                         onRejectClass={handleRejectClass}
@@ -756,6 +844,43 @@ export default function Users() {
             Enter the personal and academic details below.
           </Typography>
           <Grid container spacing={3}>
+            <Grid size={12}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, mb: 2 }}>
+                <Avatar 
+                  src={formData.photoURL || `https://ui-avatars.com/api/?name=${formData.displayName || 'User'}&background=random`} 
+                  sx={{ width: 120, height: 120, border: '4px solid', borderColor: 'primary.main', boxShadow: theme.shadows[3] }}
+                />
+                <Stack direction="row" spacing={2}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<Camera size={18} />}
+                    onClick={() => setCameraOpen(true)}
+                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
+                  >
+                    Take Photo
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<Download size={18} />}
+                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
+                  >
+                    Upload Photo
+                    <input type="file" hidden accept="image/*" onChange={handleFileUpload} />
+                  </Button>
+                  {formData.photoURL && (
+                    <Button
+                      variant="text"
+                      color="error"
+                      onClick={() => setFormData(prev => ({ ...prev, photoURL: '' }))}
+                      sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
+                    >
+                      Reset
+                    </Button>
+                  )}
+                </Stack>
+              </Box>
+            </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
@@ -964,6 +1089,48 @@ export default function Users() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Camera Dialog */}
+      <Dialog 
+        open={cameraOpen} 
+        onClose={() => setCameraOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 4, bgcolor: 'black', color: 'white' } }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
+          <Typography variant="h6" sx={{ fontWeight: 900 }}>Capture Student Photo</Typography>
+          <IconButton onClick={() => setCameraOpen(false)} sx={{ color: 'white' }}>
+            <X size={24} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, position: 'relative', minHeight: 400, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <Webcam
+            audio={false}
+            ref={webcamRef}
+            screenshotFormat="image/jpeg"
+            videoConstraints={{
+              width: 1280,
+              height: 720,
+              facingMode: "user"
+            }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 3, justifyContent: 'center' }}>
+          <Button 
+            onClick={capture} 
+            variant="contained" 
+            color="primary" 
+            size="large"
+            startIcon={<Camera size={24} />}
+            sx={{ borderRadius: 10, px: 6, py: 1.5, fontWeight: 900, boxShadow: '0 0 20px rgba(13, 148, 136, 0.5)' }}
+          >
+            CAPTURE
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Dialog open={openPromoteDialog} onClose={() => setOpenPromoteDialog(false)} PaperProps={{ sx: { borderRadius: 1, p: 1 } }}>
         <DialogTitle sx={{ fontWeight: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           Promote Talib-e-Ilm
@@ -1033,30 +1200,30 @@ export default function Users() {
           </Box>
         </DialogTitle>
         <DialogContent sx={{ p: { xs: 2, md: 4 } }}>
-          <Box id="printable-profile" sx={{ position: 'relative', color: 'black', bgcolor: 'white', p: { xs: 1, md: 2 }, borderRadius: 2 }}>
+          <Box id="printable-profile" className="admission-page" sx={{ position: 'relative', color: 'black', bgcolor: 'white', p: { xs: 0, md: 1 }, borderRadius: 0 }}>
              {/* Printable Form Content */}
-             <Box sx={{ border: '2px solid black', p: { xs: 2, md: 4 }, position: 'relative' }}>
+             <Box sx={{ border: '2px solid black', p: { xs: 2, md: 3 }, position: 'relative' }}>
                 {/* Header with Logo */}
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, borderBottom: '2px solid black', pb: 2 }}>
-                  <Avatar src={instituteSettings.logoUrl} sx={{ width: 80, height: 80, mr: 3, borderRadius: 0, bgcolor: 'grey.200' }}>
-                    <GraduationCap size={40} color="black" />
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5, borderBottom: '2px solid black', pb: 1.5 }}>
+                  <Avatar src={instituteSettings.logoUrl} sx={{ width: 70, height: 70, mr: 2.5, borderRadius: 0, bgcolor: 'grey.200' }}>
+                    <GraduationCap size={35} color="black" />
                   </Avatar>
                   <Box sx={{ flex: 1 }}>
-                    <Typography variant="h4" sx={{ fontWeight: 900, color: 'black', textTransform: 'uppercase', fontSize: { xs: '1.2rem', md: '2.125rem' } }}>
+                    <Typography variant="h4" sx={{ fontWeight: 900, color: 'black', textTransform: 'uppercase', fontSize: { xs: '1.2rem', md: '1.8rem' }, fontFamily: 'var(--font-serif)' }}>
                       {instituteSettings.maktabName || instituteSettings.name || 'MAKHTAB-UN-NOOR'}
                     </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'black' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'black', fontSize: '0.8rem' }}>
                       {instituteSettings.tagline || 'Education for Excellence'}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: 'black', display: 'block' }}>
+                    <Typography variant="caption" sx={{ color: 'black', display: 'block', fontSize: '0.7rem' }}>
                       {instituteSettings.address} | {instituteSettings.phone}
                     </Typography>
                   </Box>
                   <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
-                    <Typography variant="h6" sx={{ fontWeight: 800, border: '1px solid black', px: 2, display: 'inline-block', fontSize: '0.9rem' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 800, border: '1px solid black', px: 1.5, display: 'inline-block', fontSize: '0.85rem', fontFamily: 'var(--font-serif)' }}>
                       ADMISSION FORM
                     </Typography>
-                    <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>
+                    <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 700, fontSize: '0.75rem' }}>
                       Session: {format(new Date(), 'yyyy')}-{parseInt(format(new Date(), 'yyyy')) + 1}
                     </Typography>
                   </Box>
@@ -1147,18 +1314,18 @@ export default function Users() {
                      </Box>
                   </Grid>
 
-                  <Grid size={{ xs: 12 }} sx={{ mt: 6, display: 'flex', justifyContent: 'space-between', px: 2 }}>
+                  <Grid size={{ xs: 12 }} sx={{ mt: 4, display: 'flex', justifyContent: 'space-between', px: 2, pb: 2 }}>
                      <Box sx={{ textAlign: 'center' }}>
-                        <Box sx={{ width: 120, borderBottom: '1px solid black', mb: 1 }} />
-                        <Typography variant="caption" sx={{ fontWeight: 800 }}>Parent's Sign</Typography>
+                        <Box sx={{ width: 110, borderBottom: '1px solid black', mb: 0.5 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Parent's Sign</Typography>
                      </Box>
                      <Box sx={{ textAlign: 'center' }}>
-                        <Box sx={{ width: 120, borderBottom: '1px solid black', mb: 1 }} />
-                        <Typography variant="caption" sx={{ fontWeight: 800 }}>Incharge Sign</Typography>
+                        <Box sx={{ width: 110, borderBottom: '1px solid black', mb: 0.5 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Incharge Sign</Typography>
                      </Box>
                      <Box sx={{ textAlign: 'center' }}>
-                        <Box sx={{ width: 120, borderBottom: '1px solid black', mb: 1 }} />
-                        <Typography variant="caption" sx={{ fontWeight: 800 }}>Admin Sign</Typography>
+                        <Box sx={{ width: 110, borderBottom: '1px solid black', mb: 0.5 }} />
+                        <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Admin Sign</Typography>
                      </Box>
                   </Grid>
                 </Grid>

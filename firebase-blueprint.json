@@ -82,9 +82,27 @@
         "primaryColor": { "type": "string" },
         "secondaryColor": { "type": "string" }
       }
+    },
+    "Event": {
+      "title": "Event",
+      "description": "Institute activities and meetings",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "type": { "type": "string" },
+        "color": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["title", "date", "time"]
     }
   },
   "firestore": {
+    "/events/{eventId}": {
+      "schema": "Event",
+      "description": "Institute activities and events"
+    },
     "/settings/{settingId}": {
       "schema": "InstituteSettings",
       "description": "Institute settings"

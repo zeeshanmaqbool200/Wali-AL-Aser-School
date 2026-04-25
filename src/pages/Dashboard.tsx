@@ -79,6 +79,12 @@ export default function Dashboard({ user }: DashboardProps) {
       try {
         setLoading(true);
 
+        // Fetch Institute Settings for the banner
+        const instDoc = await getDoc(doc(db, 'settings', 'institute'));
+        if (instDoc.exists()) {
+          setInstituteData(instDoc.data());
+        }
+
         // Sequence listeners with small delays to avoid request bursts
         const initSequentially = async () => {
           // 1. Core user stats
@@ -333,6 +339,11 @@ export default function Dashboard({ user }: DashboardProps) {
     }
   };
 
+  const instanceTextVisibilityColor = () => {
+    if (!instituteData.bannerUrl) return 'text.primary';
+    return theme.palette.mode === 'dark' ? 'white' : 'primary.contrastText';
+  };
+
   if (loading) return (
     <Box sx={{ p: { xs: 2, md: 4 } }}>
       <Grid container spacing={3}>
@@ -422,12 +433,14 @@ export default function Dashboard({ user }: DashboardProps) {
             borderRadius: 2,
             overflow: 'hidden',
             p: { xs: 3, md: 6 },
-            bgcolor: instituteData.bannerUrl ? 'transparent' : 'action.hover',
-            backgroundImage: instituteData.bannerUrl ? `linear-gradient(${alpha('#000000', 0.5)}, ${alpha('#000000', 0.5)}), url(${instituteData.bannerUrl})` : 'none',
+            bgcolor: 'primary.dark',
+            backgroundImage: instituteData.bannerUrl 
+              ? `linear-gradient(${theme.palette.mode === 'dark' ? alpha('#000000', 0.6) : alpha('#ffffff', 0.1)}, ${theme.palette.mode === 'dark' ? alpha('#000000', 0.8) : alpha('#ffffff', 0.3)}), url(${instituteData.bannerUrl})` 
+              : 'none',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            color: instituteData.bannerUrl ? 'white' : 'text.primary',
-            boxShadow: instituteData.bannerUrl ? '0 10px 30px rgba(0,0,0,0.15)' : 'none'
+            color: instanceTextVisibilityColor(),
+            boxShadow: theme.palette.mode === 'dark' ? '0 10px 40px rgba(0,0,0,0.4)' : '0 10px 40px rgba(15, 118, 110, 0.1)'
           }}
         >
           <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontFamily: 'var(--font-serif)', fontWeight: 500, mb: 1, color: 'inherit', letterSpacing: -0.5 }}>

@@ -392,9 +392,10 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
       }}>
         <Box 
           id="printable-receipt"
+          className="receipt-container"
           sx={{ 
             bgcolor: 'white', 
-            p: { xs: 2.5, sm: 5 }, 
+            p: { xs: 2.5, sm: 4 }, 
             borderRadius: 1, 
             boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
             maxWidth: '100%',
@@ -407,8 +408,9 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             '@media print': {
               boxShadow: 'none',
               border: 'none',
-              p: 0,
+              p: 2,
               width: '100%',
+              maxHeight: '100vh',
             }
           }}
         >
@@ -437,13 +439,13 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
               <Box component="img" src={settings.logoUrl} sx={{ width: { xs: 45, sm: 60 }, height: { xs: 45, sm: 60 } }} />
               <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#0d9488 !important', lineHeight: 1.2 }}>{settings.name}</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 700, display: 'block' }}>{settings.maktabName}</Typography>
-                <Typography variant="caption" sx={{ fontSize: '0.65rem', display: { xs: 'none', sm: 'block' } }}>{settings.address}</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#0d9488 !important', lineHeight: 1.2, fontFamily: 'var(--font-serif)', textTransform: 'uppercase' }}>{settings.name}</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', textTransform: 'uppercase', fontSize: '0.6rem' }}>{settings.maktabName}</Typography>
+                <Typography variant="caption" sx={{ fontSize: '0.6rem', display: { xs: 'none', sm: 'block' } }}>{settings.address}</Typography>
               </Box>
             </Box>
             <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: '#e5e7eb !important', letterSpacing: 2 }}>RASEED</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 900, color: '#e5e7eb !important', letterSpacing: 2, fontFamily: 'var(--font-serif)' }}>RASEED</Typography>
               <Typography variant="body2" sx={{ fontWeight: 800, color: '#0d9488 !important' }}>No: {receiptNo}</Typography>
               <Typography variant="caption" sx={{ display: 'block' }}>{format(new Date(receipt.date), 'dd MMM, yyyy')}</Typography>
             </Box>

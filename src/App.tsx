@@ -145,11 +145,12 @@ function AppContent() {
             sx={{ 
               fontWeight: 900, 
               color: 'primary.main', 
-              fontFamily: 'var(--font-calligraphy)',
-              letterSpacing: 2
+              fontFamily: 'var(--font-serif)',
+              letterSpacing: 2,
+              textTransform: 'uppercase'
             }}
           >
-            Maktab Wali Ul Aser
+            {import.meta.env.VITE_INSTITUTE_NAME || 'Maktab Wali Ul Aser'}
           </Typography>
           <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: 3, mt: 1 }}>
             INITIALIZING SYSTEM...

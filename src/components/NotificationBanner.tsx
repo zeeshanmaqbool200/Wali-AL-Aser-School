@@ -4,6 +4,7 @@ import { alpha, useTheme } from '@mui/material/styles';
 import { Bell, X, Info, AlertCircle } from 'lucide-react';
 import { useNotifications } from '../services/notificationService';
 import { motion, AnimatePresence } from 'motion/react';
+import localforage from 'localforage';
 
 export default function NotificationBanner() {
   const theme = useTheme();
@@ -12,24 +13,27 @@ export default function NotificationBanner() {
   const [showDeniedBanner, setShowDeniedBanner] = useState(false);
 
   useEffect(() => {
-    const isDismissed = localStorage.getItem('notification_prompt_dismissed');
-    if (isSupported && permission === 'default' && !isDismissed) {
-      const timer = setTimeout(() => setShowPrompt(true), 3000);
-      return () => clearTimeout(timer);
-    }
-    if (isSupported && permission === 'denied' && !isDismissed) {
-      setShowDeniedBanner(true);
-    }
+    const checkDismissed = async () => {
+      const isDismissed = await localforage.getItem('notification_prompt_dismissed');
+      if (isSupported && permission === 'default' && !isDismissed) {
+        const timer = setTimeout(() => setShowPrompt(true), 3000);
+        return () => clearTimeout(timer);
+      }
+      if (isSupported && permission === 'denied' && !isDismissed) {
+        setShowDeniedBanner(true);
+      }
+    };
+    checkDismissed();
   }, [isSupported, permission]);
 
-  const handleDismissPrompt = () => {
+  const handleDismissPrompt = async () => {
     setShowPrompt(false);
-    localStorage.setItem('notification_prompt_dismissed', 'true');
+    await localforage.setItem('notification_prompt_dismissed', 'true');
   };
 
-  const handleDismissDenied = () => {
+  const handleDismissDenied = async () => {
     setShowDeniedBanner(false);
-    localStorage.setItem('notification_prompt_dismissed', 'true');
+    await localforage.setItem('notification_prompt_dismissed', 'true');
   };
 
   const handleRequest = async () => {

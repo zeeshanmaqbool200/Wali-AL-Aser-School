@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { createTheme, ThemeProvider, alpha, GlobalStyles, darken, lighten } from '@mui/material';
 import { useAuth } from './AuthContext';
+import localforage from 'localforage';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -15,10 +16,22 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProviderWrapper({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const [mode, setMode] = useState<ThemeMode>(() => {
-    const saved = localStorage.getItem('theme-mode');
-    return (saved as ThemeMode) || 'light';
-  });
+  const [mode, setMode] = useState<ThemeMode>('light');
+
+  // Initialize theme from storage
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const saved = await localforage.getItem<ThemeMode>('theme-mode');
+        if (saved) {
+          setMode(saved);
+        }
+      } catch (err) {
+        console.error('Failed to load theme from storage', err);
+      }
+    };
+    loadTheme();
+  }, []);
 
   const uiPrefs = useMemo(() => user?.uiPrefs || {
     highContrast: false,
@@ -34,7 +47,14 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
   }, [uiPrefs.accentColor]);
 
   useEffect(() => {
-    localStorage.setItem('theme-mode', mode);
+    const saveTheme = async () => {
+      try {
+        await localforage.setItem('theme-mode', mode);
+      } catch (err) {
+        console.error('Failed to save theme to storage', err);
+      }
+    };
+    saveTheme();
   }, [mode]);
 
     const theme = useMemo(() => {
@@ -70,11 +90,11 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
         },
         spacing: uiPrefs.compactLayout ? 4 : 8,
         typography: {
-          fontFamily: '"Inter", sans-serif',
-          h1: { fontWeight: 800, letterSpacing: '-0.05em' },
-          h2: { fontWeight: 800, letterSpacing: '-0.04em' },
-          h3: { fontWeight: 700, letterSpacing: '-0.03em' },
-          h4: { fontWeight: 700, letterSpacing: '-0.02em' },
+          fontFamily: '"Inter", "Noto Nastaliq Urdu", sans-serif',
+          h1: { fontFamily: '"Cinzel", serif', fontWeight: 800, letterSpacing: '-0.05em' },
+          h2: { fontFamily: '"Cinzel", serif', fontWeight: 800, letterSpacing: '-0.04em' },
+          h3: { fontFamily: '"Cinzel", serif', fontWeight: 700, letterSpacing: '-0.03em' },
+          h4: { fontFamily: '"Cinzel", serif', fontWeight: 700, letterSpacing: '-0.02em' },
           h5: { fontWeight: 600 },
           h6: { fontWeight: 600 },
           subtitle1: { fontWeight: 500, letterSpacing: '-0.01em' },

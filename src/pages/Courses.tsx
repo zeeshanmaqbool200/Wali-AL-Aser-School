@@ -23,9 +23,13 @@ import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, order
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { Course, CourseSection, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { MAKTAB_LEVELS } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { logger } from '../lib/logger';
+import SimpleMDE from 'react-simplemde-editor';
+import "easymde/dist/easymde.min.css";
+import ReactMarkdown from 'react-markdown';
 
 const isRTL = (text: string) => {
   const rtlChars = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0590-\u05FF]/;
@@ -43,6 +47,7 @@ export default function Courses() {
   const [viewingCourse, setViewingCourse] = useState<Course | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
+  const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [isUploading, setIsUploading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -247,16 +252,26 @@ export default function Courses() {
     setOpenDialog(true);
   };
 
-  const filteredCourses = courses.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    c.code.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCourses = courses.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         c.code.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesGrade = gradeFilter === 'all' || c.gradeId === gradeFilter;
+    return matchesSearch && matchesGrade;
+  });
 
   if (loading) return (
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
       <CircularProgress size={60} thickness={4} />
     </Box>
   );
+
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+    const target = e.currentTarget;
+    const progress = (target.scrollTop / (target.scrollHeight - target.clientHeight)) * 100;
+    setScrollProgress(progress);
+  };
 
   return (
     <Box sx={{ 
@@ -374,42 +389,59 @@ export default function Courses() {
           sx={{ 
             display: 'flex', 
             alignItems: 'center', 
-            px: 3, 
+            px: 2, 
             borderRadius: 3, 
             border: 'none',
             bgcolor: 'background.default',
             boxShadow: theme.palette.mode === 'dark'
               ? 'inset 3px 3px 6px #060a12, inset -3px -3px 6px #182442'
               : 'inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff',
+            gap: 2
           }}
         >
-          <Search size={22} color={theme.palette.text.secondary} />
-          <Box 
-            component="input" 
-            placeholder="Search mazameen by name, code, or Mudaris..." 
-            value={searchQuery}
-            onChange={(e: any) => setSearchQuery(e.target.value)}
-            sx={{ 
-              border: 'none', 
-              outline: 'none', 
-              p: 2.5, 
-              width: '100%', 
-              fontWeight: 800,
-              fontSize: '1rem',
-              bgcolor: 'transparent',
-              color: 'text.primary',
-              '&::placeholder': { color: 'text.disabled' }
-            }} 
-          />
-          <IconButton sx={{ 
-            bgcolor: 'background.paper', 
-            borderRadius: 2, 
-            boxShadow: theme.palette.mode === 'dark' 
-              ? '2px 2px 4px #060a12, -2px -2px 4px #182442' 
-              : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff' 
-          }}>
-            <Filter size={20} />
-          </IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, px: 1 }}>
+            <Search size={22} color={theme.palette.text.secondary} />
+            <Box 
+              component="input" 
+              placeholder="Search mazameen by name, code, or Mudaris..." 
+              value={searchQuery}
+              onChange={(e: any) => setSearchQuery(e.target.value)}
+              sx={{ 
+                border: 'none', 
+                outline: 'none', 
+                p: 2.5, 
+                width: '100%', 
+                fontWeight: 800,
+                fontSize: '1rem',
+                bgcolor: 'transparent',
+                color: 'text.primary',
+                '&::placeholder': { color: 'text.disabled' }
+              }} 
+            />
+          </Box>
+          
+          <FormControl size="small" sx={{ minWidth: 200, mr: 2 }}>
+            <InputLabel sx={{ fontWeight: 800 }}>Maktab Level</InputLabel>
+            <Select
+              value={gradeFilter}
+              label="Maktab Level"
+              onChange={(e) => setGradeFilter(e.target.value)}
+              sx={{ 
+                borderRadius: 2,
+                fontWeight: 800,
+                bgcolor: alpha(theme.palette.background.default, 0.5),
+                '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                boxShadow: theme.palette.mode === 'dark'
+                  ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                  : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+              }}
+            >
+              <MenuItem value="all" sx={{ fontWeight: 700 }}>All Levels</MenuItem>
+              {MAKTAB_LEVELS.filter(level => !level.includes('muntazim') && !level.includes('superadmin')).map(g => (
+                <MenuItem key={g} value={g} sx={{ fontWeight: 700 }}>{g}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Paper>
       </Box>
 
@@ -594,19 +626,21 @@ export default function Courses() {
                         sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}
                       />
                     </Grid>
-                    {isSuperAdmin && (
-                      <Grid size={12}>
-                        <TextField
-                          fullWidth
-                          label="Restrict to Class/Grade"
-                          placeholder="e.g. Grade 1 or all"
+                    <Grid size={12}>
+                      <FormControl fullWidth variant="filled" sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}>
+                        <InputLabel>Mapped Class Level</InputLabel>
+                        <Select
                           value={formData.gradeId}
+                          label="Mapped Class Level"
                           onChange={(e) => setFormData({ ...formData, gradeId: e.target.value })}
-                          variant="filled"
-                          sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}
-                        />
-                      </Grid>
-                    )}
+                        >
+                          <MenuItem value="all">All Levels</MenuItem>
+                          {MAKTAB_LEVELS.filter(l => !l.includes('muntazim') && !l.includes('superadmin')).map(level => (
+                            <MenuItem key={level} value={level}>{level}</MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
                   </Grid>
                 </Box>
               </Stack>
@@ -733,16 +767,31 @@ export default function Courses() {
                         )}
                       </Box>
                     ) : (
-                      <TextField 
-                        fullWidth 
-                        multiline 
-                        rows={4} 
-                        label="Module Description / Main Content" 
-                        placeholder="Share initial lessons or reference text..." 
-                        value={newSection.content} 
-                        onChange={(e) => setNewSection({ ...newSection, content: e.target.value })} 
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
-                      />
+                      <Box sx={{ 
+                        '& .editor-toolbar': { borderColor: theme.palette.divider, borderRadius: '12px 12px 0 0' },
+                        '& .CodeMirror': { 
+                          borderColor: theme.palette.divider, 
+                          borderRadius: '0 0 12px 12px',
+                          bgcolor: alpha(theme.palette.background.default, 0.4),
+                          color: theme.palette.text.primary,
+                          fontFamily: 'var(--font-urdu), var(--font-sans)',
+                          fontSize: '1.25rem'
+                        },
+                        '& .CodeMirror-cursor': { borderLeft: `2px solid ${theme.palette.primary.main}` }
+                      }}>
+                        <Typography variant="caption" sx={{ fontWeight: 800, mb: 1, display: 'block' }}>Module Content (Markdown & HTML supported)</Typography>
+                        <SimpleMDE 
+                          value={newSection.content} 
+                          onChange={(value) => setNewSection({ ...newSection, content: value })} 
+                          options={{
+                            placeholder: "Enter course content in Urdu (Nastaliq enabled)...",
+                            autofocus: false,
+                            spellChecker: false,
+                            status: false,
+                            minHeight: "200px"
+                          }}
+                        />
+                      </Box>
                     )}
                     
                     <Button 
@@ -854,6 +903,18 @@ export default function Courses() {
         TransitionComponent={Fade}
         TransitionProps={{ timeout: 500 }}
       >
+        <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100%', height: 4, zIndex: 3000, bgcolor: 'rgba(255,255,255,0.05)' }}>
+          <motion.div 
+            style={{ 
+              height: '100%', 
+              backgroundColor: theme.palette.primary.main, 
+              width: `${scrollProgress}%`,
+              boxShadow: `0 0 10px ${theme.palette.primary.main}` 
+            }}
+            initial={{ width: 0 }}
+            animate={{ width: `${scrollProgress}%` }}
+          />
+        </Box>
         <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
           <AppBar sx={{ position: 'relative', bgcolor: 'background.paper', color: 'text.primary', borderBottom: 1, borderColor: 'divider' }} elevation={0}>
             <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 4 } }}>
@@ -888,7 +949,7 @@ export default function Courses() {
             </Toolbar>
           </AppBar>
 
-          <Box sx={{ flexGrow: 1, overflow: 'auto', py: { xs: 4, md: 8 } }}>
+          <Box sx={{ flexGrow: 1, overflow: 'auto', py: { xs: 4, md: 8 } }} onScroll={handleScroll}>
             <Container maxWidth="md">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -952,13 +1013,33 @@ export default function Courses() {
                                 />
                               </Box>
                             ) : section.type === 'audio' ? (
-                              <Paper sx={{ p: 3, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <IconButton sx={{ bgcolor: 'primary.main', color: '#fff', '&:hover': { bgcolor: 'primary.dark' } }}>
-                                  <Headphones />
-                                </IconButton>
+                              <Paper sx={{ 
+                                p: 3, 
+                                borderRadius: 5, 
+                                bgcolor: 'rgba(255,255,255,0.03)', 
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: 3,
+                                boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
+                              }}>
+                                <Box sx={{ 
+                                  width: 60, height: 60, 
+                                  borderRadius: '50%', 
+                                  bgcolor: 'primary.main', 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center',
+                                  color: 'black',
+                                  flexShrink: 0,
+                                  boxShadow: `0 0 20px ${alpha(theme.palette.primary.main, 0.4)}`
+                                }}>
+                                  <Headphones size={28} />
+                                </Box>
                                 <Box sx={{ flex: 1 }}>
-                                  <Typography variant="subtitle2" sx={{ color: '#fff', fontWeight: 700 }}>Audio Lesson</Typography>
-                                  <audio controls style={{ width: '100%', height: '32px', marginTop: '8px' }}>
+                                  <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 900, letterSpacing: 2 }}>AUDIO BROADCAST</Typography>
+                                  <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 800, mb: 1 }}>Voice Lesson: {section.title}</Typography>
+                                  <audio controls style={{ width: '100%', height: '40px', filter: 'invert(100%)' }}>
                                     <source src={section.mediaUrl} type="audio/mpeg" />
                                     Your browser does not support the audio element.
                                   </audio>
@@ -981,20 +1062,38 @@ export default function Courses() {
                         )}
 
                         {section.type === 'quiz' && section.quizData ? (
-                          <QuizViewer quiz={section.quizData} sectionId={section.id || index.toString()} />
+                          <Box id={`section-quiz-${index}`}>
+                            <QuizViewer quiz={section.quizData} sectionId={section.id || index.toString()} />
+                          </Box>
                         ) : (
-                          <Typography 
-                            variant="body1" 
-                            sx={{ 
-                              fontSize: '1.25rem', 
-                              lineHeight: 1.8, 
-                              color: 'rgba(255,255,255,0.85)',
-                              whiteSpace: 'pre-wrap',
-                              fontFamily: isSectionRTL ? 'Amiri, Georgia, serif' : 'inherit'
-                            }}
-                          >
-                            {section.content}
-                          </Typography>
+                          <Box>
+                            <Box 
+                              sx={{ 
+                                fontSize: '1.4rem', 
+                                lineHeight: 2, 
+                                color: 'rgba(255,255,255,0.95)',
+                                fontFamily: isSectionRTL ? 'var(--font-urdu), "Inter", sans-serif' : '"Inter", sans-serif',
+                                textAlign: isSectionRTL ? 'right' : 'left',
+                                direction: isSectionRTL ? 'rtl' : 'ltr',
+                                '& p': { mb: 3 },
+                                '& ul, & ol': { mb: 3, pl: 4 },
+                                '& li': { mb: 1.5 },
+                                '& h1, & h2, & h3': { fontFamily: isSectionRTL ? 'var(--font-urdu)' : 'var(--font-serif)', color: '#fff', mb: 3, fontWeight: 700 }
+                              }}
+                            >
+                              <ReactMarkdown>{section.content}</ReactMarkdown>
+                            </Box>
+                            {section.quizData && (
+                              <Box sx={{ mt: 6 }} id={`section-quiz-${index}`}>
+                                <Box sx={{ p: 4, borderRadius: 4, bgcolor: alpha(theme.palette.primary.main, 0.05), border: '1px dashed', borderColor: 'primary.main', textAlign: 'center', mb: 4 }}>
+                                  <Trophy size={32} color={theme.palette.primary.main} style={{ marginBottom: 16 }} />
+                                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>Lesson Knowledge Check</Typography>
+                                  <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>Test your understanding of this module.</Typography>
+                                </Box>
+                                <QuizViewer quiz={section.quizData} sectionId={section.id || index.toString()} />
+                              </Box>
+                            )}
+                          </Box>
                         )}
                       </Box>
                     );

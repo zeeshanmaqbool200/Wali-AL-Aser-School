@@ -140,11 +140,20 @@ export default function Exams() {
     }
   };
 
+  const [selectedLevel, setSelectedLevel] = useState('All');
+  const [levels, setLevels] = useState<string[]>(['All']);
+
+  useEffect(() => {
+    const uniqueLevels = Array.from(new Set(exams.map(e => e.grade).filter(Boolean)));
+    setLevels(['All', ...uniqueLevels]);
+  }, [exams]);
+
   const filteredExams = exams.filter(e => {
     const matchesSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          e.subject.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTab = tabValue === 0 ? e.status === 'upcoming' : e.status === 'completed';
-    return matchesSearch && matchesTab;
+    const matchesLevel = selectedLevel === 'All' || e.grade === selectedLevel;
+    return matchesSearch && matchesTab && matchesLevel;
   });
 
   if (loading) return (
@@ -267,10 +276,33 @@ export default function Exams() {
                 <Tab label="Mukammal" icon={<CheckCircle size={20} />} iconPosition="start" />
               </Tabs>
               
-              <Box sx={{ px: 2, py: 2, flex: { xs: 1, md: 'none' }, minWidth: { xs: '100%', md: 350 } }}>
+              <Box sx={{ px: 2, py: 2, flex: { xs: 1, md: 'none' }, minWidth: { xs: '100%', md: 550 }, display: 'flex', gap: 2 }}>
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <InputLabel sx={{ fontWeight: 800 }}>Level</InputLabel>
+                  <Select
+                    value={selectedLevel}
+                    label="Level"
+                    onChange={(e) => setSelectedLevel(e.target.value)}
+                    sx={{ 
+                      borderRadius: 2, 
+                      bgcolor: alpha(theme.palette.background.default, 0.5), 
+                      fontWeight: 800,
+                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                      boxShadow: theme.palette.mode === 'dark'
+                        ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                        : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                    }}
+                  >
+                    {levels.map(level => (
+                      <MenuItem key={level} value={level} sx={{ fontWeight: 700 }}>{level}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
                 <Paper 
                   elevation={0} 
                   sx={{ 
+                    flex: 1,
                     display: 'flex', 
                     alignItems: 'center', 
                     px: 3, 
