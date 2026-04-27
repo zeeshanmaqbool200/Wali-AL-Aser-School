@@ -50,6 +50,7 @@ export default function Fees() {
   
   const [formData, setFormData] = useState({
     studentId: '',
+    isNonStudent: false,
     studentName: '',
     amount: '',
     feeHead: 'Monthly Fee',
@@ -141,7 +142,11 @@ export default function Fees() {
     if (!currentUser) return;
     setSubmitting(true);
     try {
-      const student = students.find(s => s.uid === formData.studentId);
+      let student: any = null;
+      if (!formData.isNonStudent) {
+        student = students.find(s => s.uid === formData.studentId);
+      }
+      
       const receiptId = `WUA-${format(new Date(), 'yyyy')}-${Math.floor(100000 + Math.random() * 900000)}`;
       const newReceipt = {
         ...formData,
@@ -152,9 +157,10 @@ export default function Fees() {
         createdBy: currentUser.uid,
         receiptNo: receiptId,
         receiptNumber: receiptId,
-        studentOfficialId: student?.admissionNo || student?.studentId || '',
+        studentOfficialId: formData.isNonStudent ? 'NON-STUDENT' : (student?.admissionNo || student?.studentId || ''),
         studentPhotoURL: student?.photoURL || '',
-        grade: student?.maktabLevel || student?.grade || ''
+        grade: formData.isNonStudent ? 'General' : (student?.maktabLevel || student?.grade || ''),
+        studentId: formData.isNonStudent ? `non-${Date.now()}` : formData.studentId
       };
       await smartAddDoc(collection(db, 'receipts'), newReceipt);
       
@@ -167,7 +173,7 @@ export default function Fees() {
       });
 
       setOpenAddDialog(false);
-      setFormData({ studentId: '', studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '' });
+      setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '' });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'receipts');
     } finally {
@@ -740,6 +746,7 @@ export default function Fees() {
                                       setEditingReceipt(receipt);
                                       setFormData({
                                         studentId: receipt.studentId,
+                                        isNonStudent: (receipt as any).isNonStudent || false,
                                         studentName: receipt.studentName,
                                         amount: receipt.amount.toString(),
                                         feeHead: receipt.feeHead,
@@ -799,8 +806,8 @@ export default function Fees() {
             p: 1,
             bgcolor: 'background.paper',
             boxShadow: theme.palette.mode === 'dark'
-              ? '20px 20px 60px #060a12, -20px -20px 60px #182442'
-              : '20px 20px 60px #d1d9e6, -20px -20px 60px #ffffff',
+              ? '10px 10px 30px #060a12, -10px -10px 30px #182442'
+              : '10px 10px 30px #d1d9e6, -10px -10px 30px #ffffff',
             border: 'none'
           } 
         }}
@@ -819,7 +826,20 @@ export default function Fees() {
           </Typography>
           <Grid container spacing={3}>
             <Grid size={12}>
-              {currentUser?.role === 'student' ? (
+              {isAdmin && (
+                <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
+                  <Button 
+                    variant={formData.isNonStudent ? "contained" : "outlined"}
+                    size="small"
+                    onClick={() => setFormData(prev => ({ ...prev, isNonStudent: !prev.isNonStudent, studentId: '', studentName: '' }))}
+                    sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
+                  >
+                    {formData.isNonStudent ? "Switch to Student" : "Register Non-Student / Mehmaan"}
+                  </Button>
+                </Box>
+              )}
+
+              {currentUser?.role === 'student' && !isAdmin ? (
                 <TextField
                   fullWidth
                   label="Talib-e-Ilm"
@@ -828,12 +848,23 @@ export default function Fees() {
                   InputProps={{ sx: { borderRadius: 4, bgcolor: 'background.default' } }}
                 />
               ) : (
-                <Autocomplete
-                  options={students}
-                  getOptionLabel={(option) => `${option.displayName} (${option.admissionNo || option.studentId || 'N/A'})`}
-                  onChange={(e, v) => setFormData({ ...formData, studentId: v?.uid || '', studentName: v?.displayName || '' })}
-                  renderInput={(params) => <TextField {...params} label="Select Talib-e-Ilm" required InputProps={{ ...params.InputProps, sx: { borderRadius: 4 } }} />}
-                />
+                formData.isNonStudent ? (
+                  <TextField 
+                    fullWidth 
+                    label="Enter Mehmaan / Non-Student Name" 
+                    required 
+                    value={formData.studentName}
+                    onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
+                    InputProps={{ sx: { borderRadius: 4 } }}
+                  />
+                ) : (
+                  <Autocomplete
+                    options={students}
+                    getOptionLabel={(option) => `${option.displayName} (${option.admissionNo || option.studentId || 'N/A'})`}
+                    onChange={(e, v) => setFormData({ ...formData, studentId: v?.uid || '', studentName: v?.displayName || '' })}
+                    renderInput={(params) => <TextField {...params} label="Select Talib-e-Ilm" required InputProps={{ ...params.InputProps, sx: { borderRadius: 4 } }} />}
+                  />
+                )
               )}
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -860,10 +891,10 @@ export default function Fees() {
                 onChange={(e) => setFormData({ ...formData, feeHead: e.target.value })}
                 InputProps={{ sx: { borderRadius: 4 } }}
               >
-                <option value="Monthly Fee">Monthly Fee</option>
-                <option value="Admission Fee">Admission Fee</option>
-                <option value="Quran / Hifz Fee">Quran / Hifz Fee</option>
-                <option value="Exam / Test Fee">Exam / Test Fee</option>
+                <option value="Monthly Fee" disabled={formData.isNonStudent}>Monthly Fee</option>
+                <option value="Admission Fee" disabled={formData.isNonStudent}>Admission Fee</option>
+                <option value="Quran / Hifz Fee" disabled={formData.isNonStudent}>Quran / Hifz Fee</option>
+                <option value="Exam / Test Fee" disabled={formData.isNonStudent}>Exam / Test Fee</option>
                 <option value="Book / Kitab Fee">Book / Kitab Fee</option>
                 <option value="Activity / Competition Fee (Gez-z & Gen-x)">Activity / Competition Fee (Gez-z & Gen-x)</option>
                 <option value="Sadqa / Donation">Sadqa / Donation</option>
@@ -914,7 +945,7 @@ export default function Fees() {
           <Button 
             onClick={() => {
               setOpenAddDialog(false);
-              setFormData({ studentId: '', studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '' });
+              setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '' });
             }}
             sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'none' }}
           >
@@ -924,7 +955,7 @@ export default function Fees() {
             onClick={handleAddReceipt} 
             variant="contained" 
             startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <Plus size={18} />} 
-            disabled={!formData.studentId || !formData.amount || submitting}
+            disabled={(!formData.studentId && !formData.isNonStudent) || !formData.studentName || !formData.amount || submitting}
             sx={{ 
               borderRadius: 1.5, 
               fontWeight: 900, 
@@ -1024,7 +1055,7 @@ export default function Fees() {
             onClick={() => {
               setOpenEditDialog(false);
               setEditingReceipt(null);
-              setFormData({ studentId: '', studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '' });
+              setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '' });
             }}
             sx={{ fontWeight: 800, color: 'text.secondary' }}
           >

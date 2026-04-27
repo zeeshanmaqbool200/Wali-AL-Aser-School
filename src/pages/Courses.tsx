@@ -224,8 +224,6 @@ export default function Courses() {
         setSnackbar({ open: true, message: 'Naya Mazmoon kamyabi se shamil ho gaya!', severity: 'success' });
       }
       
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-      
       setOpenDialog(false);
       setEditingCourse(null);
       setFormData({ 
@@ -797,181 +795,140 @@ export default function Courses() {
                   Educational Content (Modules)
                 </Typography>
                 
-                <Paper id="lesson-editor-entry" variant="outlined" sx={{ p: 4, borderRadius: 6, bgcolor: theme.palette.mode === 'dark' ? '#111' : '#fff', mb: 4, boxShadow: '0 10px 40px rgba(0,0,0,0.05)' }}>
+                <Paper id="lesson-editor-entry" variant="outlined" sx={{ p: isMobile ? 2 : 4, borderRadius: 3, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.5) : '#fff', mb: 4, border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
                   <Typography variant="h6" sx={{ fontWeight: 950, mb: 3, display: 'flex', alignItems: 'center', gap: 2, letterSpacing: -0.5 }}>
-                    <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main' }}>
+                    <Box sx={{ width: 40, height: 40, borderRadius: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', boxShadow: 'none' }}>
                       {editingSectionIdx !== null ? <Edit2 size={24} /> : <Plus size={24} />}
                     </Box>
-                    {editingSectionIdx !== null ? 'Edit Existing Lesson' : 'Add New Lesson'}
+                    {editingSectionIdx !== null ? 'Dars Update Karein' : 'Naya Dars / Section'}
                   </Typography>
-                  <Stack spacing={4}>
-                    <TextField 
-                      fullWidth 
-                      label="Lesson Title" 
-                      variant="standard"
-                      placeholder="e.g. Introduction to Noorani Qaida"
-                      value={newSection.title} 
-                      onChange={(e) => setNewSection({ ...newSection, title: e.target.value })} 
-                      InputProps={{ sx: { fontSize: '1.5rem', fontWeight: 900, mb: 1 } }}
-                      slotProps={{ inputLabel: { shrink: true } }}
+                  <Stack spacing={3}>
+                    <TextField
+                      fullWidth
+                      label="Sabaq ka Unwan (Lesson Title)"
+                      placeholder="e.g. Introduction to Surah Fatiha"
+                      value={newSection.title}
+                      onChange={(e) => setNewSection({ ...newSection, title: e.target.value })}
+                      variant="outlined"
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
                     />
-                    
-                    <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <Box sx={{ flexShrink: 0 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 900, mb: 1, display: 'block', color: 'text.disabled' }}>FORMAT</Typography>
-                        <Stack direction="row" spacing={1}>
-                          {[
-                            { value: 'text', icon: <FileText size={18} />, label: 'Text' },
-                            { value: 'audio', icon: <Headphones size={18} />, label: 'Audio' },
-                            { value: 'video', icon: <Zap size={18} />, label: 'Video' },
-                            { value: 'image', icon: <ImageIcon size={18} />, label: 'Visual' },
-                            { value: 'quiz', icon: <HelpCircle size={18} />, label: 'Quiz' }
-                          ].map((type) => (
-                            <Tooltip title={type.label} key={type.value}>
-                              <IconButton 
-                                onClick={() => setNewSection({ ...newSection, type: type.value as any })}
-                                sx={{ 
-                                  width: 44, height: 44,
-                                  borderRadius: 3,
-                                  bgcolor: newSection.type === type.value ? 'primary.main' : alpha(theme.palette.action.hover, 0.5),
-                                  color: newSection.type === type.value ? 'white' : 'text.secondary',
-                                  '&:hover': { bgcolor: newSection.type === type.value ? 'primary.dark' : alpha(theme.palette.action.hover, 1) }
-                                }}
-                              >
-                                {type.icon}
-                              </IconButton>
-                            </Tooltip>
-                          ))}
-                        </Stack>
-                      </Box>
-                      
-                      {newSection.type !== 'quiz' && (
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 900, mb: 1, display: 'block', color: 'text.disabled' }}>MEDIA SOURCE</Typography>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <TextField 
-                              fullWidth 
-                              placeholder={newSection.type === 'video' ? "YouTube URL" : "URL or Upload"} 
-                              value={newSection.mediaUrl} 
-                              onChange={(e) => setNewSection({ ...newSection, mediaUrl: e.target.value })} 
-                              variant="outlined"
-                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.background.default, 0.4) } }}
-                            />
-                            {(['image', 'file', 'audio'].includes(newSection.type)) && (
-                              <Button 
-                                component="label" 
-                                variant="outlined"
-                                startIcon={<Paperclip size={18} />}
-                                sx={{ borderRadius: 3, px: 3, whiteSpace: 'nowrap' }}
-                              >
-                                Upload
-                                <input type="file" hidden accept={newSection.type === 'audio' ? 'audio/*' : newSection.type === 'image' ? 'image/*' : '*'} onChange={(e) => handleFileUpload(e, 'section')} />
-                              </Button>
-                            )}
-                          </Box>
-                        </Box>
-                      )}
+
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                      {['text', 'audio', 'video', 'image', 'quiz'].map((type) => (
+                        <Chip 
+                          key={type}
+                          label={type.toUpperCase()}
+                          onClick={() => setNewSection(prev => ({ ...prev, type: type as any }))}
+                          variant={newSection.type === type ? "filled" : "outlined"}
+                          color={newSection.type === type ? "primary" : "default"}
+                          sx={{ fontWeight: 800, borderRadius: 2, px: 2 }}
+                        />
+                      ))}
                     </Box>
 
-                    {newSection.type === 'quiz' ? (
-                       // ... (quiz builder code remains similar but styled)
-                       <Box sx={{ p: 3, borderRadius: 4, bgcolor: alpha(theme.palette.primary.main, 0.05), border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
-                        <Typography variant="subtitle2" sx={{ mb: 3, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: 'primary.main', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <HelpCircle size={18} />
-                          </Box>
-                          Interactive Quiz Builder
-                        </Typography>
-                        <Stack spacing={3}>
-                          <TextField 
-                            fullWidth 
-                            label="Question Text" 
+                    {newSection.type !== 'quiz' && (
+                      <Box>
+                         <TextField
+                            fullWidth
+                            label={`${newSection.type.charAt(0).toUpperCase() + newSection.type.slice(1)} URL`}
+                            placeholder="https://..."
+                            value={newSection.mediaUrl}
+                            onChange={(e) => setNewSection({ ...newSection, mediaUrl: e.target.value })}
                             variant="filled"
-                            value={currentQuizQuestion.question}
-                            onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, question: e.target.value })}
-                            sx={{ '& .MuiFilledInput-root': { borderRadius: 3 } }}
+                            sx={{ mb: 2, '& .MuiFilledInput-root': { borderRadius: 3 } }}
                           />
-                          <Grid container spacing={2}>
-                            {currentQuizQuestion.options.map((opt, idx) => (
-                              <Grid size={6} key={idx}>
-                                <TextField 
-                                  fullWidth 
-                                  placeholder={`Option ${idx + 1}`} 
-                                  variant="outlined"
-                                  value={opt}
-                                  onChange={(e) => {
-                                    const newOpts = [...currentQuizQuestion.options];
-                                    newOpts[idx] = e.target.value;
-                                    setCurrentQuizQuestion({ ...currentQuizQuestion, options: newOpts });
-                                  }}
-                                  slotProps={{
-                                    input: {
-                                      sx: { borderRadius: 3 },
-                                      endAdornment: (
-                                        <IconButton size="small" onClick={() => setCurrentQuizQuestion({ ...currentQuizQuestion, correctAnswer: idx })}>
-                                          {currentQuizQuestion.correctAnswer === idx ? <CheckCircle size={18} color={theme.palette.success.main} /> : <Box sx={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid', borderColor: 'divider' }} />}
-                                        </IconButton>
-                                      )
-                                    }
-                                  }}
-                                />
-                              </Grid>
-                            ))}
-                          </Grid>
-                          <Button variant="contained" color="secondary" onClick={handleAddQuizQuestion} disabled={!currentQuizQuestion.question} sx={{ borderRadius: 3, fontWeight: 900 }}>
-                            Add This Question ({newSection.quizData.questions.length} total)
-                          </Button>
-                        </Stack>
-                      </Box>
-                    ) : (
-                      <Box sx={{ 
-                        '& .editor-toolbar': { 
-                          borderColor: 'divider', 
-                          borderRadius: '16px 16px 0 0',
-                          bgcolor: theme.palette.mode === 'dark' ? '#222' : '#f8f9fa'
-                        },
-                        '& .CodeMirror': { 
-                          borderColor: 'divider', 
-                          borderRadius: '0 0 16px 16px',
-                          bgcolor: theme.palette.mode === 'dark' ? '#0a0a0a' : '#fff',
-                          color: theme.palette.text.primary,
-                          fontFamily: 'var(--font-urdu), var(--font-sans)',
-                          fontSize: '1.25rem',
-                          minHeight: '300px'
-                        },
-                        '& .CodeMirror-cursor': { borderLeft: `2px solid ${theme.palette.primary.main}` },
-                        '& .editor-preview': { bgcolor: 'background.paper', color: 'text.primary' }
-                      }}>
-                        <Typography variant="overline" sx={{ fontWeight: 900, mb: 1.5, display: 'block', color: 'primary.main', opacity: 0.8 }}>LESSON CONTENT (URDU SUPPORTED)</Typography>
-                        <SimpleMDE 
-                          key={editingSectionIdx ?? 'new'}
-                          value={newSection.content} 
-                          onChange={(value) => setNewSection({ ...newSection, content: value })} 
-                          options={{
-                            placeholder: "Write your lesson notes here... Markdown and Urdu are fully supported.",
-                            autofocus: false,
-                            spellChecker: false,
-                            status: false,
-                            minHeight: "300px"
-                          }}
-                        />
+                          {(['image', 'file', 'audio'].includes(newSection.type)) && (
+                            <Button component="label" variant="outlined" fullWidth sx={{ py: 2, borderRadius: 3, borderStyle: 'dashed', fontWeight: 800 }}>
+                              Upload {newSection.type}
+                              <input type="file" hidden onChange={(e) => handleFileUpload(e, 'section')} />
+                            </Button>
+                          )}
                       </Box>
                     )}
+
+                    {newSection.type === 'quiz' && (
+                      <Box sx={{ p: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 4 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 2 }}>Build Quiz Questions</Typography>
+                        <Stack spacing={2} sx={{ mb: 3 }}>
+                           <TextField
+                              fullWidth
+                              label="Question"
+                              value={currentQuizQuestion.question}
+                              onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, question: e.target.value })}
+                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                            />
+                            <Grid container spacing={2}>
+                              {currentQuizQuestion.options.map((opt, i) => (
+                                <Grid size={6} key={i}>
+                                  <TextField
+                                    fullWidth
+                                    label={`Option ${i + 1}`}
+                                    value={opt}
+                                    onChange={(e) => {
+                                      const newOpts = [...currentQuizQuestion.options];
+                                      newOpts[i] = e.target.value;
+                                      setCurrentQuizQuestion({ ...currentQuizQuestion, options: newOpts });
+                                    }}
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                  />
+                                </Grid>
+                              ))}
+                            </Grid>
+                            <FormControl fullWidth>
+                              <InputLabel>Correct Answer</InputLabel>
+                              <Select
+                                value={currentQuizQuestion.correctAnswer}
+                                label="Correct Answer"
+                                onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, correctAnswer: Number(e.target.value) })}
+                                sx={{ borderRadius: 2 }}
+                              >
+                                {currentQuizQuestion.options.map((_, i) => (
+                                  <MenuItem key={i} value={i}>Option {i + 1}</MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                            <Button variant="contained" color="secondary" onClick={handleAddQuizQuestion} startIcon={<Plus size={18} />} sx={{ borderRadius: 2, fontWeight: 800 }}>
+                              Add Question
+                            </Button>
+                        </Stack>
+                      </Box>
+                    )}
+
+                    <Box sx={{ 
+                      '& .CodeMirror': { 
+                        borderColor: 'divider', 
+                        borderRadius: '16px',
+                        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : '#fff',
+                        fontFamily: 'var(--font-urdu), var(--font-sans)',
+                      }
+                    }}>
+                      <SimpleMDE 
+                        key={editingSectionIdx ?? 'new'}
+                        value={newSection.content} 
+                        onChange={(value) => setNewSection({ ...newSection, content: value })} 
+                        options={{
+                          placeholder: "Sabaq ka matan yahan likhein (Markdown/Urdu supported)...",
+                          spellChecker: false,
+                          status: false,
+                          minHeight: "200px",
+                          toolbar: ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "|", "preview", "side-by-side"]
+                        }}
+                      />
+                    </Box>
                     
                     <Button 
                       variant="contained" 
-                      color={editingSectionIdx !== null ? "secondary" : "primary"} 
                       onClick={handleAddSection} 
                       startIcon={editingSectionIdx !== null ? <CheckCircle size={20} /> : <Plus size={20} />}
-                      disabled={newSection.type === 'quiz' ? newSection.quizData.questions.length === 0 : !newSection.content && !newSection.mediaUrl}
                       sx={{ 
-                        borderRadius: 4, fontWeight: 950, py: 2, 
-                        fontSize: '1.1rem',
-                        boxShadow: `0 10px 30px ${alpha(editingSectionIdx !== null ? theme.palette.secondary.main : theme.palette.primary.main, 0.3)}`
+                        borderRadius: 3, fontWeight: 900, py: 1.5, 
+                        fontSize: '1rem',
+                        boxShadow: 'none'
                       }}
                     >
-                      {editingSectionIdx !== null ? 'Update Lesson in Path' : 'Save Lesson to Course Track'}
+                      {editingSectionIdx !== null ? 'Sabaq Update Karein' : 'Sabaq Shamil Karein'}
                     </Button>
+                    
                     {editingSectionIdx !== null && (
                       <Button variant="text" onClick={() => {
                         setEditingSectionIdx(null);
@@ -1002,7 +959,7 @@ export default function Courses() {
                           key={i} 
                           variant="outlined" 
                           sx={{ 
-                            borderRadius: 4, p: 2, 
+                            borderRadius: 2, p: 2, 
                             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                             transition: 'all 0.2s',
                             '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05), borderColor: 'primary.main', transform: 'scale(1.01)' }
@@ -1240,7 +1197,7 @@ export default function Courses() {
                     >
                       {/* Media Display */}
                       {viewingCourse?.sections?.[activeSection]?.type === 'video' && viewingCourse?.sections?.[activeSection]?.mediaUrl && (
-                        <Box sx={{ mb: 6, borderRadius: 10, overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }}>
+                        <Box sx={{ mb: 6, borderRadius: 10, overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
                            <iframe 
                              width="100%" 
                              height="500" 
@@ -1254,7 +1211,7 @@ export default function Courses() {
                       )}
 
                       {viewingCourse?.sections?.[activeSection]?.type === 'image' && viewingCourse?.sections?.[activeSection]?.mediaUrl && (
-                        <Box sx={{ mb: 6, borderRadius: 10, overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }}>
+                        <Box sx={{ mb: 6, borderRadius: 10, overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
                            <Box 
                              component="img" 
                              referrerPolicy="no-referrer"
@@ -1278,28 +1235,42 @@ export default function Courses() {
                       {/* Text Content */}
                       <Box 
                         sx={{ 
+                          direction: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 'rtl' : 'ltr',
                           '& p': { 
-                            mb: 4, lineHeight: 1.9, fontSize: '1.4rem', color: 'text.primary',
+                            mb: '2.5rem', 
+                            lineHeight: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 2.8 : 1.9,
+                            fontSize: '1.4rem', 
+                            color: 'text.primary',
                             fontFamily: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 'var(--font-urdu)' : 'inherit',
-                            textAlign: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 'right' : 'left',
+                            textAlign: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 'justify' : 'left',
                             wordSpacing: '0.05em'
                           },
-                          '& li': { mb: 2, fontSize: '1.3rem', color: 'text.primary', lineHeight: 1.6 },
+                          '& li': { 
+                            mb: '1.2rem', 
+                            fontSize: '1.3rem', 
+                            color: 'text.primary', 
+                            lineHeight: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 2.5 : 1.6 
+                          },
                           '& h1, & h2, & h3': { mb: 4, mt: 8, fontWeight: 950, color: 'text.primary', letterSpacing: -1.5, lineHeight: 1.1 },
                           '& blockquote': {
-                            borderLeft: '6px solid',
+                            borderRight: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? '6px solid' : 'none',
+                            borderLeft: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 'none' : '6px solid',
                             borderColor: 'primary.main',
-                            pl: 4, py: 2, my: 6,
+                            pr: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 4 : 0,
+                            pl: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 0 : 4,
+                            py: 2, my: 6,
                             fontStyle: 'italic',
                             bgcolor: alpha(theme.palette.primary.main, 0.05),
                             borderRadius: 3,
                             fontSize: '1.5rem',
                             lineHeight: 1.5
                           },
-                          '& img': { maxWidth: '100%', borderRadius: 6, my: 4, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }
+                          '& img': { maxWidth: '100%', borderRadius: 6, my: 4, boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }
                         }}
                       >
-                        <ReactMarkdown>{viewingCourse?.sections?.[activeSection]?.content || ''}</ReactMarkdown>
+                         <div className="markdown-body">
+                           <ReactMarkdown>{viewingCourse?.sections?.[activeSection]?.content || ''}</ReactMarkdown>
+                         </div>
                       </Box>
 
                       {viewingCourse?.sections?.[activeSection]?.quizData?.questions?.length > 0 && (
@@ -1334,7 +1305,7 @@ export default function Courses() {
                               borderRadius: 5, fontWeight: 950, px: 6, py: 2,
                               fontSize: '1.2rem',
                               bgcolor: 'primary.main',
-                              boxShadow: `0 20px 40px ${alpha(theme.palette.primary.main, 0.3)}`,
+                              boxShadow: `0 10px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
                               '&:hover': { bgcolor: 'primary.dark', transform: 'translateY(-3px)' }
                             }}
                           >
@@ -1409,7 +1380,6 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sec
             timestamp: Date.now(),
             grade: currentUser.maktabLevel || 'N/A'
           });
-          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         } catch (error) {
           handleFirestoreError(error, OperationType.WRITE, 'quiz_results');
         } finally {
@@ -1502,13 +1472,13 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
         border: 'none',
         bgcolor: 'background.paper',
         boxShadow: isDark 
-          ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
-          : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
+          ? '2px 2px 6px #060a12, -2px -2px 6px #182442'
+          : '2px 2px 6px #d1d9e6, -2px -2px 6px #ffffff',
         '&:hover': { 
           transform: 'translateX(10px)', 
           boxShadow: isDark 
-            ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-            : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
+            ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
+            : '4px 4px 10px #d1d9e6, -4px -4px 10px #ffffff',
         }
       }}>
         <CardContent sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 4 }}>

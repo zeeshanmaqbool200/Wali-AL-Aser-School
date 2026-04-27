@@ -33,9 +33,13 @@ export default function PermissionAgent() {
   useEffect(() => {
     if (!user) return;
     
-    // Check if dismissed in localStorage
-    const isDismissed = localStorage.getItem('permission_agent_dismissed');
-    if (isDismissed) return;
+    // Check if dismissed and handle "fewer times" logic (snooze for 7 days)
+    const dismissedAt = localStorage.getItem('permission_agent_dismissed_at');
+    if (dismissedAt) {
+      const lastDismissed = parseInt(dismissedAt);
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      if (Date.now() - lastDismissed < sevenDays) return;
+    }
 
     const needsAttention = 
       permissions.notifications === 'prompt' || 
@@ -44,6 +48,10 @@ export default function PermissionAgent() {
 
     // If all are granted or denied (not prompt), we don't need to show the agent
     if (!needsAttention) {
+      // If all granted, ensure we never ask again by setting a very long snooze or just returning
+      if (permissions.notifications === 'granted' && permissions.camera === 'granted' && permissions.microphone === 'granted') {
+         localStorage.setItem('permission_agent_dismissed_at', (Date.now() + 315360000000).toString()); // 10 years
+      }
       setOpen(false);
       return;
     }
@@ -53,7 +61,7 @@ export default function PermissionAgent() {
   }, [user, permissions]);
 
   const handleDismiss = () => {
-    localStorage.setItem('permission_agent_dismissed', 'true');
+    localStorage.setItem('permission_agent_dismissed_at', Date.now().toString());
     setOpen(false);
   };
 

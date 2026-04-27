@@ -6,7 +6,7 @@ import {
   Stack, Snackbar, useMediaQuery
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { Camera, Save, User, Mail, Phone, MapPin } from 'lucide-react';
+import { Camera, Save, User, Mail, Phone, MapPin, ChevronLeft } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartUpdateDoc } from '../firebase';
 import { UserProfile } from '../types';
@@ -119,9 +119,21 @@ export default function Profile() {
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', pb: 8, px: { xs: 2, sm: 0 } }}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <Typography variant="h4" sx={{ fontWeight: 900, mb: 4, letterSpacing: -1.5 }}>
-          Personal Profile
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
+          <IconButton 
+            onClick={() => window.history.back()} 
+            sx={{ 
+              bgcolor: 'background.paper', 
+              boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+              '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) }
+            }}
+          >
+            <ChevronLeft size={20} />
+          </IconButton>
+          <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5 }}>
+            Personal Profile
+          </Typography>
+        </Box>
 
         <Card sx={{ 
           borderRadius: 2, 

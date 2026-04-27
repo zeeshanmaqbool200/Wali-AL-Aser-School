@@ -97,8 +97,8 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
               backdropFilter: 'blur(20px)',
               border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
               boxShadow: theme.palette.mode === 'dark' 
-                ? '0 8px 20px rgba(0,0,0,0.5)' 
-                : '0 8px 20px rgba(0,0,0,0.08)',
+                ? '0 4px 12px rgba(0,0,0,0.5)' 
+                : '0 4px 12px rgba(0,0,0,0.08)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

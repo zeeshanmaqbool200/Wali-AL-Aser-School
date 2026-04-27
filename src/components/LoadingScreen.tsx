@@ -19,8 +19,9 @@ export default function LoadingScreen() {
         position: 'fixed',
         top: 0,
         left: 0,
-        zIndex: 9999,
+        zIndex: 1000000,
         backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(15, 118, 110, 0.2) 0%, rgba(0,0,0,0) 70%)',
+        backdropFilter: 'blur(20px)'
       }}
     >
       <motion.div
@@ -38,34 +39,47 @@ export default function LoadingScreen() {
       >
         <Box 
           sx={{ 
-            width: 120, 
-            height: 120, 
+            width: 140, 
+            height: 140, 
             borderRadius: '50%', 
-            border: `2px solid ${theme.palette.primary.main}`,
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: `0 0 50px ${alpha(theme.palette.primary.main, 0.3)}`,
-            position: 'relative'
+            boxShadow: `0 0 20px ${alpha(theme.palette.primary.main, 0.1)}`,
+            position: 'relative',
+            bgcolor: alpha('#000', 0.3),
+            backdropFilter: 'blur(10px)'
           }}
         >
-          {/* Central Icon - Placeholder for a religious graphic or just a styled "W" */}
-          <Typography variant="h3" sx={{ color: 'primary.main', fontWeight: 900, fontFamily: 'var(--font-display)' }}>
+          {/* Decorative "W" using Cinzel font */}
+          <Typography 
+            variant="h2" 
+            sx={{ 
+              fontFamily: 'var(--font-display)', 
+              color: 'primary.main', 
+              fontWeight: 900,
+              zIndex: 2,
+              textShadow: '0 0 20px rgba(15, 118, 110, 0.5)'
+            }}
+          >
             W
           </Typography>
           
-          <CircularProgress 
-            size={140} 
-            thickness={1}
-            sx={{ 
-              position: 'absolute',
-              color: 'primary.main',
-              opacity: 0.3,
-              '& .MuiCircularProgress-circle': {
-                strokeDasharray: '80px, 200px'
-              }
-            }} 
-          />
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+            style={{ position: 'absolute', top: -4, left: -4, right: -4, bottom: -4 }}
+          >
+            <Box 
+              sx={{ 
+                width: '100%', 
+                height: '100%', 
+                borderRadius: '50%', 
+                border: `1px dashed ${alpha(theme.palette.primary.main, 0.2)}`,
+              }} 
+            />
+          </motion.div>
         </Box>
       </motion.div>
 
@@ -79,9 +93,10 @@ export default function LoadingScreen() {
           sx={{ 
             fontFamily: 'var(--font-display)', 
             color: 'primary.main', 
-            fontWeight: 700,
-            letterSpacing: 2,
-            textAlign: 'center'
+            fontWeight: 800,
+            letterSpacing: 4,
+            textAlign: 'center',
+            textShadow: '0 2px 10px rgba(0,0,0,0.5)'
           }}
         >
           MAKTAB WALI UL ASER
@@ -91,12 +106,15 @@ export default function LoadingScreen() {
           sx={{ 
             color: 'text.secondary', 
             textAlign: 'center', 
-            mt: 1,
+            mt: 2,
             fontWeight: 600,
-            letterSpacing: 1
+            letterSpacing: 2,
+            textTransform: 'uppercase',
+            fontSize: '0.7rem',
+            opacity: 0.7
           }}
         >
-          Starting your journey of learning...
+          Journey of Learning & Growth
         </Typography>
       </motion.div>
     </Box>

@@ -226,4 +226,5 @@ export interface InstituteSettings {
   receiptPrefix: string;
   primaryColor: string;
   secondaryColor: string;
+  jafariOffset?: number;
 }

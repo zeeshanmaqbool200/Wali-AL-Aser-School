@@ -643,78 +643,78 @@ export default function Settings() {
                             </Grid>
                           </Grid>
                         </Stack>
-                        <Grid container spacing={3} sx={{ mt: 2 }}>
-                          <Grid size={{ xs: 12, md: 6 }}>
-                             <Box sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50' }}>
-                               <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 800 }}>Primary Brand Color</Typography>
-                               <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                                 <Box 
-                                   sx={{ 
-                                     width: 60, height: 60, borderRadius: 1.5, 
-                                     bgcolor: instituteData.primaryColor || '#1976d2',
-                                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                     position: 'relative',
-                                     cursor: 'pointer',
-                                     '& input': { position: 'absolute', opacity: 0, inset: 0, cursor: 'pointer' }
-                                   }}
-                                 >
-                                   <input 
-                                     type="color" 
-                                     value={instituteData.primaryColor || '#1976d2'} 
-                                     onChange={(e) => setInstituteData({ ...instituteData, primaryColor: e.target.value })}
-                                   />
-                                 </Box>
-                                 <Box>
-                                   <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.1rem' }}>
-                                     {instituteData.primaryColor?.toUpperCase() || '#1976D2'}
-                                   </Typography>
-                                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Click to change</Typography>
-                                 </Box>
-                               </Box>
+                      </Grid>
+
+                      <Grid size={{ xs: 12, md: 6 }}>
+                         <Box sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50' }}>
+                           <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 800 }}>Primary Brand Color</Typography>
+                           <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                             <Box 
+                               sx={{ 
+                                 width: 60, height: 60, borderRadius: 1.5, 
+                                 bgcolor: instituteData.primaryColor || '#1976d2',
+                                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                 position: 'relative',
+                                 cursor: 'pointer',
+                                 '& input': { position: 'absolute', opacity: 0, inset: 0, cursor: 'pointer' }
+                               }}
+                             >
+                               <input 
+                                 type="color" 
+                                 value={instituteData.primaryColor || '#1976d2'} 
+                                 onChange={(e) => setInstituteData({ ...instituteData, primaryColor: e.target.value })}
+                               />
                              </Box>
-                          </Grid>
-                          <Grid size={{ xs: 12, md: 6 }}>
-                             <Box sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50' }}>
-                               <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 800 }}>Secondary Brand Color</Typography>
-                               <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                                 <Box 
-                                   sx={{ 
-                                     width: 60, height: 60, borderRadius: 1.5, 
-                                     bgcolor: instituteData.secondaryColor || '#9c27b0',
-                                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                     position: 'relative',
-                                     cursor: 'pointer',
-                                     '& input': { position: 'absolute', opacity: 0, inset: 0, cursor: 'pointer' }
-                                   }}
-                                 >
-                                   <input 
-                                     type="color" 
-                                     value={instituteData.secondaryColor || '#9c27b0'} 
-                                     onChange={(e) => setInstituteData({ ...instituteData, secondaryColor: e.target.value })}
-                                   />
-                                 </Box>
-                                 <Box>
-                                   <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.1rem' }}>
-                                     {instituteData.secondaryColor?.toUpperCase() || '#9C27B0'}
-                                   </Typography>
-                                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Click to change</Typography>
-                                 </Box>
-                               </Box>
+                             <Box>
+                               <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.1rem' }}>
+                                 {instituteData.primaryColor?.toUpperCase() || '#1976D2'}
+                               </Typography>
+                               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Click to change</Typography>
                              </Box>
-                          </Grid>
-                        </Grid>
-                        <Box sx={{ mt: 5, display: 'flex', justifyContent: 'flex-end' }}>
-                          <Button 
-                            variant="contained" 
-                            startIcon={<Save size={18} />} 
-                            onClick={handleSaveInstitute} 
-                            sx={{ borderRadius: 2, fontWeight: 800, px: 5, py: 1.5 }}
-                          >
-                            Save Branding
-                          </Button>
-                        </Box>
+                           </Box>
+                         </Box>
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 6 }}>
+                         <Box sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50' }}>
+                           <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 800 }}>Secondary Brand Color</Typography>
+                           <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                             <Box 
+                               sx={{ 
+                                 width: 60, height: 60, borderRadius: 1.5, 
+                                 bgcolor: instituteData.secondaryColor || '#9c27b0',
+                                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                 position: 'relative',
+                                 cursor: 'pointer',
+                                 '& input': { position: 'absolute', opacity: 0, inset: 0, cursor: 'pointer' }
+                               }}
+                             >
+                               <input 
+                                 type="color" 
+                                 value={instituteData.secondaryColor || '#9c27b0'} 
+                                 onChange={(e) => setInstituteData({ ...instituteData, secondaryColor: e.target.value })}
+                               />
+                             </Box>
+                             <Box>
+                               <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.1rem' }}>
+                                 {instituteData.secondaryColor?.toUpperCase() || '#9C27B0'}
+                               </Typography>
+                               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Click to change</Typography>
+                             </Box>
+                           </Box>
+                         </Box>
                       </Grid>
                     </Grid>
+                    
+                    <Box sx={{ mt: 5, display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button 
+                        variant="contained" 
+                        startIcon={<Save size={18} />} 
+                        onClick={handleSaveInstitute} 
+                        sx={{ borderRadius: 2, fontWeight: 800, px: 5, py: 1.5 }}
+                      >
+                        Save Branding
+                      </Button>
+                    </Box>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -1257,29 +1257,71 @@ export default function Settings() {
                         p: 3, 
                         borderRadius: 1.5, 
                         bgcolor: 'background.default',
-                        boxShadow: theme.palette.mode === 'dark'
-                          ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                          : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
                       }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 2 }}>Account Password</Typography>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1 }}>Account Password</Typography>
                         <Typography variant="body2" sx={{ mb: 3, fontWeight: 500, color: 'text.secondary' }}>
-                          Regularly updating your password helps keep your account secure.
+                          Update your password periodically to maintain account security.
                         </Typography>
-                        <Button 
-                          variant="contained" 
-                          startIcon={<Lock size={18} />}
-                          onClick={() => setPasswordDialog({ ...passwordDialog, open: true })}
-                          sx={{ 
-                            borderRadius: 1, 
-                            fontWeight: 800, 
-                            px: 4,
-                            boxShadow: theme.palette.mode === 'dark'
-                              ? '6px 6px 12px #060a12, -6px -6px 12px #182442'
-                              : '6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff',
-                          }}
-                        >
-                          Change Password
-                        </Button>
+                        
+                        <Grid container spacing={3}>
+                          <Grid size={{ xs: 12, md: 4 }}>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              label="Current Password"
+                              type={showPassword ? 'text' : 'password'}
+                              value={passwordDialog.current}
+                              onChange={(e) => setPasswordDialog({ ...passwordDialog, current: e.target.value })}
+                              InputProps={{
+                                endAdornment: (
+                                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
+                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                  </IconButton>
+                                ),
+                                sx: { borderRadius: 1 }
+                              }}
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 12, md: 4 }}>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              label="New Password"
+                              type={showPassword ? 'text' : 'password'}
+                              value={passwordDialog.new}
+                              onChange={(e) => setPasswordDialog({ ...passwordDialog, new: e.target.value })}
+                              InputProps={{ sx: { borderRadius: 1 } }}
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 12, md: 4 }}>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              label="Confirm New Password"
+                              type={showPassword ? 'text' : 'password'}
+                              value={passwordDialog.confirm}
+                              onChange={(e) => setPasswordDialog({ ...passwordDialog, confirm: e.target.value })}
+                              InputProps={{ sx: { borderRadius: 1 } }}
+                            />
+                          </Grid>
+                        </Grid>
+
+                        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+                          <Button 
+                            variant="contained" 
+                            startIcon={passwordDialog.loading ? <CircularProgress size={16} color="inherit" /> : <Lock size={18} />}
+                            onClick={handleUpdatePassword}
+                            disabled={passwordDialog.loading || !passwordDialog.current || !passwordDialog.new}
+                            sx={{ 
+                              borderRadius: 1, 
+                              fontWeight: 800, 
+                              px: 4,
+                            }}
+                          >
+                            Update Password
+                          </Button>
+                        </Box>
                       </Box>
                     </Stack>
                   </CardContent>
@@ -1299,6 +1341,49 @@ export default function Settings() {
                   <CardContent sx={{ p: 4 }}>
                     <Typography variant="h6" sx={{ fontWeight: 900, mb: 4, letterSpacing: -0.5 }}>System & Data Management</Typography>
                     <Stack spacing={3}>
+                      {/* Jafari Hijri Date Adjustment moved here */}
+                      <Box sx={{ p: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50', mb: 3 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Languages size={18} /> Jafari Hijri Date Adjustment
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 600 }}>
+                          Set an offset to manually adjust the Islamic date (e.g. for regional moon sighting).
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <Box sx={{ flex: 1 }}>
+                            <input 
+                              type="range" 
+                              min="-3" 
+                              max="3" 
+                              step="1"
+                              value={instituteData.jafariOffset || 0}
+                              onChange={(e) => setInstituteData({ ...instituteData, jafariOffset: parseInt(e.target.value) })}
+                              style={{ width: '100%', accentColor: theme.palette.primary.main, cursor: 'pointer' }}
+                            />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                              {[-3, -2, -1, 0, 1, 2, 3].map(v => (
+                                <Typography key={v} variant="caption" sx={{ fontWeight: 900, color: 'text.secondary' }}>{v}</Typography>
+                              ))}
+                            </Box>
+                          </Box>
+                          <Chip 
+                            label={`${instituteData.jafariOffset > 0 ? '+' : ''}${instituteData.jafariOffset || 0} DAYS`}
+                            color="primary"
+                            sx={{ fontWeight: 900, borderRadius: 2, px: 2, height: 40, fontSize: '1rem' }}
+                          />
+                        </Box>
+                        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+                          <Button 
+                            variant="contained" 
+                            size="small"
+                            startIcon={<Save size={16} />} 
+                            onClick={handleSaveInstitute} 
+                            sx={{ borderRadius: 1, fontWeight: 800 }}
+                          >
+                            Save Offset
+                          </Button>
+                        </Box>
+                      </Box>
                       <Box sx={{ 
                         p: 3, 
                         borderRadius: 1.5, 
@@ -1405,81 +1490,6 @@ export default function Settings() {
           </AnimatePresence>
         </Grid>
       </Grid>
-
-      {/* Password Change Dialog */}
-      <Dialog 
-        open={passwordDialog.open} 
-        onClose={() => !passwordDialog.loading && setPasswordDialog({ ...passwordDialog, open: false })}
-        PaperProps={{ 
-          sx: { 
-            borderRadius: 1.5, 
-            width: '100%', 
-            maxWidth: 400,
-            bgcolor: 'background.paper',
-            boxShadow: theme.palette.mode === 'dark'
-              ? '20px 20px 60px #060a12, -20px -20px 60px #182442'
-              : '20px 20px 60px #d1d9e6, -20px -20px 60px #ffffff',
-            border: 'none'
-          } 
-        }}
-      >
-        <DialogTitle sx={{ fontWeight: 900, letterSpacing: -0.5 }}>Change Password</DialogTitle>
-        <DialogContent>
-          <Stack spacing={3} sx={{ mt: 1 }}>
-            <TextField
-              fullWidth
-              label="Current Password"
-              type={showPassword ? 'text' : 'password'}
-              value={passwordDialog.current}
-              onChange={(e) => setPasswordDialog({ ...passwordDialog, current: e.target.value })}
-              InputProps={{
-                endAdornment: (
-                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </IconButton>
-                ),
-                sx: { borderRadius: 1 }
-              }}
-            />
-            <TextField
-              fullWidth
-              label="New Password"
-              type={showPassword ? 'text' : 'password'}
-              value={passwordDialog.new}
-              onChange={(e) => setPasswordDialog({ ...passwordDialog, new: e.target.value })}
-              InputProps={{ sx: { borderRadius: 1 } }}
-            />
-            <TextField
-              fullWidth
-              label="Confirm New Password"
-              type={showPassword ? 'text' : 'password'}
-              value={passwordDialog.confirm}
-              onChange={(e) => setPasswordDialog({ ...passwordDialog, confirm: e.target.value })}
-              InputProps={{ sx: { borderRadius: 1 } }}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button onClick={() => setPasswordDialog({ ...passwordDialog, open: false })} disabled={passwordDialog.loading} sx={{ fontWeight: 800, color: 'text.secondary' }}>
-            Cancel
-          </Button>
-          <Button 
-            variant="contained" 
-            onClick={handleUpdatePassword} 
-            disabled={passwordDialog.loading || !passwordDialog.current || !passwordDialog.new}
-            sx={{ 
-              borderRadius: 1, 
-              fontWeight: 800, 
-              px: 3,
-              boxShadow: theme.palette.mode === 'dark'
-                ? '6px 6px 12px #060a12, -6px -6px 12px #182442'
-                : '6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff',
-            }}
-          >
-            {passwordDialog.loading ? <CircularProgress size={24} /> : 'Update Password'}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Reset Data Confirmation Dialog */}
       <Dialog 

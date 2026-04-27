@@ -254,7 +254,7 @@ export default function AttendancePage() {
         mb: 4,
         border: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
         bgcolor: 'background.paper',
-        boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+        boxShadow: '0 10px 20px rgba(0,0,0,0.2)',
       }}>
         <CardContent sx={{ p: 0 }}>
           {/* Filters Bar */}
@@ -634,7 +634,7 @@ const SummaryCard = React.memo(({ title, value, icon, color, progress }: any) =>
       transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
       border: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
       bgcolor: 'background.paper',
-      boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+      boxShadow: '0 5px 15px rgba(0,0,0,0.1)',
       '&:hover': { 
         transform: 'translateY(-6px)', 
         borderColor: alpha(mainColor, 0.3),

@@ -204,8 +204,8 @@ export default function Reports() {
                 bgcolor: 'background.paper',
                 color: 'text.primary',
                 boxShadow: theme.palette.mode === 'dark'
-                  ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                  : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+                  ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
+                  : '4px 4px 10px #d1d9e6, -4px -4px 10px #ffffff',
                 '&:hover': {
                   bgcolor: 'background.paper',
                   boxShadow: theme.palette.mode === 'dark'
@@ -228,8 +228,8 @@ export default function Reports() {
                 py: 1.5,
                 textTransform: 'none',
                 boxShadow: theme.palette.mode === 'dark'
-                  ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                  : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+                  ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
+                  : '4px 4px 10px #d1d9e6, -4px -4px 10px #ffffff',
               }}
             >
               Export Analytics
@@ -254,14 +254,14 @@ export default function Reports() {
                 bgcolor: 'background.paper',
                 cursor: stat.link ? 'pointer' : 'default',
                 boxShadow: theme.palette.mode === 'dark'
-                  ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
-                  : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
+                  ? '6px 6px 12px #060a12, -6px -6px 12px #182442'
+                  : '6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff',
                 transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': { 
                   transform: 'translateY(-8px)', 
                   boxShadow: theme.palette.mode === 'dark'
-                    ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-                    : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
+                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+                    : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
                 }
               }}>
                 <CardContent sx={{ p: 3.5 }}>
@@ -309,8 +309,8 @@ export default function Reports() {
             border: 'none',
             bgcolor: 'background.paper',
             boxShadow: theme.palette.mode === 'dark'
-              ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-              : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
+              ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+              : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
           }}>
             <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Box>
@@ -365,8 +365,8 @@ export default function Reports() {
             border: 'none',
             bgcolor: 'background.paper',
             boxShadow: theme.palette.mode === 'dark'
-              ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-              : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
+              ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+              : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
             height: '100%'
           }}>
             <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -426,8 +426,8 @@ export default function Reports() {
             border: 'none',
             bgcolor: 'background.paper',
             boxShadow: theme.palette.mode === 'dark'
-              ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-              : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
+              ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+              : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
           }}>
             <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
               <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5 }}>Academic Performance</Typography>
@@ -466,8 +466,8 @@ export default function Reports() {
             border: 'none',
             bgcolor: 'background.paper',
             boxShadow: theme.palette.mode === 'dark'
-              ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-              : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
+              ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+              : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
           }}>
             <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
               <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5 }}>Attendance Activity</Typography>
@@ -518,8 +518,8 @@ export default function Reports() {
                       border: 'none',
                       bgcolor: 'background.paper',
                       boxShadow: theme.palette.mode === 'dark'
-                        ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                        : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+                        ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
+                        : '4px 4px 10px #d1d9e6, -4px -4px 10px #ffffff',
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                       '&:hover': { 
                         transform: 'translateY(-5px)',

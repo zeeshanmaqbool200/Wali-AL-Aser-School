@@ -11,6 +11,7 @@ import {
   LinearProgress, Divider, Snackbar, Alert
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
+import QRCode from 'qrcode';
 import { 
   Plus, Search, Edit2, Trash2, UserPlus, 
   Filter, Mail, Phone, MapPin, Shield,
@@ -94,6 +95,25 @@ export default function Users() {
     status: 'Active' as 'Active' | 'Inactive',
     photoURL: ''
   });
+
+  // Auto-generate IDs
+  useEffect(() => {
+    if (openDialog && !editingUser) {
+      const generateId = () => {
+        const prefix = formData.role === 'student' ? 'ADM' : formData.role === 'mudaris' ? 'TCH' : 'STF';
+        const timestamp = Date.now().toString().slice(-4);
+        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        const newId = `${prefix}-${timestamp}-${random}`;
+        
+        if (formData.role === 'student') {
+          setFormData(prev => ({ ...prev, admissionNo: newId }));
+        } else {
+          setFormData(prev => ({ ...prev, teacherId: newId }));
+        }
+      };
+      generateId();
+    }
+  }, [openDialog, editingUser, formData.role]);
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const webcamRef = useRef<Webcam>(null);
@@ -312,6 +332,13 @@ export default function Users() {
         const timestamp = Date.now().toString().slice(-4);
         const namePart = formData.displayName.slice(0, 3).toUpperCase();
         finalFormData.admissionNo = `ADM-${year}-${namePart}-${timestamp}`;
+      }
+
+      // Auto-assign teacherId if not provided
+      if (!editingUser && formData.role === 'mudaris' && !formData.teacherId) {
+        const timestamp = Date.now().toString().slice(-4);
+        const namePart = formData.displayName.slice(0, 3).toUpperCase();
+        finalFormData.teacherId = `STF-${namePart}-${timestamp}`;
       }
 
       /* // Skipping duplicate email check to avoid permission errors for non-superadmins
@@ -567,7 +594,7 @@ export default function Users() {
               borderRadius: 2,
               boxShadow: theme.palette.mode === 'dark'
                 ? 'inset 2px 2px 4px #060a12, inset -2px -2px 4px #182442'
-                : 'inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff',
+                : 'inset 2px 2px 4px #cbd5e1, inset -2px -2px 4px #ffffff',
             }}>
               <IconButton 
                 size="small" 
@@ -577,7 +604,7 @@ export default function Users() {
                   p: 1,
                   bgcolor: viewMode === 'grid' ? 'background.paper' : 'transparent', 
                   boxShadow: viewMode === 'grid' 
-                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff')
+                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '1px 2px 4px rgba(0,0,0,0.05)')
                     : 'none',
                   color: viewMode === 'grid' ? 'primary.main' : 'text.secondary',
                   transition: 'all 0.3s ease'
@@ -593,7 +620,7 @@ export default function Users() {
                   p: 1,
                   bgcolor: viewMode === 'list' ? 'background.paper' : 'transparent', 
                   boxShadow: viewMode === 'list' 
-                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff')
+                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '1px 2px 4px rgba(0,0,0,0.05)')
                     : 'none',
                   color: viewMode === 'list' ? 'primary.main' : 'text.secondary',
                   transition: 'all 0.3s ease'
@@ -653,12 +680,12 @@ export default function Users() {
                   fontSize: isMobile ? '0.8rem' : '0.9rem',
                   boxShadow: theme.palette.mode === 'dark'
                     ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
-                    : '4px 4px 10px #cbd5e1, -4px -4px 10px #ffffff',
+                    : '1px 2px 8px rgba(0,0,0,0.05)',
                   '&:hover': {
                     transform: 'translateY(-2px)',
                     boxShadow: theme.palette.mode === 'dark'
                       ? '6px 6px 14px #060a12, -6px -6px 14px #182442'
-                      : '6px 6px 14px #cbd5e1, -6px -6px 14px #ffffff',
+                      : '2px 4px 12px rgba(0,0,0,0.1)',
                   }
                 }}
               >
@@ -1075,7 +1102,7 @@ export default function Users() {
         onClose={() => setOpenDialog(false)} 
         maxWidth="md" 
         fullWidth 
-        PaperProps={{ sx: { borderRadius: 3, p: isMobile ? 1 : 2, boxShadow: '0 10px 40px rgba(0,0,0,0.1)' } }}
+        PaperProps={{ sx: { borderRadius: 3, p: isMobile ? 1 : 2, boxShadow: '0 5px 20px rgba(0,0,0,0.05)' } }}
       >
         <DialogTitle sx={{ fontWeight: 900, fontSize: isMobile ? '1.25rem' : '1.75rem', pb: 2, px: isMobile ? 2 : 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -1619,15 +1646,17 @@ export default function Users() {
                      </Box>
                   </Grid>
 
-                  <Grid size={{ xs: 12 }} sx={{ mt: 4, display: 'flex', justifyContent: 'space-between', px: 2, pb: 2 }}>
+                  <Grid size={{ xs: 12 }} sx={{ mt: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', px: 2, pb: 2 }}>
                      <Box sx={{ textAlign: 'center' }}>
                         <Box sx={{ width: 110, borderBottom: '1px solid black', mb: 0.5 }} />
                         <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Parent's Sign</Typography>
                      </Box>
-                     <Box sx={{ textAlign: 'center' }}>
-                        <Box sx={{ width: 110, borderBottom: '1px solid black', mb: 0.5 }} />
-                        <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Incharge Sign</Typography>
+                     
+                     <Box sx={{ textAlign: 'center', bgcolor: '#f9fafb', p: 1, border: '1px solid #eee', borderRadius: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', fontSize: '0.5rem', mb: 0.5 }}>SECURE VALIDATION</Typography>
+                        {profileToView && <VerificationQR profile={profileToView} />}
                      </Box>
+
                      <Box sx={{ textAlign: 'center' }}>
                         <Box sx={{ width: 110, borderBottom: '1px solid black', mb: 0.5 }} />
                         <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Admin Sign</Typography>
@@ -1747,6 +1776,24 @@ export default function Users() {
   );
 }
 
+const VerificationQR = ({ profile }: { profile: any }) => {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    const verificationLink = `https://${window.location.host}/verify/profile/${profile.id || profile.uid}`;
+    QRCode.toDataURL(verificationLink, {
+      margin: 1,
+      width: 150,
+      color: {
+        dark: '#0d9488',
+        light: '#ffffff',
+      },
+    }).then(setUrl);
+  }, [profile]);
+
+  if (!url) return <CircularProgress size={20} />;
+  return <Box component="img" src={url} sx={{ width: 100, height: 100, borderRadius: 1, border: '1px solid', borderColor: 'divider' }} />;
+};
+
 const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, onEdit, onDelete, onApproveClass, onRejectClass, onApproveMudaris, onRejectMudaris, onViewProfile }: any) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -1779,8 +1826,8 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, onEdit, onDelete, on
               border: '4px solid',
               borderColor: 'background.paper',
               boxShadow: isDark 
-                ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff'
+                ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
+                : '2px 2px 6px rgba(0,0,0,0.1)'
             }} 
           />
         </Box>
@@ -1801,7 +1848,7 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, onEdit, onDelete, on
             ) : user.role}
           </Box>
           {' • '}
-          {user.role === 'student' ? user.grade : (user.assignedClasses?.join(', ') || user.subject || 'General')}
+          {user.role === 'superadmin' ? 'System' : user.role === 'student' ? user.grade : (user.assignedClasses?.join(', ') || user.subject || 'General')}
         </Typography>
         
         <Stack spacing={2} sx={{ mb: 3.5 }}>
@@ -1932,13 +1979,13 @@ const SummaryCard = React.memo(({ title, value, icon, color }: any) => {
       border: 'none',
       bgcolor: 'background.paper',
       boxShadow: isDark 
-        ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-        : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+        ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
+        : '2px 2px 8px rgba(0,0,0,0.05)',
       '&:hover': { 
         transform: 'translateY(-6px)', 
         boxShadow: isDark 
-          ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
-          : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
+          ? '6px 6px 12px #060a12, -6px -6px 12px #182442'
+          : '4px 4px 12px rgba(0,0,0,0.1)',
         borderColor: alpha(mainColor, 0.2)
       }
     }}>

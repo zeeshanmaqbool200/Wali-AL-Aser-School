@@ -115,10 +115,28 @@ export default function Schedule() {
 
   const handleSaveEvent = async () => {
     try {
+      const eventData = { ...eventFormData, updatedAt: Date.now() };
+      
       if (editingEvent) {
-        await updateDoc(doc(db, 'events', editingEvent.id), eventFormData);
+        await updateDoc(doc(db, 'events', editingEvent.id), eventData);
       } else {
-        await addDoc(collection(db, 'events'), { ...eventFormData, createdAt: Date.now() });
+        const docRef = await addDoc(collection(db, 'events'), { ...eventData, createdAt: Date.now() });
+        
+        // Auto-notify after adding event
+        try {
+          await addDoc(collection(db, 'notifications'), {
+            title: `New Event: ${eventFormData.title}`,
+            message: `A new ${eventFormData.type} event has been scheduled for ${eventFormData.date} at ${eventFormData.time}.`,
+            type: 'event',
+            targetType: 'all',
+            senderId: currentUser?.uid || 'system',
+            senderName: currentUser?.displayName || 'System',
+            createdAt: Date.now(),
+            readBy: []
+          });
+        } catch (e) {
+          console.error("Failed to send event notification", e);
+        }
       }
       setOpenEventDialog(false);
       setEditingEvent(null);
@@ -150,14 +168,6 @@ export default function Schedule() {
         await updateDoc(doc(db, 'schedules', editingSchedule.id), data);
       } else {
         await addDoc(collection(db, 'schedules'), data);
-        
-        // Trigger confetti for a delightful experience
-        confetti({
-          particleCount: 100,
-          spread: 60,
-          origin: { y: 0.6 },
-          colors: ['#3b82f6', '#6366f1', '#a855f7']
-        });
       }
       
       setOpenDialog(false);

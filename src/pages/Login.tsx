@@ -103,7 +103,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                 color: 'primary.main',
                 mb: 3,
                 border: `3px double ${alpha(theme.palette.primary.main, 0.3)}`,
-                boxShadow: `0 0 40px ${alpha(theme.palette.primary.main, 0.2)}`,
+                boxShadow: `0 0 20px ${alpha(theme.palette.primary.main, 0.2)}`,
                 overflow: 'hidden',
                 width: 120,
                 height: 120,
@@ -133,7 +133,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
               backdropFilter: 'blur(10px)',
               overflow: 'visible',
               border: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
-              boxShadow: '0 30px 60px rgba(0,0,0,0.5)',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
             }}
           >
             <CardContent sx={{ p: { xs: 4, sm: 6 } }}>
@@ -240,9 +240,9 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                       borderRadius: 4, 
                       fontSize: '1.1rem', 
                       fontWeight: 900,
-                      boxShadow: `0 10px 25px ${alpha(theme.palette.primary.main, 0.4)}`,
+                      boxShadow: `0 5px 15px ${alpha(theme.palette.primary.main, 0.4)}`,
                       transition: 'all 0.3s',
-                      '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 15px 30px ${alpha(theme.palette.primary.main, 0.6)}` }
+                      '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 10px 25px ${alpha(theme.palette.primary.main, 0.6)}` }
                     }}
                   >
                     {loading ? (

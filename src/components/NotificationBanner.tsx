@@ -55,7 +55,7 @@ export default function NotificationBanner() {
           >
             <Box sx={{ 
               maxWidth: 500, mx: 'auto', bgcolor: 'background.paper', borderRadius: 100, p: 1.5, pl: 2.5,
-              boxShadow: '0 20px 40px rgba(0,0,0,0.4)', border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1),
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)', border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1),
               display: 'flex', alignItems: 'center', gap: 2,
               pointerEvents: 'auto',
               backdropFilter: 'blur(20px)',

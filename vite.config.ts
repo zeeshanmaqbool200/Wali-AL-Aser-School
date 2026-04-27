@@ -28,19 +28,19 @@ export default defineConfig(({ mode }) => {
           start_url: '/',
           icons: [
             {
-              src: 'https://idarahwaliulaser.netlify.app/img/logo.png',
+              src: '/logo.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: 'https://idarahwaliulaser.netlify.app/img/logo.png',
+              src: '/logo.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: 'https://idarahwaliulaser.netlify.app/img/logo.png',
+              src: '/logo.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable'
@@ -85,7 +85,7 @@ export default defineConfig(({ mode }) => {
       hmr: process.env.DISABLE_HMR !== 'true',
     },
     build: {
-      outDir: 'build',
+      outDir: 'dist',
       assetsDir: 'assets',
       emptyOutDir: true,
       sourcemap: false,

@@ -216,14 +216,14 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                       bgcolor: 'background.default',
                       borderRadius: 1,
                       boxShadow: theme.palette.mode === 'dark'
-                        ? 'inset 2px 2px 4px #060a12, inset -2px -2px 4px #182442'
-                        : 'inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff',
+                        ? '1px 1px 3px #060a12, -1px -1px 3px #182442'
+                        : '1px 1px 3px rgba(0,0,0,0.05)',
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                       '&:focus-within': {
                         width: 340,
                         boxShadow: theme.palette.mode === 'dark'
-                          ? 'inset 3px 3px 6px #060a12, inset -3px -3px 6px #182442'
-                          : 'inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff',
+                          ? '2px 2px 4px #060a12, -2px -2px 4px #182442'
+                          : '2px 2px 4px rgba(0,0,0,0.1)',
                       }
                     }}
                   >
@@ -250,8 +250,8 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                     width: isMobile ? 36 : 48,
                     height: isMobile ? 36 : 48,
                     boxShadow: theme.palette.mode === 'dark'
-                      ? '2px 2px 4px #060a12, -2px -2px 4px #182442'
-                      : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff',
+                      ? '1px 1px 3px #060a12, -1px -1px 3px #182442'
+                      : '1px 1px 3px rgba(0,0,0,0.05)',
                     '&:hover': { 
                       transform: 'scale(1.05)',
                       color: 'primary.main' 
@@ -309,8 +309,8 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                       borderRadius: 1,
                       minWidth: 200,
                       boxShadow: theme.palette.mode === 'dark'
-                        ? '10px 10px 20px #060a12, -10px -10px 20px #182442'
-                        : '10px 10px 20px #d1d9e6, -10px -10px 20px #ffffff',
+                        ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
+                        : '4px 4px 10px rgba(0,0,0,0.1)',
                       border: '1px solid',
                       borderColor: 'divider',
                       '& .MuiMenuItem-root': {

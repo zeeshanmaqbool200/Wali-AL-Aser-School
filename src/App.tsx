@@ -47,7 +47,7 @@ const globalStyles = (
       },
       '.neumorphism': {
         background: '#f8fafc',
-        boxShadow: '20px 20px 60px #d3d5d6, -20px -20px 60px #ffffff',
+        boxShadow: '2px 2px 6px #cbd5e1, -2px -2px 6px #ffffff',
       },
       '@keyframes shimmer': {
         '0%': { backgroundPosition: '-1000px 0' },
@@ -80,6 +80,8 @@ import SyncNotifier from './components/SyncNotifier';
 import RateLimitOverlay from './components/RateLimitOverlay';
 
 import LoadingScreen from './components/LoadingScreen';
+
+const Verify = React.lazy(() => import('./pages/Verify'));
 
 function AppContent() {
   const { user, loading, error, manualLogin, manualSignUp, logout } = useAuth();
@@ -124,7 +126,7 @@ function AppContent() {
             <Box sx={{ 
               bgcolor: 'warning.main', color: 'white', p: 1.5, borderRadius: 3,
               textAlign: 'center', fontWeight: 700, fontSize: '0.875rem',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
               position: 'relative'
             }}>
@@ -163,6 +165,7 @@ function AppContent() {
         >
           <Suspense fallback={<PageLoading />}>
             <Routes location={location}>
+              <Route path="/verify/:type/:id" element={<Verify />} />
               {!user ? (
                 <>
                   <Route path="/login" element={<Login onLogin={manualLogin} onSignUp={manualSignUp} error={error} />} />
