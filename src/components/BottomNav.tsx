@@ -17,7 +17,23 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   const location = useLocation();
   const theme = useTheme();
   const [internalVisible, setInternalVisible] = useState(true);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleViewportChange = () => {
+      if (window.visualViewport) {
+        // If the viewport height is significantly less than the screen height, keyboard is probably open
+        const isKeyboard = window.visualViewport.height < window.innerHeight * 0.85;
+        setKeyboardOpen(isKeyboard);
+      }
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+      return () => window.visualViewport?.removeEventListener('resize', handleViewportChange);
+    }
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -66,7 +82,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   
   const activeIndex = filteredMenu.findIndex(item => item.path === location.pathname);
 
-  const isActuallyVisible = controlledVisible && internalVisible;
+  const isActuallyVisible = controlledVisible && internalVisible && !keyboardOpen;
 
   if (filteredMenu.length === 0) return null;
 

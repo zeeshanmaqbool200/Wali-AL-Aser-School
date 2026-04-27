@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     const newUser: UserProfile = {
                       uid: firebaseUser.uid,
                       email: firebaseUser.email || '',
-                      displayName: firebaseUser.displayName || 'Super Admin',
+                      displayName: firebaseUser.displayName || 'Administrator',
                       role: 'superadmin',
                       createdAt: Date.now(),
                       photoURL: firebaseUser.photoURL || undefined,

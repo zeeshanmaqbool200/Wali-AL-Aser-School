@@ -197,7 +197,7 @@ export default function Profile() {
                   {profileData.displayName}
                 </Typography>
                 <Chip 
-                  label={profileData.role?.toUpperCase()} 
+                  label={profileData.role === 'superadmin' ? 'ADMINISTRATOR' : profileData.role?.toUpperCase()} 
                   size="small" 
                   sx={{ fontWeight: 800, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', mt: 0.5, borderRadius: 1 }} 
                 />

@@ -199,6 +199,122 @@
   }
 }
 
+/* SimpleMDE SlothUI Custom Styling */
+.CodeMirror {
+  border-radius: 0 0 16px 16px !important;
+  border: 1px solid rgba(0,0,0,0.1) !important;
+  font-family: var(--font-urdu), var(--font-sans) !important;
+  font-size: 1.15rem !important;
+  padding: 12px !important;
+  background: white !important;
+  color: #1a1a1a !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02) !important;
+}
+
+.CodeMirror-focused {
+  border-color: #0d9488 !important;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1) !important;
+}
+
+.editor-toolbar {
+  border-radius: 16px 16px 0 0 !important;
+  border: 1px solid rgba(0,0,0,0.1) !important;
+  border-bottom: none !important;
+  background: #fdfdfd !important;
+  padding: 10px 16px !important;
+  opacity: 1 !important;
+  transition: background 0.2s;
+}
+
+.editor-toolbar button {
+  border-radius: 8px !important;
+  margin-right: 4px !important;
+  color: #64748b !important;
+  transition: all 0.2s !important;
+  width: 36px !important;
+  height: 36px !important;
+}
+
+.editor-toolbar button:hover, 
+.editor-toolbar button.active {
+  background: white !important;
+  color: #0d9488 !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+}
+
+/* Dark Mode Overrides for Editor */
+.dark .CodeMirror {
+  background: #111111 !important;
+  color: #e2e8f0 !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+.dark .CodeMirror-cursor {
+  border-left-color: #2dd4bf !important;
+}
+
+.dark .editor-toolbar {
+  background: #181818 !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+.dark .editor-toolbar button {
+  color: #94a3b8 !important;
+}
+
+.dark .editor-toolbar button:hover,
+.dark .editor-toolbar button.active {
+  background: #242424 !important;
+  color: #2dd4bf !important;
+}
+
+.dark .editor-preview {
+  background: #111111 !important;
+  color: #e2e8f0 !important;
+}
+
+/* Markdown Stability */
+.markdown-body {
+  color: #334155;
+  line-height: 1.8;
+  font-size: 1.05rem;
+}
+
+.dark .markdown-body {
+  color: #cbd5e1;
+}
+
+/* Global Markdown Visibility */
+.markdown-body {
+  color: #374151; /* Default gray 700 */
+  line-height: 1.7;
+}
+
+.dark .markdown-body {
+  color: #e5e7eb; /* Gray 200 for dark mode */
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  color: inherit;
+  font-weight: 800;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-body p {
+  margin-bottom: 1.5rem;
+}
+
+.markdown-body ul, .markdown-body ol {
+  padding-left: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.markdown-body li {
+  margin-bottom: 0.5rem;
+}
+
 .gpu-accelerated {
   will-change: transform, opacity;
 }

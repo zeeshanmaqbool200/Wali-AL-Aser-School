@@ -1838,7 +1838,7 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, onEdit, onDelete, on
         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, display: 'block', mb: 3, textTransform: 'uppercase', letterSpacing: 1.5 }}>
           <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
             {user.role === 'superadmin' ? (
-              <><Shield size={14} className="text-warning-500" /> Super Admin</>
+              <><Shield size={14} className="text-warning-500" /> Administrator</>
             ) : user.role === 'muntazim' ? (
               <><Shield size={14} className="text-primary-500" /> Muntazim</>
             ) : user.role === 'mudaris' ? (

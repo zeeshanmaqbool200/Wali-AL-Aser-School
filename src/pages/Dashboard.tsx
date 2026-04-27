@@ -3,7 +3,8 @@ import {
   Box, Typography, Grid, Card, CardContent, Button, 
   Avatar, Chip, Divider, List, ListItem, ListItemText, 
   ListItemAvatar, CircularProgress, IconButton, Tooltip as MuiTooltip,
-  Paper, useMediaQuery, Fab, Zoom, Stack, Skeleton, Container
+  Paper, useMediaQuery, Fab, Zoom, Stack, Skeleton, Container,
+  Dialog
 } from '@mui/material';
 import LoadingScreen from '../components/LoadingScreen';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -12,7 +13,7 @@ import {
   Check, X, Plus, ArrowRight, TrendingUp, Clock, 
   AlertCircle, Send, FileText, ClipboardList, UserCheck,
   MoreVertical, ExternalLink, Phone, MessageCircle, MessageSquare,
-  UserPlus, BarChart3, User, GraduationCap
+  UserPlus, BarChart3, User, GraduationCap, Award, Book
 } from 'lucide-react';
 import { collection, query, onSnapshot, orderBy, where, limit, updateDoc, doc, getDocs, arrayUnion, or, and, getDoc } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
@@ -33,14 +34,18 @@ export default function Dashboard({ user }: DashboardProps) {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const [loading, setLoading] = useState(!(window as any)._dashboardLoaded);
-  const [stats, setStats] = useState<any>({
-    totalTulab: 0,
-    totalFeesMonth: 0,
-    pendingFees: 0,
-    todayHaziri: 0,
-    attendanceRate: 0,
-    recentFees: [],
-    availableCourses: []
+  const [stats, setStats] = useState<any>(() => {
+    // Try to recover cached stats to prevent white flicker
+    const cached = localStorage.getItem(`dashboard_stats_${user.uid}`);
+    return cached ? JSON.parse(cached) : {
+      totalTulab: 0,
+      totalFeesMonth: 0,
+      pendingFees: 0,
+      todayHaziri: 0,
+      attendanceRate: 0,
+      recentFees: [],
+      availableCourses: []
+    };
   });
   const [jafariDate, setJafariDate] = useState<string>('');
   const [recentNotifications, setRecentNotifications] = useState<NotificationType[]>([]);
@@ -66,6 +71,8 @@ export default function Dashboard({ user }: DashboardProps) {
   const [subjectsTrendData, setSubjectsTrendData] = useState<{name: string, value: number}[]>([]);
 
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
+  const [openTeacherProfile, setOpenTeacherProfile] = useState(false);
+  const [selectedTeacher, setSelectedTeacher] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     let unsubscribeNotifs = () => {};
@@ -82,7 +89,10 @@ export default function Dashboard({ user }: DashboardProps) {
 
     const fetchData = async () => {
       try {
-        setLoading(true);
+        // Only show full loading if we haven't loaded before
+        if (!(window as any)._dashboardLoaded) {
+          setLoading(true);
+        }
 
         // Fetch Institute Settings for the banner and Jafari offset
         const instDoc = await getDoc(doc(db, 'settings', 'institute'));
@@ -129,7 +139,11 @@ export default function Dashboard({ user }: DashboardProps) {
                 ));
               
             unsubscribeTulab = onSnapshot(tulabQuery, (tulabSnap) => {
-              setStats(prev => ({ ...prev, totalTulab: tulabSnap.size }));
+              setStats(prev => {
+                const newState = { ...prev, totalTulab: tulabSnap.size };
+                localStorage.setItem(`dashboard_stats_${user.uid}`, JSON.stringify(newState));
+                return newState;
+              });
             });
 
             if (isAdmin) {
@@ -196,9 +210,22 @@ export default function Dashboard({ user }: DashboardProps) {
             setRecentNotifications(data);
           });
 
-          // 3. Events & Staff
-          unsubscribeEvents = onSnapshot(query(collection(db, 'events'), where('date', '>=', format(new Date(), 'yyyy-MM-dd')), orderBy('date', 'asc'), limit(10)), (snapshot) => {
-            setUpcomingEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          // 3. Events & Staff - Hide if expired (more than 1 day old)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const yesterdayLimit = new Date(today);
+          yesterdayLimit.setDate(yesterdayLimit.getDate() - 1);
+          const yesterdayStr = format(yesterdayLimit, 'yyyy-MM-dd');
+
+          unsubscribeEvents = onSnapshot(query(collection(db, 'events'), where('date', '>=', yesterdayStr), orderBy('date', 'asc'), limit(10)), (snapshot) => {
+            const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Secondary client-side filter to be absolutely sure about "1 day expiry"
+            const filtered = allEvents.filter((e: any) => {
+              const eventDate = new Date(e.date);
+              eventDate.setHours(23, 59, 59, 999); // Allow it to stay for 24 hours of that day
+              return eventDate >= yesterdayLimit;
+            });
+            setUpcomingEvents(filtered);
           });
 
           const staffQuery = query(collection(db, 'users'), where('role', 'in', ['mudaris', 'muntazim', 'superadmin']));
@@ -349,7 +376,12 @@ export default function Dashboard({ user }: DashboardProps) {
     }
   };
 
-  if (loading) return <LoadingScreen />;
+  const showTeacherProfile = (teacher: UserProfile) => {
+    setSelectedTeacher(teacher);
+    setOpenTeacherProfile(true);
+  };
+
+  if (loading && !(window as any)._dashboardLoaded) return null; // No screen loader, just blank to stay silent
 
   const instanceTextVisibilityColor = () => {
     if (!instituteData.bannerUrl) return 'text.primary';
@@ -489,79 +521,79 @@ export default function Dashboard({ user }: DashboardProps) {
       </Box>
 
       {/* Side Scrolling Events with Tilted BG */}
-      <Box 
-        sx={{ 
-          py: 4, 
-          overflow: 'hidden', 
-          position: 'relative',
-          mb: 6,
-          bgcolor: 'background.paper',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            bgcolor: alpha(theme.palette.primary.main, 0.05),
-            transform: 'skewY(-1deg) translateY(-20px)',
-            zIndex: 0
-          }
-        }}
-      >
-        <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Calendar size={20} className="text-teal-600" /> Upcoming Events
-            </Typography>
-            <Button size="small" onClick={() => navigate('/schedule')} sx={{ fontWeight: 800 }}>View All</Button>
-          </Box>
-          <Box 
-            component={motion.div} 
-            sx={{ 
-              display: 'flex', 
-              gap: 3, 
-              overflowX: 'auto', 
-              pb: 2,
-              px: 1,
-              '&::-webkit-scrollbar': { display: 'none' },
-              scrollbarWidth: 'none'
-            }}
-          >
-            {upcomingEvents.length > 0 ? upcomingEvents.map((event, idx) => (
-              <motion.div
-                key={event.id}
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.1 }}
-              >
-                <Card 
-                  sx={{ 
-                    minWidth: 280, 
-                    borderRadius: 4, 
-                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                    transition: '0.3s',
-                    '&:hover': { transform: 'scale(1.02)' }
-                  }}
+      {upcomingEvents.length > 0 && (
+        <Box 
+          sx={{ 
+            py: 4, 
+            overflow: 'hidden', 
+            position: 'relative',
+            mb: 6,
+            bgcolor: 'background.paper',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              bgcolor: alpha(theme.palette.primary.main, 0.05),
+              transform: 'skewY(-1deg) translateY(-20px)',
+              zIndex: 0
+            }
+          }}
+        >
+          <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Calendar size={20} className="text-teal-600" /> Upcoming Events
+              </Typography>
+              <Button size="small" onClick={() => navigate('/schedule')} sx={{ fontWeight: 900 }}>View All</Button>
+            </Box>
+            <Box 
+              component={motion.div} 
+              sx={{ 
+                display: 'flex', 
+                gap: 3, 
+                overflowX: 'auto', 
+                pb: 2,
+                px: 1,
+                '&::-webkit-scrollbar': { display: 'none' },
+                scrollbarWidth: 'none'
+              }}
+            >
+              {upcomingEvents.map((event, idx) => (
+                <motion.div
+                  key={event.id}
+                  initial={{ opacity: 0, x: 50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.1 }}
                 >
-                  <CardContent sx={{ p: 3 }}>
-                    <Chip 
-                      label={event.date} 
-                      size="small" 
-                      color="secondary" 
-                      sx={{ mb: 2, fontWeight: 900, borderRadius: 1.5, fontSize: '0.7rem' }} 
-                    />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 1, lineHeight: 1.2 }}>{event.title}</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{event.location || 'Maktab Campus'}</Typography>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )) : [1, 2, 3].map((_, idx) => (
-              <Skeleton key={idx} variant="rectangular" width={280} height={120} sx={{ borderRadius: 4 }} />
-            ))}
-          </Box>
-        </Container>
-      </Box>
+                  <Card 
+                    sx={{ 
+                      minWidth: 280, 
+                      borderRadius: 4, 
+                      border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                      transition: '0.3s',
+                      '&:hover': { transform: 'scale(1.02)' }
+                    }}
+                  >
+                    <CardContent sx={{ p: 3 }}>
+                      <Chip 
+                        label={event.date} 
+                        size="small" 
+                        color="secondary" 
+                        sx={{ mb: 2, fontWeight: 900, borderRadius: 1.5, fontSize: '0.7rem' }} 
+                      />
+                      <Typography variant="subtitle1" sx={{ fontWeight: 950, mb: 1, lineHeight: 1.2 }}>{event.title}</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>{event.location || 'Maktab Campus'}</Typography>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </Box>
+          </Container>
+        </Box>
+      )}
 
       <Container maxWidth="xl">
         <Grid container spacing={4}>
@@ -696,26 +728,30 @@ export default function Dashboard({ user }: DashboardProps) {
                     <ListItem 
                       key={staff.uid} 
                       divider={idx !== staffMembers.length - 1}
+                      onClick={() => showTeacherProfile(staff)}
                       secondaryAction={
                         staff.phone && (
                           <IconButton 
                             size="small" 
                             color="success"
-                            onClick={() => window.open(`https://wa.me/${staff.phone.replace(/[^0-9]/g, '')}`, '_blank')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`https://wa.me/${staff.phone.replace(/[^0-9]/g, '')}`, '_blank');
+                            }}
                             sx={{ bgcolor: alpha(theme.palette.success.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.success.main, 0.2) } }}
                           >
                             <MessageSquare size={16} />
                           </IconButton>
                         )
                       }
-                      sx={{ py: 1, px: 2 }}
+                      sx={{ py: 1, px: 2, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } }}
                     >
                       <ListItemAvatar sx={{ minWidth: 44 }}>
                         <Avatar src={staff.photoURL} sx={{ width: 32, height: 32, borderRadius: 1 }} imgProps={{ referrerPolicy: 'no-referrer' }}>{staff.displayName?.charAt(0)}</Avatar>
                       </ListItemAvatar>
                       <ListItemText 
                         primary={staff.displayName} 
-                        secondary={staff.maktabLevel || staff.role} 
+                        secondary={staff.maktabLevel || (staff.role === 'superadmin' ? 'Administrator' : staff.role)} 
                         primaryTypographyProps={{ fontWeight: 800, fontSize: '0.8rem' }}
                         secondaryTypographyProps={{ fontSize: '0.7rem', fontWeight: 600, color: 'text.secondary' }}
                       />
@@ -727,6 +763,92 @@ export default function Dashboard({ user }: DashboardProps) {
           </Grid>
         </Grid>
       </Container>
+
+      {/* Teacher Profile Dialog */}
+      <Dialog 
+        open={openTeacherProfile} 
+        onClose={() => setOpenTeacherProfile(false)}
+        PaperProps={{
+          sx: { 
+            borderRadius: 8, 
+            p: { xs: 3, md: 5 }, 
+            minWidth: { xs: '90%', sm: 400 },
+            background: theme.palette.mode === 'dark' 
+              ? 'linear-gradient(145deg, #0f172a, #1e293b)' 
+              : 'linear-gradient(145deg, #f8fafc, #f1f5f9)',
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            boxShadow: theme.shadows[24],
+            overflow: 'visible'
+          }
+        }}
+      >
+        <IconButton 
+          onClick={() => setOpenTeacherProfile(false)}
+          sx={{ position: 'absolute', top: -15, right: -15, bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' }, boxShadow: 4 }}
+        >
+          <X size={20} />
+        </IconButton>
+        {selectedTeacher && (
+          <Box sx={{ textAlign: 'center' }}>
+            <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+              <Avatar 
+                src={selectedTeacher.photoURL} 
+                sx={{ 
+                  width: 140, height: 140, mx: 'auto', mb: 3, 
+                  border: `6px solid ${theme.palette.primary.main}`,
+                  boxShadow: theme.shadows[10],
+                  bgcolor: 'primary.main',
+                  fontSize: '3rem',
+                  fontWeight: 900
+                }}
+                imgProps={{ referrerPolicy: 'no-referrer' }}
+              >
+                {selectedTeacher.displayName?.charAt(0)}
+              </Avatar>
+            </motion.div>
+            <Typography variant="h4" sx={{ fontWeight: 950, mb: 1, letterSpacing: -1.5 }}>{selectedTeacher.displayName}</Typography>
+            <Chip 
+              icon={<Award size={16} />}
+              label={selectedTeacher.role === 'superadmin' ? 'Administrator' : 'Mudaris (Teacher)'} 
+              color="primary"
+              variant="outlined"
+              sx={{ mb: 4, fontWeight: 900, borderRadius: 2 }}
+            />
+            
+            <Paper sx={{ p: 3, borderRadius: 4, bgcolor: alpha(theme.palette.action.hover, 0.3), border: '1px solid', borderColor: 'divider', mb: 4 }}>
+              <Grid container spacing={3} textAlign="left">
+                <Grid size={{ xs: 12 }}>
+                   <Stack direction="row" spacing={2} alignItems="center">
+                     <Book size={20} color={theme.palette.primary.main} />
+                     <Box>
+                       <Typography variant="caption" sx={{ fontWeight: 900, opacity: 0.6, display: 'block' }}>EXPERTISE</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 800 }}>{selectedTeacher.subject || 'Islamic Theology & Guidance'}</Typography>
+                     </Box>
+                   </Stack>
+                </Grid>
+                <Grid size={{ xs: 12 }}>
+                   <Stack direction="row" spacing={2} alignItems="center">
+                     <Calendar size={20} color={theme.palette.primary.main} />
+                     <Box>
+                       <Typography variant="caption" sx={{ fontWeight: 900, opacity: 0.6, display: 'block' }}>JOINED DATE</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 800 }}>{format(new Date(selectedTeacher.createdAt || Date.now()), 'dd MMM yyyy')}</Typography>
+                     </Box>
+                   </Stack>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            <Button 
+              fullWidth 
+              variant="contained" 
+              onClick={() => setOpenTeacherProfile(false)}
+              sx={{ borderRadius: 4, py: 2, fontWeight: 900, fontSize: '1rem', boxShadow: '0 10px 20px rgba(15, 118, 110, 0.3)' }}
+            >
+              Theek Hai
+            </Button>
+          </Box>
+        )}
+      </Dialog>
     </Box>
   );
 }

@@ -37,7 +37,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [instituteName, setInstituteName] = useState('Maktab Wali Ul Aser');
   const [logoUrl, setLogoUrl] = useState('https://idarahwaliulaser.netlify.app/img/logo.png');
-  const [bottomNavVisible, setBottomNavVisible] = useState(true);
+  const [bottomNavVisible, setBottomNavVisible] = useState(false);
   const [profileAnchorEl, setProfileAnchorEl] = useState<null | HTMLElement>(null);
   const mainRef = React.useRef<HTMLDivElement>(null);
 
@@ -50,8 +50,11 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   };
 
   useEffect(() => {
-    // Nav should always be visible on mobile to avoid confusion
-    setBottomNavVisible(true);
+    // Show nav only after initial mount and a small delay for smoother entrance
+    const timer = setTimeout(() => {
+      setBottomNavVisible(true);
+    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {

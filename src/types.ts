@@ -146,6 +146,7 @@ export interface Course {
   assignedMudaris?: string[]; // Array of mudaris UIDs
   gradeId?: string; // Maktab level it's targeted for
   isPublished?: boolean;
+  views?: number;
 }
 
 export interface Student {

@@ -1416,7 +1416,7 @@ export default function Settings() {
                         </Button>
                         {currentUser?.role !== 'superadmin' && (
                           <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1, fontWeight: 600 }}>
-                            Only Super Admins can perform this action.
+                            Only Administrators can perform this action.
                           </Typography>
                         )}
                       </Box>

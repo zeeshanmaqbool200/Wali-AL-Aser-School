@@ -202,7 +202,7 @@ export default function PaymentsSummary() {
         </Box>
       </motion.div>
 
-      {/* Stats Grid - Only for Super Admin */}
+      {/* Stats Grid - Only for Administrator */}
       {isSuperAdmin && (
         <Grid container spacing={3} sx={{ mb: 4 }}>
         {[
@@ -272,7 +272,7 @@ export default function PaymentsSummary() {
       </Grid>
       )}
 
-      {/* Charts - Only for Super Admin */}
+      {/* Charts - Only for Administrator */}
       {isSuperAdmin && (
         <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid size={{ xs: 12, lg: 8 }}>

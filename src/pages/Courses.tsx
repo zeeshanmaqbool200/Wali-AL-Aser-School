@@ -17,13 +17,14 @@ import {
   Star, Share2, Bookmark, Layout, Layers, X,
   Image as ImageIcon, Paperclip, Zap, FileText, Globe,
   Music, Trophy, HelpCircle, ChevronRight, ChevronLeft,
-  RotateCcw, Info, Headphones, ArrowLeft, Save
+  RotateCcw, Info, Headphones, ArrowLeft, Save, ExternalLink, ClipboardList, Eye, Award, Calendar
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, or, and, limit } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, or, and, limit, increment } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { Course, CourseSection, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
 import { MAKTAB_LEVELS } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -52,6 +53,25 @@ export default function Courses() {
   const [activeSection, setActiveSection] = useState(0);
   const [readerLoading, setReaderLoading] = useState(false);
   const [editingSectionIdx, setEditingSectionIdx] = useState<number | null>(null);
+  const [openTeacherProfile, setOpenTeacherProfile] = useState(false);
+  const [selectedTeacher, setSelectedTeacher] = useState<UserProfile | null>(null);
+
+  const ReaderTeacher = React.useMemo(() => {
+    return allMudaris.find(m => m.uid === viewingCourse?.teacherId);
+  }, [allMudaris, viewingCourse?.teacherId]);
+
+  useEffect(() => {
+    if (editingSectionIdx !== null && isMobile) {
+      // Only scroll once when entering edit mode, with a delay for keyboard
+      const timer = setTimeout(() => {
+        const entry = document.getElementById('lesson-editor-entry');
+        if (entry) {
+          entry.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [editingSectionIdx]); // Only on editingSectionIdx change
 
   useEffect(() => {
     const q = query(collection(db, 'users'), where('role', '==', 'mudaris'));
@@ -61,12 +81,29 @@ export default function Courses() {
     return () => unsubscribe();
   }, []);
 
-  const handleReadCourse = (course: Course) => {
+  const handleReadCourse = async (course: Course) => {
     setReaderLoading(true);
     setViewingCourse(course);
     setOpenReader(true);
     setActiveSection(0);
     setTimeout(() => setReaderLoading(false), 800);
+
+    // Increment views in Firestore
+    try {
+      await updateDoc(doc(db, 'courses', course.id), {
+        views: increment(1)
+      });
+    } catch (e) {
+      console.error("Failed to increment views", e);
+    }
+  };
+
+  const showTeacherProfile = (teacherId: string) => {
+    const teacher = allMudaris.find(m => m.uid === teacherId);
+    if (teacher) {
+      setSelectedTeacher(teacher);
+      setOpenTeacherProfile(true);
+    }
   };
 
   const handleSectionChange = (idx: number) => {
@@ -546,6 +583,8 @@ export default function Courses() {
                   onDelete={() => handleDelete(course.id)}
                   onRead={handleReadCourse}
                   viewMode={viewMode}
+                  onShowTeacher={showTeacherProfile}
+                  teacherPhoto={allMudaris.find(m => m.uid === course.teacherId)?.photoURL}
                 />
               </motion.div>
             </Grid>
@@ -795,51 +834,102 @@ export default function Courses() {
                   Educational Content (Modules)
                 </Typography>
                 
-                <Paper id="lesson-editor-entry" variant="outlined" sx={{ p: isMobile ? 2 : 4, borderRadius: 3, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.5) : '#fff', mb: 4, border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 950, mb: 3, display: 'flex', alignItems: 'center', gap: 2, letterSpacing: -0.5 }}>
-                    <Box sx={{ width: 40, height: 40, borderRadius: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', boxShadow: 'none' }}>
-                      {editingSectionIdx !== null ? <Edit2 size={24} /> : <Plus size={24} />}
+                <Paper 
+                  id="lesson-editor-entry" 
+                  variant="outlined" 
+                  sx={{ 
+                    p: { xs: 2.5, sm: 4 }, 
+                    borderRadius: 6, 
+                    bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.4) : '#fff', 
+                    mb: 4, 
+                    border: `1px solid ${alpha(theme.palette.divider, 0.08)}`, 
+                    boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 15px 50px rgba(0,0,0,0.03)',
+                    position: 'relative'
+                  }}
+                >
+                  <Typography variant="h6" sx={{ fontWeight: 950, mb: 4, display: 'flex', alignItems: 'center', gap: 2.5, letterSpacing: -1 }}>
+                    <Box sx={{ 
+                      width: 52, 
+                      height: 52, 
+                      borderRadius: 2, 
+                      bgcolor: alpha(theme.palette.primary.main, 0.1), 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      color: 'primary.main', 
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+                    }}>
+                      {editingSectionIdx !== null ? <Edit2 size={26} /> : <Plus size={26} />}
                     </Box>
-                    {editingSectionIdx !== null ? 'Dars Update Karein' : 'Naya Dars / Section'}
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 2, lineHeight: 1, mb: 1 }}>
+                        Dynamic Module
+                      </Typography>
+                      {editingSectionIdx !== null ? 'Dars Update Karein' : 'Naya Dars Shamil Karein'}
+                    </Box>
                   </Typography>
-                  <Stack spacing={3}>
+
+                  <Stack spacing={3.5}>
                     <TextField
                       fullWidth
                       label="Sabaq ka Unwan (Lesson Title)"
-                      placeholder="e.g. Introduction to Surah Fatiha"
+                      placeholder="e.g. Introduction to Quranic Science"
                       value={newSection.title}
                       onChange={(e) => setNewSection({ ...newSection, title: e.target.value })}
                       variant="outlined"
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                      sx={{ 
+                        '& .MuiOutlinedInput-root': { 
+                          borderRadius: 4,
+                          bgcolor: alpha(theme.palette.action.hover, 0.1),
+                          '& fieldset': { borderColor: 'transparent' },
+                          '&:hover fieldset': { borderColor: alpha(theme.palette.primary.main, 0.2) },
+                          '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main }
+                        } 
+                      }}
                     />
 
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                      {['text', 'audio', 'video', 'image', 'quiz'].map((type) => (
-                        <Chip 
-                          key={type}
-                          label={type.toUpperCase()}
-                          onClick={() => setNewSection(prev => ({ ...prev, type: type as any }))}
-                          variant={newSection.type === type ? "filled" : "outlined"}
-                          color={newSection.type === type ? "primary" : "default"}
-                          sx={{ fontWeight: 800, borderRadius: 2, px: 2 }}
-                        />
-                      ))}
+                    <Box sx={{ p: 1, bgcolor: alpha(theme.palette.action.hover, 0.1), borderRadius: 4 }}>
+                      <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5, '&::-webkit-scrollbar': { display: 'none' } }}>
+                        {['text', 'audio', 'video', 'image', 'quiz'].map((type) => (
+                          <Chip 
+                            key={type}
+                            label={type.toUpperCase()}
+                            onClick={() => setNewSection(prev => ({ ...prev, type: type as any }))}
+                            variant={newSection.type === type ? "filled" : "outlined"}
+                            color={newSection.type === type ? "primary" : "default"}
+                            sx={{ 
+                              fontWeight: 900, 
+                              borderRadius: 3, 
+                              px: 1.5,
+                              transition: 'all 0.3s',
+                              boxShadow: newSection.type === type ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}` : 'none',
+                              fontSize: '0.75rem'
+                            }}
+                          />
+                        ))}
+                      </Stack>
                     </Box>
 
-                    {newSection.type !== 'quiz' && (
-                      <Box>
+                    {newSection.type !== 'text' && newSection.type !== 'quiz' && (
+                      <Box sx={{ p: 2, border: `1px dashed ${alpha(theme.palette.divider, 0.2)}`, borderRadius: 4 }}>
                          <TextField
                             fullWidth
-                            label={`${newSection.type.charAt(0).toUpperCase() + newSection.type.slice(1)} URL`}
+                            label={`${newSection.type.toUpperCase()} URL`}
                             placeholder="https://..."
                             value={newSection.mediaUrl}
                             onChange={(e) => setNewSection({ ...newSection, mediaUrl: e.target.value })}
-                            variant="filled"
-                            sx={{ mb: 2, '& .MuiFilledInput-root': { borderRadius: 3 } }}
+                            variant="standard"
+                            sx={{ mb: 2, '& .MuiInput-underline:before': { borderBottom: 'none' }, '& .MuiInput-underline:after': { borderBottom: 'none' } }}
                           />
                           {(['image', 'file', 'audio'].includes(newSection.type)) && (
-                            <Button component="label" variant="outlined" fullWidth sx={{ py: 2, borderRadius: 3, borderStyle: 'dashed', fontWeight: 800 }}>
-                              Upload {newSection.type}
+                            <Button 
+                              component="label" 
+                              variant="outlined" 
+                              fullWidth 
+                              startIcon={<ExternalLink size={18} />}
+                              sx={{ py: 1.5, borderRadius: 3, fontWeight: 900, textTransform: 'none', bgcolor: alpha(theme.palette.primary.main, 0.05) }}
+                            >
+                               {newSection.mediaUrl ? 'Change File' : `Select ${newSection.type} File`}
                               <input type="file" hidden onChange={(e) => handleFileUpload(e, 'section')} />
                             </Button>
                           )}
@@ -847,16 +937,19 @@ export default function Courses() {
                     )}
 
                     {newSection.type === 'quiz' && (
-                      <Box sx={{ p: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 4 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 2 }}>Build Quiz Questions</Typography>
-                        <Stack spacing={2} sx={{ mb: 3 }}>
+                      <Box sx={{ p: 3, bgcolor: alpha(theme.palette.primary.main, 0.03), borderRadius: 4, border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <ClipboardList size={18} /> Build Quiz Questions
+                        </Typography>
+                        <Stack spacing={2.5} sx={{ mb: 3 }}>
                            <TextField
                               fullWidth
-                              label="Question"
+                              label="Sawaal (Question)"
+                              variant="outlined"
                               value={currentQuizQuestion.question}
                               onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, question: e.target.value })}
-                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                            />
+                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                           />
                             <Grid container spacing={2}>
                               {currentQuizQuestion.options.map((opt, i) => (
                                 <Grid size={6} key={i}>
@@ -864,31 +957,38 @@ export default function Courses() {
                                     fullWidth
                                     label={`Option ${i + 1}`}
                                     value={opt}
+                                    variant="outlined"
+                                    size="small"
                                     onChange={(e) => {
                                       const newOpts = [...currentQuizQuestion.options];
                                       newOpts[i] = e.target.value;
                                       setCurrentQuizQuestion({ ...currentQuizQuestion, options: newOpts });
                                     }}
-                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
                                   />
                                 </Grid>
                               ))}
                             </Grid>
-                            <FormControl fullWidth>
-                              <InputLabel>Correct Answer</InputLabel>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>Darust Jawab (Correct Answer)</InputLabel>
                               <Select
                                 value={currentQuizQuestion.correctAnswer}
-                                label="Correct Answer"
+                                label="Darust Jawab (Correct Answer)"
                                 onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, correctAnswer: Number(e.target.value) })}
-                                sx={{ borderRadius: 2 }}
+                                sx={{ borderRadius: 2.5 }}
                               >
-                                {currentQuizQuestion.options.map((_, i) => (
+                                {[0, 1, 2, 3].map(i => (
                                   <MenuItem key={i} value={i}>Option {i + 1}</MenuItem>
                                 ))}
                               </Select>
                             </FormControl>
-                            <Button variant="contained" color="secondary" onClick={handleAddQuizQuestion} startIcon={<Plus size={18} />} sx={{ borderRadius: 2, fontWeight: 800 }}>
-                              Add Question
+                            <Button 
+                              variant="contained" 
+                              onClick={handleAddQuizQuestion} 
+                              startIcon={<Plus size={18} />} 
+                              sx={{ borderRadius: 3, fontWeight: 900, py: 1.5, textTransform: 'none', background: 'linear-gradient(45deg, #0d9488, #2dd4bf)' }}
+                            >
+                              Add to Quiz Pool
                             </Button>
                         </Stack>
                       </Box>
@@ -896,10 +996,7 @@ export default function Courses() {
 
                     <Box sx={{ 
                       '& .CodeMirror': { 
-                        borderColor: 'divider', 
-                        borderRadius: '16px',
-                        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : '#fff',
-                        fontFamily: 'var(--font-urdu), var(--font-sans)',
+                        bgcolor: theme.palette.mode === 'dark' ? '#000' : '#fff',
                       }
                     }}>
                       <SimpleMDE 
@@ -907,39 +1004,51 @@ export default function Courses() {
                         value={newSection.content} 
                         onChange={(value) => setNewSection({ ...newSection, content: value })} 
                         options={{
-                          placeholder: "Sabaq ka matan yahan likhein (Markdown/Urdu supported)...",
+                          placeholder: "Sabaq ka matan yahan likhein (Markdown support)...",
                           spellChecker: false,
                           status: false,
-                          minHeight: "200px",
-                          toolbar: ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "|", "preview", "side-by-side"]
+                          minHeight: isMobile ? "150px" : "300px",
+                          toolbar: isMobile 
+                            ? ["bold", "italic", "heading", "|", "unordered-list", "preview"] 
+                            : ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "|", "link", "image", "|", "preview", "side-by-side", "fullscreen"]
                         }}
                       />
                     </Box>
                     
-                    <Button 
-                      variant="contained" 
-                      onClick={handleAddSection} 
-                      startIcon={editingSectionIdx !== null ? <CheckCircle size={20} /> : <Plus size={20} />}
-                      sx={{ 
-                        borderRadius: 3, fontWeight: 900, py: 1.5, 
-                        fontSize: '1rem',
-                        boxShadow: 'none'
-                      }}
-                    >
-                      {editingSectionIdx !== null ? 'Sabaq Update Karein' : 'Sabaq Shamil Karein'}
-                    </Button>
-                    
-                    {editingSectionIdx !== null && (
-                      <Button variant="text" onClick={() => {
-                        setEditingSectionIdx(null);
-                        setNewSection({ 
-                          title: '', content: '', type: 'text', mediaUrl: '',
-                          quizData: { questions: [], passingScore: 70 }
-                        });
-                      }} sx={{ fontWeight: 800 }}>
-                        Cancel Edit
+                    <Box sx={{ display: 'flex', gap: 2, pt: 2 }}>
+                      <Button 
+                        variant="contained" 
+                        fullWidth
+                        onClick={handleAddSection} 
+                        startIcon={editingSectionIdx !== null ? <CheckCircle size={20} /> : <Plus size={20} />}
+                        sx={{ 
+                          borderRadius: 4, fontWeight: 950, py: 2, 
+                          fontSize: '1rem',
+                          textTransform: 'none',
+                          boxShadow: `0 12px 30px ${alpha(theme.palette.primary.main, 0.3)}`,
+                          background: `linear-gradient(to right, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`
+                        }}
+                      >
+                        {editingSectionIdx !== null ? 'Hifz Sabaq Update' : 'Publish as Section'}
                       </Button>
-                    )}
+                      
+                      {editingSectionIdx !== null && (
+                        <Button 
+                          variant="outlined" 
+                          color="inherit"
+                          onClick={() => {
+                            setEditingSectionIdx(null);
+                            setNewSection({ 
+                              title: '', content: '', type: 'text', mediaUrl: '',
+                              quizData: { questions: [], passingScore: 70 }
+                            });
+                          }} 
+                          sx={{ fontWeight: 900, borderRadius: 4, px: 4, textTransform: 'none' }}
+                        >
+                          Discard
+                        </Button>
+                      )}
+                    </Box>
                   </Stack>
                 </Paper>
 
@@ -1034,6 +1143,92 @@ export default function Courses() {
         </Box>
       </Dialog>
 
+      {/* Teacher Profile Dialog */}
+      <Dialog 
+        open={openTeacherProfile} 
+        onClose={() => setOpenTeacherProfile(false)}
+        PaperProps={{
+          sx: { 
+            borderRadius: 8, 
+            p: { xs: 3, md: 5 }, 
+            minWidth: { xs: '90%', sm: 400 },
+            background: theme.palette.mode === 'dark' 
+              ? 'linear-gradient(145deg, #0f172a, #1e293b)' 
+              : 'linear-gradient(145deg, #f8fafc, #f1f5f9)',
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            boxShadow: theme.shadows[24],
+            overflow: 'visible'
+          }
+        }}
+      >
+        <IconButton 
+          onClick={() => setOpenTeacherProfile(false)}
+          sx={{ position: 'absolute', top: -15, right: -15, bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' }, boxShadow: 4 }}
+        >
+          <X size={20} />
+        </IconButton>
+        {selectedTeacher && (
+          <Box sx={{ textAlign: 'center' }}>
+            <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+              <Avatar 
+                src={selectedTeacher.photoURL} 
+                sx={{ 
+                  width: 140, height: 140, mx: 'auto', mb: 3, 
+                  border: `6px solid ${theme.palette.primary.main}`,
+                  boxShadow: theme.shadows[10],
+                  bgcolor: 'primary.main',
+                  fontSize: '3rem',
+                  fontWeight: 900
+                }}
+                imgProps={{ referrerPolicy: 'no-referrer' }}
+              >
+                {selectedTeacher.displayName?.charAt(0)}
+              </Avatar>
+            </motion.div>
+            <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, letterSpacing: -1 }}>{selectedTeacher.displayName}</Typography>
+            <Chip 
+              icon={<Award size={16} />}
+              label={selectedTeacher.role === 'superadmin' ? 'Administrator' : 'Mudaris (Teacher)'} 
+              color="primary"
+              variant="outlined"
+              sx={{ mb: 4, fontWeight: 800, borderRadius: 2 }}
+            />
+            
+            <Paper sx={{ p: 3, borderRadius: 4, bgcolor: alpha(theme.palette.action.hover, 0.3), border: '1px solid', borderColor: 'divider', mb: 4 }}>
+              <Grid container spacing={3} textAlign="left">
+                <Grid size={{ xs: 12 }}>
+                   <Stack direction="row" spacing={2} alignItems="center">
+                     <Book size={20} color={theme.palette.primary.main} />
+                     <Box>
+                       <Typography variant="caption" sx={{ fontWeight: 900, opacity: 0.6, display: 'block' }}>EXPERTISE</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedTeacher.subject || 'Islamic Theology & Guidance'}</Typography>
+                     </Box>
+                   </Stack>
+                </Grid>
+                <Grid size={{ xs: 12 }}>
+                   <Stack direction="row" spacing={2} alignItems="center">
+                     <Calendar size={20} color={theme.palette.primary.main} />
+                     <Box>
+                       <Typography variant="caption" sx={{ fontWeight: 900, opacity: 0.6, display: 'block' }}>JOINED DATE</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 700 }}>{format(new Date(selectedTeacher.createdAt || Date.now()), 'dd MMM yyyy')}</Typography>
+                     </Box>
+                   </Stack>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            <Button 
+              fullWidth 
+              variant="contained" 
+              onClick={() => setOpenTeacherProfile(false)}
+              sx={{ borderRadius: 4, py: 2, fontWeight: 900, fontSize: '1rem', boxShadow: '0 10px 20px rgba(15, 118, 110, 0.3)' }}
+            >
+              Theek Hai
+            </Button>
+          </Box>
+        )}
+      </Dialog>
+
       {/* Course Reader Dialog */}
       <Dialog 
         fullScreen 
@@ -1060,7 +1255,11 @@ export default function Courses() {
                   <Typography variant="body2" sx={{ fontWeight: 700, opacity: 0.8 }} noWrap>{viewingCourse?.name}</Typography>
                 </Box>
               </Box>
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', mr: 2 }}>
+                  <Eye size={18} />
+                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{viewingCourse?.views || 0} Views</Typography>
+                </Box>
                 <Chip 
                   label={`${activeSection + 1} / ${viewingCourse?.sections?.length || 0}`} 
                   size="small" 
@@ -1273,6 +1472,38 @@ export default function Courses() {
                          </div>
                       </Box>
 
+                      {activeSection === (viewingCourse?.sections?.length || 0) - 1 && ReaderTeacher && (
+                        <Box sx={{ 
+                          mt: 10, p: 4, borderRadius: 6, 
+                          bgcolor: alpha(theme.palette.primary.main, 0.05), 
+                          border: '1px solid', 
+                          borderColor: alpha(theme.palette.primary.main, 0.1),
+                          display: 'flex', flexDirection: { xs: 'column', sm: 'row' },
+                          alignItems: 'center', gap: 3
+                        }}>
+                          <Avatar 
+                            src={ReaderTeacher.photoURL} 
+                            sx={{ width: 80, height: 80, border: `3px solid ${theme.palette.primary.main}`, boxShadow: 4 }}
+                            imgProps={{ referrerPolicy: 'no-referrer' }}
+                          >
+                            {ReaderTeacher.displayName?.charAt(0)}
+                          </Avatar>
+                          <Box sx={{ flex: 1, textAlign: { xs: 'center', sm: 'left' } }}>
+                            <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', opacity: 0.8 }}>Mudaris Portfolio</Typography>
+                            <Typography variant="h5" sx={{ fontWeight: 950, mb: 0.5 }}>{ReaderTeacher.displayName}</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, opacity: 0.7 }}>{ReaderTeacher.subject || 'Islamic Theology & Guidance'}</Typography>
+                          </Box>
+                          <Button 
+                            variant="outlined" 
+                            size="small" 
+                            onClick={() => showTeacherProfile(ReaderTeacher.uid)}
+                            sx={{ borderRadius: 3, fontWeight: 900 }}
+                          >
+                            View Bio
+                          </Button>
+                        </Box>
+                      )}
+
                       {viewingCourse?.sections?.[activeSection]?.quizData?.questions?.length > 0 && (
                         <Box sx={{ mt: 10 }}>
                           <Divider sx={{ mb: 6 }} />
@@ -1459,7 +1690,7 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sec
   );
 }
 
-function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead, viewMode }: any) {
+function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead, viewMode, onShowTeacher, teacherPhoto }: any) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   
@@ -1481,35 +1712,49 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
             : '4px 4px 10px #d1d9e6, -4px -4px 10px #ffffff',
         }
       }}>
-        <CardContent sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Avatar sx={{ 
-            bgcolor: 'background.default', 
-            color: 'primary.main', 
-            borderRadius: 4, 
-            width: 64, 
-            height: 64,
-            boxShadow: isDark
-              ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-              : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-          }}>
-            <BookOpen size={32} />
+        <CardContent sx={{ p: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Avatar 
+            src={teacherPhoto}
+            onClick={() => onShowTeacher(course.teacherId)}
+            sx={{ 
+              bgcolor: 'background.default', 
+              color: 'primary.main', 
+              borderRadius: 4, 
+              width: 80, 
+              height: 80,
+              cursor: 'pointer',
+              boxShadow: isDark
+                ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+              '&:hover': { transform: 'scale(1.05)', transition: '0.3s' }
+            }}
+          >
+            {course.teacherName?.charAt(0)}
           </Avatar>
           <Box sx={{ flex: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
               <Typography variant="h5" sx={{ fontWeight: 900, letterSpacing: -1 }}>{course.name}</Typography>
-              <Chip label={course.code} size="small" sx={{ fontWeight: 900, height: 22, fontSize: '0.7rem', border: 'none', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }} />
+              <Chip label={course.code} size="small" sx={{ fontWeight: 900, height: 24, fontSize: '0.75rem', border: 'none', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }} />
             </Box>
-            <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 500, fontWeight: 600 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
               {course.description}
             </Typography>
+            <Stack direction="row" spacing={3} sx={{ mt: 2 }}>
+               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                 <Eye size={16} />
+                 <Typography variant="caption" sx={{ fontWeight: 800 }}>{course.views || 0} Views</Typography>
+               </Box>
+               <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.disabled' }}>•</Typography>
+               <Typography variant="caption" sx={{ fontWeight: 800, color: 'primary.main' }}>{course.teacherName}</Typography>
+            </Stack>
           </Box>
           <Stack direction="row" spacing={4} sx={{ px: 4 }}>
             <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1.5 }}>DURATION</Typography>
+              <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1.5, mb: 1 }}>TIME</Typography>
               <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{course.duration}</Typography>
             </Box>
             <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1.5 }}>MODULES</Typography>
+              <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1.5, mb: 1 }}>SECTIONS</Typography>
               <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'primary.main' }}>{course.sections?.length || 0}</Typography>
             </Box>
           </Stack>
@@ -1521,7 +1766,8 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
                   onClick={onEdit} 
                   sx={{ 
                     bgcolor: 'background.default',
-                    boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff'
+                    boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
+                    p: 1.5
                   }}
                 >
                   <Edit2 size={18} />
@@ -1533,7 +1779,8 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
                     onClick={onDelete} 
                     sx={{ 
                       bgcolor: 'background.default',
-                      boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff'
+                      boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
+                      p: 1.5
                     }}
                   >
                     <Trash2 size={18} />
@@ -1543,16 +1790,17 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
             )}
             <IconButton 
               aria-label="Read course"
-              size="small" 
+              size="large" 
               onClick={() => onRead(course)}
               sx={{ 
                 bgcolor: 'primary.main', 
                 color: 'white', 
                 boxShadow: '0 8px 16px rgba(15, 118, 110, 0.3)',
-                '&:hover': { bgcolor: 'primary.dark' } 
+                '&:hover': { bgcolor: 'primary.dark' },
+                p: 2
               }}
             >
-              <ArrowRight size={20} />
+              <ArrowRight size={24} />
             </IconButton>
           </Box>
         </CardContent>
@@ -1562,11 +1810,11 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
 
   return (
     <Card sx={{ 
-      borderRadius: 7, 
+      borderRadius: 8, 
       height: '100%', 
       display: 'flex', 
       flexDirection: 'column',
-      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
       overflow: 'hidden',
       border: 'none',
       bgcolor: 'background.paper',
@@ -1574,14 +1822,14 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
         ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
         : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
       '&:hover': { 
-        transform: 'translateY(-12px)', 
+        transform: 'translateY(-16px)', 
         boxShadow: isDark 
-          ? '18px 18px 36px #060a12, -18px -18px 36px #182442'
-          : '18px 18px 36px #d1d9e6, -18px -18px 36px #ffffff',
+          ? '20px 20px 40px #060a12, -20px -20px 40px #182442'
+          : '20px 20px 40px #d1d9e6, -20px -20px 40px #ffffff',
         '& .course-image': { transform: 'scale(1.15)' }
       }
     }}>
-      <Box sx={{ position: 'relative', height: 200, overflow: 'hidden' }}>
+      <Box sx={{ position: 'relative', height: 240, overflow: 'hidden' }}>
         <Box 
           className="course-image" 
           component="img" 
@@ -1589,76 +1837,98 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
           alt={course.name} 
           loading="lazy" 
           decoding="async" 
-          sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }} 
+          sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 1s cubic-bezier(0.4, 0, 0.2, 1)' }} 
         />
         <Box sx={{ position: 'absolute', top: 20, left: 20, display: 'flex', gap: 1.5 }}>
           <Chip 
             label={course.code} 
             size="small" 
             sx={{ 
-              bgcolor: alpha(theme.palette.background.paper, 0.85), 
+              bgcolor: alpha('#000', 0.6), 
               backdropFilter: 'blur(12px)', 
               fontWeight: 900, 
-              color: 'primary.main', 
-              border: 'none',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+              color: 'white', 
+              border: `1px solid ${alpha('#fff', 0.2)}`,
+              px: 1.5
             }} 
           />
         </Box>
-        <Box sx={{ position: 'absolute', top: 20, right: 20 }}>
-          <IconButton size="small" sx={{ bgcolor: alpha(theme.palette.background.paper, 0.85), backdropFilter: 'blur(12px)', color: 'text.primary', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-            <Bookmark size={18} />
-          </IconButton>
+        <Box sx={{ 
+          position: 'absolute', 
+          bottom: 0, 
+          left: 0, 
+          right: 0, 
+          p: 2, 
+          background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'white' }}>
+              <Eye size={14} />
+              <Typography variant="caption" sx={{ fontWeight: 800 }}>{course.views || 0}</Typography>
+            </Box>
+          </Stack>
         </Box>
       </Box>
 
-      <CardContent sx={{ p: 4, flexGrow: 1 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2.5 }}>
-          <Typography variant="h5" sx={{ fontWeight: 900, lineHeight: 1.2, letterSpacing: -1 }}>{course.name}</Typography>
+      <CardContent sx={{ p: 4.5, flexGrow: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+          <Typography variant="h5" sx={{ fontWeight: 900, lineHeight: 1.1, letterSpacing: -1.2, color: 'text.primary' }}>{course.name}</Typography>
           {isTeacher && (
-            <Box sx={{ display: 'flex', gap: 1.5 }}>
-              <IconButton aria-label="Edit course" size="small" onClick={onEdit} sx={{ p: 1, bgcolor: alpha(theme.palette.primary.main, 0.05) }}><Edit2 size={16} /></IconButton>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <IconButton aria-label="Edit course" size="small" onClick={onEdit} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}><Edit2 size={16} /></IconButton>
               {isSuperAdmin && (
-                <IconButton aria-label="Delete course" size="small" color="error" onClick={onDelete} sx={{ p: 1, bgcolor: alpha(theme.palette.error.main, 0.05) }}><Trash2 size={16} /></IconButton>
+                <IconButton aria-label="Delete course" size="small" color="error" onClick={onDelete} sx={{ bgcolor: alpha(theme.palette.error.main, 0.05) }}><Trash2 size={16} /></IconButton>
               )}
             </Box>
           )}
         </Box>
         
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3.5, fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', height: 44, lineHeight: 1.6 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 4, fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 60, lineHeight: 1.6 }}>
           {course.description}
         </Typography>
 
-        <Stack direction="row" spacing={4} sx={{ mb: 3.5 }}>
+        <Stack direction="row" spacing={4} sx={{ mb: 4 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'text.secondary' }}>
-            <Clock size={18} color={theme.palette.primary.main} />
-            <Typography variant="caption" sx={{ fontWeight: 900 }}>{course.duration}</Typography>
+            <Clock size={20} color={theme.palette.primary.main} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{course.duration}</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'text.secondary' }}>
-            <Users size={18} color={theme.palette.primary.main} />
-            <Typography variant="caption" sx={{ fontWeight: 900 }}>24 Tulab</Typography>
+            <Users size={20} color={theme.palette.primary.main} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{(course.sections?.length || 0) * 12 + 10} Tulab</Typography>
           </Box>
         </Stack>
 
-        <Divider sx={{ mb: 3, borderStyle: 'dashed', opacity: 0.6 }} />
+        <Divider sx={{ mb: 4, borderStyle: 'dashed', opacity: 0.6 }} />
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Avatar sx={{ 
-              width: 36, height: 36, fontSize: '0.9rem', fontWeight: 900, 
-              bgcolor: 'background.default', color: 'primary.main',
-              boxShadow: isDark ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff'
-            }}>
-              {course.teacherName.charAt(0)}
+          <Box 
+            sx={{ display: 'flex', alignItems: 'center', gap: 2.5, cursor: 'pointer' }}
+            onClick={() => onShowTeacher(course.teacherId)}
+          >
+            <Avatar 
+              src={teacherPhoto}
+              sx={{ 
+                width: 44, height: 44, fontSize: '1rem', fontWeight: 900, 
+                bgcolor: 'primary.main', color: 'white',
+                boxShadow: theme.shadows[4],
+                transition: '0.3s',
+                '&:hover': { transform: 'scale(1.1)' }
+              }}
+              imgProps={{ referrerPolicy: 'no-referrer' }}
+            >
+              {course.teacherName?.charAt(0)}
             </Avatar>
             <Box>
-              <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.primary', display: 'block' }}>{course.teacherName}</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Mudaris</Typography>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900, color: 'text.primary', display: 'block', mb: -0.5 }}>{course.teacherName}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 700 }}>Instructor</Typography>
             </Box>
           </Box>
           <Box sx={{ textAlign: 'right' }}>
-            <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1 }}>MODULES</Typography>
-            <Typography variant="subtitle2" sx={{ fontWeight: 900, color: 'primary.main' }}>{course.sections?.length || 0}</Typography>
+            <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1.5, fontSize: '0.65rem' }}>MODULES</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 900, color: 'primary.main', lineHeight: 1 }}>{course.sections?.length || 0}</Typography>
           </Box>
         </Box>
       </CardContent>
@@ -1667,16 +1937,17 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
         fullWidth 
         variant="contained" 
         onClick={() => onRead(course)}
-        endIcon={<ArrowRight size={20} />}
+        endIcon={<ArrowRight size={22} />}
         sx={{ 
           borderRadius: 0, 
-          py: 2.5, 
+          py: 3, 
           fontWeight: 900, 
           bgcolor: isDark ? 'background.default' : 'grey.900', 
           color: 'white',
           textTransform: 'none',
-          fontSize: '1rem',
-          '&:hover': { bgcolor: 'primary.main' } 
+          fontSize: '1.05rem',
+          letterSpacing: 0.5,
+          '&:hover': { bgcolor: 'primary.main', color: 'white' } 
         }}
       >
         Read Mazmoon

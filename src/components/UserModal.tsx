@@ -72,7 +72,7 @@ export default function UserModal({ open, onClose, onSubmit }: UserModalProps) {
               <MenuItem value="student">Student</MenuItem>
               <MenuItem value="mudaris">Mudaris</MenuItem>
               <MenuItem value="muntazim">Muntazim</MenuItem>
-              <MenuItem value="superadmin">Super Admin</MenuItem>
+              <MenuItem value="superadmin">Administrator</MenuItem>
               <MenuItem value="pending_mudaris">Pending Mudaris</MenuItem>
             </Select>
           </FormControl>

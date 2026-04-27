@@ -19,7 +19,7 @@ export default function LoadingScreen() {
         position: 'fixed',
         top: 0,
         left: 0,
-        zIndex: 1000000,
+        zIndex: 9000,
         backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(15, 118, 110, 0.2) 0%, rgba(0,0,0,0) 70%)',
         backdropFilter: 'blur(20px)'
       }}
