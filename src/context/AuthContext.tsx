@@ -6,14 +6,12 @@ interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
   error: string | null;
-  manualLogin: (phone: string, pass: string) => Promise<void>;
-  manualSignUp: (phone: string, pass: string, name: string, role: UserRole) => Promise<void>;
+  manualLogin: (email: string, pass: string) => Promise<void>;
+  manualSignUp: (email: string, pass: string, name: string, role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const formatPhoneEmail = (phone: string) => `${phone.replace(/[^0-9]/g, '')}@p.maktab.com`;
 
 import { logger } from '../lib/logger';
 
@@ -35,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (docSnap.exists()) {
               const profile = { ...docSnap.data(), uid: docSnap.id } as UserProfile;
               // Ensure role is consistent with admin bootstrap
-              const isSuperAdminEmail = firebaseUser.email === 'zeeshanmaqbool200@gmail.com';
+              const isSuperAdminEmail = firebaseUser.email?.toLowerCase() === 'zeeshanmaqbool200@gmail.com';
               if (isSuperAdminEmail && profile.role !== 'superadmin') {
                 profile.role = 'superadmin';
                 updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'superadmin' });
@@ -79,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
               findExisting().then((found) => {
                 if (!found) {
-                  const isSuperAdminEmail = firebaseUser.email === 'zeeshanmaqbool200@gmail.com';
+                  const isSuperAdminEmail = firebaseUser.email?.toLowerCase() === 'zeeshanmaqbool200@gmail.com';
                   if (isSuperAdminEmail) {
                     const newUser: UserProfile = {
                       uid: firebaseUser.uid,
@@ -119,28 +117,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const manualLogin = React.useCallback(async (phone: string, pass: string) => {
+  const manualLogin = React.useCallback(async (email: string, pass: string) => {
     try {
       setError(null);
-      const email = formatPhoneEmail(phone);
-      logger.auth('Manual Login Attempt', { phone });
+      logger.auth('Manual Login Attempt', { email });
       await signInWithEmailAndPassword(auth, email, pass);
     } catch (err: any) {
-      let message = 'Login failed. Check your phone/password.';
+      let message = 'Login failed. Check your email/password.';
       if (err.code === 'auth/invalid-credential') {
-        message = 'Wrong phone number or password.';
+        message = 'Wrong email or password.';
       } else if (err.code === 'auth/user-not-found') {
-        message = 'No account found with this phone number.';
+        message = 'No account found with this email.';
       }
       setError(message);
       throw err;
     }
   }, []);
 
-  const manualSignUp = React.useCallback(async (phone: string, pass: string, name: string, role: UserRole) => {
+  const manualSignUp = React.useCallback(async (email: string, pass: string, name: string, role: UserRole) => {
     try {
       setError(null);
-      const email = formatPhoneEmail(phone);
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
       
@@ -148,8 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       const newUser: UserProfile = {
         uid: firebaseUser.uid,
-        email: email, // Internal virtual email
-        phone: phone, // Real phone number stored
+        email: email,
         displayName: name,
         role: finalRole as UserRole,
         createdAt: Date.now(),
@@ -160,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err: any) {
       let message = 'Signup failed.';
       if (err.code === 'auth/email-already-in-use') {
-        message = 'This phone number is already registered.';
+        message = 'This email is already registered.';
       } else if (err.code === 'auth/weak-password') {
         message = 'Please use a stronger password.';
       }

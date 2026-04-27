@@ -25,6 +25,7 @@ interface LoginProps {
 export default function Login({ onLogin, onSignUp, error }: LoginProps) {
   const theme = useTheme();
   const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -53,18 +54,14 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Sanitize phone: remove spaces/dashes
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    if (cleanPhone.length < 7) {
-      setLoading(false);
-      return; // Basic validation
-    }
 
     try {
       if (isSignUp) {
-        await onSignUp(cleanPhone, password, name, role);
+        // Here we could pass phone if we wanted to store it during initial signup
+        // if we update onSignUp to accept it, but for now we'll keep it simple
+        await onSignUp(email, password, name, role);
       } else {
-        await onLogin(cleanPhone, password);
+        await onLogin(email, password);
       }
     } catch (err) {
       // Error is handled by AuthContext
@@ -117,7 +114,13 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                 <School size={50} strokeWidth={1.5} />
               )}
             </Box>
-            <Typography variant="h3" sx={{ fontWeight: 900, mb: 1, color: 'primary.main', letterSpacing: -1, textTransform: 'uppercase' }}>
+            <Typography variant="h3" sx={{ 
+              fontWeight: 950, mb: 1, 
+              color: 'primary.main', 
+              letterSpacing: -2, 
+              textTransform: 'uppercase',
+              textShadow: `0 0 30px ${alpha(theme.palette.primary.main, 0.4)}`
+            }}>
               {institute.maktabName}
             </Typography>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, opacity: 0.8, color: 'white', fontStyle: 'italic' }}>
@@ -196,14 +199,22 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
 
                   <TextField
                     fullWidth
-                    label="Phone Number"
-                    type="tel"
-                    placeholder="Enter Phone (e.g. 03001234567)"
+                    label="Email Address"
+                    type="email"
+                    placeholder="Enter Email (e.g. user@gmail.com)"
                     required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     sx={{
-                      '& .MuiOutlinedInput-root': { borderRadius: 4, bgcolor: 'rgba(0,0,0,0.2)' }
+                      '& .MuiOutlinedInput-root': { 
+                        borderRadius: 4, 
+                        bgcolor: 'rgba(0,0,0,0.6)',
+                        '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
+                        '& fieldset': { borderColor: alpha(theme.palette.primary.main, 0.3) },
+                        '&:hover fieldset': { borderColor: alpha(theme.palette.primary.main, 0.5) },
+                      },
+                      '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.9)', fontWeight: 800 },
+                      '& .MuiInputLabel-root.Mui-focused': { color: 'primary.main' }
                     }}
                   />
 
@@ -216,7 +227,15 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     sx={{
-                      '& .MuiOutlinedInput-root': { borderRadius: 4, bgcolor: 'rgba(0,0,0,0.2)' }
+                      '& .MuiOutlinedInput-root': { 
+                        borderRadius: 4, 
+                        bgcolor: 'rgba(0,0,0,0.6)',
+                        '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
+                        '& fieldset': { borderColor: alpha(theme.palette.primary.main, 0.3) },
+                        '&:hover fieldset': { borderColor: alpha(theme.palette.primary.main, 0.5) },
+                      },
+                      '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.9)', fontWeight: 800 },
+                      '& .MuiInputLabel-root.Mui-focused': { color: 'primary.main' }
                     }}
                     InputProps={{
                       endAdornment: (

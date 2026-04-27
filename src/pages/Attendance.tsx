@@ -27,13 +27,25 @@ export default function AttendancePage() {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [students, setStudents] = useState<UserProfile[]>([]);
+  const [students, setStudents] = useState<UserProfile[]>(() => {
+    const cached = localStorage.getItem('attendance_students');
+    return cached ? JSON.parse(cached) : [];
+  });
   const [attendanceData, setAttendanceData] = useState<Attendance[]>([]);
-  const [loading, setLoading] = useState(!(window as any)._attendanceLoaded);
+  const [loading, setLoading] = useState(!(window as any)._attendanceLoaded && students.length === 0);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedClass, setSelectedClass] = useState('');
-  const [classes, setClasses] = useState<string[]>([]);
+  const [selectedClass, setSelectedClass] = useState(localStorage.getItem('last_selected_class') || '');
+  const [classes, setClasses] = useState<string[]>(() => {
+    const cached = localStorage.getItem('attendance_classes');
+    return cached ? JSON.parse(cached) : [];
+  });
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (selectedClass) {
+      localStorage.setItem('last_selected_class', selectedClass);
+    }
+  }, [selectedClass]);
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
   const role = currentUser?.role || 'student';
@@ -66,13 +78,32 @@ export default function AttendancePage() {
         }
 
         const studentsSnap = await getDocs(studentsQuery);
-        const studentsList = studentsSnap.docs.map(doc => ({ uid: doc.id, ...(doc.data() as object) })) as UserProfile[];
+        const studentsList = studentsSnap.docs.map(doc => {
+          const data = doc.data() as any;
+          return { 
+            uid: doc.id, 
+            ...data,
+            // Ensure grade is present if maktabLevel exists (fallback)
+            grade: data.grade || data.maktabLevel 
+          };
+        }) as UserProfile[];
+        
         setStudents(studentsList);
+        localStorage.setItem('attendance_students', JSON.stringify(studentsList));
 
         // Extract unique classes
-        const uniqueClasses = Array.from(new Set(studentsList.map(s => s.grade).filter(Boolean)));
+        const uniqueClasses = Array.from(new Set(studentsList.map(s => s.grade || s.maktabLevel).filter(Boolean))) as string[];
         setClasses(uniqueClasses);
-        if (uniqueClasses.length > 0 && !selectedClass) setSelectedClass(uniqueClasses[0]);
+        localStorage.setItem('attendance_classes', JSON.stringify(uniqueClasses));
+        
+        if (uniqueClasses.length > 0 && !selectedClass) {
+          const lastClass = localStorage.getItem('last_selected_class');
+          if (lastClass && uniqueClasses.includes(lastClass)) {
+            setSelectedClass(lastClass);
+          } else {
+            setSelectedClass(uniqueClasses[0]);
+          }
+        }
 
         // Fetch attendance for selected date
         const dateStr = format(selectedDate, 'yyyy-MM-dd');

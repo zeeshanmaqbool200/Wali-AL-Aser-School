@@ -33,7 +33,7 @@ export default function Dashboard({ user }: DashboardProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(!(window as any)._dashboardLoaded);
+  const [loading, setLoading] = useState(!(window as any)._dashboardLoaded && !localStorage.getItem(`dashboard_stats_${user.uid}`));
   const [stats, setStats] = useState<any>(() => {
     // Try to recover cached stats to prevent white flicker
     const cached = localStorage.getItem(`dashboard_stats_${user.uid}`);
@@ -44,7 +44,8 @@ export default function Dashboard({ user }: DashboardProps) {
       todayHaziri: 0,
       attendanceRate: 0,
       recentFees: [],
-      availableCourses: []
+      availableCourses: [],
+      recentAdmissions: []
     };
   });
   const [jafariDate, setJafariDate] = useState<string>('');
@@ -57,7 +58,7 @@ export default function Dashboard({ user }: DashboardProps) {
     tagline: 'Simple Learning for Everyone'
   });
 
-  const isSuperAdmin = user.email === 'zeeshanmaqbool200@gmail.com';
+  const isSuperAdmin = user.email?.toLowerCase() === 'zeeshanmaqbool200@gmail.com' || user.uid === 'sZUiAgoSF8MTPBQAOtj6jbFkot93';
   const role = user.role || 'student';
   const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
   const isMudarisRole = role === 'mudaris';
@@ -86,6 +87,7 @@ export default function Dashboard({ user }: DashboardProps) {
     let unsubscribeStudentHaziri = () => {};
     let unsubscribeStudentCourses = () => {};
     let unsubscribeStaff = () => {};
+    let unsubscribeRecentAdmissions = () => {};
 
     const fetchData = async () => {
       try {
@@ -228,6 +230,23 @@ export default function Dashboard({ user }: DashboardProps) {
             setUpcomingEvents(filtered);
           });
 
+          // Fetch recent admissions for admins - simplified to avoid index requirement
+          if (isAdmin) {
+            // Fetch last 20 users and filter for students client-side to avoid composite index
+            const recentQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(20));
+            unsubscribeRecentAdmissions = onSnapshot(recentQuery, (snap) => {
+              const allUsers = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+              const admissions = allUsers.filter((u: any) => u.role === 'student').slice(0, 5);
+              setStats(prev => {
+                const newState = { ...prev, recentAdmissions: admissions };
+                localStorage.setItem(`dashboard_stats_${user.uid}`, JSON.stringify(newState));
+                return newState;
+              });
+            }, (err) => {
+              console.error("Recent admissions snapshot error:", err);
+            });
+          }
+
           const staffQuery = query(collection(db, 'users'), where('role', 'in', ['mudaris', 'muntazim', 'superadmin']));
           unsubscribeStaff = onSnapshot(staffQuery, (snap) => {
             setStaffMembers(snap.docs.map(d => ({ uid: d.id, ...d.data() })) as UserProfile[]);
@@ -307,6 +326,7 @@ export default function Dashboard({ user }: DashboardProps) {
       unsubscribeStudentHaziri();
       unsubscribeStudentCourses();
       unsubscribeStaff();
+      unsubscribeRecentAdmissions();
     };
   }, [user?.uid, isStaff, isAdmin]);
 
@@ -381,7 +401,7 @@ export default function Dashboard({ user }: DashboardProps) {
     setOpenTeacherProfile(true);
   };
 
-  if (loading && !(window as any)._dashboardLoaded) return null; // No screen loader, just blank to stay silent
+  if (loading && !(window as any)._dashboardLoaded && !localStorage.getItem(`dashboard_stats_${user.uid}`)) return <LoadingScreen />;
 
   const instanceTextVisibilityColor = () => {
     if (!instituteData.bannerUrl) return 'text.primary';
@@ -660,6 +680,37 @@ export default function Dashboard({ user }: DashboardProps) {
                           <IconButton color="success" onClick={() => handleApproveStudent(student)}><Check size={20} /></IconButton>
                           <IconButton color="error" onClick={() => handleRejectStudent(student)}><X size={20} /></IconButton>
                         </Stack>
+                      </ListItem>
+                    ))}
+                  </List>
+                </Paper>
+              </Box>
+            )}
+
+            {/* Recent Admissions (Recent Students) - Fixing "admin added student but not showing here" */}
+            {isAdmin && stats.recentAdmissions && stats.recentAdmissions.length > 0 && (
+              <Box sx={{ mb: 6 }}>
+                <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'primary.main' }}>
+                  Haryali Admissions (Recent Students)
+                </Typography>
+                <Paper sx={{ borderRadius: 6, overflow: 'hidden', border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+                   <List sx={{ p: 0 }}>
+                    {stats.recentAdmissions.map((student: any, idx: number) => (
+                      <ListItem 
+                        key={student.uid} 
+                        divider={idx !== stats.recentAdmissions.length - 1}
+                        onClick={() => navigate('/users')}
+                        sx={{ py: 2, px: 4, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } }}
+                      >
+                        <ListItemAvatar>
+                          <Avatar src={student.photoURL} imgProps={{ referrerPolicy: 'no-referrer' }}>{student.displayName?.charAt(0)}</Avatar>
+                        </ListItemAvatar>
+                        <ListItemText 
+                          primary={student.displayName}
+                          secondary={`Admission No: ${student.admissionNo || 'N/A'} • Level: ${student.maktabLevel || student.grade || 'N/A'}`}
+                          primaryTypographyProps={{ fontWeight: 900 }}
+                        />
+                        <Chip label="Active" color="success" size="small" variant="outlined" sx={{ fontWeight: 800, borderRadius: 1.5 }} />
                       </ListItem>
                     ))}
                   </List>

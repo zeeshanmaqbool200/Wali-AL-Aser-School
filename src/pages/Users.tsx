@@ -20,8 +20,13 @@ import {
   Layers, CheckCircle, XCircle, Clock, Save,
   Bell, Camera, X, Printer, RotateCcw, ArrowLeft, FileText, Database
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDocs, writeBatch, getDoc, or, and, documentId } from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartDeleteDoc } from '../firebase';
+import { 
+  collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, 
+  orderBy, where, getDocs, writeBatch, getDoc, or, and, documentId, setDoc
+} from 'firebase/firestore';
+import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartDeleteDoc, firebaseConfig } from '../firebase';
+import { initializeApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { UserProfile, UserRole, MaktabLevel, InstituteSettings } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { MAKTAB_LEVELS, SUBJECT_OPTIONS } from '../constants';
@@ -71,13 +76,16 @@ export default function Users() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [stayOpen, setStayOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
+  const [purgeType, setPurgeType] = useState<'ALL' | 'STUDENTS'>('ALL');
   const [userToDeleteRef, setUserToDeleteRef] = useState<{ id: string, profile: UserProfile } | null>(null);
   
   const [formData, setFormData] = useState({
     displayName: '',
     email: '',
+    password: 'password123', // Default password
     role: 'student' as UserRole,
     phone: '',
     maktabLevel: '' as MaktabLevel,
@@ -187,21 +195,24 @@ export default function Users() {
   const subjectsOptions = SUBJECT_OPTIONS;
   const maktabLevels = MAKTAB_LEVELS;
 
-  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const isSuperAdmin = currentUser?.email?.toLowerCase() === 'zeeshanmaqbool200@gmail.com' || currentUser?.uid === 'sZUiAgoSF8MTPBQAOtj6jbFkot93';
   const role = currentUser?.role || 'student';
   const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
   const isMudarisRole = role === 'mudaris';
   const isAdmin = isSuperAdmin || isMuntazim;
   const isStaff = isSuperAdmin || isMuntazim || isMudarisRole;
 
-  const handleSystemReset = async () => {
-    if (!isSuperAdmin) return;
-    setResetConfirmOpen(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleManualRefresh = () => {
+    setLoading(true);
+    setRefreshKey(prev => prev + 1);
+    setSnackbar({ open: true, message: 'Refreshing data...', severity: 'success' });
   };
 
   const confirmSystemReset = async () => {
-    const confirmText = "RESET ALL USERS";
-    if (resetConfirmText !== confirmText) {
+    const confirmText = purgeType === 'ALL' ? "RESET ALL USERS" : "PURGE STUDENTS";
+    if (resetConfirmText.trim().toUpperCase() !== confirmText.toUpperCase()) {
       setSnackbar({ open: true, message: 'Confirmation text does not match!', severity: 'error' });
       return;
     }
@@ -209,24 +220,27 @@ export default function Users() {
     setResetConfirmOpen(false);
     setLoading(true);
     try {
-      const collectionsToClear = [
-        'users',
-        'attendance',
-        'exams',
-        'fees',
-        'logs',
-        'notifications',
-        'schedule'
-      ];
+      const collectionsToClear = purgeType === 'ALL' 
+        ? ['users', 'attendance', 'exams', 'fees', 'notifications', 'schedule', 'access_logs', 'system_logs']
+        : ['users', 'attendance', 'exams', 'fees'];
 
       let totalDeleted = 0;
 
       for (const collectionName of collectionsToClear) {
-        const snapshot = await getDocs(collection(db, collectionName));
-        const chunks = [];
+        let snapshot;
+        if (purgeType === 'STUDENTS' && (collectionName === 'users' || collectionName === 'attendance' || collectionName === 'fees' || collectionName === 'exams')) {
+          if (collectionName === 'users') {
+            snapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'student')));
+          } else {
+             // For simplicity in STUDENTS mode, we clear these collections as they are student-heavy
+             snapshot = await getDocs(collection(db, collectionName));
+          }
+        } else {
+          snapshot = await getDocs(collection(db, collectionName));
+        }
         
-        // Process in chunks due to batch limits
         const docs = snapshot.docs;
+        const chunks = [];
         for (let i = 0; i < docs.length; i += 500) {
           chunks.push(docs.slice(i, i + 500));
         }
@@ -234,9 +248,11 @@ export default function Users() {
         for (const chunk of chunks) {
           const batch = writeBatch(db);
           chunk.forEach(docSnap => {
-            // NEVER delete the super admin
+            // PROTECT THE SUPER ADMIN - DONT DELETE THEM
             if (collectionName === 'users') {
-              if (docSnap.data().email !== 'zeeshanmaqbool200@gmail.com') {
+              const data = docSnap.data();
+              const isSA = data.email?.toLowerCase() === 'zeeshanmaqbool200@gmail.com' || data.role === 'superadmin';
+              if (!isSA) {
                 batch.delete(docSnap.ref);
                 totalDeleted++;
               }
@@ -272,7 +288,7 @@ export default function Users() {
   useEffect(() => {
     let q;
     if (isSuperAdmin || isMuntazim) {
-      q = query(collection(db, 'users'), orderBy('displayName', 'asc'));
+      q = query(collection(db, 'users'));
     } else if (isMudarisRole) {
       // Mudaris can only see students in their assigned classes or Example class
       q = query(
@@ -283,8 +299,7 @@ export default function Users() {
             where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
             where('grade', '==', 'Example')
           )
-        ),
-        orderBy('displayName', 'asc')
+        )
       );
     } else {
       // Pending mudaris see nothing or just themselves
@@ -292,14 +307,26 @@ export default function Users() {
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setUsers(snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id })) as UserProfile[]);
+      let allUsers = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id })) as UserProfile[];
+      
+      // Sort client-side to ensure documents missing displayName still appear
+      allUsers.sort((a, b) => {
+        const nameA = (a.displayName || '').toLowerCase();
+        const nameB = (b.displayName || '').toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        return 0;
+      });
+
+      setUsers(allUsers);
       setLoading(false);
       (window as any)._usersLoaded = true;
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'users');
+      setLoading(false);
     });
     return () => unsubscribe();
-  }, [isSuperAdmin, isMuntazim, isMudarisRole, currentUser?.assignedClasses, currentUser?.uid]);
+  }, [isSuperAdmin, isMuntazim, isMudarisRole, currentUser?.assignedClasses, currentUser?.uid, refreshKey]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -341,37 +368,79 @@ export default function Users() {
         finalFormData.teacherId = `STF-${namePart}-${timestamp}`;
       }
 
-      /* // Skipping duplicate email check to avoid permission errors for non-superadmins
-      if (!editingUser) {
-        const q = query(collection(db, 'users'), where('email', '==', formData.email));
-        const checkSnap = await getDocs(q);
-        if (!checkSnap.empty) {
-          setSnackbar({ 
-            open: true, 
-            message: `A user with email ${formData.email} already exists!`, 
-            severity: 'error' 
-          });
+      // Synchronize grade and maktabLevel for students
+      if (finalFormData.role === 'student') {
+        if (!finalFormData.maktabLevel) {
+          setSnackbar({ open: true, message: 'Please select a Maktab Level for the student.', severity: 'error' });
           return;
         }
-      }
-      */
-
-      // Synchronize grade and maktabLevel for students
-      if (finalFormData.role === 'student' && finalFormData.maktabLevel) {
         (finalFormData as any).grade = finalFormData.maktabLevel;
       }
 
       if (editingUser) {
         await smartUpdateDoc(doc(db, 'users', editingUser.uid), finalFormData);
       } else {
-        await smartAddDoc(collection(db, 'users'), {
-          ...finalFormData,
-          createdAt: Date.now(),
-          photoURL: finalFormData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.displayName)}&background=random&color=fff`
-        });
+        setLoading(true);
+        // Create Firebase Auth User for student using a secondary App instance 
+        // to avoid signing out the current admin
+        try {
+          const secondaryApp = initializeApp(firebaseConfig, `user-creation-${Date.now()}`);
+          const secondaryAuth = getAuth(secondaryApp);
+          
+          const userCredential = await createUserWithEmailAndPassword(
+            secondaryAuth, 
+            finalFormData.email, 
+            finalFormData.password || 'password123'
+          );
+          
+          await updateProfile(userCredential.user, {
+            displayName: finalFormData.displayName,
+            photoURL: finalFormData.photoURL
+          });
+
+          const uid = userCredential.user.uid;
+          
+          // Use setDoc with the Auth UID to keep them in sync
+          const userData = {
+            ...finalFormData,
+            uid,
+            id: uid, // Ensure both uid and id are set
+            instituteId: instituteSettings.id || 'default',
+            createdAt: Date.now(),
+            photoURL: finalFormData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(finalFormData.displayName)}&background=random&color=fff`
+          };
+          delete (userData as any).password;
+
+          await setDoc(doc(db, 'users', uid), userData);
+          
+          setSnackbar({ open: true, message: `Auth account created! Student can now login with: ${finalFormData.email}`, severity: 'success' });
+        } catch (authError: any) {
+          console.error('Auth User Creation Error:', authError);
+          setSnackbar({ open: true, message: `Auth error: ${authError.message}`, severity: 'error' });
+          setLoading(false);
+          return;
+        } finally {
+          setLoading(false);
+        }
       }
-      setOpenDialog(false);
-      setEditingUser(null);
+
+      if (!stayOpen) {
+        setOpenDialog(false);
+        setEditingUser(null);
+      } else {
+        // Reset form for next student but keep level/subjects if student
+        setFormData(prev => ({
+          ...prev,
+          displayName: '',
+          email: '',
+          phone: '',
+          admissionNo: '', // Will be auto-generated by useEffect
+          photoURL: '',
+          dob: '',
+          rollNo: ''
+        }));
+      }
+
       setSnackbar({ open: true, message: `User ${editingUser ? 'updated' : 'registered'} successfully`, severity: 'success' });
       
       // Trigger confetti for a delightful experience
@@ -406,7 +475,8 @@ export default function Users() {
     const { id, profile: userToDelete } = userToDeleteRef;
     
     setDeleteConfirmOpen(false);
-    setLoading(true);
+    // Remove global loading to prevent full page jump
+    // setLoading(true); 
     try {
       logger.db('Initiating Full User Deletion', `users/${id}`);
       
@@ -431,12 +501,15 @@ export default function Users() {
       await batch.commit();
 
       // 2. Delete the user document itself
-      // Using smartDeleteDoc for the primary user record
+      // Using documentId() since id is the doc id
       await smartDeleteDoc(doc(db, 'users', id));
+      
+      // Optionally remove from state if onSnapshot is slow (but it should be fast)
+      setUsers(prev => prev.filter(u => u.uid !== id));
       
       setSnackbar({ 
         open: true, 
-        message: `${userToDelete.displayName} data purged from Firestore. Note: Manage Auth users in Firebase Console.`, 
+        message: `${userToDelete.displayName} data purged. Student no longer exists in Tulab list.`, 
         severity: 'success' 
       });
       logger.success('User data purged permanently', userToDelete.email);
@@ -444,7 +517,7 @@ export default function Users() {
       handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
       setSnackbar({ open: true, message: 'Error purging user records', severity: 'error' });
     } finally {
-      setLoading(false);
+      // setLoading(false);
       setUserToDeleteRef(null);
     }
   };
@@ -587,6 +660,37 @@ export default function Users() {
             </Typography>
           </Box>
           <Stack direction="row" spacing={2} sx={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', alignItems: 'center' }}>
+            {isSuperAdmin && (
+              <Tooltip title="Purge Data / System Reset">
+                <Button 
+                  onClick={() => setResetConfirmOpen(true)}
+                  variant="outlined"
+                  color="error"
+                  startIcon={<Database size={18} />}
+                  sx={{ 
+                    borderRadius: 2,
+                    fontWeight: 800,
+                    textTransform: 'none',
+                    bgcolor: alpha(theme.palette.error.main, 0.05),
+                  }}
+                >
+                  Purge Data
+                </Button>
+              </Tooltip>
+            )}
+            <Tooltip title="Manual Refresh">
+              <IconButton 
+                onClick={handleManualRefresh}
+                sx={{ 
+                  bgcolor: 'background.paper', 
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 2
+                }}
+              >
+                <RotateCcw size={18} />
+              </IconButton>
+            </Tooltip>
             <Box sx={{ 
               display: 'flex', 
               bgcolor: 'background.default', 
@@ -661,11 +765,24 @@ export default function Users() {
                 onClick={() => {
                   setEditingUser(null);
                   setFormData({ 
-                    displayName: '', email: '', role: tabValue === 0 ? 'student' : 'mudaris', 
-                    phone: '', maktabLevel: '' as MaktabLevel, admissionNo: '', teacherId: '', 
+                    displayName: '', 
+                    email: '', 
+                    password: 'password123',
+                    role: tabValue === 0 ? 'student' : 'mudaris', 
+                    phone: '', 
+                    maktabLevel: '' as MaktabLevel, 
+                    admissionNo: '', 
+                    teacherId: '', 
                     dob: '',
-                    fatherName: '', motherName: '', rollNo: '', admissionDate: format(new Date(), 'yyyy-MM-dd'),
-                    address: '', subject: '', subjectsEnrolled: [], assignedClasses: [], status: 'Active',
+                    fatherName: '', 
+                    motherName: '', 
+                    rollNo: '', 
+                    admissionDate: format(new Date(), 'yyyy-MM-dd'),
+                    address: '', 
+                    subject: '', 
+                    subjectsEnrolled: [], 
+                    assignedClasses: [], 
+                    status: 'Active',
                     photoURL: ''
                   });
                   setOpenDialog(true);
@@ -1177,6 +1294,19 @@ export default function Users() {
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
               />
             </Grid>
+            {!editingUser && (
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  label="Temporary Password"
+                  required
+                  placeholder="Set email pass"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                />
+              </Grid>
+            )}
             <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}>
                 <InputLabel>Role / Designation</InputLabel>
@@ -1361,23 +1491,39 @@ export default function Users() {
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 2, justifyContent: 'flex-end' }}>
-          <Button 
-            onClick={() => setOpenDialog(false)} 
-            variant="outlined" 
-            sx={{ fontWeight: 800, color: 'text.secondary', borderRadius: 3, px: 3 }}
-          >
-            Cancel / Wapis
-          </Button>
-          <Button 
-            onClick={handleSave} 
-            variant="contained" 
-            startIcon={<Save size={18} />} 
-            disabled={!formData.displayName || !formData.email}
-            sx={{ borderRadius: 3, fontWeight: 800, px: 4, boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}` }}
-          >
-            {editingUser ? 'Update Profile' : 'Register Now'}
-          </Button>
+        <DialogActions sx={{ p: 3, gap: 2, justifyContent: 'space-between', alignItems: 'center' }}>
+          {!editingUser && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <input 
+                type="checkbox" 
+                id="stay-open" 
+                checked={stayOpen} 
+                onChange={(e) => setStayOpen(e.target.checked)}
+                className="w-4 h-4 text-primary-600 rounded" 
+              />
+              <Typography variant="caption" sx={{ fontWeight: 700, cursor: 'pointer' }} component="label" htmlFor="stay-open">
+                Add another student after saving (Save and stay)
+              </Typography>
+            </Box>
+          )}
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button 
+              onClick={() => setOpenDialog(false)} 
+              variant="outlined" 
+              sx={{ fontWeight: 800, color: 'text.secondary', borderRadius: 3, px: 3 }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSave} 
+              variant="contained" 
+              startIcon={<Save size={18} />} 
+              disabled={!formData.displayName || !formData.email}
+              sx={{ borderRadius: 3, fontWeight: 800, px: 4, boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}` }}
+            >
+              {editingUser ? 'Update Profile' : 'Register Now'}
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
 
@@ -1736,27 +1882,52 @@ export default function Users() {
       >
         <DialogTitle sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1.5, color: 'error.main' }}>
           <Database size={24} />
-          CRITICAL: System Reset
+          {purgeType === 'ALL' ? 'CRITICAL: System Reset' : 'Purge Old Students Data'}
         </DialogTitle>
         <DialogContent>
+          <Box sx={{ mb: 3, mt: 1 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Select Purge Scope:</Typography>
+            <Stack direction="row" spacing={2}>
+              <Button 
+                variant={purgeType === 'STUDENTS' ? 'contained' : 'outlined'} 
+                color="error"
+                size="small"
+                onClick={() => setPurgeType('STUDENTS')}
+                sx={{ borderRadius: 2, flex: 1 }}
+              >
+                Only Students
+              </Button>
+              <Button 
+                variant={purgeType === 'ALL' ? 'contained' : 'outlined'} 
+                color="error"
+                size="small"
+                onClick={() => setPurgeType('ALL')}
+                sx={{ borderRadius: 2, flex: 1 }}
+              >
+                Everything
+              </Button>
+            </Stack>
+          </Box>
           <Typography variant="body1" sx={{ fontWeight: 600, mb: 1 }}>
-            This will delete ALL users except yourself. This cannot be undone.
+            {purgeType === 'ALL' 
+              ? 'This will delete ALL data including staff, logs, and settings. Except yourself.' 
+              : 'This will delete ALL students and their related records (attendance, exams, etc).'}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            To confirm, please type <strong>RESET ALL USERS</strong> below:
+            To confirm, please type <strong>{purgeType === 'ALL' ? 'RESET ALL USERS' : 'PURGE STUDENTS'}</strong> below:
           </Typography>
           <TextField
             fullWidth
             size="small"
             value={resetConfirmText}
             onChange={(e) => setResetConfirmText(e.target.value)}
-            placeholder="Type here..."
+            placeholder="Type confirmation here..."
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
         </DialogContent>
         <DialogActions sx={{ p: 3, gap: 1 }}>
           <Button 
-            onClick={() => setResetConfirmOpen(false)} 
+            onClick={() => { setResetConfirmOpen(false); setResetConfirmText(''); }} 
             sx={{ fontWeight: 800, color: 'text.secondary', borderRadius: 3 }}
           >
             Cancel
@@ -1765,10 +1936,10 @@ export default function Users() {
             onClick={confirmSystemReset} 
             variant="contained" 
             color="error"
-            disabled={resetConfirmText !== "RESET ALL USERS"}
+            disabled={resetConfirmText !== (purgeType === 'ALL' ? "RESET ALL USERS" : "PURGE STUDENTS")}
             sx={{ fontWeight: 800, borderRadius: 3, px: 3 }}
           >
-            RESET SYSTEM
+            {purgeType === 'ALL' ? 'RESET SYSTEM' : 'PURGE STUDENTS NOW'}
           </Button>
         </DialogActions>
       </Dialog>

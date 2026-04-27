@@ -43,9 +43,12 @@ export default function Courses() {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<Course[]>(() => {
+    const cached = localStorage.getItem('courses_data');
+    return cached ? JSON.parse(cached) : [];
+  });
   const [allMudaris, setAllMudaris] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(!(window as any)._coursesLoaded);
+  const [loading, setLoading] = useState(!(window as any)._coursesLoaded && courses.length === 0);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
   const [openReader, setOpenReader] = useState(false);
@@ -234,7 +237,9 @@ export default function Courses() {
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[]);
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[];
+      setCourses(docs);
+      localStorage.setItem('courses_data', JSON.stringify(docs));
       setLoading(false);
       (window as any)._coursesLoaded = true;
     }, (error) => {
@@ -1375,7 +1380,7 @@ export default function Courses() {
                                </Typography>
                                <Typography variant="caption" sx={{ fontWeight: 600, opacity: 0.5 }}>{section.type.toUpperCase()}</Typography>
                              </Box>
-                             {activeSection === idx && <CheckCircle size={16} className="text-primary-500" />}
+                             {activeSection === idx && <CheckCircle size={16} style={{ flexShrink: 0 }} className="text-primary-500" />}
                            </Box>
                          ))}
                        </Stack>
@@ -1422,7 +1427,7 @@ export default function Courses() {
 
                       {viewingCourse?.sections?.[activeSection]?.type === 'file' && viewingCourse?.sections?.[activeSection]?.mediaUrl && (
                         <Paper sx={{ mb: 6, p: 4, borderRadius: 6, bgcolor: alpha(theme.palette.primary.main, 0.05), border: '2px dashed', borderColor: 'primary.main', display: 'flex', alignItems: 'center', gap: 3 }}>
-                           <Paperclip size={40} className="text-primary-500" />
+                           <Paperclip size={40} style={{ flexShrink: 0 }} className="text-primary-500" />
                            <Box sx={{ flex: 1 }}>
                              <Typography variant="h6" sx={{ fontWeight: 900 }}>Resource Pack Attached</Typography>
                              <Typography variant="body2" sx={{ opacity: 0.7, fontWeight: 600 }}>Download the supplementary material for this lesson.</Typography>
@@ -1547,7 +1552,7 @@ export default function Courses() {
                             p: 4, borderRadius: 6, bgcolor: alpha(theme.palette.success.main, 0.08), border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.2),
                             display: 'flex', alignItems: 'center', gap: 3
                           }}>
-                            <Box sx={{ width: 60, height: 60, borderRadius: '50%', bgcolor: 'success.main', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Box sx={{ width: 60, height: 60, borderRadius: '50%', bgcolor: 'success.main', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                               <Trophy size={32} />
                             </Box>
                             <Box>

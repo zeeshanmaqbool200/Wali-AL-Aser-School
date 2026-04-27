@@ -56,7 +56,8 @@ export default function Fees() {
     feeHead: 'Monthly Fee',
     paymentMode: 'Cash',
     transactionId: '',
-    remarks: ''
+    remarks: '',
+    date: format(new Date(), 'yyyy-MM-dd')
   });
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
@@ -151,7 +152,7 @@ export default function Fees() {
       const newReceipt = {
         ...formData,
         amount: Number(formData.amount),
-        date: format(new Date(), 'yyyy-MM-dd'),
+        date: formData.date || format(new Date(), 'yyyy-MM-dd'),
         status: isStaff ? 'approved' : 'pending',
         createdAt: Date.now(),
         createdBy: currentUser.uid,
@@ -173,7 +174,7 @@ export default function Fees() {
       });
 
       setOpenAddDialog(false);
-      setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '' });
+      setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '', date: format(new Date(), 'yyyy-MM-dd') });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'receipts');
     } finally {
@@ -699,38 +700,62 @@ export default function Fees() {
                       {getStatusChip(receipt.status)}
                     </TableCell>
                     <TableCell align="right">
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
                         <Tooltip title="View Receipt">
-                          <IconButton 
+                          <Button 
+                            variant="contained"
                             size="small" 
-                            sx={{ bgcolor: 'grey.100', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
+                            color="info"
+                            startIcon={<Eye size={16} />}
+                            sx={{ 
+                              borderRadius: 2, fontWeight: 800, textTransform: 'none',
+                              bgcolor: alpha(theme.palette.info.main, 0.1),
+                              color: 'info.main',
+                              '&:hover': { bgcolor: 'info.main', color: 'white' }
+                            }}
                             onClick={() => {
                               setSelectedReceipt(receipt);
                               setOpenReceiptModal(true);
                             }}
                           >
-                            <Eye size={18} />
-                          </IconButton>
+                            View
+                          </Button>
                         </Tooltip>
                         {isStaff && receipt.status === 'pending' && (
                           <>
                             <Tooltip title="Approve">
-                              <IconButton 
+                              <Button 
+                                variant="contained"
                                 size="small" 
-                                sx={{ bgcolor: 'success.light', color: 'success.dark', '&:hover': { bgcolor: 'success.main', color: 'white' } }}
+                                color="success"
+                                startIcon={<Check size={16} />}
+                                sx={{ 
+                                  borderRadius: 2, fontWeight: 800, textTransform: 'none',
+                                  bgcolor: alpha(theme.palette.success.main, 0.1),
+                                  color: 'success.main',
+                                  '&:hover': { bgcolor: 'success.main', color: 'white' }
+                                }}
                                 onClick={() => handleApprove(receipt)}
                               >
-                                <Check size={18} />
-                              </IconButton>
+                                Approve
+                              </Button>
                             </Tooltip>
                             <Tooltip title="Reject">
-                              <IconButton 
+                              <Button 
+                                variant="contained"
                                 size="small" 
-                                sx={{ bgcolor: 'error.light', color: 'error.dark', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
+                                color="error"
+                                startIcon={<XCircle size={16} />}
+                                sx={{ 
+                                  borderRadius: 2, fontWeight: 800, textTransform: 'none',
+                                  bgcolor: alpha(theme.palette.error.main, 0.1),
+                                  color: 'error.main',
+                                  '&:hover': { bgcolor: 'error.main', color: 'white' }
+                                }}
                                 onClick={() => handleReject(receipt)}
                               >
-                                <XCircle size={18} />
-                              </IconButton>
+                                Reject
+                              </Button>
                             </Tooltip>
                           </>
                         )}
@@ -741,7 +766,13 @@ export default function Fees() {
                                 <Tooltip title="Edit">
                                   <IconButton 
                                     size="small" 
-                                    sx={{ bgcolor: 'grey.100', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}
+                                    color="primary"
+                                    sx={{ 
+                                      borderRadius: 2,
+                                      bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                      color: 'primary.main',
+                                      '&:hover': { bgcolor: 'primary.main', color: 'white' }
+                                    }}
                                     onClick={() => {
                                       setEditingReceipt(receipt);
                                       setFormData({
@@ -752,24 +783,29 @@ export default function Fees() {
                                         feeHead: receipt.feeHead,
                                         paymentMode: receipt.paymentMode,
                                         transactionId: receipt.transactionId || '',
-                                        remarks: receipt.remarks || ''
+                                        remarks: receipt.remarks || '',
+                                        date: receipt.date || format(new Date(), 'yyyy-MM-dd')
                                       });
                                       setOpenEditDialog(true);
                                     }}
                                   >
-                                    <Edit size={18} />
+                                    <Edit size={16} />
                                   </IconButton>
                                 </Tooltip>
                                 {isSuperAdmin && (
-                                  <Tooltip title="Delete">
-                                    <IconButton 
-                                      size="small" 
-                                      sx={{ bgcolor: 'error.light', color: 'error.dark', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
-                                      onClick={() => handleDelete(receipt.id)}
-                                    >
-                                      <Trash2 size={18} />
-                                    </IconButton>
-                                  </Tooltip>
+                                  <IconButton 
+                                    size="small" 
+                                    color="error"
+                                    sx={{ 
+                                      borderRadius: 2,
+                                      bgcolor: alpha(theme.palette.error.main, 0.1),
+                                      color: 'error.main',
+                                      '&:hover': { bgcolor: 'error.main', color: 'white' }
+                                    }}
+                                    onClick={() => handleDelete(receipt.id)}
+                                  >
+                                    <Trash2 size={16} />
+                                  </IconButton>
                                 )}
                               </>
                             )}
@@ -834,7 +870,7 @@ export default function Fees() {
                     onClick={() => setFormData(prev => ({ ...prev, isNonStudent: !prev.isNonStudent, studentId: '', studentName: '' }))}
                     sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
                   >
-                    {formData.isNonStudent ? "Switch to Student" : "Register Non-Student / Mehmaan"}
+                    {formData.isNonStudent ? "Switch to Student List" : "Direct Name / Mehmaan / Old Record"}
                   </Button>
                 </Box>
               )}
@@ -851,8 +887,9 @@ export default function Fees() {
                 formData.isNonStudent ? (
                   <TextField 
                     fullWidth 
-                    label="Enter Mehmaan / Non-Student Name" 
+                    label="Enter Student Name / Payer Name" 
                     required 
+                    placeholder="Type name for old receipt or mehmaan"
                     value={formData.studentName}
                     onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
                     InputProps={{ sx: { borderRadius: 4 } }}
@@ -862,10 +899,22 @@ export default function Fees() {
                     options={students}
                     getOptionLabel={(option) => `${option.displayName} (${option.admissionNo || option.studentId || 'N/A'})`}
                     onChange={(e, v) => setFormData({ ...formData, studentId: v?.uid || '', studentName: v?.displayName || '' })}
-                    renderInput={(params) => <TextField {...params} label="Select Talib-e-Ilm" required InputProps={{ ...params.InputProps, sx: { borderRadius: 4 } }} />}
+                    renderInput={(params) => <TextField {...params} label="Select Talib-e-Ilm from List" required={!formData.isNonStudent} InputProps={{ ...params.InputProps, sx: { borderRadius: 4 } }} />}
                   />
                 )
               )}
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label="Payment Date / Add Old Receipt"
+                type="date"
+                required
+                InputLabelProps={{ shrink: true }}
+                InputProps={{ sx: { borderRadius: 4 } }}
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
@@ -945,7 +994,7 @@ export default function Fees() {
           <Button 
             onClick={() => {
               setOpenAddDialog(false);
-              setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '' });
+              setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '', date: format(new Date(), 'yyyy-MM-dd') });
             }}
             sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'none' }}
           >
@@ -998,6 +1047,26 @@ export default function Fees() {
             />
             <TextField
               fullWidth
+              label="Payment Date"
+              type="date"
+              required
+              InputLabelProps={{ shrink: true }}
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+            />
+            <TextField
+              fullWidth
+              label="Payment Date"
+              type="date"
+              required
+              InputLabelProps={{ shrink: true }}
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+            />
+            <TextField
+              fullWidth
               label="Amount (INR)"
               type="number"
               required
@@ -1012,11 +1081,9 @@ export default function Fees() {
                 label="Fee Head"
                 onChange={(e) => setFormData({ ...formData, feeHead: e.target.value })}
               >
-                <MenuItem value="Monthly Fee">Monthly Fee</MenuItem>
-                <MenuItem value="Admission Fee">Admission Fee</MenuItem>
-                <MenuItem value="Exam Fee">Exam Fee</MenuItem>
-                <MenuItem value="Books/Stationery">Books/Stationery</MenuItem>
-                <MenuItem value="Other">Other</MenuItem>
+                {FEE_HEADS.map(head => (
+                  <MenuItem key={head} value={head}>{head}</MenuItem>
+                ))}
               </Select>
             </FormControl>
             <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}>
@@ -1026,10 +1093,9 @@ export default function Fees() {
                 label="Payment Mode"
                 onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value as any })}
               >
-                <MenuItem value="Cash">Cash</MenuItem>
-                <MenuItem value="Online">Online Transfer</MenuItem>
-                <MenuItem value="UPI">UPI (GPay/PhonePe)</MenuItem>
-                <MenuItem value="Cheque">Cheque</MenuItem>
+                {PAYMENT_MODES.map(mode => (
+                  <MenuItem key={mode} value={mode}>{mode}</MenuItem>
+                ))}
               </Select>
             </FormControl>
             <TextField
@@ -1055,7 +1121,7 @@ export default function Fees() {
             onClick={() => {
               setOpenEditDialog(false);
               setEditingReceipt(null);
-              setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '' });
+              setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '', date: format(new Date(), 'yyyy-MM-dd') });
             }}
             sx={{ fontWeight: 800, color: 'text.secondary' }}
           >

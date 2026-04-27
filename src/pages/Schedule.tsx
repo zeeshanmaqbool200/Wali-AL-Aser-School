@@ -93,10 +93,23 @@ export default function Schedule() {
       );
     }
     
-    // Events sync
-    const eventsQuery = query(collection(db, 'events'), orderBy('date', 'asc'));
+    // Events sync - Hide if expired (more than 1 day old)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterdayLimit = new Date(today);
+    yesterdayLimit.setDate(yesterdayLimit.getDate() - 1);
+    const yesterdayStr = format(yesterdayLimit, 'yyyy-MM-dd');
+
+    const eventsQuery = query(collection(db, 'events'), where('date', '>=', yesterdayStr), orderBy('date', 'asc'));
     const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
-      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Secondary client-side filter for strict 24h window
+      const filtered = allEvents.filter((e: any) => {
+        const eventDate = new Date(e.date);
+        eventDate.setHours(23, 59, 59, 999);
+        return eventDate >= yesterdayLimit;
+      });
+      setEvents(filtered);
     });
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -412,58 +425,73 @@ export default function Schedule() {
               </CardContent>
             </Card>
 
-            <Card sx={{ borderRadius: 5 }}>
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Upcoming Events</Typography>
-                  {isStaff && (
-                    <IconButton size="small" color="primary" onClick={() => {
-                      setEditingEvent(null);
-                      setEventFormData({ title: '', date: format(new Date(), 'yyyy-MM-dd'), time: '14:00', type: 'general', color: 'primary' });
-                      setOpenEventDialog(true);
-                    }}>
-                      <Plus size={18} />
-                    </IconButton>
-                  )}
-                </Box>
-                <List disablePadding>
-                  {events.map((event, i) => (
-                    <ListItem 
-                      key={event.id} 
-                      disableGutters 
-                      sx={{ py: 1.5, borderBottom: i < events.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}
-                      secondaryAction={isStaff && (
-                        <Box>
-                          <IconButton size="small" onClick={() => {
-                            setEditingEvent(event);
-                            setEventFormData({ title: event.title, date: event.date, time: event.time, type: event.type, color: event.color });
-                            setOpenEventDialog(true);
-                          }}><Edit2 size={14} /></IconButton>
-                          <IconButton size="small" color="error" onClick={() => handleDeleteEvent(event.id)}><Trash2 size={14} /></IconButton>
-                        </Box>
-                      )}
-                    >
-                      <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: alpha(theme.palette[event.color as 'primary' | 'success' | 'warning' | 'error']?.main || theme.palette.primary.main, 0.1), color: `${event.color}.main`, borderRadius: 2 }}>
-                          {event.type === 'meeting' ? <Users size={18} /> : 
-                           event.type === 'sports' ? <Award size={18} /> : 
-                           <Calendar size={18} />}
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText 
-                        primary={event.title}
-                        primaryTypographyProps={{ variant: 'body2', sx: { fontWeight: 800 } }}
-                        secondary={`${event.date} • ${event.time}`}
-                        secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary', sx: { fontWeight: 600 } }}
-                      />
-                    </ListItem>
-                  ))}
-                  {events.length === 0 && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', py: 2 }}>No upcoming events</Typography>
-                  )}
-                </List>
-              </CardContent>
-            </Card>
+            {events.length > 0 && (
+              <Card sx={{ borderRadius: 5 }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Upcoming Events</Typography>
+                    {isStaff && (
+                      <IconButton size="small" color="primary" onClick={() => {
+                        setEditingEvent(null);
+                        setEventFormData({ title: '', date: format(new Date(), 'yyyy-MM-dd'), time: '14:00', type: 'general', color: 'primary' });
+                        setOpenEventDialog(true);
+                      }}>
+                        <Plus size={18} />
+                      </IconButton>
+                    )}
+                  </Box>
+                  <List disablePadding>
+                    {events.map((event, i) => (
+                      <ListItem 
+                        key={event.id} 
+                        disableGutters 
+                        sx={{ py: 1.5, borderBottom: i < events.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}
+                        secondaryAction={isStaff && (
+                          <Box>
+                            <IconButton size="small" onClick={() => {
+                              setEditingEvent(event);
+                              setEventFormData({ title: event.title, date: event.date, time: event.time, type: event.type, color: event.color });
+                              setOpenEventDialog(true);
+                            }}><Edit2 size={14} /></IconButton>
+                            <IconButton size="small" color="error" onClick={() => handleDeleteEvent(event.id)}><Trash2 size={14} /></IconButton>
+                          </Box>
+                        )}
+                      >
+                        <ListItemAvatar>
+                          <Avatar sx={{ bgcolor: alpha(theme.palette[event.color as 'primary' | 'success' | 'warning' | 'error']?.main || theme.palette.primary.main, 0.1), color: `${event.color}.main`, borderRadius: 2 }}>
+                            {event.type === 'meeting' ? <Users size={18} /> : 
+                             event.type === 'sports' ? <Award size={18} /> : 
+                             <Calendar size={18} />}
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText 
+                          primary={event.title}
+                          primaryTypographyProps={{ variant: 'body2', sx: { fontWeight: 800 } }}
+                          secondary={`${event.date} • ${event.time}`}
+                          secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary', sx: { fontWeight: 600 } }}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </CardContent>
+              </Card>
+            )}
+            
+            {events.length === 0 && isStaff && (
+              <Button 
+                variant="outlined" 
+                startIcon={<Plus size={18} />}
+                fullWidth
+                onClick={() => {
+                  setEditingEvent(null);
+                  setEventFormData({ title: '', date: format(new Date(), 'yyyy-MM-dd'), time: '14:00', type: 'general', color: 'primary' });
+                  setOpenEventDialog(true);
+                }}
+                sx={{ borderRadius: 4, py: 2, borderDash: '2px dashed' }}
+              >
+                Add Schedule Event
+              </Button>
+            )}
           </Stack>
         </Grid>
       </Grid>

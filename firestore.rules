@@ -35,15 +35,18 @@ service cloud.firestore {
     }
     
     function isSuperAdmin() {
-      return isSignedIn() && 
-             request.auth.token.email == 'zeeshanmaqbool200@gmail.com';
+      return isSignedIn() && (
+        request.auth.uid == 'sZUiAgoSF8MTPBQAOtj6jbFkot93' ||
+        ('email' in request.auth.token && request.auth.token.email.lower() == 'zeeshanmaqbool200@gmail.com') ||
+        getUserData().get('role', '') == 'superadmin'
+      );
     }
     
     function isMuntazim() {
-      let data = getUserData();
-      return isSignedIn() && data != null && (
-        data.get('role', '') == 'muntazim' || 
-        data.get('role', '') == 'superadmin'
+      return isSignedIn() && (
+        request.auth.uid == 'sZUiAgoSF8MTPBQAOtj6jbFkot93' ||
+        ('email' in request.auth.token && request.auth.token.email.lower() == 'zeeshanmaqbool200@gmail.com') ||
+        (getUserData() != null && (getUserData().get('role', '') == 'muntazim' || getUserData().get('role', '') == 'superadmin'))
       );
     }
     
@@ -282,13 +285,15 @@ service cloud.firestore {
     match /access_logs/{logId} {
       allow read: if isSuperAdmin() || isMuntazim();
       allow create: if isSignedIn();
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isSuperAdmin();
     }
 
     match /system_logs/{logId} {
       allow read: if isSuperAdmin();
       allow create: if true;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isSuperAdmin();
     }
   }
 }
