@@ -91,19 +91,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
               findExistingByEmail().then((found) => {
                 if (!found) {
-                  // Bootstrap new user
                   const isSuperAdminEmail = firebaseUser.email === 'zeeshanmaqbool200@gmail.com';
-                  const newUser: UserProfile = {
-                    uid: firebaseUser.uid,
-                    email: firebaseUser.email || '',
-                    displayName: firebaseUser.displayName || 'User',
-                    role: isSuperAdminEmail ? 'superadmin' : (firebaseUser.displayName?.toLowerCase().includes('teacher') ? 'pending_mudaris' : 'student'),
-                    createdAt: Date.now(),
-                    photoURL: firebaseUser.photoURL || undefined,
-                  };
-                  setDoc(doc(db, 'users', firebaseUser.uid), newUser);
-                  setUser(newUser);
-                  logger.success('New User Profile Created', newUser);
+                  
+                  if (isSuperAdminEmail) {
+                    // Bootstrap new user for super admin
+                    const newUser: UserProfile = {
+                      uid: firebaseUser.uid,
+                      email: firebaseUser.email || '',
+                      displayName: firebaseUser.displayName || 'Super Admin',
+                      role: 'superadmin',
+                      createdAt: Date.now(),
+                      photoURL: firebaseUser.photoURL || undefined,
+                    };
+                    setDoc(doc(db, 'users', firebaseUser.uid), newUser);
+                    setUser(newUser);
+                    logger.success('Super Admin Profile Bootstrapped', newUser);
+                  } else {
+                    // If not super admin and doc is missing, they were likely deleted or unauthorized
+                    // Stop auto-bootstrap to prevent users from "coming back"
+                    logger.warn('User document missing and not superadmin. Logging out.', firebaseUser.email);
+                    signOut(auth);
+                    setUser(null);
+                    setError('Your account has been removed or is not authorized.');
+                  }
                 }
               }).catch(err => {
                 logger.error('Failed to merge pre-registered account', err);

@@ -36,8 +36,7 @@ service cloud.firestore {
     
     function isSuperAdmin() {
       return isSignedIn() && 
-             request.auth.token.email == 'zeeshanmaqbool200@gmail.com' &&
-             request.auth.token.email_verified == true;
+             request.auth.token.email == 'zeeshanmaqbool200@gmail.com';
     }
     
     function isMuntazim() {

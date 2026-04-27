@@ -33,8 +33,8 @@ export default function PermissionAgent() {
   useEffect(() => {
     if (!user) return;
     
-    // Check if dismissed in this session
-    const isDismissed = sessionStorage.getItem('permission_agent_dismissed');
+    // Check if dismissed in localStorage
+    const isDismissed = localStorage.getItem('permission_agent_dismissed');
     if (isDismissed) return;
 
     const needsAttention = 
@@ -53,7 +53,7 @@ export default function PermissionAgent() {
   }, [user, permissions]);
 
   const handleDismiss = () => {
-    sessionStorage.setItem('permission_agent_dismissed', 'true');
+    localStorage.setItem('permission_agent_dismissed', 'true');
     setOpen(false);
   };
 

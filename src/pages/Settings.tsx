@@ -35,7 +35,13 @@ export default function Settings() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { mode, setMode, setAccentColor } = useThemeContext()!;
+  const { 
+    mode, setMode, 
+    setAccentColor,
+    setHighContrast,
+    setReduceMotion,
+    setCompactLayout
+  } = useThemeContext()!;
   const { permissions } = useHardwarePermissions();
   const [searchParams] = useSearchParams();
 
@@ -46,7 +52,7 @@ export default function Settings() {
   const isStaff = isAdmin || isMudarisRole;
 
   const [loading, setLoading] = useState(true);
-  const [tabValue, setTabValue] = useState(searchParams.get('tab') || (isSuperAdmin ? 'branding' : 'appearance'));
+  const [tabValue, setTabValue] = useState(searchParams.get('tab') || 'appearance');
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -302,12 +308,12 @@ export default function Settings() {
   };
 
   const menuItems = [
-    { id: 'branding', label: 'Maktab Branding', icon: <Globe size={20} />, role: 'superadmin' },
-    { id: 'system', label: 'System & Data', icon: <Database size={20} />, role: 'superadmin' },
     { id: 'appearance', label: 'Theme & Appearance', icon: <Palette size={20} />, role: 'all' },
-    { id: 'hardware', label: 'Device & Permissions', icon: <Camera size={20} />, role: 'all' },
     { id: 'notifications', label: 'Notifications', icon: <Bell size={20} />, role: 'all' },
     { id: 'security', label: 'Security & Privacy', icon: <Shield size={20} />, role: 'all' },
+    { id: 'hardware', label: 'Device & Permissions', icon: <Camera size={20} />, role: 'all' },
+    { id: 'branding', label: 'Maktab Branding', icon: <Globe size={20} />, role: 'superadmin' },
+    { id: 'system', label: 'System & Data', icon: <Database size={20} />, role: 'superadmin' },
   ].filter(item => {
     if (item.role === 'all') return true;
     if (item.role === 'admin') return isAdmin;
@@ -768,6 +774,56 @@ export default function Settings() {
                               </Box>
                             </Grid>
                           ))}
+                          {/* Custom Color Picker */}
+                          <Grid size={{ xs: 3, sm: 1.5 }}>
+                            <Box 
+                              sx={{ 
+                                width: 44,
+                                height: 44,
+                                borderRadius: '50%', 
+                                border: '2px solid', 
+                                borderColor: ![
+                                  '#0f766e', '#6366f1', '#f43f5e', '#f59e0b', 
+                                  '#8b5cf6', '#3b82f6', '#10b981', '#64748b'
+                                ].includes(uiPrefs.accentColor) ? uiPrefs.accentColor : 'transparent',
+                                bgcolor: uiPrefs.accentColor,
+                                cursor: 'pointer',
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                boxShadow: ![
+                                  '#0f766e', '#6366f1', '#f43f5e', '#f59e0b', 
+                                  '#8b5cf6', '#3b82f6', '#10b981', '#64748b'
+                                ].includes(uiPrefs.accentColor) ? `0 0 15px ${alpha(uiPrefs.accentColor, 0.4)}` : 'none',
+                                '&:hover': { 
+                                  transform: 'scale(1.1)'
+                                }
+                              }}
+                            >
+                              <input 
+                                type="color" 
+                                value={uiPrefs.accentColor} 
+                                onChange={(e) => {
+                                  const color = e.target.value;
+                                  setUiPrefs({ ...uiPrefs, accentColor: color });
+                                  setAccentColor(color);
+                                }}
+                                style={{ 
+                                  position: 'absolute', 
+                                  top: -10, 
+                                  left: -10, 
+                                  width: '150%', 
+                                  height: '150%', 
+                                  cursor: 'pointer',
+                                  border: 'none',
+                                  padding: 0
+                                }}
+                              />
+                            </Box>
+                          </Grid>
                         </Grid>
                       </Box>
 
@@ -846,7 +902,10 @@ export default function Settings() {
                               desc: 'Minimize animations for better performance', 
                               icon: <Zap size={20} />,
                               checked: uiPrefs.reduceMotion,
-                              onChange: (val: boolean) => setUiPrefs({ ...uiPrefs, reduceMotion: val })
+                              onChange: (val: boolean) => {
+                                setUiPrefs({ ...uiPrefs, reduceMotion: val });
+                                setReduceMotion(val);
+                              }
                             },
                             { 
                               key: 'highContrast', 
@@ -854,7 +913,21 @@ export default function Settings() {
                               desc: 'Increase visibility of UI elements', 
                               icon: <Eye size={20} />,
                               checked: uiPrefs.highContrast,
-                              onChange: (val: boolean) => setUiPrefs({ ...uiPrefs, highContrast: val })
+                              onChange: (val: boolean) => {
+                                setUiPrefs({ ...uiPrefs, highContrast: val });
+                                setHighContrast(val);
+                              }
+                            },
+                            { 
+                              key: 'compactLayout', 
+                              label: 'Compact Layout', 
+                              desc: 'Reduce padding and margins for more content', 
+                              icon: <Monitor size={20} />,
+                              checked: uiPrefs.compactLayout,
+                              onChange: (val: boolean) => {
+                                setUiPrefs({ ...uiPrefs, compactLayout: val });
+                                setCompactLayout(val);
+                              }
                             }
                           ].map((item) => (
                             <Box 

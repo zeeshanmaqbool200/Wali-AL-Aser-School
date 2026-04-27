@@ -153,6 +153,7 @@ export default function Fees() {
         receiptNo: receiptId,
         receiptNumber: receiptId,
         studentOfficialId: student?.admissionNo || student?.studentId || '',
+        studentPhotoURL: student?.photoURL || '',
         grade: student?.maktabLevel || student?.grade || ''
       };
       await smartAddDoc(collection(db, 'receipts'), newReceipt);

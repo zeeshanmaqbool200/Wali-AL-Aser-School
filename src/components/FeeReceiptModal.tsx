@@ -36,18 +36,23 @@ const pdfStyles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 15,
+    alignItems: 'center',
+    marginBottom: 20,
     borderBottom: '2pt solid #0d9488',
-    paddingBottom: 12,
+    paddingBottom: 15,
+    width: '100%',
   },
   logo: {
-    width: 60,
-    height: 60,
+    width: 65,
+    height: 65,
+    objectFit: 'contain',
   },
   headerText: {
     marginLeft: 15,
     flex: 1,
-    maxWidth: 300, // Prevent text from pushing too far right
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
   },
   instituteName: {
     fontSize: 16,
@@ -55,32 +60,38 @@ const pdfStyles = StyleSheet.create({
     fontFamily: 'Noto Sans Bold',
     color: '#0d9488',
     textTransform: 'uppercase',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   maktabName: {
     fontSize: 10,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
     color: '#0f766e',
-    marginBottom: 4,
+    marginBottom: 6,
     textTransform: 'uppercase',
   },
   address: {
-    fontSize: 8,
+    fontSize: 8.5,
     color: '#4b5563',
     lineHeight: 1.4,
+    width: '100%',
   },
   receiptMeta: {
     textAlign: 'right',
-    minWidth: 120,
+    width: 140,
+    marginLeft: 10,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   receiptTitle: {
     fontSize: 22,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
-    color: '#E5E7EB',
-    marginBottom: 4,
-    letterSpacing: 3,
+    color: '#F3F4F6',
+    marginBottom: 6,
+    letterSpacing: 4,
   },
   receiptNo: {
     fontSize: 11,
@@ -209,26 +220,32 @@ const pdfStyles = StyleSheet.create({
 const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, settings: InstituteSettings, qrCodeUrl?: string }) => (
   <Document title={`Receipt_${receipt.receiptNo || receipt.receiptNumber}`}>
     <Page size="A4" style={pdfStyles.page}>
-      {/* Decorative corner images positioned behind content */}
-      <View style={{ position: 'absolute', top: 15, left: 15, right: 15, flexDirection: 'row', justifyContent: 'space-between', opacity: 0.2, zIndex: -1 }}>
-        {settings.receiptLeftImageUrl && (
-          <Image src={settings.receiptLeftImageUrl} style={{ width: 90, height: 90 }} />
-        )}
-        {settings.receiptRightImageUrl && (
-          <Image src={settings.receiptRightImageUrl} style={{ width: 90, height: 90 }} />
+      {/* Watermark Logo */}
+      <View style={{ position: 'absolute', top: '35%', left: '20%', right: '20%', opacity: 0.05, zIndex: -2 }}>
+        {settings.logoUrl && (
+          <Image src={settings.logoUrl} style={{ width: '100%', height: 'auto' }} />
         )}
       </View>
 
       <View style={pdfStyles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          {settings.logoUrl && (
-            <Image src={settings.logoUrl} style={pdfStyles.logo} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+          {settings.receiptLeftImageUrl && (
+            <View style={{ width: 60, height: 60, marginRight: 10, justifyContent: 'center' }}>
+              <Image src={settings.receiptLeftImageUrl} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+            </View>
           )}
           <View style={pdfStyles.headerText}>
             <Text style={pdfStyles.instituteName}>{settings.name}</Text>
             <Text style={pdfStyles.maktabName}>{settings.maktabName}</Text>
             <Text style={pdfStyles.address}>{settings.address}</Text>
             <Text style={pdfStyles.address}>Ph: {settings.phone} • {settings.email}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10 }}>
+            {receipt.studentPhotoURL ? (
+              <Image src={receipt.studentPhotoURL} style={{ width: 65, height: 65, borderRadius: 4, objectFit: 'cover' }} />
+            ) : settings.receiptRightImageUrl ? (
+              <Image src={settings.receiptRightImageUrl} style={{ width: 60, height: 60, objectFit: 'contain' }} />
+            ) : null}
           </View>
         </View>
         <View style={pdfStyles.receiptMeta}>
@@ -389,10 +406,12 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
       fullWidth 
       PaperProps={{ 
         sx: { 
-          borderRadius: { xs: 0, sm: 1 },
+          borderRadius: { xs: 0, sm: 4 },
           m: { xs: 0, sm: 2 },
+          p: isMobile ? 0 : 1,
           bgcolor: 'background.paper',
           overflow: 'hidden',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
           '@media print': {
             m: 0,
             p: 0,
@@ -446,13 +465,13 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             p: { xs: 2, sm: 3 }, 
             borderRadius: 1, 
             boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-            maxWidth: '100%',
-            width: '800px',
+            maxWidth: '800px',
+            width: '100%',
             mx: 'auto',
             position: 'relative',
-            overflow: 'hidden',
+            overflow: 'visible', // Changed from hidden to allow content to flow naturally
             border: '1px solid #e5e7eb',
-            '& *': { color: '#000000 !important' },
+            '& *': { color: '#000000 !important', wordBreak: 'keep-all' }, // Unified word breaking rule
             '@media print': {
               boxShadow: 'none',
               border: 'none',
@@ -463,41 +482,98 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             }
           }}
         >
-          {/* Receipt Corner Decorations */}
+          {/* Watermark Logo */}
           <Box sx={{ 
             position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            display: 'flex', 
-            justifyContent: 'space-between', 
+            top: '55%', 
+            left: '50%', 
+            transform: 'translate(-50%, -50%)', 
+            width: '70%', 
+            opacity: 0.05, 
             pointerEvents: 'none', 
-            zIndex: 0, 
-            opacity: 0.3,
-            px: 2
+            zIndex: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
           }}>
-            {settings.receiptLeftImageUrl && (
-              <Box component="img" src={settings.receiptLeftImageUrl} sx={{ width: { xs: 50, sm: 100 }, height: 'auto', mixBlendMode: 'multiply' }} />
-            )}
-            {settings.receiptRightImageUrl && (
-              <Box component="img" src={settings.receiptRightImageUrl} sx={{ width: { xs: 50, sm: 100 }, height: 'auto', mixBlendMode: 'multiply' }} />
-            )}
+            <Box component="img" src={settings.logoUrl} sx={{ width: '100%', height: 'auto', filter: 'grayscale(100%) brightness(1.2)' }} />
           </Box>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, borderBottom: '2px solid #0d9488', pb: 2, position: 'relative', zIndex: 1, gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, flex: 1, minWidth: 0 }}>
-              <Box component="img" src={settings.logoUrl} sx={{ width: { xs: 45, sm: 70 }, height: { xs: 45, sm: 70 }, flexShrink: 0 }} />
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: '#0d9488 !important', lineHeight: 1.1, fontFamily: 'var(--font-serif)', textTransform: 'uppercase', fontSize: { xs: '0.9rem', sm: '1.25rem' }, overflow: 'hidden', textOverflow: 'ellipsis' }}>{settings.name}</Typography>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'block', textTransform: 'uppercase', fontSize: { xs: '0.65rem', sm: '0.8rem' }, color: '#0f766e !important' }}>{settings.maktabName}</Typography>
-                <Typography variant="caption" sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' }, display: 'block', lineHeight: 1.3, mt: 0.5 }}>{settings.address}</Typography>
-                <Typography variant="caption" sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' }, display: 'block' }}>Ph: {settings.phone} • {settings.email}</Typography>
-              </Box>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, borderBottom: '2.5px solid #0d9488', pb: 2, position: 'relative', zIndex: 1 }}>
+            <Box sx={{ width: { xs: 50, sm: 90 }, flexShrink: 0, display: 'flex', justifyContent: 'flex-start' }}>
+              {settings.receiptLeftImageUrl && (
+                <Box component="img" src={settings.receiptLeftImageUrl} sx={{ width: '100%', height: 'auto', maxHeight: 85, objectFit: 'contain' }} />
+              )}
             </Box>
-            <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: '#f3f4f6 !important', letterSpacing: 2, fontFamily: 'var(--font-serif)', lineHeight: 1 }}>RASEED</Typography>
-              <Typography variant="body1" sx={{ fontWeight: 800, color: '#0d9488 !important', mt: 1 }}>No: {receiptNo}</Typography>
-              <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>Date: {format(new Date(receipt.date), 'dd MMM, yyyy')}</Typography>
+            
+            <Box sx={{ flex: 1, textAlign: 'center', px: 2 }}>
+              <Typography variant="h5" sx={{ 
+                fontWeight: 900, 
+                color: '#0d9488 !important', 
+                lineHeight: 1.1, 
+                fontFamily: 'var(--font-serif)', 
+                textTransform: 'uppercase', 
+                fontSize: { xs: '1.2rem', sm: '1.9rem' },
+                mb: 0.5
+              }}>
+                {settings.name}
+              </Typography>
+              <Typography variant="subtitle1" sx={{ 
+                fontWeight: 700, 
+                textTransform: 'uppercase', 
+                fontSize: { xs: '0.75rem', sm: '1rem' }, 
+                color: '#0f766e !important',
+                mb: 1
+              }}>
+                {settings.maktabName}
+              </Typography>
+              <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.85rem' }, display: 'block', color: '#4b5563 !important', lineHeight: 1.3, fontWeight: 600 }}>
+                {settings.address}
+                <br />
+                Ph: {settings.phone} • {settings.email}
+              </Typography>
+            </Box>
+
+            <Box sx={{ width: { xs: 60, sm: 95 }, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+              {receipt.studentPhotoURL ? (
+                <Box 
+                  component="img" 
+                  src={receipt.studentPhotoURL} 
+                  sx={{ width: { xs: 60, sm: 90 }, height: { xs: 60, sm: 90 }, borderRadius: 2, objectFit: 'cover', border: '2px solid #e5e7eb' }} 
+                  referrerPolicy="no-referrer"
+                />
+              ) : settings.receiptRightImageUrl ? (
+                <Box component="img" src={settings.receiptRightImageUrl} sx={{ width: '100%', height: 'auto', maxHeight: 85, objectFit: 'contain' }} />
+              ) : null}
+            </Box>
+          </Box>
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, zIndex: 1, position: 'relative' }}>
+            <Box>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 900, 
+                color: '#e5e7eb !important', 
+                letterSpacing: { xs: 4, sm: 8 }, 
+                fontFamily: 'var(--font-serif)', 
+                lineHeight: 1,
+                fontSize: { xs: '1.5rem', sm: '2.5rem' }
+              }}>
+                RASEED
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: '#0d9488 !important', mt: 1, fontSize: { xs: '0.9rem', sm: '1.1rem' } }}>
+                No: {receiptNo}
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700, color: '#6b7280 !important', mt: 0.5 }}>
+                Date: {format(new Date(receipt.date), 'dd MMM, yyyy')}
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: 'right' }}>
+              <Chip 
+                label={receipt.status.toUpperCase()} 
+                color={receipt.status === 'approved' ? 'success' : 'warning'} 
+                size="small" 
+                sx={{ fontWeight: 900, borderRadius: 1 }}
+              />
             </Box>
           </Box>
 
@@ -601,8 +677,9 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
           <Button
             variant="outlined"
             size="small"
+            className="print-button"
             startIcon={<Printer size={16} />}
-            onClick={handlePrint}
+            onClick={() => window.print()}
             sx={{ borderRadius: 2, fontWeight: 800 }}
           >
             Direct Print

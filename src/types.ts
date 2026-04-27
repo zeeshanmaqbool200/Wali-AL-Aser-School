@@ -7,6 +7,7 @@ export interface UserProfile {
   displayName: string;
   role: UserRole;
   photoURL?: string;
+  dob?: string;
   createdAt: number;
   phone?: string;
   whatsapp?: string;
@@ -173,6 +174,7 @@ export interface FeeReceipt {
   date: string; // YYYY-MM-DD
   status: 'pending' | 'approved' | 'rejected';
   remarks?: string;
+  studentPhotoURL?: string;
   createdAt: number;
   createdBy: string; // UID
   approvedBy?: string; // Mudaris UID

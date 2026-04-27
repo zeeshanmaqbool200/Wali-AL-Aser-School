@@ -10,6 +10,12 @@ interface ThemeContextType {
   setMode: (mode: ThemeMode) => void;
   accentColor: string;
   setAccentColor: (color: string) => void;
+  highContrast: boolean;
+  setHighContrast: (val: boolean) => void;
+  reduceMotion: boolean;
+  setReduceMotion: (val: boolean) => void;
+  compactLayout: boolean;
+  setCompactLayout: (val: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -33,18 +39,24 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
     loadTheme();
   }, []);
 
-  const uiPrefs = useMemo(() => user?.uiPrefs || {
+  const initialUiPrefs = useMemo(() => user?.uiPrefs || {
     highContrast: false,
     reduceMotion: false,
     compactLayout: false,
     accentColor: '#0f766e'
   }, [user?.uiPrefs]);
 
-  const [accentColor, setAccentColor] = useState(uiPrefs.accentColor);
+  const [accentColor, setAccentColor] = useState(initialUiPrefs.accentColor);
+  const [highContrast, setHighContrast] = useState(initialUiPrefs.highContrast);
+  const [reduceMotion, setReduceMotion] = useState(initialUiPrefs.reduceMotion);
+  const [compactLayout, setCompactLayout] = useState(initialUiPrefs.compactLayout);
 
   useEffect(() => {
-    setAccentColor(uiPrefs.accentColor);
-  }, [uiPrefs.accentColor]);
+    setAccentColor(initialUiPrefs.accentColor);
+    setHighContrast(initialUiPrefs.highContrast);
+    setReduceMotion(initialUiPrefs.reduceMotion);
+    setCompactLayout(initialUiPrefs.compactLayout);
+  }, [initialUiPrefs]);
 
   useEffect(() => {
     const saveTheme = async () => {
@@ -61,7 +73,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
       const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       
       // High Contrast Adjustments
-      const primaryMain = uiPrefs.highContrast 
+      const primaryMain = highContrast 
         ? (isDark ? '#5eead4' : '#042f2e') 
         : accentColor;
       
@@ -88,7 +100,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           },
           divider: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.08)',
         },
-        spacing: uiPrefs.compactLayout ? 4 : 8,
+        spacing: compactLayout ? 4 : 8,
         typography: {
           fontFamily: '"Inter", "Noto Nastaliq Urdu", sans-serif',
           h1: { fontFamily: '"Cinzel", serif', fontWeight: 800, letterSpacing: '-0.05em' },
@@ -235,12 +247,18 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           },
         },
       });
-    }, [mode, uiPrefs]);
+    }, [mode, highContrast, compactLayout, accentColor]);
 
   return (
-    <ThemeContext.Provider value={{ mode, setMode, accentColor, setAccentColor }}>
+    <ThemeContext.Provider value={{ 
+      mode, setMode, 
+      accentColor, setAccentColor, 
+      highContrast, setHighContrast, 
+      reduceMotion, setReduceMotion, 
+      compactLayout, setCompactLayout 
+    }}>
       <ThemeProvider theme={theme}>
-        {uiPrefs.reduceMotion && (
+        {reduceMotion && (
           <GlobalStyles
             styles={{
               '*': {

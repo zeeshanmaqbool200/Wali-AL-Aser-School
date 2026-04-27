@@ -17,7 +17,7 @@ import {
   MoreVertical, User, GraduationCap, UserCheck,
   ArrowRight, ExternalLink, Download, Layout,
   Layers, CheckCircle, XCircle, Clock, Save,
-  Bell, Camera, X, Printer, RotateCcw, ArrowLeft, FileText
+  Bell, Camera, X, Printer, RotateCcw, ArrowLeft, FileText, Database
 } from 'lucide-react';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDocs, writeBatch, getDoc, or, and, documentId } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartDeleteDoc } from '../firebase';
@@ -25,6 +25,7 @@ import { UserProfile, UserRole, MaktabLevel, InstituteSettings } from '../types'
 import { useAuth } from '../context/AuthContext';
 import { MAKTAB_LEVELS, SUBJECT_OPTIONS } from '../constants';
 import { logger } from '../lib/logger';
+import confetti from 'canvas-confetti';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { exportToCSV } from '../lib/exportUtils';
@@ -68,6 +69,10 @@ export default function Users() {
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+  const [userToDeleteRef, setUserToDeleteRef] = useState<{ id: string, profile: UserProfile } | null>(null);
   
   const [formData, setFormData] = useState({
     displayName: '',
@@ -145,31 +150,76 @@ export default function Users() {
 
   const handleSystemReset = async () => {
     if (!isSuperAdmin) return;
+    setResetConfirmOpen(true);
+  };
+
+  const confirmSystemReset = async () => {
     const confirmText = "RESET ALL USERS";
-    const prompt = window.prompt(`CRITICAL: This will delete ALL users except yourself. This cannot be undone. Type "${confirmText}" to confirm:`);
-    
-    if (prompt === confirmText) {
-      setLoading(true);
-      try {
-        const batch = writeBatch(db);
-        const snapshot = await getDocs(collection(db, 'users'));
-        let deletedCount = 0;
+    if (resetConfirmText !== confirmText) {
+      setSnackbar({ open: true, message: 'Confirmation text does not match!', severity: 'error' });
+      return;
+    }
+
+    setResetConfirmOpen(false);
+    setLoading(true);
+    try {
+      const collectionsToClear = [
+        'users',
+        'attendance',
+        'exams',
+        'fees',
+        'logs',
+        'notifications',
+        'schedule'
+      ];
+
+      let totalDeleted = 0;
+
+      for (const collectionName of collectionsToClear) {
+        const snapshot = await getDocs(collection(db, collectionName));
+        const chunks = [];
         
-        snapshot.docs.forEach(userDoc => {
-          if (userDoc.data().email !== 'zeeshanmaqbool200@gmail.com') {
-            batch.delete(userDoc.ref);
-            deletedCount++;
-          }
-        });
-        
-        await batch.commit();
-        logger.success(`System Reset Complete: ${deletedCount} users removed.`);
-        alert(`System Reset Complete: ${deletedCount} users removed from Firestore. Note: Auth users must be managed via Firebase Console.`);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, 'users');
-      } finally {
-        setLoading(false);
+        // Process in chunks due to batch limits
+        const docs = snapshot.docs;
+        for (let i = 0; i < docs.length; i += 500) {
+          chunks.push(docs.slice(i, i + 500));
+        }
+
+        for (const chunk of chunks) {
+          const batch = writeBatch(db);
+          chunk.forEach(docSnap => {
+            // NEVER delete the super admin
+            if (collectionName === 'users') {
+              if (docSnap.data().email !== 'zeeshanmaqbool200@gmail.com') {
+                batch.delete(docSnap.ref);
+                totalDeleted++;
+              }
+            } else {
+              batch.delete(docSnap.ref);
+              totalDeleted++;
+            }
+          });
+          await batch.commit();
+        }
       }
+      
+      // Clear local storage for permissions/agent states
+      localStorage.removeItem('permission_agent_dismissed');
+      
+      logger.success(`System Reset Complete: ${totalDeleted} records removed.`);
+      setSnackbar({ open: true, message: `System purged successfully. ${totalDeleted} records removed.`, severity: 'success' });
+      
+      confetti({
+        particleCount: 200,
+        spread: 100,
+        origin: { y: 0.6 }
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'system-reset');
+      setSnackbar({ open: true, message: 'Error during system reset', severity: 'error' });
+    } finally {
+      setLoading(false);
+      setResetConfirmText('');
     }
   };
 
@@ -220,7 +270,10 @@ export default function Users() {
   }, []);
 
   const handlePrint = () => {
-    window.print();
+    // Small timeout to ensure everything is rendered and focused
+    setTimeout(() => {
+      window.print();
+    }, 100);
   };
 
   const handleSave = async () => {
@@ -267,6 +320,14 @@ export default function Users() {
       setOpenDialog(false);
       setEditingUser(null);
       setSnackbar({ open: true, message: `User ${editingUser ? 'updated' : 'registered'} successfully`, severity: 'success' });
+      
+      // Trigger confetti for a delightful experience
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: [theme.palette.primary.main, theme.palette.secondary.main, '#0d9488']
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'users');
     }
@@ -281,41 +342,55 @@ export default function Users() {
       return;
     }
 
-    const confirmDelete = window.confirm(`Are you sure you want to delete ${userToDelete.displayName}? This will remove all their records across the system.`);
+    setUserToDeleteRef({ id, profile: userToDelete });
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmUserDeletion = async () => {
+    if (!userToDeleteRef || !isSuperAdmin) return;
+    const { id, profile: userToDelete } = userToDeleteRef;
     
-    if (confirmDelete) {
-      setLoading(true);
-      try {
-        logger.db('Initiating Full User Deletion', `users/${id}`);
-        
-        // 1. Delete from Firestore users collection
-        await smartDeleteDoc(doc(db, 'users', id));
-        
-        // 2. Clear related records if student
-        if (userToDelete.role === 'student') {
-          const batch = writeBatch(db);
-          
-          // Delete attendance
-          const attQ = query(collection(db, 'attendance'), where('studentId', '==', id));
-          const attDocs = await getDocs(attQ);
-          attDocs.forEach(d => batch.delete(d.ref));
-          
-          // Delete exam records
-          const examQ = query(collection(db, 'exams'), where('studentId', '==', id));
-          const examDocs = await getDocs(examQ);
-          examDocs.forEach(d => batch.delete(d.ref));
-          
-          await batch.commit();
-        }
-        
-        setSnackbar({ open: true, message: `${userToDelete.displayName} and all associated records deleted successfully`, severity: 'success' });
-        logger.success('User and records deleted', userToDelete.email);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
-        setSnackbar({ open: true, message: 'Error deleting user records', severity: 'error' });
-      } finally {
-        setLoading(false);
-      }
+    setDeleteConfirmOpen(false);
+    setLoading(true);
+    try {
+      logger.db('Initiating Full User Deletion', `users/${id}`);
+      
+      // 1. Clear related records first across collections
+      const batch = writeBatch(db);
+      
+      // Attendance
+      const attQ = query(collection(db, 'attendance'), where('studentId', '==', id));
+      const attDocs = await getDocs(attQ);
+      attDocs.forEach(d => batch.delete(d.ref));
+      
+      // Exam records
+      const examQ = query(collection(db, 'exams'), where('studentId', '==', id));
+      const examDocs = await getDocs(examQ);
+      examDocs.forEach(d => batch.delete(d.ref));
+
+      // Fee records
+      const feeQ = query(collection(db, 'fees'), where('studentId', '==', id));
+      const feeDocs = await getDocs(feeQ);
+      feeDocs.forEach(d => batch.delete(d.ref));
+      
+      await batch.commit();
+
+      // 2. Delete the user document itself
+      // Using smartDeleteDoc for the primary user record
+      await smartDeleteDoc(doc(db, 'users', id));
+      
+      setSnackbar({ 
+        open: true, 
+        message: `${userToDelete.displayName} data purged from Firestore. Note: Manage Auth users in Firebase Console.`, 
+        severity: 'success' 
+      });
+      logger.success('User data purged permanently', userToDelete.email);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
+      setSnackbar({ open: true, message: 'Error purging user records', severity: 'error' });
+    } finally {
+      setLoading(false);
+      setUserToDeleteRef(null);
     }
   };
 
@@ -391,6 +466,9 @@ export default function Users() {
   };
 
   const filteredUsers = users.filter(u => {
+    // Hide super admin from the list to prevent accidental deletion
+    if (u.email === 'zeeshanmaqbool200@gmail.com') return false;
+
     const matchesSearch = u.displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          (u.admissionNo && u.admissionNo.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -705,9 +783,15 @@ export default function Users() {
         </Box>
         
         {viewMode === 'list' ? (
-          <Box sx={{ width: '100%' }}>
-            <TableContainer component={Box} sx={{ minWidth: { xs: 800, md: '100%' }, overflowX: 'auto' }}>
-              <Table>
+          <Box sx={{ width: '100%', overflow: 'visible' }}>
+            <TableContainer component={Box} sx={{ 
+              minWidth: '100%', 
+              overflowX: 'auto',
+              display: 'block',
+              '&::-webkit-scrollbar': { height: 8 },
+              '&::-webkit-scrollbar-thumb': { bgcolor: 'divider', borderRadius: 4 }
+            }}>
+              <Table sx={{ minWidth: { xs: 800, md: '100%' } }}>
                 <TableHead>
                 <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50' }}>
                   <TableCell sx={{ fontWeight: 800, py: 2.5 }}>Profile</TableCell>
@@ -962,20 +1046,20 @@ export default function Users() {
         onClose={() => setOpenDialog(false)} 
         maxWidth="md" 
         fullWidth 
-        PaperProps={{ sx: { borderRadius: 5, p: 1 } }}
+        PaperProps={{ sx: { borderRadius: 3, p: isMobile ? 1 : 2, boxShadow: '0 10px 40px rgba(0,0,0,0.1)' } }}
       >
-        <DialogTitle sx={{ fontWeight: 900, fontSize: '1.5rem', pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <UserPlus size={28} className="text-primary-500" />
-            {editingUser ? 'Edit Profile' : 'Register New Tulab/Mudaris'}
+        <DialogTitle sx={{ fontWeight: 900, fontSize: isMobile ? '1.25rem' : '1.75rem', pb: 2, px: isMobile ? 2 : 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <UserPlus size={isMobile ? 24 : 32} className="text-primary-500" />
+            {editingUser ? 'Update Profile' : 'Naya Registration'}
           </Box>
           <IconButton onClick={() => setOpenDialog(false)} className="close-button">
             <X size={20} />
           </IconButton>
         </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 500 }}>
-            Enter the personal and academic details below.
+        <DialogContent sx={{ px: isMobile ? 2 : 4, py: 2 }}>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 4, fontWeight: 500, lineHeight: 1.6 }}>
+            Thora waqt nikaal kar niche diye gaye details check karein aur save karein.
           </Typography>
           <Grid container spacing={3}>
             <Grid size={12}>
@@ -1352,7 +1436,12 @@ export default function Users() {
             >
               Back
             </Button>
-            <IconButton onClick={handlePrint} size="small" sx={{ bgcolor: 'primary.light', color: 'primary.dark', borderRadius: 2 }}>
+            <IconButton 
+              onClick={handlePrint} 
+              size="small" 
+              className="print-button"
+              sx={{ bgcolor: 'primary.light', color: 'primary.dark', borderRadius: 2 }}
+            >
               <Printer size={18} />
             </IconButton>
             <IconButton onClick={() => setOpenViewProfile(false)} size="small" sx={{ borderRadius: 2 }}>
@@ -1380,26 +1469,36 @@ export default function Users() {
              {/* Printable Form Content */}
              <Box sx={{ border: '2px solid black', p: { xs: 2, md: 3 }, position: 'relative', width: '100%', boxSizing: 'border-box' }}>
                 {/* Header with Logo */}
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5, borderBottom: '2px solid black', pb: 1.5, gap: 2 }}>
-                  <Avatar src={instituteSettings.logoUrl} sx={{ width: 80, height: 80, borderRadius: 0, bgcolor: 'grey.200' }}>
-                    <GraduationCap size={40} color="black" />
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, borderBottom: '3px solid black', pb: 2, gap: 4 }}>
+                  <Avatar src={instituteSettings.logoUrl} sx={{ width: 100, height: 100, borderRadius: 0, bgcolor: 'grey.200', flexShrink: 0 }}>
+                    <GraduationCap size={50} color="black" />
                   </Avatar>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="h4" sx={{ fontWeight: 900, color: 'black', textTransform: 'uppercase', fontSize: { xs: '1.2rem', md: '1.8rem' }, fontFamily: 'var(--font-serif)', lineHeight: 1 }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="h3" sx={{ 
+                      fontWeight: 900, 
+                      color: 'black', 
+                      textTransform: 'uppercase', 
+                      fontSize: { xs: '1.5rem', md: '2.2rem' }, 
+                      fontFamily: 'var(--font-serif)', 
+                      lineHeight: 1.1,
+                      wordBreak: 'break-word',
+                      whiteSpace: 'normal',
+                      mb: 0.5
+                    }}>
                       {instituteSettings.maktabName || instituteSettings.name || 'MAKHTAB-UN-NOOR'}
                     </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'black', fontSize: '0.85rem', mt: 0.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: 'black', fontSize: '1rem', mt: 1, wordBreak: 'break-word' }}>
                       {instituteSettings.tagline || 'Education for Excellence'}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: 'black', display: 'block', fontSize: '0.75rem', mt: 0.5 }}>
+                    <Typography variant="body1" sx={{ color: 'black', display: 'block', fontSize: '0.9rem', mt: 1, wordBreak: 'break-word', maxWidth: '600px' }}>
                       {instituteSettings.address} | {instituteSettings.phone}
                     </Typography>
                   </Box>
-                  <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' }, flexShrink: 0 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 800, border: '2px solid black', px: 2, py: 0.5, display: 'inline-block', fontSize: '1rem', fontFamily: 'var(--font-serif)' }}>
+                  <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' }, flexShrink: 0, minWidth: 150 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 900, border: '3px solid black', px: 3, py: 1, display: 'inline-block', fontSize: '1.2rem', fontFamily: 'var(--font-serif)' }}>
                       ADMISSION FORM
                     </Typography>
-                    <Typography variant="body2" sx={{ mt: 1, fontWeight: 700, fontSize: '0.8rem' }}>
+                    <Typography variant="h6" sx={{ mt: 2, fontWeight: 700, fontSize: '1rem' }}>
                       Session: {format(new Date(), 'yyyy')}-{parseInt(format(new Date(), 'yyyy')) + 1}
                     </Typography>
                   </Box>
@@ -1423,7 +1522,7 @@ export default function Users() {
                        </Box>
                        <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.3 }}>
                           <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0, fontSize: '0.7rem' }}>Date of Birth:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.7rem' }}>____________________</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.7rem' }}>{profileToView?.dob ? format(new Date(profileToView.dob), 'dd MMMM yyyy') : '____________________'}</Typography>
                        </Box>
                     </Box>
                   </Grid>
@@ -1530,6 +1629,90 @@ export default function Users() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog 
+        open={deleteConfirmOpen} 
+        onClose={() => setDeleteConfirmOpen(false)}
+        PaperProps={{ sx: { borderRadius: 4, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1.5, color: 'error.main' }}>
+          <Trash2 size={24} />
+          Confirm Deletion
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ fontWeight: 600, mb: 1 }}>
+            Are you sure you want to delete {userToDeleteRef?.profile.displayName}?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            This action will permanently delete all records (attendance, exams, fees) from Firestore.
+          </Typography>
+          <Alert severity="warning" sx={{ fontWeight: 600, borderRadius: 2 }}>
+            Firebase Auth account must be deleted manually from the Firebase Console to prevent the user from "coming back" via Login.
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, gap: 1 }}>
+          <Button 
+            onClick={() => setDeleteConfirmOpen(false)} 
+            sx={{ fontWeight: 800, color: 'text.secondary', borderRadius: 3 }}
+          >
+            Cancel / Wapis
+          </Button>
+          <Button 
+            onClick={confirmUserDeletion} 
+            variant="contained" 
+            color="error"
+            sx={{ fontWeight: 800, borderRadius: 3, px: 3 }}
+          >
+            Delete Permanently
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* System Reset Dialog */}
+      <Dialog 
+        open={resetConfirmOpen} 
+        onClose={() => setResetConfirmOpen(false)}
+        PaperProps={{ sx: { borderRadius: 4, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1.5, color: 'error.main' }}>
+          <Database size={24} />
+          CRITICAL: System Reset
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ fontWeight: 600, mb: 1 }}>
+            This will delete ALL users except yourself. This cannot be undone.
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            To confirm, please type <strong>RESET ALL USERS</strong> below:
+          </Typography>
+          <TextField
+            fullWidth
+            size="small"
+            value={resetConfirmText}
+            onChange={(e) => setResetConfirmText(e.target.value)}
+            placeholder="Type here..."
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 3, gap: 1 }}>
+          <Button 
+            onClick={() => setResetConfirmOpen(false)} 
+            sx={{ fontWeight: 800, color: 'text.secondary', borderRadius: 3 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmSystemReset} 
+            variant="contained" 
+            color="error"
+            disabled={resetConfirmText !== "RESET ALL USERS"}
+            sx={{ fontWeight: 800, borderRadius: 3, px: 3 }}
+          >
+            RESET SYSTEM
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

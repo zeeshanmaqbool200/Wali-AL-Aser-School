@@ -52,6 +52,7 @@ export default function Courses() {
   const [searchQuery, setSearchQuery] = useState('');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [isUploading, setIsUploading] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -185,10 +186,13 @@ export default function Courses() {
 
       if (editingCourse) {
         await updateDoc(doc(db, 'courses', editingCourse.id), data);
+        setSnackbar({ open: true, message: 'Mazmoon kamyabi se update ho gaya!', severity: 'success' });
       } else {
         await addDoc(collection(db, 'courses'), { ...data, createdAt: Date.now() });
-        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        setSnackbar({ open: true, message: 'Naya Mazmoon kamyabi se shamil ho gaya!', severity: 'success' });
       }
+      
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
       
       setOpenDialog(false);
       setEditingCourse(null);
@@ -493,6 +497,26 @@ export default function Courses() {
           <Typography variant="body2" color="text.secondary">Try adjusting your search query or add a new mazmoon</Typography>
         </Box>
       )}
+
+      {/* Snackbar for Feedback */}
+      <Dialog 
+        open={snackbar.open} 
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        PaperProps={{ sx: { borderRadius: 4, p: 2, textAlign: 'center' } }}
+      >
+        <DialogContent>
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
+            <CheckCircle size={48} color={theme.palette.success.main} />
+          </Box>
+          <Typography variant="h6" sx={{ fontWeight: 900, mb: 1 }}>Success / Kamyabi</Typography>
+          <Typography variant="body2" color="text.secondary">{snackbar.message}</Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
+          <Button variant="contained" onClick={() => setSnackbar({ ...snackbar, open: false })} sx={{ borderRadius: 2, fontWeight: 800, px: 4 }}>
+            Theek Hai
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Add/Edit Dialog */}
       <Dialog 
@@ -947,56 +971,58 @@ export default function Courses() {
           </AppBar>
 
           <Box sx={{ flexGrow: 1, overflow: 'auto', py: { xs: 4, md: 8 } }} onScroll={handleScroll}>
-            <Container maxWidth="md">
+            <Container maxWidth="lg">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                {viewingCourse?.thumbnailUrl && (
-                  <Box 
-                    component="img" 
-                    src={viewingCourse.thumbnailUrl} 
-                    sx={{ width: '100%', height: { xs: 200, md: 400 }, objectFit: 'cover', borderRadius: 6, mb: 6, boxShadow: '0 20px 40px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)' }} 
-                  />
-                )}
+                <Grid container spacing={6}>
+                  <Grid size={{ xs: 12, lg: 8 }}>
+                    {viewingCourse?.thumbnailUrl && (
+                      <Box 
+                        component="img" 
+                        src={viewingCourse.thumbnailUrl} 
+                        sx={{ width: '100%', height: { xs: 200, md: 450 }, objectFit: 'cover', borderRadius: 8, mb: 6, boxShadow: '0 30px 60px rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.1)' }} 
+                      />
+                    )}
 
-                <Box sx={{ mb: 8, textAlign: isRTL(viewingCourse?.name || '') ? 'right' : 'left', dir: isRTL(viewingCourse?.name || '') ? 'rtl' : 'ltr' }}>
-                  <Typography variant="h3" component="h1" sx={{ fontWeight: 900, mb: 3, letterSpacing: -1.5, color: '#fff' }}>
-                    {viewingCourse?.name}
-                  </Typography>
-                  <Typography variant="h6" color="text.secondary" sx={{ lineHeight: 1.8, fontWeight: 500, fontSize: '1.25rem' }}>
-                    {viewingCourse?.description}
-                  </Typography>
-                </Box>
+                    <Box sx={{ mb: 8, textAlign: isRTL(viewingCourse?.name || '') ? 'right' : 'left', dir: isRTL(viewingCourse?.name || '') ? 'rtl' : 'ltr' }}>
+                      <Typography variant="h2" component="h1" sx={{ fontWeight: 950, mb: 3, letterSpacing: -2, color: 'text.primary', fontFamily: 'var(--font-serif)' }}>
+                        {viewingCourse?.name}
+                      </Typography>
+                      <Typography variant="h6" color="text.secondary" sx={{ lineHeight: 1.8, fontWeight: 500, fontSize: '1.3rem', p: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 4, borderLeft: '4px solid', borderColor: 'primary.main' }}>
+                        {viewingCourse?.description}
+                      </Typography>
+                    </Box>
 
-                <Divider sx={{ mb: 8, opacity: 0.2, bgcolor: 'rgba(255,255,255,0.1)' }} />
+                    <Divider sx={{ mb: 8, opacity: 0.1 }} />
 
-                <Stack spacing={10}>
-                  {viewingCourse?.sections?.map((section, index) => {
-                    const isSectionRTL = isRTL(section.title) || isRTL(section.content);
-                    return (
-                      <Box key={section.id || index} id={`section-${index}`} sx={{ textAlign: isSectionRTL ? 'right' : 'left', dir: isSectionRTL ? 'rtl' : 'ltr' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4, flexDirection: isSectionRTL ? 'row-reverse' : 'row' }}>
-                          <Box sx={{ 
-                            width: 50, height: 50, 
-                            borderRadius: '50%', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            bgcolor: '#fff', 
-                            color: '#000',
-                            fontWeight: 900,
-                            fontSize: '1.5rem',
-                            boxShadow: '0 0 20px rgba(255,255,255,0.2)'
-                          }}>
-                            {index + 1}
-                          </Box>
-                          <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1, color: '#fff' }}>
-                            {section.title}
-                          </Typography>
-                          <Box sx={{ flex: 1, height: '1px', bgcolor: 'rgba(255,255,255,0.1)' }} />
-                        </Box>
+                    <Stack spacing={12}>
+                      {viewingCourse?.sections?.map((section, index) => {
+                        const isSectionRTL = isRTL(section.title) || isRTL(section.content);
+                        return (
+                          <Box key={section.id || index} id={`section-${index}`} sx={{ textAlign: isSectionRTL ? 'right' : 'left', dir: isSectionRTL ? 'rtl' : 'ltr' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 6, flexDirection: isSectionRTL ? 'row-reverse' : 'row' }}>
+                              <Box sx={{ 
+                                width: 64, height: 64, 
+                                borderRadius: 4, 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                bgcolor: 'primary.main', 
+                                color: 'white',
+                                fontWeight: 900,
+                                fontSize: '1.8rem',
+                                boxShadow: '0 10px 20px rgba(15, 118, 110, 0.3)',
+                                transform: 'rotate(-5deg)'
+                              }}>
+                                {index + 1}
+                              </Box>
+                              <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: -1.5, color: 'text.primary', flex: 1 }}>
+                                {section.title}
+                              </Typography>
+                            </Box>
 
                         {section.mediaUrl && (
                           <Box sx={{ mb: 4 }}>
@@ -1105,12 +1131,46 @@ export default function Courses() {
                       </Box>
                     );
                   })}
-                </Stack>
+                    </Stack>
+                  </Grid>
 
-                <Box sx={{ mt: 12, p: 6, borderRadius: 6, bgcolor: 'rgba(255,255,255,0.03)', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <Trophy size={48} color="#FFD700" className="mb-4 mx-auto" />
-                  <Typography variant="h5" sx={{ fontWeight: 900, mb: 1, color: '#fff' }}>Course Milestone</Typography>
-                  <Typography variant="body1" color="text.secondary">You've reached the end of the available modules in this course. Keep up the great work!</Typography>
+                  {/* Right Sidebar: Module Navigation */}
+                  <Grid size={{ xs: 12, lg: 4 }} sx={{ display: { xs: 'none', lg: 'block' } }}>
+                    <Box sx={{ position: 'sticky', top: 20 }}>
+                      <Card sx={{ borderRadius: 6, p: 4, border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', bgcolor: 'background.paper' }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 3, letterSpacing: -0.5 }}>Module Navigation</Typography>
+                        <List disablePadding>
+                          {viewingCourse?.sections?.map((s, i) => (
+                            <ListItem 
+                               key={i} 
+                               onClick={() => document.getElementById(`section-${i}`)?.scrollIntoView({ behavior: 'smooth' })}
+                               sx={{ 
+                                 borderRadius: 3, 
+                                 mb: 1,
+                                 cursor: 'pointer',
+                                 bgcolor: alpha(theme.palette.primary.main, 0.03),
+                                 '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
+                               }}
+                             >
+                              <ListItemAvatar>
+                                <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', fontWeight: 900, bgcolor: 'primary.main', color: 'white' }}>{i + 1}</Avatar>
+                              </ListItemAvatar>
+                              <ListItemText 
+                                primary={s.title} 
+                                primaryTypographyProps={{ variant: 'body2', sx: { fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} 
+                              />
+                            </ListItem>
+                          ))}
+                        </List>
+                      </Card>
+                    </Box>
+                  </Grid>
+                </Grid>
+
+                <Box sx={{ mt: 12, p: { xs: 4, md: 8 }, borderRadius: 8, bgcolor: alpha(theme.palette.primary.main, 0.05), textAlign: 'center', border: '2px dashed', borderColor: alpha(theme.palette.primary.main, 0.2) }}>
+                  <Trophy size={64} color={theme.palette.primary.main} className="mb-6 mx-auto" />
+                  <Typography variant="h4" sx={{ fontWeight: 950, mb: 2 }}>Mubarak ho! MashAllah</Typography>
+                  <Typography variant="h6" color="text.secondary" sx={{ maxWidth: 600, mx: 'auto', lineHeight: 1.6 }}>You've reached the end of the available modules in this course. Keep up the great work in your spiritual and academic journey!</Typography>
                 </Box>
               </motion.div>
             </Container>
