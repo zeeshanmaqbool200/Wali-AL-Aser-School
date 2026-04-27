@@ -241,9 +241,7 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
             <Text style={pdfStyles.address}>Ph: {settings.phone} • {settings.email}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10 }}>
-            {receipt.studentPhotoURL ? (
-              <Image src={receipt.studentPhotoURL} style={{ width: 65, height: 65, borderRadius: 4, objectFit: 'cover' }} />
-            ) : settings.receiptRightImageUrl ? (
+            {settings.receiptRightImageUrl ? (
               <Image src={settings.receiptRightImageUrl} style={{ width: 60, height: 60, objectFit: 'contain' }} />
             ) : null}
           </View>
@@ -535,14 +533,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             </Box>
 
             <Box sx={{ width: { xs: 60, sm: 95 }, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-              {receipt.studentPhotoURL ? (
-                <Box 
-                  component="img" 
-                  src={receipt.studentPhotoURL} 
-                  sx={{ width: { xs: 60, sm: 90 }, height: { xs: 60, sm: 90 }, borderRadius: 2, objectFit: 'cover', border: '2px solid #e5e7eb' }} 
-                  referrerPolicy="no-referrer"
-                />
-              ) : settings.receiptRightImageUrl ? (
+              {settings.receiptRightImageUrl ? (
                 <Box component="img" src={settings.receiptRightImageUrl} sx={{ width: '100%', height: 'auto', maxHeight: 85, objectFit: 'contain' }} />
               ) : null}
             </Box>

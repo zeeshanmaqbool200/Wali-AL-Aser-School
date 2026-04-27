@@ -478,24 +478,44 @@ export default function Notifications() {
               borderRadius: 6, 
               border: '1px solid', 
               borderColor: 'rgba(0,0,0,0.04)',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
+              boxShadow: '0 4px 20px rgba(0,0,0,0.02)',
+              bgcolor: 'background.paper'
             }}>
               <CardContent sx={{ p: 4 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 3, letterSpacing: -0.5 }}>Recent Activity</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 3, letterSpacing: -0.5 }}>Ittila'at Summary</Typography>
                 <Stack spacing={3}>
-                  {[
-                    { text: 'New course "Advanced Math" added', time: '2h ago' },
-                    { text: 'Exam results for Grade 10 published', time: '5h ago' },
-                    { text: 'Holiday announcement for next week', time: '1d ago' }
-                  ].map((item, i) => (
-                    <Box key={i} sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: 'primary.main', mt: 0.6, boxShadow: `0 0 0 4px ${alpha(theme.palette.primary.main, 0.1)}` }} />
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 800, mb: 0.5 }}>{item.text}</Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>{item.time}</Typography>
-                      </Box>
-                    </Box>
-                  ))}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>Total Messages</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 900 }}>{notifications.length}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>Unread</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 900, color: 'primary.main' }}>
+                      {notifications.filter(n => !n.readBy.includes(currentUser?.uid || '')).length}
+                    </Typography>
+                  </Box>
+                  <Divider />
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.disabled', textTransform: 'uppercase', mb: 2, display: 'block' }}>Recently Sent</Typography>
+                    <Stack spacing={2}>
+                      {notifications.slice(0, 3).map((item, i) => (
+                        <Box key={i} sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                          <Box sx={{ 
+                            width: 8, height: 8, borderRadius: '50%', 
+                            bgcolor: getTypeColor(item.type) + '.main', 
+                            mt: 0.8 
+                          }} />
+                          <Box>
+                            <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', lineHeight: 1.2 }}>{item.title}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{format(item.createdAt, 'PP')}</Typography>
+                          </Box>
+                        </Box>
+                      ))}
+                      {notifications.length === 0 && (
+                        <Typography variant="caption" color="text.disabled">No recent activity</Typography>
+                      )}
+                    </Stack>
+                  </Box>
                 </Stack>
               </CardContent>
             </Card>

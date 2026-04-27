@@ -1037,63 +1037,206 @@ export default function Settings() {
 
             {tabValue === 'notifications' && (
               <motion.div key="notifications" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                <Card sx={{ borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
-                  <CardContent sx={{ p: 4 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 900 }}>Notification Preferences</Typography>
-                      <Button 
-                        variant="outlined" 
-                        size="small" 
-                        startIcon={<Bell size={16} />}
-                        onClick={() => {
-                          if ('Notification' in window) {
-                            Notification.requestPermission().then(permission => {
-                              setSnackbar({ open: true, message: `Notification permission: ${permission}`, severity: permission === 'granted' ? 'success' : 'error' });
-                            });
-                          }
-                        }}
-                        sx={{ borderRadius: 1, fontWeight: 800 }}
-                      >
-                        Request Permission
-                      </Button>
-                    </Box>
+                <Grid container spacing={4}>
+                  <Grid size={{ xs: 12, lg: 7 }}>
+                    <Card sx={{ borderRadius: 4, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+                      <CardContent sx={{ p: 4 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 900 }}>Notification Preferences</Typography>
+                          <Button 
+                            variant="outlined" 
+                            size="small" 
+                            startIcon={<Bell size={16} />}
+                            onClick={() => {
+                              if ('Notification' in window) {
+                                Notification.requestPermission().then(permission => {
+                                  setSnackbar({ open: true, message: `Notification permission: ${permission}`, severity: permission === 'granted' ? 'success' : 'error' });
+                                });
+                              }
+                            }}
+                            sx={{ borderRadius: 1.5, fontWeight: 800 }}
+                          >
+                            Request Permission
+                          </Button>
+                        </Box>
 
-                    <Stack spacing={2}>
-                      {[
-                        { key: 'email', label: 'Email Notifications', desc: 'Receive updates via your registered email', icon: <Mail size={20} /> },
-                        { key: 'push', label: 'Push Notifications', desc: 'Get real-time alerts on your mobile/laptop', icon: <Zap size={20} /> },
-                        { key: 'feeReminders', label: 'Fee Reminders', desc: 'Get notified about upcoming fee deadlines', icon: <CreditCard size={20} /> },
-                        { key: 'attendance', label: 'Attendance Alerts', desc: 'Notifications about daily attendance status', icon: <CheckCircle size={20} /> },
-                        { key: 'announcements', label: 'Maktab Announcements', desc: 'Important news from the administration', icon: <Bell size={20} /> }
-                      ].map((item, i) => (
-                        <ListItem key={i} sx={{ py: 2, px: 3, border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
-                          <ListItemIcon sx={{ color: 'primary.main' }}>{item.icon}</ListItemIcon>
-                          <ListItemText 
-                            primary={item.label}
-                            primaryTypographyProps={{ variant: 'body2', sx: { fontWeight: 800 } }}
-                            secondary={item.desc}
-                            secondaryTypographyProps={{ variant: 'caption', sx: { fontWeight: 500 } }}
-                          />
-                          <Switch 
-                            color="primary" 
-                            checked={(notificationPrefs as any)[item.key]} 
-                            onChange={(e) => setNotificationPrefs({ ...notificationPrefs, [item.key]: e.target.checked })}
-                          />
-                        </ListItem>
-                      ))}
-                    </Stack>
-                    <Box sx={{ mt: 5, display: 'flex', justifyContent: 'flex-end' }}>
-                      <Button 
-                        variant="contained" 
-                        startIcon={<Save size={18} />} 
-                        onClick={handleSaveNotifications}
-                        sx={{ borderRadius: 3, fontWeight: 800, px: 4 }}
-                      >
-                        Save Preferences
-                      </Button>
-                    </Box>
-                  </CardContent>
-                </Card>
+                        <Stack spacing={2}>
+                          {[
+                            { key: 'email', label: 'Email Notifications', desc: 'Receive updates via your registered email', icon: <Mail size={20} /> },
+                            { key: 'push', label: 'Push Notifications', desc: 'Get real-time alerts on your mobile/laptop', icon: <Zap size={20} /> },
+                            { key: 'feeReminders', label: 'Fee Reminders', desc: 'Get notified about upcoming fee deadlines', icon: <CreditCard size={20} /> },
+                            { key: 'attendance', label: 'Attendance Alerts', desc: 'Notifications about daily attendance status', icon: <CheckCircle size={20} /> },
+                            { key: 'announcements', label: 'Maktab Announcements', desc: 'Important news from the administration', icon: <Bell size={20} /> }
+                          ].map((item, i) => (
+                            <Box 
+                              key={i} 
+                              sx={{ 
+                                p: 2.5, 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'space-between',
+                                border: '1px solid', 
+                                borderColor: alpha(theme.palette.divider, 0.08), 
+                                borderRadius: 2.5,
+                                bgcolor: alpha(theme.palette.background.default, 0.4),
+                                transition: '0.2s',
+                                '&:hover': { bgcolor: alpha(theme.palette.background.default, 0.8), transform: 'translateY(-2px)' }
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
+                                <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex' }}>
+                                  {item.icon}
+                                </Box>
+                                <Box>
+                                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{item.label}</Typography>
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{item.desc}</Typography>
+                                </Box>
+                              </Box>
+                              <Switch 
+                                color="primary" 
+                                checked={(notificationPrefs as any)[item.key]} 
+                                onChange={(e) => setNotificationPrefs({ ...notificationPrefs, [item.key]: e.target.checked })}
+                                sx={{ 
+                                  '& .MuiSwitch-switchBase.Mui-checked': { color: 'primary.main' },
+                                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: 'primary.main' }
+                                }}
+                              />
+                            </Box>
+                          ))}
+                        </Stack>
+                        <Box sx={{ mt: 5, display: 'flex', justifyContent: 'flex-end' }}>
+                          <Button 
+                            variant="contained" 
+                            startIcon={<Save size={18} />} 
+                            onClick={handleSaveNotifications}
+                            sx={{ borderRadius: 2, fontWeight: 800, px: 5, py: 1.5 }}
+                          >
+                            Save Preferences
+                          </Button>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  <Grid size={{ xs: 12, lg: 5 }}>
+                    <Card sx={{ borderRadius: 4, height: '100%', bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'grey.50', border: 'none' }}>
+                      <CardContent sx={{ p: 4 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 3 }}>Platform Previews</Typography>
+                        
+                        <Box sx={{ mb: 4, bgcolor: 'background.paper', p: 0.5, borderRadius: 3, display: 'flex', gap: 0.5 }}>
+                          {['Android', 'iOS', 'Desktop'].map((platform) => (
+                            <Button
+                              key={platform}
+                              fullWidth
+                              size="small"
+                              variant={(window as any)._notifPreview === platform ? 'contained' : 'text'}
+                              onClick={() => {
+                                (window as any)._notifPreview = platform;
+                                setTabValue('notifications'); // force re-render
+                              }}
+                              sx={{ 
+                                borderRadius: 2.5, 
+                                fontWeight: 800, 
+                                py: 1,
+                                bgcolor: (window as any)._notifPreview === platform ? 'primary.main' : 'transparent',
+                                color: (window as any)._notifPreview === platform ? 'white' : 'text.secondary'
+                              }}
+                            >
+                              {platform}
+                            </Button>
+                          ))}
+                        </Box>
+
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+                          {((window as any)._notifPreview || 'Android') === 'Android' && (
+                            <Box sx={{ 
+                              width: '100%', 
+                              maxWidth: 300, 
+                              p: 2, 
+                              bgcolor: '#1a1a1a', 
+                              borderRadius: 4, 
+                              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+                              color: 'white',
+                              fontFamily: 'sans-serif'
+                            }}>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, opacity: 0.8 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 600 }}>10:45</Typography>
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                  <div style={{ width: 12, height: 12, borderRadius: '2px', border: '1px solid white' }} />
+                                  <div style={{ width: 12, height: 12, borderRadius: '2px', border: '1px solid white' }} />
+                                </Box>
+                              </Box>
+                              <Box sx={{ bgcolor: '#333', p: 1.5, borderRadius: 2, display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                                <Avatar sx={{ width: 32, height: 32, bgcolor: theme.palette.primary.main, fontSize: '0.8rem' }}>M</Avatar>
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', lineHeight: 1 }}>Maktab LMS</Typography>
+                                  <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mt: 0.5 }}>Fee Reminder</Typography>
+                                  <Typography variant="caption" sx={{ fontSize: '0.65rem', opacity: 0.7 }}>Please submit your monthly fees by tomorrow...</Typography>
+                                </Box>
+                              </Box>
+                            </Box>
+                          )}
+
+                          {((window as any)._notifPreview || 'Android') === 'iOS' && (
+                            <Box sx={{ 
+                              width: '100%', 
+                              maxWidth: 300, 
+                              p: 2.5, 
+                              bgcolor: 'rgba(255,255,255,0.8)', 
+                              backdropFilter: 'blur(10px)',
+                              borderRadius: 5, 
+                              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+                              color: '#000',
+                              border: '1px solid rgba(255,255,255,0.5)'
+                            }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                                <Avatar sx={{ width: 24, height: 24, bgcolor: theme.palette.primary.main, fontSize: '0.6rem' }}>M</Avatar>
+                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, flex: 1, opacity: 0.6 }}>MAKTAB LMS</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', opacity: 0.5 }}>now</Typography>
+                              </Box>
+                              <Typography sx={{ fontSize: '0.9rem', fontWeight: 700, mb: 0.3 }}>Class Timing Updated</Typography>
+                              <Typography sx={{ fontSize: '0.85rem', fontWeight: 400, opacity: 0.8, lineHeight: 1.3 }}>Your Farsi class has been moved to 5:00 PM today.</Typography>
+                            </Box>
+                          )}
+
+                          {((window as any)._notifPreview || 'Android') === 'Desktop' && (
+                            <Box sx={{ 
+                              width: '100%', 
+                              maxWidth: 320, 
+                              p: 2, 
+                              bgcolor: theme.palette.mode === 'dark' ? '#2d2d2d' : 'white', 
+                              borderRadius: 1.5, 
+                              boxShadow: '0 15px 35px rgba(0,0,0,0.15)',
+                              border: `1px solid ${theme.palette.divider}`,
+                              display: 'flex',
+                              gap: 2
+                            }}>
+                              <Avatar sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: theme.palette.primary.main }}>M</Avatar>
+                              <Box sx={{ flex: 1 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 0.5 }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 800 }}>Important Announcement</Typography>
+                                  <X size={14} style={{ opacity: 0.4 }} />
+                                </Box>
+                                <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.4, mb: 2 }}>The exam schedule for term 2 has been published.</Typography>
+                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                  <Button size="small" variant="contained" sx={{ px: 2, height: 24, fontSize: '0.65rem', borderRadius: 1 }}>View</Button>
+                                  <Button size="small" variant="outlined" sx={{ px: 2, height: 24, fontSize: '0.65rem', borderRadius: 1 }}>Dismiss</Button>
+                                </Box>
+                              </Box>
+                            </Box>
+                          )}
+                        </Box>
+
+                        <Box sx={{ mt: 6, p: 3, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.03), border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
+                          <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', mb: 1, color: 'primary.main', textTransform: 'uppercase' }}>Pro Tip</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 500, color: 'text.secondary', display: 'block', lineHeight: 1.5 }}>
+                            Real-time notifications help ensure you never miss an updated class time or a payment deadline. Keep them enabled for the best experience.
+                          </Typography>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
               </motion.div>
             )}
             

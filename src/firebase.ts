@@ -1,6 +1,10 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { initializeFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
+import { 
+  initializeFirestore, doc, getDoc, setDoc, collection, query, where, 
+  onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, 
+  persistentLocalCache, persistentMultipleTabManager 
+} from 'firebase/firestore';
 
 // Import the Firebase configuration
 import firebaseConfig from '../firebase-applet-config.json';
@@ -8,24 +12,13 @@ import firebaseConfig from '../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Use initializeFirestore with forceLongPolling to improve stability in sandboxed iframes
+// Use initializeFirestore with persistence and long polling for stability
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-  cacheSizeBytes: 5 * 1024 * 1024, // Limit cache size
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
 }, firebaseConfig.firestoreDatabaseId);
-
-// Enable persistence with better error handling
-if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
-  enableMultiTabIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-    } else if (err.code === 'unimplemented') {
-      console.warn('The current browser doesn\'t support all of the features needed to enable persistence');
-    } else {
-      console.error('Persistence error:', err);
-    }
-  });
-}
 
 export const googleProvider = new GoogleAuthProvider();
 

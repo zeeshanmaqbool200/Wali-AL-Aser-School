@@ -861,9 +861,7 @@ export default function Fees() {
                 InputProps={{ sx: { borderRadius: 4 } }}
               >
                 <option value="Monthly Fee">Monthly Fee</option>
-                {(!formData.studentId || !students.find(s => s.uid === formData.studentId)?.admissionNo) && (
-                  <option value="Admission Fee">Admission Fee</option>
-                )}
+                <option value="Admission Fee">Admission Fee</option>
                 <option value="Quran / Hifz Fee">Quran / Hifz Fee</option>
                 <option value="Exam / Test Fee">Exam / Test Fee</option>
                 <option value="Book / Kitab Fee">Book / Kitab Fee</option>

@@ -85,11 +85,21 @@ export default defineConfig(({ mode }) => {
       hmr: process.env.DISABLE_HMR !== 'true',
     },
     build: {
-      outDir: 'dist',
+      outDir: 'build',
       assetsDir: 'assets',
       emptyOutDir: true,
       sourcemap: false,
       minify: 'esbuild',
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+            'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+            'vendor-utils': ['date-fns', 'lucide-react', 'framer-motion', 'recharts']
+          }
+        }
+      }
     }
   };
 });

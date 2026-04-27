@@ -126,13 +126,39 @@ export default function Users() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 1024 * 1024) { // 1MB limit for Firestore doc size
-        setSnackbar({ open: true, message: 'Image size should be less than 1MB', severity: 'error' });
-        return;
-      }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, photoURL: reader.result as string }));
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const max = 500; // Better quality but safe size
+          if (width > height) {
+            if (width > max) {
+              height *= max / width;
+              width = max;
+            }
+          } else {
+            if (height > max) {
+              width *= max / height;
+              height = max;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          const base64 = canvas.toDataURL('image/jpeg', 0.8);
+          
+          if (base64.length > 800000) { // Still too large? compress more
+            const smallerBase64 = canvas.toDataURL('image/jpeg', 0.6);
+            setFormData(prev => ({ ...prev, photoURL: smallerBase64 }));
+          } else {
+            setFormData(prev => ({ ...prev, photoURL: base64 }));
+          }
+        };
+        img.src = event.target?.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -314,7 +340,7 @@ export default function Users() {
         await smartAddDoc(collection(db, 'users'), {
           ...finalFormData,
           createdAt: Date.now(),
-          photoURL: finalFormData.photoURL || `https://ui-avatars.com/api/?name=${formData.displayName}&background=random`
+          photoURL: finalFormData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.displayName)}&background=random&color=fff`
         });
       }
       setOpenDialog(false);
@@ -329,6 +355,8 @@ export default function Users() {
         colors: [theme.palette.primary.main, theme.palette.secondary.main, '#0d9488']
       });
     } catch (error) {
+      console.error('Error saving user:', error);
+      setSnackbar({ open: true, message: 'Failed to save user details. Please check connection and try again.', severity: 'error' });
       handleFirestoreError(error, OperationType.WRITE, 'users');
     }
   };
@@ -818,6 +846,7 @@ export default function Users() {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           <Avatar 
                             src={user.photoURL} 
+                            imgProps={{ referrerPolicy: 'no-referrer' }}
                             sx={{ 
                               width: 44, 
                               height: 44, 
@@ -1065,7 +1094,8 @@ export default function Users() {
             <Grid size={12}>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, mb: 2 }}>
                 <Avatar 
-                  src={formData.photoURL || `https://ui-avatars.com/api/?name=${formData.displayName || 'User'}&background=random`} 
+                  src={formData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.displayName || 'User')}&background=random&color=fff`} 
+                  imgProps={{ referrerPolicy: 'no-referrer' }}
                   sx={{ width: 120, height: 120, border: '4px solid', borderColor: 'primary.main', boxShadow: theme.shadows[3] }}
                 />
                 <Stack direction="row" spacing={2}>
@@ -1742,6 +1772,7 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, onEdit, onDelete, on
         <Box sx={{ position: 'absolute', bottom: -40, left: '50%', transform: 'translateX(-50%)' }}>
           <Avatar 
             src={user.photoURL} 
+            imgProps={{ referrerPolicy: 'no-referrer' }}
             sx={{ 
               width: 88, 
               height: 88, 

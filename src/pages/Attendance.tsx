@@ -438,6 +438,7 @@ export default function AttendancePage() {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                               <Avatar 
                                 src={student.photoURL} 
+                                imgProps={{ referrerPolicy: 'no-referrer' }}
                                 sx={{ 
                                   width: 40, 
                                   height: 40, 

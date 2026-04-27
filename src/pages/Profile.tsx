@@ -59,6 +59,8 @@ export default function Profile() {
       
       if (profileData.photoURL) {
         finalData.photoURL = profileData.photoURL;
+      } else if (profileData.displayName) {
+        finalData.photoURL = `https://ui-avatars.com/api/?name=${encodeURIComponent(profileData.displayName)}&background=random&color=fff`;
       }
       
       await smartUpdateDoc(doc(db, 'users', currentUser.uid), finalData);
@@ -149,7 +151,8 @@ export default function Profile() {
             }}>
               <Box sx={{ position: 'relative' }}>
                 <Avatar 
-                  src={profileData.photoURL} 
+                  src={profileData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileData.displayName || 'User')}&background=random&color=fff`} 
+                  imgProps={{ referrerPolicy: 'no-referrer' }}
                   sx={{ 
                     width: 100, 
                     height: 100, 
@@ -196,7 +199,7 @@ export default function Profile() {
                 <TextField
                   fullWidth
                   label={profileData.role === 'student' ? 'Admission No' : 'Staff ID'}
-                  value={profileData.studentId || profileData.teacherId || 'N/A'}
+                  value={profileData.admissionNo || profileData.studentId || profileData.teacherId || 'N/A'}
                   disabled
                   InputProps={{ 
                     sx: { borderRadius: 1.5, bgcolor: alpha(theme.palette.action.disabledBackground, 0.05) }

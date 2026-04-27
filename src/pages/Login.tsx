@@ -25,7 +25,7 @@ interface LoginProps {
 export default function Login({ onLogin, onSignUp, error }: LoginProps) {
   const theme = useTheme();
   const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<UserRole>('student');
@@ -33,14 +33,18 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [institute, setInstitute] = useState<Partial<InstituteSettings>>({
     maktabName: 'Wali Ul Aser',
-    tagline: 'First Step Towards Building Taqwa'
+    tagline: 'Simple Learning for Everyone'
   });
 
   React.useEffect(() => {
     const fetchBranding = async () => {
       const snap = await getDoc(doc(db, 'settings', 'institute'));
       if (snap.exists()) {
-        setInstitute(snap.data());
+        const data = snap.data();
+        setInstitute({
+          ...data,
+          tagline: data.tagline || 'Simple Learning for Everyone'
+        });
       }
     };
     fetchBranding();
@@ -49,14 +53,21 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    // Sanitize phone: remove spaces/dashes
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (cleanPhone.length < 7) {
+      setLoading(false);
+      return; // Basic validation
+    }
+
     try {
       if (isSignUp) {
-        await onSignUp(email, password, name, role);
+        await onSignUp(cleanPhone, password, name, role);
       } else {
-        await onLogin(email, password);
+        await onLogin(cleanPhone, password);
       }
     } catch (err) {
-      // Error is handled by AuthContext and passed back as prop
+      // Error is handled by AuthContext
     } finally {
       setLoading(false);
     }
@@ -69,7 +80,8 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center',
-        bgcolor: 'background.default',
+        bgcolor: '#000',
+        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(15, 118, 110, 0.15) 0%, rgba(0,0,0,0) 70%)',
         position: 'relative',
         overflow: 'hidden',
         py: 4
@@ -77,24 +89,24 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
     >
       <Container maxWidth="xs" sx={{ position: 'relative', zIndex: 1 }}>
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
         >
-          <Box sx={{ textAlign: 'center', mb: 6 }}>
+          <Box sx={{ textAlign: 'center', mb: 5 }}>
             <Box 
               sx={{ 
                 display: 'inline-flex', 
-                p: institute.logoUrl ? 0 : 2.5, 
+                p: institute.logoUrl ? 0 : 2, 
                 borderRadius: '50%', 
                 bgcolor: alpha(theme.palette.primary.main, 0.1), 
                 color: 'primary.main',
                 mb: 3,
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                boxShadow: `0 0 20px ${alpha(theme.palette.primary.main, 0.2)}`,
+                border: `3px double ${alpha(theme.palette.primary.main, 0.3)}`,
+                boxShadow: `0 0 40px ${alpha(theme.palette.primary.main, 0.2)}`,
                 overflow: 'hidden',
-                width: 100,
-                height: 100,
+                width: 120,
+                height: 120,
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
@@ -102,40 +114,44 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
               {institute.logoUrl ? (
                 <Box component="img" src={institute.logoUrl} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <School size={44} />
+                <School size={50} strokeWidth={1.5} />
               )}
             </Box>
-            <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: -0.5, mb: 1, fontFamily: 'var(--font-calligraphy)' }}>
+            <Typography variant="h3" sx={{ fontWeight: 900, mb: 1, color: 'primary.main', letterSpacing: -1, textTransform: 'uppercase' }}>
               {institute.maktabName}
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.5 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, opacity: 0.8, color: 'white', fontStyle: 'italic' }}>
               {institute.tagline}
             </Typography>
           </Box>
 
           <Card 
-            variant="outlined"
+            elevation={0}
             sx={{ 
-              borderRadius: 6, 
-              bgcolor: 'background.paper',
+              borderRadius: 8, 
+              bgcolor: 'rgba(25, 25, 25, 0.7)',
+              backdropFilter: 'blur(10px)',
               overflow: 'visible',
-              position: 'relative',
-              border: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
-              boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+              boxShadow: '0 30px 60px rgba(0,0,0,0.5)',
             }}
           >
             <CardContent sx={{ p: { xs: 4, sm: 6 } }}>
+              <Typography variant="h5" sx={{ fontWeight: 900, mb: 4, textAlign: 'center', color: 'primary.main' }}>
+                {isSignUp ? 'New Member Join' : 'Welcome Back'}
+              </Typography>
+
               <AnimatePresence mode="wait">
                 {error && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                  <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
                     <Alert 
                       severity="error" 
-                      variant="outlined"
+                      variant="filled"
                       sx={{ 
                         mb: 4, 
-                        borderRadius: 2, 
-                        fontWeight: 600, 
-                        bgcolor: alpha(theme.palette.error.main, 0.05),
+                        borderRadius: 3, 
+                        fontWeight: 800, 
+                        bgcolor: alpha(theme.palette.error.main, 0.8),
                       }}
                     >
                       {error}
@@ -145,34 +161,32 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
               </AnimatePresence>
 
               <form onSubmit={handleSubmit}>
-                <Stack spacing={3}>
+                <Stack spacing={3.5}>
                   <AnimatePresence mode="wait">
                     {isSignUp && (
-                      <motion.div key="signup-fields" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
-                        <Stack spacing={3}>
+                      <motion.div key="signup-fields" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                        <Stack spacing={3.5}>
                           <TextField
                             fullWidth
-                            label="Full Name"
-                            placeholder="Zeeshan Ahmad"
+                            label="Your Name"
+                            placeholder="Type your name here"
                             required
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             sx={{
-                              '& .MuiOutlinedInput-root': {
-                                borderRadius: 2,
-                              }
+                              '& .MuiOutlinedInput-root': { borderRadius: 4, bgcolor: 'rgba(0,0,0,0.2)' }
                             }}
                           />
                           <FormControl fullWidth required>
-                            <InputLabel>Account Role</InputLabel>
+                            <InputLabel>Who are you?</InputLabel>
                             <Select
                               value={role}
-                              label="Account Role"
+                              label="Who are you?"
                               onChange={(e) => setRole(e.target.value as UserRole)}
-                              sx={{ borderRadius: 2 }}
+                              sx={{ borderRadius: 4, bgcolor: 'rgba(0,0,0,0.2)' }}
                             >
-                              <MenuItem value="student">Talib-e-Ilm</MenuItem>
-                              <MenuItem value="teacher">Mudaris</MenuItem>
+                              <MenuItem value="student">Student (Talib-e-Ilm)</MenuItem>
+                              <MenuItem value="teacher">Teacher (Mudaris)</MenuItem>
                             </Select>
                           </FormControl>
                         </Stack>
@@ -182,50 +196,38 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
 
                   <TextField
                     fullWidth
-                    label="Email Address"
-                    type="email"
-                    placeholder="name@waliulaser.com"
+                    label="Phone Number"
+                    type="tel"
+                    placeholder="Enter Phone (e.g. 03001234567)"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
                     sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 2,
-                      }
+                      '& .MuiOutlinedInput-root': { borderRadius: 4, bgcolor: 'rgba(0,0,0,0.2)' }
                     }}
                   />
 
                   <TextField
                     fullWidth
-                    label="Password"
+                    label="Secret Code (Password)"
                     type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 2,
-                      }
+                      '& .MuiOutlinedInput-root': { borderRadius: 4, bgcolor: 'rgba(0,0,0,0.2)' }
                     }}
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
-                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" sx={{ color: 'primary.main' }}>
+                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                           </IconButton>
                         </InputAdornment>
                       ),
                     }}
                   />
-
-                  {!isSignUp && (
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <Link href="#" variant="body2" sx={{ fontWeight: 600, textDecoration: 'none' }}>
-                        Forgot password?
-                      </Link>
-                    </Box>
-                  )}
 
                   <Button
                     type="submit"
@@ -234,40 +236,45 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                     size="large"
                     disabled={loading}
                     sx={{ 
-                      py: 1.5, 
-                      borderRadius: 2, 
-                      textTransform: 'none', 
-                      fontSize: '1rem', 
-                      fontWeight: 700,
+                      py: 2, 
+                      borderRadius: 4, 
+                      fontSize: '1.1rem', 
+                      fontWeight: 900,
+                      boxShadow: `0 10px 25px ${alpha(theme.palette.primary.main, 0.4)}`,
+                      transition: 'all 0.3s',
+                      '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 15px 30px ${alpha(theme.palette.primary.main, 0.6)}` }
                     }}
                   >
                     {loading ? (
-                      <CircularProgress size={24} color="inherit" />
+                      <CircularProgress size={28} color="inherit" />
                     ) : (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {isSignUp ? 'Create Account' : 'Sign In'}
-                        <ArrowRight size={18} />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        {isSignUp ? 'Sign Up' : 'Log In Now'}
+                        <ArrowRight size={22} />
                       </Box>
                     )}
                   </Button>
                 </Stack>
               </form>
 
-              <Box sx={{ mt: 4, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                  {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+              <Divider sx={{ my: 4, borderColor: alpha(theme.palette.divider, 0.1) }}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.disabled' }}>OR</Typography>
+              </Divider>
+
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="body1" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                  {isSignUp ? 'Have an account?' : 'Need an account?'}{' '}
                   <Button
                     variant="text"
                     onClick={() => setIsSignUp(!isSignUp)}
-                    sx={{ fontWeight: 700, textTransform: 'none', p: 0, minWidth: 'auto', ml: 0.5 }}
+                    sx={{ fontWeight: 900, fontSize: '1rem', color: 'primary.main', textTransform: 'none' }}
                   >
-                    {isSignUp ? 'Sign In' : 'Create Account'}
+                    {isSignUp ? 'Login Here' : 'Create One Here'}
                   </Button>
                 </Typography>
               </Box>
             </CardContent>
           </Card>
-
           <Box sx={{ mt: 6, textAlign: 'center' }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, display: 'block' }}>
               © {new Date().getFullYear()} {institute.maktabName}

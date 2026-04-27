@@ -451,7 +451,7 @@ export default function Reports() {
                       cursor={{ fill: alpha(theme.palette.primary.main, 0.05) }}
                       contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }} 
                     />
-                    <Bar dataKey="average" fill={theme.palette.primary.main} radius={[0, 10, 10, 0]} barSize={30} label={{ position: 'right', fill: theme.palette.text.primary, fontWeight: 900, formatter: (val: number) => `${val}%` }} />
+                    <Bar dataKey="average" fill={theme.palette.primary.main} radius={[0, 10, 10, 0]} barSize={30} label={{ position: 'right', fill: theme.palette.text.primary, fontWeight: 900, formatter: (val: any) => `${val}%` }} />
                   </BarChart>
                 </ResponsiveContainer>
               </Box>

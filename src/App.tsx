@@ -79,6 +79,8 @@ import PermissionAgent from './components/PermissionAgent';
 import SyncNotifier from './components/SyncNotifier';
 import RateLimitOverlay from './components/RateLimitOverlay';
 
+import LoadingScreen from './components/LoadingScreen';
+
 function AppContent() {
   const { user, loading, error, manualLogin, manualSignUp, logout } = useAuth();
   const location = useLocation();
@@ -90,78 +92,8 @@ function AppContent() {
     setSelectionMade(false); // Reset when user changes
   }, [user?.uid]);
 
-  React.useEffect(() => {
-    // Logic for automatic class selection popup temporarily disabled per USER_REQUEST
-    /*
-    if (user && user.role === 'student' && !user.maktabLevel && !user.pendingMaktabLevel && !selectionMade && !showClassSelection) {
-      const timer = setTimeout(() => {
-        if (!selectionMade && !showClassSelection) {
-          setShowClassSelection(true);
-        }
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-    */
-  }, [user?.role, user?.maktabLevel, user?.pendingMaktabLevel, selectionMade, showClassSelection]);
-
   if (loading) {
-    return (
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column',
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh', 
-        bgcolor: 'background.default',
-        gap: 3
-      }}>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
-        >
-          <Box sx={{ 
-            width: 80, 
-            height: 80, 
-            mb: 2,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: '50%',
-            bgcolor: alpha('#0d9488', 0.1),
-            border: '2px solid',
-            borderColor: '#0d9488'
-          }}>
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
-            >
-              <BookOpen size={40} color="#0d9488" />
-            </motion.div>
-          </Box>
-          <Typography 
-            variant="h5" 
-            sx={{ 
-              fontWeight: 900, 
-              color: 'primary.main', 
-              fontFamily: 'var(--font-serif)',
-              letterSpacing: 2,
-              textTransform: 'uppercase'
-            }}
-          >
-            {import.meta.env.VITE_INSTITUTE_NAME || 'Maktab Wali Ul Aser'}
-          </Typography>
-          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', letterSpacing: 3, mt: 1 }}>
-            INITIALIZING SYSTEM...
-          </Typography>
-        </motion.div>
-        
-        <Box sx={{ width: 150, mt: 2 }}>
-           <Skeleton variant="text" sx={{ width: '100%', height: 4 }} />
-        </Box>
-      </Box>
-    );
+    return <LoadingScreen />;
   }
 
   const systemAdminRoles = ['superadmin'];

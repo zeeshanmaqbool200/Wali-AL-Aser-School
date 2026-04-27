@@ -5,9 +5,9 @@ import {
   DialogActions, CircularProgress, IconButton, Chip,
   Avatar, List, ListItem, ListItemText, ListItemAvatar,
   Divider, InputAdornment, Paper, Tooltip,
-  useMediaQuery, Stack, Zoom, Fade,
+  useMediaQuery, Stack, Zoom, Fade, Slide,
   FormControl, InputLabel, Select, MenuItem,
-  AppBar, Toolbar, Container
+  AppBar, Toolbar, Container, LinearProgress, Skeleton
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { 
@@ -43,11 +43,42 @@ export default function Courses() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [courses, setCourses] = useState<Course[]>([]);
+  const [allMudaris, setAllMudaris] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(!(window as any)._coursesLoaded);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
   const [openReader, setOpenReader] = useState(false);
   const [viewingCourse, setViewingCourse] = useState<Course | null>(null);
+  const [activeSection, setActiveSection] = useState(0);
+  const [readerLoading, setReaderLoading] = useState(false);
+  const [editingSectionIdx, setEditingSectionIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    const q = query(collection(db, 'users'), where('role', '==', 'mudaris'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setAllMudaris(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleReadCourse = (course: Course) => {
+    setReaderLoading(true);
+    setViewingCourse(course);
+    setOpenReader(true);
+    setActiveSection(0);
+    setTimeout(() => setReaderLoading(false), 800);
+  };
+
+  const handleSectionChange = (idx: number) => {
+    if (idx === activeSection) return;
+    setReaderLoading(true);
+    setActiveSection(idx);
+    setTimeout(() => {
+      setReaderLoading(false);
+      const contentArea = document.getElementById('reader-content-top');
+      if (contentArea) contentArea.scrollIntoView({ behavior: 'smooth' });
+    }, 400);
+  };
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
@@ -65,7 +96,9 @@ export default function Courses() {
     thumbnailUrl: '',
     sections: [] as CourseSection[],
     isPublished: true,
-    gradeId: 'all'
+    gradeId: 'all',
+    assignedMudaris: [] as string[],
+    targetGrades: [] as string[]
   });
 
   const [newSection, setNewSection] = useState({
@@ -147,19 +180,18 @@ export default function Courses() {
           or(
             where('gradeId', '==', currentUser.maktabLevel || 'none'),
             where('gradeId', '==', 'all'),
+            where('targetGrades', 'array-contains', currentUser.maktabLevel || 'none'),
             where('enrolledStudents', 'array-contains', currentUser.uid)
           )
         ),
         limit(100)
       );
     } else if (isMudarisRole && !isSuperAdmin) {
-      // Mudaris sees courses assigned to them
+      // Mudaris sees ALL courses but can only edit theirs or assigned ones?
+      // User said "should be visible to all mudaris"
       q = query(
         collection(db, 'courses'), 
-        or(
-          where('teacherId', '==', currentUser.uid),
-          where('assignedMudaris', 'array-contains', currentUser.uid)
-        ),
+        orderBy('createdAt', 'desc'),
         limit(100)
       );
     }
@@ -207,7 +239,9 @@ export default function Courses() {
         thumbnailUrl: '', 
         sections: [], 
         isPublished: true, 
-        gradeId: 'all' 
+        gradeId: 'all',
+        assignedMudaris: [],
+        targetGrades: []
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'courses');
@@ -215,16 +249,31 @@ export default function Courses() {
   };
 
   const handleAddSection = () => {
-    if (!newSection.title || (!newSection.content && newSection.type !== 'quiz')) return;
-    const section: CourseSection = { 
-      ...newSection, 
-      id: Date.now().toString(), 
-      order: formData.sections.length 
-    };
+    if (!newSection.title || (!newSection.content && newSection.type !== 'quiz' && !newSection.mediaUrl)) return;
+    
+    const sections = [...formData.sections];
+    
+    if (editingSectionIdx !== null) {
+      sections[editingSectionIdx] = { 
+        ...newSection, 
+        id: sections[editingSectionIdx].id, 
+        order: editingSectionIdx 
+      };
+      setEditingSectionIdx(null);
+    } else {
+      const section: CourseSection = { 
+        ...newSection, 
+        id: Date.now().toString(), 
+        order: formData.sections.length 
+      };
+      sections.push(section);
+    }
+
     setFormData({
       ...formData,
-      sections: [...formData.sections, section]
+      sections
     });
+    
     setNewSection({ 
       title: '', 
       content: '', 
@@ -232,6 +281,21 @@ export default function Courses() {
       mediaUrl: '',
       quizData: { questions: [], passingScore: 70 }
     });
+  };
+
+  const handleEditSection = (idx: number) => {
+    const s = formData.sections[idx];
+    setNewSection({
+      title: s.title,
+      content: s.content || '',
+      type: s.type,
+      mediaUrl: s.mediaUrl || '',
+      quizData: s.quizData || { questions: [], passingScore: 70 }
+    });
+    setEditingSectionIdx(idx);
+    // Scroll to editor
+    const entry = document.getElementById('lesson-editor-entry');
+    if (entry) entry.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleDelete = async (id: string) => {
@@ -255,7 +319,9 @@ export default function Courses() {
       thumbnailUrl: course.thumbnailUrl || '',
       sections: course.sections || [],
       isPublished: course.isPublished || false,
-      gradeId: course.gradeId || ''
+      gradeId: course.gradeId || '',
+      assignedMudaris: course.assignedMudaris || [],
+      targetGrades: (course as any).targetGrades || (course.gradeId ? [course.gradeId] : [])
     });
     setOpenDialog(true);
   };
@@ -369,7 +435,9 @@ export default function Courses() {
                     thumbnailUrl: '',
                     sections: [],
                     isPublished: true,
-                    gradeId: 'all'
+                    gradeId: 'all',
+                    assignedMudaris: [],
+                    targetGrades: []
                   });
                   setOpenDialog(true);
                 }}
@@ -478,10 +546,7 @@ export default function Courses() {
                   isSuperAdmin={isSuperAdmin}
                   onEdit={() => handleEdit(course)} 
                   onDelete={() => handleDelete(course.id)}
-                  onRead={(c: Course) => {
-                    setViewingCourse(c);
-                    setOpenReader(true);
-                  }}
+                  onRead={handleReadCourse}
                   viewMode={viewMode}
                 />
               </motion.div>
@@ -616,6 +681,7 @@ export default function Courses() {
                       <Box sx={{ position: 'relative' }}>
                         <Box 
                           component="img" 
+                          referrerPolicy="no-referrer"
                           src={formData.thumbnailUrl} 
                           sx={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 3, mb: 2 }} 
                         />
@@ -653,6 +719,58 @@ export default function Courses() {
 
                 <Box>
                   <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 1, display: 'block' }}>
+                    Target Classes & Mudaris
+                  </Typography>
+                  <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, bgcolor: alpha(theme.palette.background.default, 0.4) }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Select Class Levels</Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
+                      {MAKTAB_LEVELS.filter(l => !l.includes('muntazim') && !l.includes('superadmin')).map(level => {
+                        const isSelected = formData.targetGrades.includes(level);
+                        return (
+                          <Chip 
+                            key={level} 
+                            label={level} 
+                            onClick={() => {
+                              const newGrades = isSelected 
+                                ? formData.targetGrades.filter(g => g !== level)
+                                : [...formData.targetGrades, level];
+                              setFormData({ ...formData, targetGrades: newGrades });
+                            }}
+                            variant={isSelected ? "filled" : "outlined"}
+                            color={isSelected ? "primary" : "default"}
+                            sx={{ fontWeight: 700, borderRadius: 2 }}
+                          />
+                        );
+                      })}
+                    </Box>
+
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Assigned Mudaris</Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {allMudaris.map(mudaris => {
+                        const isSelected = formData.assignedMudaris.includes(mudaris.uid);
+                        return (
+                          <Chip 
+                            key={mudaris.uid} 
+                            avatar={<Avatar src={mudaris.photoURL} imgProps={{ referrerPolicy: 'no-referrer' }}>{mudaris.displayName?.charAt(0)}</Avatar>}
+                            label={mudaris.displayName} 
+                            onClick={() => {
+                              const newMudaris = isSelected 
+                                ? formData.assignedMudaris.filter(id => id !== mudaris.uid)
+                                : [...formData.assignedMudaris, mudaris.uid];
+                              setFormData({ ...formData, assignedMudaris: newMudaris });
+                            }}
+                            variant={isSelected ? "filled" : "outlined"}
+                            color={isSelected ? "primary" : "default"}
+                            sx={{ fontWeight: 700, borderRadius: 2 }}
+                          />
+                        );
+                      })}
+                    </Box>
+                  </Paper>
+                </Box>
+
+                <Box>
+                  <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 1, display: 'block' }}>
                     Course Logistics
                   </Typography>
                   <Grid container spacing={2}>
@@ -667,21 +785,6 @@ export default function Courses() {
                         sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}
                       />
                     </Grid>
-                    <Grid size={12}>
-                      <FormControl fullWidth variant="filled" sx={{ '& .MuiFilledInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.action.hover, 0.4) } }}>
-                        <InputLabel>Mapped Class Level</InputLabel>
-                        <Select
-                          value={formData.gradeId}
-                          label="Mapped Class Level"
-                          onChange={(e) => setFormData({ ...formData, gradeId: e.target.value })}
-                        >
-                          <MenuItem value="all">All Levels</MenuItem>
-                          {MAKTAB_LEVELS.filter(l => !l.includes('muntazim') && !l.includes('superadmin')).map(level => (
-                            <MenuItem key={level} value={level}>{level}</MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
                   </Grid>
                 </Box>
               </Stack>
@@ -694,142 +797,162 @@ export default function Courses() {
                   Educational Content (Modules)
                 </Typography>
                 
-                <Paper variant="outlined" sx={{ p: 4, borderRadius: 4, bgcolor: alpha(theme.palette.background.default, 0.3), mb: 3 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Zap size={20} className="text-amber-500" />
-                    Quick Add Module
+                <Paper id="lesson-editor-entry" variant="outlined" sx={{ p: 4, borderRadius: 6, bgcolor: theme.palette.mode === 'dark' ? '#111' : '#fff', mb: 4, boxShadow: '0 10px 40px rgba(0,0,0,0.05)' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 950, mb: 3, display: 'flex', alignItems: 'center', gap: 2, letterSpacing: -0.5 }}>
+                    <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main' }}>
+                      {editingSectionIdx !== null ? <Edit2 size={24} /> : <Plus size={24} />}
+                    </Box>
+                    {editingSectionIdx !== null ? 'Edit Existing Lesson' : 'Add New Lesson'}
                   </Typography>
-                  <Stack spacing={3}>
+                  <Stack spacing={4}>
                     <TextField 
                       fullWidth 
-                      label="Module Title" 
-                      variant="outlined"
+                      label="Lesson Title" 
+                      variant="standard"
+                      placeholder="e.g. Introduction to Noorani Qaida"
                       value={newSection.title} 
                       onChange={(e) => setNewSection({ ...newSection, title: e.target.value })} 
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                      InputProps={{ sx: { fontSize: '1.5rem', fontWeight: 900, mb: 1 } }}
+                      slotProps={{ inputLabel: { shrink: true } }}
                     />
                     
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                      <FormControl sx={{ minWidth: 160 }}>
-                        <InputLabel>Content Type</InputLabel>
-                        <Select 
-                          value={newSection.type} 
-                          label="Content Type" 
-                          onChange={(e) => setNewSection({ ...newSection, type: e.target.value as any })}
-                          sx={{ borderRadius: 3 }}
-                        >
-                          <MenuItem value="text">Rich Text / Notes</MenuItem>
-                          <MenuItem value="image">Diagram / Image</MenuItem>
-                          <MenuItem value="video">Lecture Video</MenuItem>
-                          <MenuItem value="audio">Audio Lesson</MenuItem>
-                          <MenuItem value="file">Manual / Document</MenuItem>
-                          <MenuItem value="quiz">Interactive Quiz</MenuItem>
-                        </Select>
-                      </FormControl>
+                    <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <Box sx={{ flexShrink: 0 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 900, mb: 1, display: 'block', color: 'text.disabled' }}>FORMAT</Typography>
+                        <Stack direction="row" spacing={1}>
+                          {[
+                            { value: 'text', icon: <FileText size={18} />, label: 'Text' },
+                            { value: 'audio', icon: <Headphones size={18} />, label: 'Audio' },
+                            { value: 'video', icon: <Zap size={18} />, label: 'Video' },
+                            { value: 'image', icon: <ImageIcon size={18} />, label: 'Visual' },
+                            { value: 'quiz', icon: <HelpCircle size={18} />, label: 'Quiz' }
+                          ].map((type) => (
+                            <Tooltip title={type.label} key={type.value}>
+                              <IconButton 
+                                onClick={() => setNewSection({ ...newSection, type: type.value as any })}
+                                sx={{ 
+                                  width: 44, height: 44,
+                                  borderRadius: 3,
+                                  bgcolor: newSection.type === type.value ? 'primary.main' : alpha(theme.palette.action.hover, 0.5),
+                                  color: newSection.type === type.value ? 'white' : 'text.secondary',
+                                  '&:hover': { bgcolor: newSection.type === type.value ? 'primary.dark' : alpha(theme.palette.action.hover, 1) }
+                                }}
+                              >
+                                {type.icon}
+                              </IconButton>
+                            </Tooltip>
+                          ))}
+                        </Stack>
+                      </Box>
                       
                       {newSection.type !== 'quiz' && (
-                        <Box sx={{ flex: 1, display: 'flex', gap: 1 }}>
-                          <TextField 
-                            fullWidth 
-                            placeholder={newSection.type === 'video' ? "YouTube / Cloud Video URL" : "Paste URL or upload file"} 
-                            value={newSection.mediaUrl} 
-                            onChange={(e) => setNewSection({ ...newSection, mediaUrl: e.target.value })} 
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
-                          />
-                          {(['image', 'file', 'audio'].includes(newSection.type)) && (
-                            <IconButton 
-                              component="label" 
-                              sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', borderRadius: 2 }}
-                            >
-                              <Paperclip size={20} />
-                              <input type="file" hidden accept={newSection.type === 'audio' ? 'audio/*' : newSection.type === 'image' ? 'image/*' : '*'} onChange={(e) => handleFileUpload(e, 'section')} />
-                            </IconButton>
-                          )}
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 900, mb: 1, display: 'block', color: 'text.disabled' }}>MEDIA SOURCE</Typography>
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <TextField 
+                              fullWidth 
+                              placeholder={newSection.type === 'video' ? "YouTube URL" : "URL or Upload"} 
+                              value={newSection.mediaUrl} 
+                              onChange={(e) => setNewSection({ ...newSection, mediaUrl: e.target.value })} 
+                              variant="outlined"
+                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: alpha(theme.palette.background.default, 0.4) } }}
+                            />
+                            {(['image', 'file', 'audio'].includes(newSection.type)) && (
+                              <Button 
+                                component="label" 
+                                variant="outlined"
+                                startIcon={<Paperclip size={18} />}
+                                sx={{ borderRadius: 3, px: 3, whiteSpace: 'nowrap' }}
+                              >
+                                Upload
+                                <input type="file" hidden accept={newSection.type === 'audio' ? 'audio/*' : newSection.type === 'image' ? 'image/*' : '*'} onChange={(e) => handleFileUpload(e, 'section')} />
+                              </Button>
+                            )}
+                          </Box>
                         </Box>
                       )}
                     </Box>
 
                     {newSection.type === 'quiz' ? (
-                      <Box sx={{ p: 2, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
-                        <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <HelpCircle size={18} /> Quiz Builder
+                       // ... (quiz builder code remains similar but styled)
+                       <Box sx={{ p: 3, borderRadius: 4, bgcolor: alpha(theme.palette.primary.main, 0.05), border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
+                        <Typography variant="subtitle2" sx={{ mb: 3, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: 'primary.main', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <HelpCircle size={18} />
+                          </Box>
+                          Interactive Quiz Builder
                         </Typography>
-                        <Stack spacing={2}>
+                        <Stack spacing={3}>
                           <TextField 
                             fullWidth 
-                            label="Question" 
-                            size="small"
+                            label="Question Text" 
+                            variant="filled"
                             value={currentQuizQuestion.question}
                             onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, question: e.target.value })}
+                            sx={{ '& .MuiFilledInput-root': { borderRadius: 3 } }}
                           />
-                          <Grid container spacing={1}>
+                          <Grid container spacing={2}>
                             {currentQuizQuestion.options.map((opt, idx) => (
                               <Grid size={6} key={idx}>
                                 <TextField 
                                   fullWidth 
-                                  label={`Option ${idx + 1}`} 
-                                  size="small"
+                                  placeholder={`Option ${idx + 1}`} 
+                                  variant="outlined"
                                   value={opt}
                                   onChange={(e) => {
                                     const newOpts = [...currentQuizQuestion.options];
                                     newOpts[idx] = e.target.value;
                                     setCurrentQuizQuestion({ ...currentQuizQuestion, options: newOpts });
                                   }}
-                                  InputProps={{
-                                    endAdornment: (
-                                      <IconButton size="small" onClick={() => setCurrentQuizQuestion({ ...currentQuizQuestion, correctAnswer: idx })}>
-                                        {currentQuizQuestion.correctAnswer === idx ? <CheckCircle size={16} color="green" /> : <Box sx={{ width: 16, height: 16, borderRadius: '50%', border: '1px solid gray' }} />}
-                                      </IconButton>
-                                    )
+                                  slotProps={{
+                                    input: {
+                                      sx: { borderRadius: 3 },
+                                      endAdornment: (
+                                        <IconButton size="small" onClick={() => setCurrentQuizQuestion({ ...currentQuizQuestion, correctAnswer: idx })}>
+                                          {currentQuizQuestion.correctAnswer === idx ? <CheckCircle size={18} color={theme.palette.success.main} /> : <Box sx={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid', borderColor: 'divider' }} />}
+                                        </IconButton>
+                                      )
+                                    }
                                   }}
                                 />
                               </Grid>
                             ))}
                           </Grid>
-                          <Button variant="outlined" size="small" onClick={handleAddQuizQuestion} disabled={!currentQuizQuestion.question}>
-                            Add Question to Quiz ({newSection.quizData.questions.length})
+                          <Button variant="contained" color="secondary" onClick={handleAddQuizQuestion} disabled={!currentQuizQuestion.question} sx={{ borderRadius: 3, fontWeight: 900 }}>
+                            Add This Question ({newSection.quizData.questions.length} total)
                           </Button>
                         </Stack>
-                        
-                        {newSection.quizData.questions.length > 0 && (
-                          <Box sx={{ mt: 2 }}>
-                            <Divider sx={{ mb: 1 }} />
-                            <Typography variant="caption" sx={{ fontWeight: 700 }}>Questions Added:</Typography>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-                              {newSection.quizData.questions.map((q, i) => (
-                                <Chip key={i} size="small" label={`Q${i+1}`} onDelete={() => {
-                                  const newQuestions = [...newSection.quizData.questions];
-                                  newQuestions.splice(i, 1);
-                                  setNewSection({ ...newSection, quizData: { ...newSection.quizData, questions: newQuestions } });
-                                }} />
-                              ))}
-                            </Box>
-                          </Box>
-                        )}
                       </Box>
                     ) : (
                       <Box sx={{ 
-                        '& .editor-toolbar': { borderColor: theme.palette.divider, borderRadius: '12px 12px 0 0' },
+                        '& .editor-toolbar': { 
+                          borderColor: 'divider', 
+                          borderRadius: '16px 16px 0 0',
+                          bgcolor: theme.palette.mode === 'dark' ? '#222' : '#f8f9fa'
+                        },
                         '& .CodeMirror': { 
-                          borderColor: theme.palette.divider, 
-                          borderRadius: '0 0 12px 12px',
-                          bgcolor: alpha(theme.palette.background.default, 0.4),
+                          borderColor: 'divider', 
+                          borderRadius: '0 0 16px 16px',
+                          bgcolor: theme.palette.mode === 'dark' ? '#0a0a0a' : '#fff',
                           color: theme.palette.text.primary,
                           fontFamily: 'var(--font-urdu), var(--font-sans)',
-                          fontSize: '1.25rem'
+                          fontSize: '1.25rem',
+                          minHeight: '300px'
                         },
-                        '& .CodeMirror-cursor': { borderLeft: `2px solid ${theme.palette.primary.main}` }
+                        '& .CodeMirror-cursor': { borderLeft: `2px solid ${theme.palette.primary.main}` },
+                        '& .editor-preview': { bgcolor: 'background.paper', color: 'text.primary' }
                       }}>
-                        <Typography variant="caption" sx={{ fontWeight: 800, mb: 1, display: 'block' }}>Module Content (Markdown & HTML supported)</Typography>
+                        <Typography variant="overline" sx={{ fontWeight: 900, mb: 1.5, display: 'block', color: 'primary.main', opacity: 0.8 }}>LESSON CONTENT (URDU SUPPORTED)</Typography>
                         <SimpleMDE 
+                          key={editingSectionIdx ?? 'new'}
                           value={newSection.content} 
                           onChange={(value) => setNewSection({ ...newSection, content: value })} 
                           options={{
-                            placeholder: "Enter course content in Urdu (Nastaliq enabled)...",
+                            placeholder: "Write your lesson notes here... Markdown and Urdu are fully supported.",
                             autofocus: false,
                             spellChecker: false,
                             status: false,
-                            minHeight: "200px"
+                            minHeight: "300px"
                           }}
                         />
                       </Box>
@@ -837,50 +960,88 @@ export default function Courses() {
                     
                     <Button 
                       variant="contained" 
-                      color="primary" 
+                      color={editingSectionIdx !== null ? "secondary" : "primary"} 
                       onClick={handleAddSection} 
-                      startIcon={<Plus size={20} />}
-                      disabled={newSection.type === 'quiz' ? newSection.quizData.questions.length === 0 : !newSection.content}
-                      sx={{ borderRadius: 3, fontWeight: 800, py: 1.5, textTransform: 'none', fontSize: '1rem' }}
+                      startIcon={editingSectionIdx !== null ? <CheckCircle size={20} /> : <Plus size={20} />}
+                      disabled={newSection.type === 'quiz' ? newSection.quizData.questions.length === 0 : !newSection.content && !newSection.mediaUrl}
+                      sx={{ 
+                        borderRadius: 4, fontWeight: 950, py: 2, 
+                        fontSize: '1.1rem',
+                        boxShadow: `0 10px 30px ${alpha(editingSectionIdx !== null ? theme.palette.secondary.main : theme.palette.primary.main, 0.3)}`
+                      }}
                     >
-                      Add Module to Course
+                      {editingSectionIdx !== null ? 'Update Lesson in Path' : 'Save Lesson to Course Track'}
                     </Button>
+                    {editingSectionIdx !== null && (
+                      <Button variant="text" onClick={() => {
+                        setEditingSectionIdx(null);
+                        setNewSection({ 
+                          title: '', content: '', type: 'text', mediaUrl: '',
+                          quizData: { questions: [], passingScore: 70 }
+                        });
+                      }} sx={{ fontWeight: 800 }}>
+                        Cancel Edit
+                      </Button>
+                    )}
                   </Stack>
                 </Paper>
 
-                <Box sx={{ maxHeight: 400, overflow: 'auto', pr: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    Course Path Preview ({formData.sections.length} Modules)
+                <Box sx={{ maxHeight: 600, overflow: 'auto', pr: 1, pb: 4 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 950, mb: 2.5, px: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Layers size={22} className="text-primary-500" />
+                    Course Soundtrack / Lessons ({formData.sections.length})
                   </Typography>
                   {formData.sections.length === 0 ? (
-                    <Box sx={{ p: 4, textAlign: 'center', bgcolor: 'action.hover', borderRadius: 3, border: '1px dashed divider' }}>
-                      <Typography variant="body2" color="text.disabled">No modules added yet. Start by adding one above.</Typography>
+                    <Box sx={{ p: 6, textAlign: 'center', bgcolor: alpha(theme.palette.action.hover, 0.5), borderRadius: 6, border: '2px dashed', borderColor: 'divider' }}>
+                      <Typography variant="body1" sx={{ fontWeight: 700, color: 'text.secondary' }}>No lessons added yet.</Typography>
                     </Box>
                   ) : (
-                    <Stack spacing={2}>
+                    <Stack spacing={1.5}>
                       {formData.sections.map((s, i) => (
-                        <Card key={i} variant="outlined" sx={{ borderRadius: 3, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Box sx={{ 
-                              width: 32, height: 32, 
-                              borderRadius: 1, 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center', 
-                              bgcolor: 'primary.main', 
-                              color: 'white',
-                              fontWeight: 900
+                        <Card 
+                          key={i} 
+                          variant="outlined" 
+                          sx={{ 
+                            borderRadius: 4, p: 2, 
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            transition: 'all 0.2s',
+                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05), borderColor: 'primary.main', transform: 'scale(1.01)' }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
+                            <Avatar sx={{ 
+                              width: 48, height: 48, 
+                              borderRadius: 3, 
+                              bgcolor: alpha(theme.palette.primary.main, 0.1), 
+                              color: 'primary.main',
+                              fontWeight: 900,
+                              fontSize: '1.2rem'
                             }}>
                               {i + 1}
-                            </Box>
+                            </Avatar>
                             <Box>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 800, lineHeight: 1 }}>{s.title}</Typography>
-                              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>{s.type} content</Typography>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.2 }}>{s.title}</Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5 }}>
+                                <Chip 
+                                  label={s.type.toUpperCase()} 
+                                  size="small" 
+                                  variant="outlined"
+                                  sx={{ height: 18, fontSize: '0.65rem', fontWeight: 900, borderRadius: 1 }} 
+                                />
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
+                                  {s.content ? `${s.content.substring(0, 40)}...` : 'Media Content'}
+                                </Typography>
+                              </Box>
                             </Box>
                           </Box>
-                          <IconButton size="small" color="error" onClick={() => setFormData({ ...formData, sections: formData.sections.filter((_, idx) => idx !== i) })}>
-                            <Trash2 size={18} />
-                          </IconButton>
+                          <Stack direction="row" spacing={1}>
+                            <IconButton size="small" color="primary" onClick={() => handleEditSection(i)}>
+                               <Edit2 size={18} />
+                            </IconButton>
+                            <IconButton size="small" color="error" onClick={() => setFormData({ ...formData, sections: formData.sections.filter((_, idx) => idx !== i) })}>
+                              <Trash2 size={18} />
+                            </IconButton>
+                          </Stack>
                         </Card>
                       ))}
                     </Stack>
@@ -917,262 +1078,287 @@ export default function Courses() {
       </Dialog>
 
       {/* Course Reader Dialog */}
-      <Dialog
-        fullScreen
-        open={openReader}
-        onClose={() => setOpenReader(false)}
-        TransitionComponent={Fade}
-        TransitionProps={{ timeout: 500 }}
+      <Dialog 
+        fullScreen 
+        open={openReader} 
+        onClose={() => setOpenReader(false)} 
+        TransitionComponent={Slide}
+        TransitionProps={{ direction: 'up' } as any}
+        PaperProps={{ 
+          sx: { 
+            bgcolor: 'background.default',
+            backgroundImage: 'none'
+          } 
+        }}
       >
-        <Box sx={{ position: 'fixed', top: 0, left: 0, width: '100%', height: 4, zIndex: 3000, bgcolor: 'rgba(255,255,255,0.05)' }}>
-          <motion.div 
-            style={{ 
-              height: '100%', 
-              backgroundColor: theme.palette.primary.main, 
-              width: `${scrollProgress}%`,
-              boxShadow: `0 0 10px ${theme.palette.primary.main}` 
-            }}
-            initial={{ width: 0 }}
-            animate={{ width: `${scrollProgress}%` }}
-          />
-        </Box>
-        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-          <AppBar sx={{ position: 'relative', bgcolor: 'background.paper', color: 'text.primary', borderBottom: 1, borderColor: 'divider' }} elevation={0}>
+        <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+          <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider', color: 'text.primary' }}>
             <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 4 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconButton edge="start" color="inherit" onClick={() => setOpenReader(false)} aria-label="close">
-                  <X />
+                <IconButton onClick={() => setOpenReader(false)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) } }}>
+                  <ArrowLeft size={20} />
                 </IconButton>
                 <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1 }}>{viewingCourse?.name}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{viewingCourse?.code} • {viewingCourse?.teacherName}</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900, lineHeight: 1, color: 'primary.main', mb: 0.5 }}>LEARNING HUB</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, opacity: 0.8 }} noWrap>{viewingCourse?.name}</Typography>
                 </Box>
               </Box>
-              <Stack direction="row" spacing={1}>
-                {isStaff && (
-                  <Button 
-                    variant="outlined" 
-                    size="small" 
-                    startIcon={<Edit2 size={16} />}
-                    onClick={() => {
-                      if (viewingCourse) {
-                        setOpenReader(false);
-                        handleEdit(viewingCourse);
-                      }
-                    }}
-                    sx={{ borderRadius: 2, fontWeight: 700 }}
-                  >
-                    Edit
-                  </Button>
-                )}
-                <Chip icon={<Globe size={14} />} label="Live" color="success" size="small" variant="outlined" sx={{ fontWeight: 900 }} />
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Chip 
+                  label={`${activeSection + 1} / ${viewingCourse?.sections?.length || 0}`} 
+                  size="small" 
+                  sx={{ fontWeight: 900, bgcolor: 'primary.main', color: 'white', px: 1 }} 
+                />
               </Stack>
             </Toolbar>
+            {readerLoading && <LinearProgress sx={{ height: 3 }} />}
           </AppBar>
 
-          <Box sx={{ flexGrow: 1, overflow: 'auto', py: { xs: 4, md: 8 } }} onScroll={handleScroll}>
-            <Container maxWidth="lg">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-              >
-                <Grid container spacing={6}>
-                  <Grid size={{ xs: 12, lg: 8 }}>
-                    {viewingCourse?.thumbnailUrl && (
-                      <Box 
-                        component="img" 
-                        src={viewingCourse.thumbnailUrl} 
-                        sx={{ width: '100%', height: { xs: 200, md: 450 }, objectFit: 'cover', borderRadius: 8, mb: 6, boxShadow: '0 30px 60px rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.1)' }} 
-                      />
-                    )}
-
-                    <Box sx={{ mb: 8, textAlign: isRTL(viewingCourse?.name || '') ? 'right' : 'left', dir: isRTL(viewingCourse?.name || '') ? 'rtl' : 'ltr' }}>
-                      <Typography variant="h2" component="h1" sx={{ fontWeight: 950, mb: 3, letterSpacing: -2, color: 'text.primary', fontFamily: 'var(--font-serif)' }}>
-                        {viewingCourse?.name}
-                      </Typography>
-                      <Typography variant="h6" color="text.secondary" sx={{ lineHeight: 1.8, fontWeight: 500, fontSize: '1.3rem', p: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 4, borderLeft: '4px solid', borderColor: 'primary.main' }}>
-                        {viewingCourse?.description}
-                      </Typography>
-                    </Box>
-
-                    <Divider sx={{ mb: 8, opacity: 0.1 }} />
-
-                    <Stack spacing={12}>
-                      {viewingCourse?.sections?.map((section, index) => {
-                        const isSectionRTL = isRTL(section.title) || isRTL(section.content);
-                        return (
-                          <Box key={section.id || index} id={`section-${index}`} sx={{ textAlign: isSectionRTL ? 'right' : 'left', dir: isSectionRTL ? 'rtl' : 'ltr' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 6, flexDirection: isSectionRTL ? 'row-reverse' : 'row' }}>
-                              <Box sx={{ 
-                                width: 64, height: 64, 
-                                borderRadius: 4, 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center', 
-                                bgcolor: 'primary.main', 
-                                color: 'white',
-                                fontWeight: 900,
-                                fontSize: '1.8rem',
-                                boxShadow: '0 10px 20px rgba(15, 118, 110, 0.3)',
-                                transform: 'rotate(-5deg)'
-                              }}>
-                                {index + 1}
-                              </Box>
-                              <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: -1.5, color: 'text.primary', flex: 1 }}>
-                                {section.title}
-                              </Typography>
-                            </Box>
-
-                        {section.mediaUrl && (
-                          <Box sx={{ mb: 4 }}>
-                            {section.type === 'video' ? (
-                              <Box sx={{ position: 'relative', pt: '56.25%', borderRadius: 4, overflow: 'hidden', bgcolor: 'black', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                <iframe
-                                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
-                                  src={section.mediaUrl.includes('youtube') ? section.mediaUrl.replace('watch?v=', 'embed/') : section.mediaUrl}
-                                  title={section.title}
-                                  allowFullScreen
-                                />
-                              </Box>
-                            ) : section.type === 'audio' ? (
-                              <Paper sx={{ 
-                                p: 3, 
-                                borderRadius: 5, 
-                                bgcolor: 'rgba(255,255,255,0.03)', 
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: 3,
-                                boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
-                              }}>
-                                <Box sx={{ 
-                                  width: 60, height: 60, 
-                                  borderRadius: '50%', 
-                                  bgcolor: 'primary.main', 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
-                                  justifyContent: 'center',
-                                  color: 'black',
-                                  flexShrink: 0,
-                                  boxShadow: `0 0 20px ${alpha(theme.palette.primary.main, 0.4)}`
-                                }}>
-                                  <Headphones size={28} />
-                                </Box>
-                                <Box sx={{ flex: 1 }}>
-                                  <Typography variant="overline" sx={{ color: 'primary.main', fontWeight: 900, letterSpacing: 2 }}>AUDIO BROADCAST</Typography>
-                                  <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 800, mb: 1 }}>Voice Lesson: {section.title}</Typography>
-                                  <audio controls style={{ width: '100%', height: '40px', filter: 'invert(100%)' }}>
-                                    <source src={section.mediaUrl} type="audio/mpeg" />
-                                    Your browser does not support the audio element.
-                                  </audio>
-                                </Box>
-                              </Paper>
-                            ) : section.type === 'image' ? (
-                              <Box component="img" src={section.mediaUrl} sx={{ width: '100%', borderRadius: 4, boxShadow: '0 10px 30px rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)' }} />
-                            ) : section.type === 'file' ? (
-                              <Button 
-                                variant="outlined" 
-                                startIcon={<FileText size={20} />}
-                                href={section.mediaUrl}
-                                target="_blank"
-                                sx={{ borderRadius: 3, p: 2, fontWeight: 700, color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}
-                              >
-                                View/Download Attachment
-                              </Button>
-                            ) : null}
+          <Box sx={{ flexGrow: 1, overflow: 'auto', p: 0, bgcolor: theme.palette.mode === 'dark' ? '#0a0a0a' : '#f4f7f6' }}>
+            <Container maxWidth={false} sx={{ height: '100%', p: 0 }}>
+              <Grid container sx={{ minHeight: '100%' }}>
+                {/* Visual Rail - Audiobook Style */}
+                <Grid size={{ xs: 12, md: 6 }} sx={{ 
+                  bgcolor: 'background.paper', 
+                  borderRight: '1px solid', 
+                  borderColor: 'divider',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  maxHeight: { md: 'calc(100vh - 64px)' },
+                  minHeight: { xs: '50vh', md: 'auto' },
+                  overflow: 'auto',
+                  position: { md: 'sticky' },
+                  top: 0
+                }}>
+                  <Box sx={{ p: { xs: 4, md: 6 }, textAlign: 'center' }}>
+                    <motion.div
+                      key={activeSection}
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', damping: 20 }}
+                    >
+                      <Card sx={{ 
+                        borderRadius: 10, 
+                        overflow: 'hidden', 
+                        boxShadow: '0 30px 60px rgba(0,0,0,0.15)',
+                        aspectRatio: '1/1',
+                        mb: 4,
+                        position: 'relative'
+                      }}>
+                        <Box 
+                          component="img"
+                          referrerPolicy="no-referrer"
+                          src={viewingCourse?.sections?.[activeSection]?.mediaUrl || viewingCourse?.thumbnailUrl || `https://picsum.photos/seed/${viewingCourse?.id}/800`}
+                          sx={{ 
+                            width: '100%', height: '100%', objectFit: 'cover',
+                            filter: readerLoading ? 'blur(10px)' : 'none',
+                            transition: 'filter 0.4s ease'
+                          }}
+                        />
+                        {viewingCourse?.sections?.[activeSection]?.type === 'audio' && (
+                          <Box sx={{ 
+                            position: 'absolute', bottom: 20, right: 20,
+                            width: 50, height: 50, borderRadius: '50%',
+                            bgcolor: 'primary.main', color: 'white',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: '0 10px 20px rgba(0,0,0,0.2)'
+                          }}>
+                            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                              <Music size={24} />
+                            </motion.div>
                           </Box>
                         )}
+                      </Card>
+                    </motion.div>
 
-                        {section.type === 'quiz' && section.quizData ? (
-                          <Box id={`section-quiz-${index}`}>
-                            <QuizViewer 
-                              quiz={section.quizData} 
-                              sectionId={section.id || index.toString()} 
-                              courseId={viewingCourse?.id || ''}
-                              currentUser={currentUser}
+                    <Typography variant="h4" sx={{ fontWeight: 950, mb: 1, letterSpacing: -1.5 }}>
+                      {viewingCourse?.sections?.[activeSection]?.title}
+                    </Typography>
+                    <Typography variant="subtitle1" color="text.secondary" sx={{ fontWeight: 700, mb: 4, opacity: 0.7 }}>
+                      {viewingCourse?.name} • Module {activeSection + 1}
+                    </Typography>
+
+                    {viewingCourse?.sections?.[activeSection]?.type === 'audio' && viewingCourse?.sections?.[activeSection]?.mediaUrl && (
+                      <Box sx={{ mb: 6, p: 3, borderRadius: 5, bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                        <audio 
+                          controls 
+                          style={{ width: '100%' }}
+                          src={viewingCourse.sections[activeSection].mediaUrl}
+                        />
+                        <Typography variant="caption" sx={{ mt: 1, display: 'block', fontWeight: 800, color: 'primary.main' }}>
+                          Now Playing: Original Audio Lesson
+                        </Typography>
+                      </Box>
+                    )}
+
+                    <Box sx={{ textAlign: 'left' }}>
+                       <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.disabled', letterSpacing: 2 }}>COURSE TRACKS</Typography>
+                       <Stack spacing={1} sx={{ mt: 2 }}>
+                         {viewingCourse?.sections?.map((section, idx) => (
+                           <Box
+                             key={idx}
+                             onClick={() => handleSectionChange(idx)}
+                             sx={{
+                               p: 2, borderRadius: 4, cursor: 'pointer',
+                               display: 'flex', alignItems: 'center', gap: 2,
+                               transition: 'all 0.2s',
+                               bgcolor: activeSection === idx ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                               '&:hover': { bgcolor: activeSection === idx ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.action.hover, 0.5) }
+                             }}
+                           >
+                             <Avatar sx={{ 
+                               width: 32, height: 32, fontSize: '0.8rem', fontWeight: 900,
+                               bgcolor: activeSection === idx ? 'primary.main' : 'divider',
+                               color: activeSection === idx ? 'white' : 'text.secondary'
+                             }}>
+                               {idx + 1}
+                             </Avatar>
+                             <Box sx={{ flex: 1 }}>
+                               <Typography variant="body2" sx={{ fontWeight: activeSection === idx ? 900 : 700, color: activeSection === idx ? 'primary.main' : 'text.primary' }} noWrap>
+                                 {section.title}
+                               </Typography>
+                               <Typography variant="caption" sx={{ fontWeight: 600, opacity: 0.5 }}>{section.type.toUpperCase()}</Typography>
+                             </Box>
+                             {activeSection === idx && <CheckCircle size={16} className="text-primary-500" />}
+                           </Box>
+                         ))}
+                       </Stack>
+                    </Box>
+                  </Box>
+                </Grid>
+
+                {/* Content Side */}
+                <Grid size={{ xs: 12, md: 6 }} sx={{ p: { xs: 4, md: 8, lg: 10 } }}>
+                  <Box id="reader-content-top" />
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeSection}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.4 }}
+                    >
+                      {/* Media Display */}
+                      {viewingCourse?.sections?.[activeSection]?.type === 'video' && viewingCourse?.sections?.[activeSection]?.mediaUrl && (
+                        <Box sx={{ mb: 6, borderRadius: 10, overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }}>
+                           <iframe 
+                             width="100%" 
+                             height="500" 
+                             src={viewingCourse.sections[activeSection].mediaUrl.replace('watch?v=', 'embed/')} 
+                             title="Lesson Video" 
+                             frameBorder="0" 
+                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                             allowFullScreen
+                           />
+                        </Box>
+                      )}
+
+                      {viewingCourse?.sections?.[activeSection]?.type === 'image' && viewingCourse?.sections?.[activeSection]?.mediaUrl && (
+                        <Box sx={{ mb: 6, borderRadius: 10, overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }}>
+                           <Box 
+                             component="img" 
+                             referrerPolicy="no-referrer"
+                             src={viewingCourse.sections[activeSection].mediaUrl} 
+                             sx={{ width: '100%', maxHeight: 800, objectFit: 'contain', bgcolor: '#000' }} 
                             />
-                          </Box>
+                        </Box>
+                      )}
+
+                      {viewingCourse?.sections?.[activeSection]?.type === 'file' && viewingCourse?.sections?.[activeSection]?.mediaUrl && (
+                        <Paper sx={{ mb: 6, p: 4, borderRadius: 6, bgcolor: alpha(theme.palette.primary.main, 0.05), border: '2px dashed', borderColor: 'primary.main', display: 'flex', alignItems: 'center', gap: 3 }}>
+                           <Paperclip size={40} className="text-primary-500" />
+                           <Box sx={{ flex: 1 }}>
+                             <Typography variant="h6" sx={{ fontWeight: 900 }}>Resource Pack Attached</Typography>
+                             <Typography variant="body2" sx={{ opacity: 0.7, fontWeight: 600 }}>Download the supplementary material for this lesson.</Typography>
+                           </Box>
+                           <Button variant="contained" href={viewingCourse.sections[activeSection].mediaUrl} target="_blank" sx={{ borderRadius: 3, fontWeight: 900 }}>Download</Button>
+                        </Paper>
+                      )}
+
+                      {/* Text Content */}
+                      <Box 
+                        sx={{ 
+                          '& p': { 
+                            mb: 4, lineHeight: 1.9, fontSize: '1.4rem', color: 'text.primary',
+                            fontFamily: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 'var(--font-urdu)' : 'inherit',
+                            textAlign: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 'right' : 'left',
+                            wordSpacing: '0.05em'
+                          },
+                          '& li': { mb: 2, fontSize: '1.3rem', color: 'text.primary', lineHeight: 1.6 },
+                          '& h1, & h2, & h3': { mb: 4, mt: 8, fontWeight: 950, color: 'text.primary', letterSpacing: -1.5, lineHeight: 1.1 },
+                          '& blockquote': {
+                            borderLeft: '6px solid',
+                            borderColor: 'primary.main',
+                            pl: 4, py: 2, my: 6,
+                            fontStyle: 'italic',
+                            bgcolor: alpha(theme.palette.primary.main, 0.05),
+                            borderRadius: 3,
+                            fontSize: '1.5rem',
+                            lineHeight: 1.5
+                          },
+                          '& img': { maxWidth: '100%', borderRadius: 6, my: 4, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }
+                        }}
+                      >
+                        <ReactMarkdown>{viewingCourse?.sections?.[activeSection]?.content || ''}</ReactMarkdown>
+                      </Box>
+
+                      {viewingCourse?.sections?.[activeSection]?.quizData?.questions?.length > 0 && (
+                        <Box sx={{ mt: 10 }}>
+                          <Divider sx={{ mb: 6 }} />
+                          <Typography variant="h4" sx={{ fontWeight: 950, mb: 4, letterSpacing: -1 }}>Knowledge Check</Typography>
+                          <QuizViewer 
+                            quiz={viewingCourse.sections[activeSection].quizData} 
+                            sectionId={viewingCourse.sections[activeSection].id || activeSection.toString()} 
+                            courseId={viewingCourse?.id || ''}
+                            currentUser={currentUser}
+                          />
+                        </Box>
+                      )}
+
+                      <Box sx={{ mt: 15, pt: 6, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Button
+                          disabled={activeSection === 0}
+                          onClick={() => handleSectionChange(activeSection - 1)}
+                          startIcon={<ChevronLeft />}
+                          sx={{ borderRadius: 3, fontWeight: 900, px: 4, py: 1.5, fontSize: '1rem' }}
+                        >
+                          Previous
+                        </Button>
+                        
+                        {activeSection < (viewingCourse?.sections?.length || 0) - 1 ? (
+                          <Button
+                            variant="contained"
+                            onClick={() => handleSectionChange(activeSection + 1)}
+                            endIcon={<ChevronRight />}
+                            sx={{ 
+                              borderRadius: 5, fontWeight: 950, px: 6, py: 2,
+                              fontSize: '1.2rem',
+                              bgcolor: 'primary.main',
+                              boxShadow: `0 20px 40px ${alpha(theme.palette.primary.main, 0.3)}`,
+                              '&:hover': { bgcolor: 'primary.dark', transform: 'translateY(-3px)' }
+                            }}
+                          >
+                            Next Lesson
+                          </Button>
                         ) : (
-                          <Box>
-                            <Box 
-                              sx={{ 
-                                fontSize: '1.4rem', 
-                                lineHeight: 2, 
-                                color: 'rgba(255,255,255,0.95)',
-                                fontFamily: isSectionRTL ? 'var(--font-urdu), "Inter", sans-serif' : '"Inter", sans-serif',
-                                textAlign: isSectionRTL ? 'right' : 'left',
-                                direction: isSectionRTL ? 'rtl' : 'ltr',
-                                '& p': { mb: 3 },
-                                '& ul, & ol': { mb: 3, pl: 4 },
-                                '& li': { mb: 1.5 },
-                                '& h1, & h2, & h3': { fontFamily: isSectionRTL ? 'var(--font-urdu)' : 'var(--font-serif)', color: '#fff', mb: 3, fontWeight: 700 }
-                              }}
-                            >
-                              <ReactMarkdown>{section.content}</ReactMarkdown>
+                          <Box sx={{ 
+                            p: 4, borderRadius: 6, bgcolor: alpha(theme.palette.success.main, 0.08), border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.2),
+                            display: 'flex', alignItems: 'center', gap: 3
+                          }}>
+                            <Box sx={{ width: 60, height: 60, borderRadius: '50%', bgcolor: 'success.main', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Trophy size={32} />
                             </Box>
-                            {section.quizData && (
-                              <Box sx={{ mt: 6 }} id={`section-quiz-${index}`}>
-                                <Box sx={{ p: 4, borderRadius: 4, bgcolor: alpha(theme.palette.primary.main, 0.05), border: '1px dashed', borderColor: 'primary.main', textAlign: 'center', mb: 4 }}>
-                                  <Trophy size={32} color={theme.palette.primary.main} style={{ marginBottom: 16 }} />
-                                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>Lesson Knowledge Check</Typography>
-                                  <Typography variant="body2" sx={{ mb: 3, color: 'text.secondary' }}>Test your understanding of this module.</Typography>
-                                </Box>
-                                <QuizViewer 
-                                  quiz={section.quizData} 
-                                  sectionId={section.id || index.toString()} 
-                                  courseId={viewingCourse?.id || ''}
-                                  currentUser={currentUser}
-                                />
-                              </Box>
-                            )}
+                            <Box>
+                              <Typography variant="h6" sx={{ fontWeight: 950, color: 'success.main', lineHeight: 1 }}>Course Track Completed!</Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700, mt: 0.5 }}>MashAllah, you have successfully finished this curriculum.</Typography>
+                            </Box>
                           </Box>
                         )}
                       </Box>
-                    );
-                  })}
-                    </Stack>
-                  </Grid>
-
-                  {/* Right Sidebar: Module Navigation */}
-                  <Grid size={{ xs: 12, lg: 4 }} sx={{ display: { xs: 'none', lg: 'block' } }}>
-                    <Box sx={{ position: 'sticky', top: 20 }}>
-                      <Card sx={{ borderRadius: 6, p: 4, border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', bgcolor: 'background.paper' }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 3, letterSpacing: -0.5 }}>Module Navigation</Typography>
-                        <List disablePadding>
-                          {viewingCourse?.sections?.map((s, i) => (
-                            <ListItem 
-                               key={i} 
-                               onClick={() => document.getElementById(`section-${i}`)?.scrollIntoView({ behavior: 'smooth' })}
-                               sx={{ 
-                                 borderRadius: 3, 
-                                 mb: 1,
-                                 cursor: 'pointer',
-                                 bgcolor: alpha(theme.palette.primary.main, 0.03),
-                                 '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
-                               }}
-                             >
-                              <ListItemAvatar>
-                                <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', fontWeight: 900, bgcolor: 'primary.main', color: 'white' }}>{i + 1}</Avatar>
-                              </ListItemAvatar>
-                              <ListItemText 
-                                primary={s.title} 
-                                primaryTypographyProps={{ variant: 'body2', sx: { fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }} 
-                              />
-                            </ListItem>
-                          ))}
-                        </List>
-                      </Card>
-                    </Box>
-                  </Grid>
+                    </motion.div>
+                  </AnimatePresence>
                 </Grid>
-
-                <Box sx={{ mt: 12, p: { xs: 4, md: 8 }, borderRadius: 8, bgcolor: alpha(theme.palette.primary.main, 0.05), textAlign: 'center', border: '2px dashed', borderColor: alpha(theme.palette.primary.main, 0.2) }}>
-                  <Trophy size={64} color={theme.palette.primary.main} className="mb-6 mx-auto" />
-                  <Typography variant="h4" sx={{ fontWeight: 950, mb: 2 }}>Mubarak ho! MashAllah</Typography>
-                  <Typography variant="h6" color="text.secondary" sx={{ maxWidth: 600, mx: 'auto', lineHeight: 1.6 }}>You've reached the end of the available modules in this course. Keep up the great work in your spiritual and academic journey!</Typography>
-                </Box>
-              </motion.div>
+              </Grid>
             </Container>
           </Box>
         </Box>
