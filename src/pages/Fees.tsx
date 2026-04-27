@@ -709,9 +709,10 @@ export default function Fees() {
                             startIcon={<Eye size={16} />}
                             sx={{ 
                               borderRadius: 2, fontWeight: 800, textTransform: 'none',
-                              bgcolor: alpha(theme.palette.info.main, 0.1),
-                              color: 'info.main',
-                              '&:hover': { bgcolor: 'info.main', color: 'white' }
+                              bgcolor: 'info.main',
+                              color: 'white',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                              '&:hover': { bgcolor: 'info.dark', transform: 'translateY(-1px)' }
                             }}
                             onClick={() => {
                               setSelectedReceipt(receipt);
@@ -731,9 +732,10 @@ export default function Fees() {
                                 startIcon={<Check size={16} />}
                                 sx={{ 
                                   borderRadius: 2, fontWeight: 800, textTransform: 'none',
-                                  bgcolor: alpha(theme.palette.success.main, 0.1),
-                                  color: 'success.main',
-                                  '&:hover': { bgcolor: 'success.main', color: 'white' }
+                                  bgcolor: 'success.main',
+                                  color: 'white',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                  '&:hover': { bgcolor: 'success.dark', transform: 'translateY(-1px)' }
                                 }}
                                 onClick={() => handleApprove(receipt)}
                               >
@@ -748,9 +750,10 @@ export default function Fees() {
                                 startIcon={<XCircle size={16} />}
                                 sx={{ 
                                   borderRadius: 2, fontWeight: 800, textTransform: 'none',
-                                  bgcolor: alpha(theme.palette.error.main, 0.1),
-                                  color: 'error.main',
-                                  '&:hover': { bgcolor: 'error.main', color: 'white' }
+                                  bgcolor: 'error.main',
+                                  color: 'white',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                  '&:hover': { bgcolor: 'error.dark', transform: 'translateY(-1px)' }
                                 }}
                                 onClick={() => handleReject(receipt)}
                               >

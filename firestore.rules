@@ -37,15 +37,15 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isSignedIn() && (
         request.auth.uid == 'sZUiAgoSF8MTPBQAOtj6jbFkot93' ||
-        ('email' in request.auth.token && request.auth.token.email.lower() == 'zeeshanmaqbool200@gmail.com') ||
-        getUserData().get('role', '') == 'superadmin'
+        (request.auth.token.keys().contains('email') && request.auth.token.email.lower() == 'zeeshanmaqbool200@gmail.com') ||
+        (getUserData() != null && getUserData().get('role', '') == 'superadmin')
       );
     }
     
     function isMuntazim() {
       return isSignedIn() && (
         request.auth.uid == 'sZUiAgoSF8MTPBQAOtj6jbFkot93' ||
-        ('email' in request.auth.token && request.auth.token.email.lower() == 'zeeshanmaqbool200@gmail.com') ||
+        (request.auth.token.keys().contains('email') && request.auth.token.email.lower() == 'zeeshanmaqbool200@gmail.com') ||
         (getUserData() != null && (getUserData().get('role', '') == 'muntazim' || getUserData().get('role', '') == 'superadmin'))
       );
     }
