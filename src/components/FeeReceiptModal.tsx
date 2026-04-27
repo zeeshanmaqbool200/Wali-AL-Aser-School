@@ -36,92 +36,95 @@ const pdfStyles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
-    borderBottom: '1.5pt solid #0d9488',
-    paddingBottom: 10,
-    position: 'relative',
+    marginBottom: 15,
+    borderBottom: '2pt solid #0d9488',
+    paddingBottom: 12,
   },
   logo: {
-    width: 50,
-    height: 50,
+    width: 60,
+    height: 60,
   },
   headerText: {
-    marginLeft: 10,
+    marginLeft: 15,
     flex: 1,
+    maxWidth: 300, // Prevent text from pushing too far right
   },
   instituteName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
     color: '#0d9488',
     textTransform: 'uppercase',
+    marginBottom: 2,
   },
   maktabName: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
     color: '#0f766e',
-    marginVertical: 1,
+    marginBottom: 4,
     textTransform: 'uppercase',
   },
   address: {
-    fontSize: 6.5,
+    fontSize: 8,
     color: '#4b5563',
-    lineHeight: 1.2,
+    lineHeight: 1.4,
   },
   receiptMeta: {
     textAlign: 'right',
+    minWidth: 120,
   },
   receiptTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
-    color: '#F3F4F6',
-    marginBottom: 2,
-    letterSpacing: 2,
+    color: '#E5E7EB',
+    marginBottom: 4,
+    letterSpacing: 3,
   },
   receiptNo: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
     color: '#0d9488',
   },
   date: {
-    fontSize: 7,
+    fontSize: 9,
     color: '#6b7280',
-    marginTop: 1,
+    marginTop: 2,
   },
   detailsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
-    marginTop: 10,
+    marginBottom: 15,
+    marginTop: 15,
+    gap: 20,
   },
   detailColumn: {
     flex: 1,
   },
   label: {
-    fontSize: 6.5,
+    fontSize: 8,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
     color: '#9ca3af',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   value: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
   },
   subValue: {
-    fontSize: 7,
+    fontSize: 9,
     color: '#4b5563',
-    marginTop: 1,
+    marginTop: 2,
   },
   table: {
     width: '100%',
-    marginVertical: 10,
+    marginVertical: 15,
     border: '0.5pt solid #E5E7EB',
     borderRadius: 4,
     overflow: 'hidden',
@@ -129,38 +132,38 @@ const pdfStyles = StyleSheet.create({
   tableHeader: {
     backgroundColor: '#F9FAFB',
     flexDirection: 'row',
-    padding: 6,
+    padding: 10,
     borderBottom: '0.5pt solid #E5E7EB',
   },
   tableRow: {
     flexDirection: 'row',
-    padding: 8,
+    padding: 12,
     borderBottom: '0.5pt solid #f3f4f6',
   },
   tableFooter: {
     backgroundColor: '#f0f9f9',
     flexDirection: 'row',
-    padding: 8,
+    padding: 12,
   },
-  colDesc: { flex: 3 },
-  colAmount: { flex: 1, textAlign: 'right' },
+  colDesc: { flex: 4 },
+  colAmount: { flex: 1.5, textAlign: 'right' },
   wordsBox: {
     backgroundColor: '#F9FAFB',
-    padding: 8,
+    padding: 12,
     borderRadius: 6,
     border: '0.5pt solid #E5E7EB',
-    marginTop: 5,
+    marginTop: 10,
   },
   footer: {
-    marginTop: 20,
+    marginTop: 30,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
   },
   signatureBox: {
-    borderTop: '0.5pt solid #E5E7EB',
-    width: 120,
-    paddingTop: 6,
+    borderTop: '1pt solid #E5E7EB',
+    width: 150,
+    paddingTop: 8,
     textAlign: 'center',
   },
   signatureLabel: {
@@ -481,19 +484,20 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             )}
           </Box>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, borderBottom: '2px solid #0d9488', pb: 2, position: 'relative', zIndex: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
-              <Box component="img" src={settings.logoUrl} sx={{ width: { xs: 45, sm: 60 }, height: { xs: 45, sm: 60 } }} />
-              <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#0d9488 !important', lineHeight: 1.2, fontFamily: 'var(--font-serif)', textTransform: 'uppercase' }}>{settings.name}</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', textTransform: 'uppercase', fontSize: '0.6rem' }}>{settings.maktabName}</Typography>
-                <Typography variant="caption" sx={{ fontSize: '0.6rem', display: { xs: 'none', sm: 'block' } }}>{settings.address}</Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, borderBottom: '2px solid #0d9488', pb: 2, position: 'relative', zIndex: 1, gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, flex: 1, minWidth: 0 }}>
+              <Box component="img" src={settings.logoUrl} sx={{ width: { xs: 45, sm: 70 }, height: { xs: 45, sm: 70 }, flexShrink: 0 }} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: '#0d9488 !important', lineHeight: 1.1, fontFamily: 'var(--font-serif)', textTransform: 'uppercase', fontSize: { xs: '0.9rem', sm: '1.25rem' }, overflow: 'hidden', textOverflow: 'ellipsis' }}>{settings.name}</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'block', textTransform: 'uppercase', fontSize: { xs: '0.65rem', sm: '0.8rem' }, color: '#0f766e !important' }}>{settings.maktabName}</Typography>
+                <Typography variant="caption" sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' }, display: 'block', lineHeight: 1.3, mt: 0.5 }}>{settings.address}</Typography>
+                <Typography variant="caption" sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' }, display: 'block' }}>Ph: {settings.phone} • {settings.email}</Typography>
               </Box>
             </Box>
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: '#e5e7eb !important', letterSpacing: 2, fontFamily: 'var(--font-serif)' }}>RASEED</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 800, color: '#0d9488 !important' }}>No: {receiptNo}</Typography>
-              <Typography variant="caption" sx={{ display: 'block' }}>{format(new Date(receipt.date), 'dd MMM, yyyy')}</Typography>
+            <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+              <Typography variant="h5" sx={{ fontWeight: 900, color: '#f3f4f6 !important', letterSpacing: 2, fontFamily: 'var(--font-serif)', lineHeight: 1 }}>RASEED</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 800, color: '#0d9488 !important', mt: 1 }}>No: {receiptNo}</Typography>
+              <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>Date: {format(new Date(receipt.date), 'dd MMM, yyyy')}</Typography>
             </Box>
           </Box>
 

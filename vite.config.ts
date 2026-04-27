@@ -1,22 +1,21 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
+import { fileURLToPath } from 'url';
+import { defineConfig, loadEnv } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig(({mode}) => {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [
-      react(), 
+      react(),
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
-        workbox: {
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
-        },
         manifest: {
           name: 'Idarah Wali Ul Aser',
           short_name: 'Wali Ul Aser',
@@ -47,6 +46,28 @@ export default defineConfig(({mode}) => {
               purpose: 'maskable'
             }
           ]
+        },
+        workbox: {
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webmanifest}'],
+          // Skip missing files to avoid build errors
+          cleanupOutdatedCaches: true,
+          runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/idarahwaliulaser\.netlify\.app\/.*$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'external-assets',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+          ],
         }
       })
     ],
@@ -59,9 +80,16 @@ export default defineConfig(({mode}) => {
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      port: 3000,
+      host: '0.0.0.0',
       hmr: process.env.DISABLE_HMR !== 'true',
     },
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      emptyOutDir: true,
+      sourcemap: false,
+      minify: 'esbuild',
+    }
   };
 });

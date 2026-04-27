@@ -17,7 +17,7 @@ import {
   MoreVertical, User, GraduationCap, UserCheck,
   ArrowRight, ExternalLink, Download, Layout,
   Layers, CheckCircle, XCircle, Clock, Save,
-  Bell, Camera, X, Printer, RotateCcw
+  Bell, Camera, X, Printer, RotateCcw, ArrowLeft, FileText
 } from 'lucide-react';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDocs, writeBatch, getDoc, or, and, documentId } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartDeleteDoc } from '../firebase';
@@ -77,6 +77,7 @@ export default function Users() {
     maktabLevel: '' as MaktabLevel,
     admissionNo: '',
     teacherId: '',
+    dob: '',
     fatherName: '',
     motherName: '',
     rollNo: '',
@@ -248,6 +249,11 @@ export default function Users() {
         }
       }
       */
+
+      // Synchronize grade and maktabLevel for students
+      if (finalFormData.role === 'student' && finalFormData.maktabLevel) {
+        (finalFormData as any).grade = finalFormData.maktabLevel;
+      }
 
       if (editingUser) {
         await smartUpdateDoc(doc(db, 'users', editingUser.uid), finalFormData);
@@ -524,6 +530,7 @@ export default function Users() {
                   setFormData({ 
                     displayName: '', email: '', role: tabValue === 0 ? 'student' : 'mudaris', 
                     phone: '', maktabLevel: '' as MaktabLevel, admissionNo: '', teacherId: '', 
+                    dob: '',
                     fatherName: '', motherName: '', rollNo: '', admissionDate: format(new Date(), 'yyyy-MM-dd'),
                     address: '', subject: '', subjectsEnrolled: [], assignedClasses: [], status: 'Active',
                     photoURL: ''
@@ -1081,6 +1088,17 @@ export default function Users() {
                 <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
+                    label="Date of Birth"
+                    type="date"
+                    value={formData.dob || ''}
+                    onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
                     label="Father's Name"
                     value={formData.fatherName}
                     onChange={(e) => setFormData({ ...formData, fatherName: e.target.value })}
@@ -1342,7 +1360,7 @@ export default function Users() {
             </IconButton>
           </Box>
         </DialogTitle>
-        <DialogActions sx={{ p: isMobile ? 2 : 3, bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider' }}>
+        <DialogActions className="no-print" sx={{ p: isMobile ? 2 : 3, bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider' }}>
           <Button 
             onClick={() => setOpenViewProfile(false)} 
             variant="contained" 
@@ -1351,31 +1369,37 @@ export default function Users() {
             Finished / Wapis
           </Button>
         </DialogActions>
-        <DialogContent sx={{ p: 0 }}>
-          <Box id="printable-profile" className="admission-page" sx={{ position: 'relative', color: 'black', bgcolor: 'white', p: { xs: 0, md: 1 }, borderRadius: 0 }}>
+        <DialogContent sx={{ 
+          p: 0,
+          '@media print': {
+            overflow: 'visible',
+            height: 'auto'
+          }
+        }}>
+          <Box id="printable-profile" className="admission-page" sx={{ position: 'relative', color: 'black', bgcolor: 'white', p: { xs: 0, md: 1 }, borderRadius: 0, width: '100%' }}>
              {/* Printable Form Content */}
-             <Box sx={{ border: '2px solid black', p: { xs: 2, md: 3 }, position: 'relative' }}>
+             <Box sx={{ border: '2px solid black', p: { xs: 2, md: 3 }, position: 'relative', width: '100%', boxSizing: 'border-box' }}>
                 {/* Header with Logo */}
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5, borderBottom: '2px solid black', pb: 1.5 }}>
-                  <Avatar src={instituteSettings.logoUrl} sx={{ width: 70, height: 70, mr: 2.5, borderRadius: 0, bgcolor: 'grey.200' }}>
-                    <GraduationCap size={35} color="black" />
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5, borderBottom: '2px solid black', pb: 1.5, gap: 2 }}>
+                  <Avatar src={instituteSettings.logoUrl} sx={{ width: 80, height: 80, borderRadius: 0, bgcolor: 'grey.200' }}>
+                    <GraduationCap size={40} color="black" />
                   </Avatar>
                   <Box sx={{ flex: 1 }}>
-                    <Typography variant="h4" sx={{ fontWeight: 900, color: 'black', textTransform: 'uppercase', fontSize: { xs: '1.2rem', md: '1.8rem' }, fontFamily: 'var(--font-serif)' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 900, color: 'black', textTransform: 'uppercase', fontSize: { xs: '1.2rem', md: '1.8rem' }, fontFamily: 'var(--font-serif)', lineHeight: 1 }}>
                       {instituteSettings.maktabName || instituteSettings.name || 'MAKHTAB-UN-NOOR'}
                     </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'black', fontSize: '0.8rem' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'black', fontSize: '0.85rem', mt: 0.5 }}>
                       {instituteSettings.tagline || 'Education for Excellence'}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: 'black', display: 'block', fontSize: '0.7rem' }}>
+                    <Typography variant="caption" sx={{ color: 'black', display: 'block', fontSize: '0.75rem', mt: 0.5 }}>
                       {instituteSettings.address} | {instituteSettings.phone}
                     </Typography>
                   </Box>
-                  <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
-                    <Typography variant="h6" sx={{ fontWeight: 800, border: '1px solid black', px: 1.5, display: 'inline-block', fontSize: '0.85rem', fontFamily: 'var(--font-serif)' }}>
+                  <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' }, flexShrink: 0 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 800, border: '2px solid black', px: 2, py: 0.5, display: 'inline-block', fontSize: '1rem', fontFamily: 'var(--font-serif)' }}>
                       ADMISSION FORM
                     </Typography>
-                    <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 700, fontSize: '0.75rem' }}>
+                    <Typography variant="body2" sx={{ mt: 1, fontWeight: 700, fontSize: '0.8rem' }}>
                       Session: {format(new Date(), 'yyyy')}-{parseInt(format(new Date(), 'yyyy')) + 1}
                     </Typography>
                   </Box>

@@ -459,7 +459,7 @@ export default function Reports() {
           </Card>
         </Grid>
 
-       
+        {/* Attendance Bar Chart */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ 
             borderRadius: 2, 

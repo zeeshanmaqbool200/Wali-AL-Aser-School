@@ -34,6 +34,7 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
   const menuItems = [
     { label: 'Dashboard', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
     { label: 'Tulab-e-Ilm', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'muntazim'] },
+    { label: 'Courses', icon: <BookOpen size={22} />, path: '/courses', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
     { label: role === 'student' ? 'My Payments' : 'Fees & Adaigi', icon: <DollarSign size={22} />, path: '/fees', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
     { label: 'Haziri (Attendance)', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['mudaris', 'muntazim', 'superadmin'] },
     { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['superadmin'] },
@@ -47,6 +48,7 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
   return (
     <Drawer
       variant="permanent"
+      className="no-print"
       sx={{
         width: open ? 280 : 88,
         flexShrink: 0,

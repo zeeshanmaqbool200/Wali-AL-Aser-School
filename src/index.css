@@ -16,34 +16,48 @@
       background: white !important;
       color: black !important;
     }
-    .no-print {
+    .no-print, 
+    .no-print *,
+    header, 
+    nav, 
+    aside, 
+    footer:not(.print-footer),
+    .MuiAppBar-root,
+    .MuiDrawer-root,
+    .MuiDialogActions-root.no-print,
+    .MuiDialogTitle-root.no-print,
+    button:not(.print-button) {
       display: none !important;
     }
     .print-only {
       display: block !important;
     }
+    body, html {
+      background: white !important;
+      color: black !important;
+      width: 100% !important;
+      height: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
     /* Specific overrides for Receipt and Admission Forms */
     .receipt-container {
-      width: 100% !important;
+      width: 180mm !important; 
       max-width: 100% !important;
-      height: 100vh !important;
-      overflow: hidden !important;
-      page-break-after: avoid !important;
+      margin: 0 auto !important;
+      padding: 10mm !important;
+      box-shadow: none !important;
+      border: 1px solid #eee !important;
       page-break-inside: avoid !important;
-      margin: 0 !important;
-      padding: 5mm !important;
-      display: flex !important;
-      flex-direction: column !important;
-      justify-content: space-between !important;
     }
     .admission-page {
-      width: 100% !important;
-      height: 100vh !important;
-      page-break-inside: avoid !important;
-      page-break-after: always !important;
-      margin: 0 !important;
-      padding: 5mm !important;
+      width: 210mm !important; 
+      height: 297mm !important; 
+      margin: 0 auto !important;
+      padding: 10mm !important;
       box-sizing: border-box !important;
+      page-break-after: always !important;
+      overflow: hidden !important;
     }
     .admission-page > div {
       height: 100% !important;

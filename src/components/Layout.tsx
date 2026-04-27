@@ -151,6 +151,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           position="sticky" 
           color="inherit" 
           elevation={0} 
+          className="no-print"
           sx={{ 
             zIndex: theme.zIndex.drawer + 1,
             bgcolor: alpha(theme.palette.background.default, 0.85),
@@ -182,7 +183,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                       <BookOpen size={24} color={theme.palette.primary.main} />
                     )}
                   </Box>
-                  <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: -0.5, fontFamily: 'var(--font-calligraphy)', fontSize: '1.2rem' }}>
+                  <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: -0.5, fontFamily: 'var(--font-serif)', fontSize: '1.2rem' }}>
                     {instituteName}
                   </Typography>
                 </motion.div>
@@ -193,6 +194,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                    location.pathname === '/attendance' ? 'Haziri' :
                    location.pathname === '/fees' ? 'Fees & Adaigi' :
                    location.pathname === '/users' ? 'Tulab-e-Ilm' :
+                   location.pathname === '/courses' ? 'Mazameen (Subjects)' :
                    location.pathname === '/reports' ? 'Reports' :
                    location.pathname === '/admin/logs' ? 'System Logs' :
                    location.pathname.substring(1).split('/')[0].charAt(0).toUpperCase() + location.pathname.substring(1).split('/')[0].slice(1)}
@@ -201,40 +203,42 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 3 } }}>
-              {/* Global Search */}
-              <Box sx={{ position: 'relative', display: { xs: 'none', sm: 'block' } }}>
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: '2px 4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    width: 280,
-                    bgcolor: 'background.default',
-                    borderRadius: 1,
-                    boxShadow: theme.palette.mode === 'dark'
-                      ? 'inset 2px 2px 4px #060a12, inset -2px -2px 4px #182442'
-                      : 'inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    '&:focus-within': {
-                      width: 340,
+              {/* Global Search - Disabled on Dashboard per user request */}
+              {location.pathname !== '/' && location.pathname !== '/dashboard' && (
+                <Box sx={{ position: 'relative', display: { xs: 'none', sm: 'block' } }}>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: '2px 4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      width: 280,
+                      bgcolor: 'background.default',
+                      borderRadius: 1,
                       boxShadow: theme.palette.mode === 'dark'
-                        ? 'inset 3px 3px 6px #060a12, inset -3px -3px 6px #182442'
-                        : 'inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff',
-                    }
-                  }}
-                >
-                  <IconButton sx={{ p: '10px', color: 'primary.main' }} aria-label="search">
-                    <Search size={20} />
-                  </IconButton>
-                  <InputBase
-                    sx={{ ml: 1, flex: 1, fontSize: '0.95rem', fontWeight: 600 }}
-                    placeholder="Search anything..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </Paper>
-              </Box>
+                        ? 'inset 2px 2px 4px #060a12, inset -2px -2px 4px #182442'
+                        : 'inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      '&:focus-within': {
+                        width: 340,
+                        boxShadow: theme.palette.mode === 'dark'
+                          ? 'inset 3px 3px 6px #060a12, inset -3px -3px 6px #182442'
+                          : 'inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff',
+                      }
+                    }}
+                  >
+                    <IconButton sx={{ p: '10px', color: 'primary.main' }} aria-label="search">
+                      <Search size={20} />
+                    </IconButton>
+                    <InputBase
+                      sx={{ ml: 1, flex: 1, fontSize: '0.95rem', fontWeight: 600 }}
+                      placeholder="Search anything..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </Paper>
+                </Box>
+              )}
 
               <Tooltip title="Notifications">
                 <IconButton 
@@ -373,7 +377,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
       </Box>
 
       {/* Bottom Nav for Mobile - Fixed position, so can be outside flex */}
-      {isMobile && <BottomNav user={user} unreadNotifications={unreadCount} visible={bottomNavVisible} />}
+      {isMobile && <Box className="no-print"><BottomNav user={user} unreadNotifications={unreadCount} visible={bottomNavVisible} /></Box>}
 
       <style>
         {`

@@ -445,8 +445,14 @@ export default function Dashboard({ user }: DashboardProps) {
             boxShadow: theme.palette.mode === 'dark' ? '0 10px 40px rgba(0,0,0,0.4)' : '0 10px 40px rgba(15, 118, 110, 0.1)'
           }}
         >
-          <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontFamily: 'var(--font-serif)', fontWeight: 500, mb: 1, color: 'inherit', letterSpacing: -0.5 }}>
-            Asslamualikum, {user.displayName.split(' ')[0]}! 👋
+          <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontFamily: 'var(--font-serif)', fontWeight: 700, mb: 1, color: 'inherit', letterSpacing: -0.5, textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+            Assalam-o-Alaikum, {user.displayName.split(' ')[0]}! 👋
+          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 600, opacity: 0.9, letterSpacing: -0.2, maxWidth: 600, mx: 'auto' }}>
+            Welcome to {instituteData.maktabName || instituteData.name || 'Idarah Wali Ul Aser'}
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 1, fontWeight: 500, opacity: 0.8 }}>
+            Integrated Maktab Management System
           </Typography>
           <Typography variant="body1" sx={{ fontWeight: 500, letterSpacing: 0.5, opacity: 0.9 }}>
             {isMuntazim ? 'Muntazim Portal (Intizamiya)' : isSuperAdmin ? 'Super Admin Portal' : isMudarisRole ? 'Mudaris Portal (Asatiza)' : `Talib-e-Ilm Portal • ${user.grade || 'Not Assigned'}`}
