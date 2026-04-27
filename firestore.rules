@@ -107,11 +107,12 @@ service cloud.firestore {
       );
       
       allow create: if isSignedIn() && (
-        isSuperAdmin() || isMuntazim() ||
+        isSuperAdmin() || isMuntazim() || isMudaris() ||
         (request.auth.uid == userId && (incoming().get('role', '') == 'student' || incoming().get('role', '') == 'pending_mudaris'))
       );
       
       allow update: if isSuperAdmin() || isMuntazim() ||
+                      (isMudaris() && existing().get('role', '') == 'student' && (existing().get('grade', '') in getAssignedClasses() || existing().get('grade', '') == 'Example')) ||
                       (request.auth.uid == userId && incoming().get('role', '') == existing().get('role', '') && incoming().get('email', '') == existing().get('email', '') &&
                        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phone', 'whatsapp', 'address', 'photoURL', 'updatedAt', 'hardwareStatus', 'notificationPrefs', 'uiPrefs', 'pendingMaktabLevel']));
       

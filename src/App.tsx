@@ -187,7 +187,7 @@ function AppContent() {
                   } />
                   <Route path="/notes" element={<Notes />} />
                   <Route path="/users" element={
-                    <ProtectedRoute user={user} allowedRoles={fullAdminRoles}>
+                    <ProtectedRoute user={user} allowedRoles={staffRoles}>
                       <Users />
                     </ProtectedRoute>
                   } />
