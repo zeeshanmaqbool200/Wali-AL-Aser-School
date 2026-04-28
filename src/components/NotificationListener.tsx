@@ -21,9 +21,9 @@ export default function NotificationListener() {
     // Listen for the most recent notification using a rule-compliant OR query
     const isSuperAdmin = user.email === 'zeeshanmaqbool200@gmail.com';
     const role = user.role || 'student';
-    const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
-    const isMudarisRole = role === 'mudaris';
-    const isStaff = isSuperAdmin || isMuntazim || isMudarisRole;
+    const isManagerRole = role === 'manager' || (role === 'superadmin' && !isSuperAdmin);
+    const isTeacherRole = role === 'teacher';
+    const isStaff = isSuperAdmin || isManagerRole || isTeacherRole;
     
     let q;
     if (isStaff) {
@@ -40,8 +40,7 @@ export default function NotificationListener() {
         or(
           where('targetType', '==', 'all'),
           where('targetId', '==', user.uid),
-          where('targetId', '==', user.grade || 'none'),
-          where('targetId', '==', user.maktabLevel || 'none')
+          where('targetId', '==', user.classLevel || 'none')
         ),
         orderBy('createdAt', 'desc'),
         limit(5)
@@ -76,7 +75,7 @@ export default function NotificationListener() {
         const isTargeted = 
           latestNotif.targetType === 'all' ||
           (latestNotif.targetType === 'individual' && latestNotif.targetId === user.uid) ||
-          (latestNotif.targetType === 'class' && latestNotif.targetId === user.grade);
+          (latestNotif.targetType === 'class' && latestNotif.targetId === user.classLevel);
 
         // Don't show if the user is the sender
         if (isTargeted && latestNotif.senderId !== user.uid) {

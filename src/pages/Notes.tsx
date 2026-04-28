@@ -20,6 +20,7 @@ import { db, OperationType, handleFirestoreError } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
+import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import confetti from 'canvas-confetti';
 
 interface StudyNote {
@@ -31,7 +32,7 @@ interface StudyNote {
   uploadedBy: string;
   authorName: string;
   subject: string;
-  grade: string;
+  classLevel: string;
   uploadedAt: number;
 }
 
@@ -49,19 +50,19 @@ export default function Notes() {
     description: '',
     fileUrl: '',
     subject: '',
-    grade: 'All'
+    classLevel: 'All'
   });
 
-  const maktabLevels = [
-    'All', 'Awal', 'Doum', 'Soam', 'Chaharum', 'panjum', 'shahsum', 
-    'haftum', 'hashtum', 'dahum', 'Hafiz'
+  const classLevels = [
+    'All', 'Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 
+    'Level 7', 'Level 8', 'Level 9', 'Level 10', 'Hafiz'
   ];
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
-  const isMuntazim = currentUser?.role === 'muntazim';
-  const isMudarisRole = currentUser?.role === 'mudaris';
-  const isAdmin = isSuperAdmin || isMuntazim;
-  const isStaff = isAdmin || isMudarisRole;
+  const isManagerRole = currentUser?.role === 'manager';
+  const isTeacherRole = currentUser?.role === 'teacher';
+  const isAdmin = isSuperAdmin || isManagerRole;
+  const isStaff = isAdmin || isTeacherRole;
 
   useEffect(() => {
     if (!currentUser) return;
@@ -69,25 +70,24 @@ export default function Notes() {
     let q;
     if (isAdmin) {
       q = query(collection(db, 'notes'), orderBy('uploadedAt', 'desc'));
-    } else if (isMudarisRole) {
-      // Mudaris see 'All' or their assigned classes
+    } else if (isTeacherRole) {
+      // Teachers see 'All' or their assigned classes
       q = query(
         collection(db, 'notes'), 
         or(
-          where('grade', '==', 'All'),
-          where('grade', 'in', (currentUser.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
+          where('classLevel', '==', 'All'),
+          where('classLevel', 'in', (currentUser.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
           where('uploadedBy', '==', currentUser.uid)
         ),
         orderBy('uploadedAt', 'desc')
       );
     } else {
-      // Students see 'All' or their specific grade
+      // Students see 'All' or their specific classLevel
       q = query(
         collection(db, 'notes'), 
         or(
-          where('grade', '==', 'All'),
-          where('grade', '==', currentUser?.grade || 'none'),
-          where('grade', '==', currentUser?.maktabLevel || 'none')
+          where('classLevel', '==', 'All'),
+          where('classLevel', '==', currentUser?.classLevel || 'none')
         ),
         orderBy('uploadedAt', 'desc')
       );
@@ -101,7 +101,7 @@ export default function Notes() {
       handleFirestoreError(error, OperationType.LIST, 'notes');
     });
     return () => unsubscribe();
-  }, [currentUser, isAdmin, isStaff, isMudarisRole]);
+  }, [currentUser, isAdmin, isStaff, isTeacherRole]);
 
   const handleUpload = async () => {
     if (!currentUser) return;
@@ -125,7 +125,7 @@ export default function Notes() {
       });
 
       setOpenDialog(false);
-      setFormData({ title: '', description: '', fileUrl: '', subject: '', grade: 'All' });
+      setFormData({ title: '', description: '', fileUrl: '', subject: '', classLevel: 'All' });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'notes');
     }
@@ -179,9 +179,9 @@ export default function Notes() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Darsi Mawad (Study Materials)</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Study Materials</Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Digital notes, assignments aur darsi wasail tak rasayi
+              Access digital notes, assignments, and study resources
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
@@ -339,18 +339,18 @@ export default function Notes() {
         PaperProps={{ sx: { borderRadius: 5, p: 1 } }}
       >
         <DialogTitle sx={{ fontWeight: 900, fontSize: '1.5rem', pb: 1 }}>
-          Naya Mawad Upload Karein
+          Upload New Material
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 500 }}>
-            Apne Tulab ke sath darsi wasail, notes ya assignments share karein.
+            Share study resources, notes, or assignments with your students.
           </Typography>
           <Grid container spacing={3}>
             <Grid size={12}>
               <TextField
                 fullWidth
-                label="Mawad ka Title"
-                placeholder="e.g. Quran with Tajweed Lecture Notes"
+                label="Material Title"
+                placeholder="e.g. Science Chapter 1 Notes"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -377,14 +377,14 @@ export default function Notes() {
                 value={formData.fileUrl}
                 onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
-                helperText="Agar khali choda to dummy PDF use hogi"
+                helperText="If left empty, a dummy PDF will be used"
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Mazmoon"
-                placeholder="e.g. Quran with Tajweed"
+                label="Subject"
+                placeholder="e.g. Science"
                 value={formData.subject}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
@@ -394,11 +394,11 @@ export default function Notes() {
               <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}>
                 <InputLabel>Target Level (Assign To)</InputLabel>
                 <Select
-                  value={formData.grade}
+                  value={formData.classLevel}
                   label="Target Level (Assign To)"
-                  onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, classLevel: e.target.value })}
                 >
-                  {maktabLevels.map(level => (
+                  {classLevels.map(level => (
                     <MenuItem key={level} value={level}>{level}</MenuItem>
                   ))}
                 </Select>
@@ -463,39 +463,23 @@ function NoteCard({ note, isTeacher, onDelete, getFileIcon, getFileColor }: any)
           >
             {getFileIcon(note.fileType)}
           </Avatar>
-          <Box sx={{ display: 'flex', gap: 1.5 }}>
-            <Tooltip title="Open Resource">
-              <IconButton 
-                size="small" 
-                onClick={() => window.open(note.fileUrl, '_blank')}
-                sx={{ 
-                  bgcolor: 'background.paper',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
-                    : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
-                }}
-              >
-                <ExternalLink size={18} />
-              </IconButton>
-            </Tooltip>
-            {isTeacher && (
-              <Tooltip title="Delete">
-                <IconButton 
-                  size="small" 
-                  color="error" 
-                  onClick={onDelete}
-                  sx={{ 
-                    bgcolor: 'background.paper',
-                    boxShadow: theme.palette.mode === 'dark'
-                      ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
-                      : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
-                  }}
-                >
-                  <Trash2 size={18} />
-                </IconButton>
-              </Tooltip>
-            )}
-          </Box>
+          <ActionMenu 
+            items={[
+              { 
+                label: 'Open Resource', 
+                icon: <ExternalLink size={16} />, 
+                onClick: () => window.open(note.fileUrl, '_blank') 
+              },
+              { divider: true, label: '', icon: null, onClick: () => {} },
+              { 
+                label: 'Delete', 
+                icon: <Trash2 size={16} />, 
+                color: 'error.main',
+                onClick: onDelete,
+                disabled: !isTeacher
+              }
+            ]} 
+          />
         </Box>
         
         <Typography variant="h6" sx={{ fontWeight: 900, mb: 1.5, lineHeight: 1.3, letterSpacing: -0.5 }}>{note.title}</Typography>
@@ -507,7 +491,7 @@ function NoteCard({ note, isTeacher, onDelete, getFileIcon, getFileColor }: any)
             sx={{ fontWeight: 900, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', borderRadius: 2, border: 'none' }} 
           />
           <Chip 
-            label={note.grade} 
+            label={note.classLevel} 
             size="small" 
             sx={{ fontWeight: 900, bgcolor: 'background.default', borderRadius: 2, border: 'none' }} 
           />
@@ -577,7 +561,7 @@ function NoteListItem({ note, isTeacher, onDelete, getFileIcon, getFileColor }: 
             <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 0.5 }}>{note.title}</Typography>
             <Stack direction="row" spacing={1}>
               <Chip label={note.subject} size="small" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 800, borderRadius: 1.5 }} />
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{note.grade}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{note.classLevel}</Typography>
             </Stack>
           </Grid>
           <Grid size={{ xs: 12, sm: 3 }}>
@@ -590,21 +574,23 @@ function NoteListItem({ note, isTeacher, onDelete, getFileIcon, getFileColor }: 
             </Box>
           </Grid>
           <Grid size={{ xs: 12, sm: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-              <Button 
-                size="small" 
-                variant="outlined" 
-                startIcon={<ExternalLink size={14} />}
-                onClick={() => window.open(note.fileUrl, '_blank')}
-                sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
-              >
-                View
-              </Button>
-              {isTeacher && (
-                <IconButton size="small" color="error" onClick={onDelete} sx={{ bgcolor: alpha(theme.palette.error.main, 0.05) }}>
-                  <Trash2 size={16} />
-                </IconButton>
-              )}
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <ActionMenu 
+                items={[
+                  { 
+                    label: 'View', 
+                    icon: <ExternalLink size={16} />, 
+                    onClick: () => window.open(note.fileUrl, '_blank') 
+                  },
+                  { 
+                    label: 'Delete', 
+                    icon: <Trash2 size={16} />, 
+                    color: 'error.main',
+                    onClick: onDelete,
+                    disabled: !isTeacher
+                  }
+                ]} 
+              />
             </Box>
           </Grid>
         </Grid>

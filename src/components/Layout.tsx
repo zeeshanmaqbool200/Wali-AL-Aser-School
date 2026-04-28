@@ -35,7 +35,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [instituteName, setInstituteName] = useState('Maktab Wali Ul Aser');
+  const [instituteName, setInstituteName] = useState('Wali Ul Aser Institute');
   const [logoUrl, setLogoUrl] = useState('https://idarahwaliulaser.netlify.app/img/logo.png');
   const [bottomNavVisible, setBottomNavVisible] = useState(false);
   const [profileAnchorEl, setProfileAnchorEl] = useState<null | HTMLElement>(null);
@@ -62,9 +62,9 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
     const unsubscribe = onSnapshot(doc(db, 'settings', 'institute'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.maktabName !== undefined) {
-          setInstituteName(data.maktabName || 'Maktab Wali Ul Aser');
-          document.title = data.maktabName || 'Maktab Wali Ul Aser';
+        if (data.instituteName !== undefined) {
+          setInstituteName(data.instituteName || 'Wali Ul Aser Institute');
+          document.title = data.instituteName || 'Wali Ul Aser Institute';
         }
         if (data.logoUrl !== undefined) {
           const finalLogo = data.logoUrl || 'https://idarahwaliulaser.netlify.app/img/logo.png';
@@ -98,10 +98,10 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
     
     let q;
     const isSuperAdmin = user.email === 'zeeshanmaqbool200@gmail.com';
-    const isMuntazim = user.role === 'muntazim';
-    const isMudarisRole = user.role === 'mudaris';
+    const isManagerRole = user.role === 'manager';
+    const isTeacherRole = user.role === 'teacher';
     
-    if (isSuperAdmin || isMuntazim || isMudarisRole) {
+    if (isSuperAdmin || isManagerRole || isTeacherRole) {
       q = query(
         collection(db, 'notifications'),
         orderBy('createdAt', 'desc'),
@@ -113,8 +113,8 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
         or(
           where('targetType', '==', 'all'),
           where('targetId', '==', user.uid),
-          where('targetId', '==', user.grade || 'none'),
-          where('targetId', '==', user.maktabLevel || 'none')
+          where('targetId', '==', user.classLevel || 'none'),
+          where('targetId', '==', user.classLevel || 'none')
         ),
         orderBy('createdAt', 'desc'),
         limit(20)
@@ -194,10 +194,10 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
               {!isMobile && (
                 <Typography variant="h4" sx={{ fontWeight: 900, color: 'text.primary', letterSpacing: -1.5 }}>
                   {location.pathname === '/' ? 'Dashboard' : 
-                   location.pathname === '/attendance' ? 'Haziri' :
-                   location.pathname === '/fees' ? 'Fees & Adaigi' :
-                   location.pathname === '/users' ? 'Tulab-e-Ilm' :
-                   location.pathname === '/courses' ? 'Mazameen (Subjects)' :
+                   location.pathname === '/attendance' ? 'Attendance' :
+                   location.pathname === '/fees' ? 'Fees & Payments' :
+                   location.pathname === '/users' ? 'Students' :
+                   location.pathname === '/courses' ? 'Subjects' :
                    location.pathname === '/reports' ? 'Reports' :
                    location.pathname === '/admin/logs' ? 'System Logs' :
                    location.pathname.substring(1).split('/')[0].charAt(0).toUpperCase() + location.pathname.substring(1).split('/')[0].slice(1)}

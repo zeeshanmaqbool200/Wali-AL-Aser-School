@@ -97,7 +97,11 @@ import { syncQueue, ActionType } from './lib/syncQueue';
 
 export async function smartAddDoc(collectionRef: any, data: any) {
   if (navigator.onLine) {
-    return addDoc(collectionRef, data);
+    try {
+      return await addDoc(collectionRef, data);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, collectionRef.path || collectionRef.id);
+    }
   } else {
     return syncQueue.enqueue({
       type: ActionType.ADD,
@@ -109,7 +113,11 @@ export async function smartAddDoc(collectionRef: any, data: any) {
 
 export async function smartUpdateDoc(docRef: any, data: any) {
   if (navigator.onLine) {
-    return updateDoc(docRef, data);
+    try {
+      return await updateDoc(docRef, data);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, docRef.path);
+    }
   } else {
     return syncQueue.enqueue({
       type: ActionType.UPDATE,
@@ -122,7 +130,11 @@ export async function smartUpdateDoc(docRef: any, data: any) {
 
 export async function smartSetDoc(docRef: any, data: any, options: any = {}) {
   if (navigator.onLine) {
-    return setDoc(docRef, data, options);
+    try {
+      return await setDoc(docRef, data, options);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, docRef.path);
+    }
   } else {
     return syncQueue.enqueue({
       type: ActionType.SET,
@@ -135,7 +147,11 @@ export async function smartSetDoc(docRef: any, data: any, options: any = {}) {
 
 export async function smartDeleteDoc(docRef: any) {
   if (navigator.onLine) {
-    return deleteDoc(docRef);
+    try {
+      return await deleteDoc(docRef);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, docRef.path);
+    }
   } else {
     return syncQueue.enqueue({
       type: ActionType.DELETE,

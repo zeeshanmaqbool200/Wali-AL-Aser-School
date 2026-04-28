@@ -99,7 +99,7 @@ export default function LoadingScreen() {
             textShadow: '0 2px 10px rgba(0,0,0,0.5)'
           }}
         >
-          MAKTAB WALI UL ASER
+          INSTITUTE WALI UL ASER
         </Typography>
         <Typography 
           variant="body2" 

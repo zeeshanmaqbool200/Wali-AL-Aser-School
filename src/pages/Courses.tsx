@@ -25,7 +25,7 @@ import { Course, CourseSection, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { MAKTAB_LEVELS } from '../constants';
+import { CLASS_LEVELS } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { logger } from '../lib/logger';
@@ -47,7 +47,7 @@ export default function Courses() {
     const cached = localStorage.getItem('courses_data');
     return cached ? JSON.parse(cached) : [];
   });
-  const [allMudaris, setAllMudaris] = useState<UserProfile[]>([]);
+  const [allTeachers, setAllTeachers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(!(window as any)._coursesLoaded && courses.length === 0);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
@@ -60,26 +60,15 @@ export default function Courses() {
   const [selectedTeacher, setSelectedTeacher] = useState<UserProfile | null>(null);
 
   const ReaderTeacher = React.useMemo(() => {
-    return allMudaris.find(m => m.uid === viewingCourse?.teacherId);
-  }, [allMudaris, viewingCourse?.teacherId]);
-
+    return allTeachers.find(m => m.uid === viewingCourse?.teacherId);
+  }, [allTeachers, viewingCourse?.teacherId]);
+  
+  // ...
+  
   useEffect(() => {
-    if (editingSectionIdx !== null && isMobile) {
-      // Only scroll once when entering edit mode, with a delay for keyboard
-      const timer = setTimeout(() => {
-        const entry = document.getElementById('lesson-editor-entry');
-        if (entry) {
-          entry.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [editingSectionIdx]); // Only on editingSectionIdx change
-
-  useEffect(() => {
-    const q = query(collection(db, 'users'), where('role', '==', 'mudaris'));
+    const q = query(collection(db, 'users'), where('role', '==', 'teacher'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setAllMudaris(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
+      setAllTeachers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
     });
     return () => unsubscribe();
   }, []);
@@ -102,7 +91,7 @@ export default function Courses() {
   };
 
   const showTeacherProfile = (teacherId: string) => {
-    const teacher = allMudaris.find(m => m.uid === teacherId);
+    const teacher = allTeachers.find(m => m.uid === teacherId);
     if (teacher) {
       setSelectedTeacher(teacher);
       setOpenTeacherProfile(true);
@@ -121,7 +110,7 @@ export default function Courses() {
   };
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
-  const [gradeFilter, setGradeFilter] = useState<string>('all');
+  const [classLevelFilter, setClassLevelFilter] = useState<string>('all');
   const [isUploading, setIsUploading] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
@@ -136,9 +125,9 @@ export default function Courses() {
     thumbnailUrl: '',
     sections: [] as CourseSection[],
     isPublished: true,
-    gradeId: 'all',
-    assignedMudaris: [] as string[],
-    targetGrades: [] as string[]
+    classLevelId: 'all',
+    assignedTeachers: [] as string[],
+    targetClassLevels: [] as string[]
   });
 
   const [newSection, setNewSection] = useState({
@@ -202,33 +191,31 @@ export default function Courses() {
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
-  const isMuntazim = currentUser?.role === 'muntazim';
-  const isMudarisRole = currentUser?.role === 'mudaris';
-  const isAdmin = isSuperAdmin || isMuntazim;
-  const isStaff = isAdmin || isMudarisRole;
+  const isManagerRole = currentUser?.role === 'manager';
+  const isTeacherRole = currentUser?.role === 'teacher';
+  const isAdmin = isSuperAdmin || isManagerRole;
+  const isStaff = isAdmin || isTeacherRole;
 
   useEffect(() => {
     let q = query(collection(db, 'courses'), orderBy('createdAt', 'desc'), limit(100));
     
     // Students only see published courses or courses assigned specifically to them/their class
-    // For now, let's just filter by isPublished and gradeId
     if (!isStaff && currentUser) {
       q = query(
         collection(db, 'courses'), 
         and(
           where('isPublished', '==', true),
           or(
-            where('gradeId', '==', currentUser.maktabLevel || 'none'),
-            where('gradeId', '==', 'all'),
-            where('targetGrades', 'array-contains', currentUser.maktabLevel || 'none'),
+            where('classLevelId', '==', currentUser.classLevel || 'none'),
+            where('classLevelId', '==', 'all'),
+            where('targetClassLevels', 'array-contains', currentUser.classLevel || 'none'),
             where('enrolledStudents', 'array-contains', currentUser.uid)
           )
         ),
         limit(100)
       );
-    } else if (isMudarisRole && !isSuperAdmin) {
-      // Mudaris sees ALL courses but can only edit theirs or assigned ones?
-      // User said "should be visible to all mudaris"
+    } else if (isTeacherRole && !isSuperAdmin) {
+      // Teachers see all courses for reference
       q = query(
         collection(db, 'courses'), 
         orderBy('createdAt', 'desc'),
@@ -246,7 +233,7 @@ export default function Courses() {
       handleFirestoreError(error, OperationType.LIST, 'courses');
     });
     return () => unsubscribe();
-  }, [currentUser, isStaff, isMudarisRole]);
+  }, [currentUser, isStaff, isTeacherRole]);
 
   const handleSave = async () => {
     if (!currentUser) return;
@@ -260,10 +247,10 @@ export default function Courses() {
 
       if (editingCourse) {
         await updateDoc(doc(db, 'courses', editingCourse.id), data);
-        setSnackbar({ open: true, message: 'Mazmoon kamyabi se update ho gaya!', severity: 'success' });
+        setSnackbar({ open: true, message: 'Subject updated successfully!', severity: 'success' });
       } else {
         await addDoc(collection(db, 'courses'), { ...data, createdAt: Date.now() });
-        setSnackbar({ open: true, message: 'Naya Mazmoon kamyabi se shamil ho gaya!', severity: 'success' });
+        setSnackbar({ open: true, message: 'New Subject added successfully!', severity: 'success' });
       }
       
       setOpenDialog(false);
@@ -279,9 +266,9 @@ export default function Courses() {
         thumbnailUrl: '', 
         sections: [], 
         isPublished: true, 
-        gradeId: 'all',
-        assignedMudaris: [],
-        targetGrades: []
+        classLevelId: 'all',
+        assignedTeachers: [],
+        targetClassLevels: []
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'courses');
@@ -359,9 +346,9 @@ export default function Courses() {
       thumbnailUrl: course.thumbnailUrl || '',
       sections: course.sections || [],
       isPublished: course.isPublished || false,
-      gradeId: course.gradeId || '',
-      assignedMudaris: course.assignedMudaris || [],
-      targetGrades: (course as any).targetGrades || (course.gradeId ? [course.gradeId] : [])
+      classLevelId: course.classLevelId || '',
+      assignedTeachers: course.assignedTeachers || [],
+      targetClassLevels: (course as any).targetClassLevels || (course.classLevelId ? [course.classLevelId] : [])
     });
     setOpenDialog(true);
   };
@@ -369,8 +356,8 @@ export default function Courses() {
   const filteredCourses = courses.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          c.code.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesGrade = gradeFilter === 'all' || c.gradeId === gradeFilter;
-    return matchesSearch && matchesGrade;
+    const matchesClassLevel = classLevelFilter === 'all' || c.classLevelId === classLevelFilter;
+    return matchesSearch && matchesClassLevel;
   });
 
   if (loading) return (
@@ -400,7 +387,7 @@ export default function Courses() {
           onClick={() => navigate(-1)}
           sx={{ fontWeight: 800, color: 'text.secondary' }}
         >
-          Back / Wapis
+          Back
         </Button>
       </Box>
       <motion.div
@@ -410,9 +397,9 @@ export default function Courses() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Mazameen (Subjects)</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Subjects</Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Manage Islamic curriculum, Tulab enrollment, and learning paths
+              Manage Islamic curriculum, Student enrollment, and learning paths
             </Typography>
           </Box>
           <Stack direction="row" spacing={2} sx={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', alignItems: 'center' }}>
@@ -475,9 +462,9 @@ export default function Courses() {
                     thumbnailUrl: '',
                     sections: [],
                     isPublished: true,
-                    gradeId: 'all',
-                    assignedMudaris: [],
-                    targetGrades: []
+                    classLevelId: 'all',
+                    assignedTeachers: [],
+                    targetClassLevels: []
                   });
                   setOpenDialog(true);
                 }}
@@ -500,7 +487,7 @@ export default function Courses() {
                   }
                 }}
               >
-                {isMobile ? "Add" : "Add Mazmoon"}
+                {isMobile ? "Add" : "Add Subject"}
               </Button>
             )}
           </Stack>
@@ -527,7 +514,7 @@ export default function Courses() {
             <Search size={22} color={theme.palette.text.secondary} />
             <Box 
               component="input" 
-              placeholder="Search mazameen by name, code, or Mudaris..." 
+              placeholder="Search subjects by name, code, or teacher..." 
               value={searchQuery}
               onChange={(e: any) => setSearchQuery(e.target.value)}
               sx={{ 
@@ -545,11 +532,11 @@ export default function Courses() {
           </Box>
           
           <FormControl size="small" sx={{ minWidth: 200, mr: 2 }}>
-            <InputLabel sx={{ fontWeight: 800 }}>Maktab Level</InputLabel>
+            <InputLabel sx={{ fontWeight: 800 }}>Class Level</InputLabel>
             <Select
-              value={gradeFilter}
-              label="Maktab Level"
-              onChange={(e) => setGradeFilter(e.target.value)}
+              value={classLevelFilter}
+              label="Class Level"
+              onChange={(e) => setClassLevelFilter(e.target.value)}
               sx={{ 
                 borderRadius: 2,
                 fontWeight: 800,
@@ -561,7 +548,7 @@ export default function Courses() {
               }}
             >
               <MenuItem value="all" sx={{ fontWeight: 700 }}>All Levels</MenuItem>
-              {MAKTAB_LEVELS.filter(level => !level.includes('muntazim') && !level.includes('superadmin')).map(g => (
+              {CLASS_LEVELS.filter(level => !level.includes('manager') && !level.includes('superadmin')).map(g => (
                 <MenuItem key={g} value={g} sx={{ fontWeight: 700 }}>{g}</MenuItem>
               ))}
             </Select>
@@ -589,7 +576,7 @@ export default function Courses() {
                   onRead={handleReadCourse}
                   viewMode={viewMode}
                   onShowTeacher={showTeacherProfile}
-                  teacherPhoto={allMudaris.find(m => m.uid === course.teacherId)?.photoURL}
+                  teacherPhoto={allTeachers.find(m => m.uid === course.teacherId)?.photoURL}
                 />
               </motion.div>
             </Grid>
@@ -600,8 +587,8 @@ export default function Courses() {
       {filteredCourses.length === 0 && (
         <Box sx={{ p: 10, textAlign: 'center' }}>
           <BookOpen size={64} color={theme.palette.divider} style={{ marginBottom: 16 }} />
-          <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 700 }}>No mazameen found</Typography>
-          <Typography variant="body2" color="text.secondary">Try adjusting your search query or add a new mazmoon</Typography>
+          <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 700 }}>No subjects found</Typography>
+          <Typography variant="body2" color="text.secondary">Try adjusting your search query or add a new subject</Typography>
         </Box>
       )}
 
@@ -615,12 +602,12 @@ export default function Courses() {
           <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
             <CheckCircle size={48} color={theme.palette.success.main} />
           </Box>
-          <Typography variant="h6" sx={{ fontWeight: 900, mb: 1 }}>Success / Kamyabi</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 900, mb: 1 }}>Success / Completion</Typography>
           <Typography variant="body2" color="text.secondary">{snackbar.message}</Typography>
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
           <Button variant="contained" onClick={() => setSnackbar({ ...snackbar, open: false })} sx={{ borderRadius: 2, fontWeight: 800, px: 4 }}>
-            Theek Hai
+            Okay
           </Button>
         </DialogActions>
       </Dialog>
@@ -647,7 +634,7 @@ export default function Courses() {
                 <X size={24} />
               </IconButton>
               <Typography variant="h6" sx={{ fontWeight: 900 }}>
-                {editingCourse ? 'Update Mazmoon' : 'Create New Mazmoon'}
+                {editingCourse ? 'Update Subject' : 'Create New Subject'}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 2 }}>
@@ -663,7 +650,7 @@ export default function Courses() {
                 startIcon={<Save size={18} />}
                 sx={{ borderRadius: 2, fontWeight: 900, px: 4 }}
               >
-                {editingCourse ? 'Update Mazmoon' : 'Create Mazmoon'}
+                {editingCourse ? 'Update Subject' : 'Create Subject'}
               </Button>
             </Box>
           </Toolbar>
@@ -682,8 +669,8 @@ export default function Courses() {
                     <Grid size={12}>
                       <TextField
                         fullWidth
-                        label="Mazmoon Name"
-                        placeholder="e.g. Quran with Tajweed"
+                        label="Subject Name"
+                        placeholder="e.g. Science"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         variant="filled"
@@ -693,8 +680,8 @@ export default function Courses() {
                     <Grid size={12}>
                       <TextField
                         fullWidth
-                        label="Mazmoon Code"
-                        placeholder="e.g. QRN-101"
+                        label="Subject Code"
+                        placeholder="e.g. SCI-101"
                         value={formData.code}
                         onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                         variant="filled"
@@ -761,22 +748,22 @@ export default function Courses() {
 
                 <Box>
                   <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 1, display: 'block' }}>
-                    Target Classes & Mudaris
+                    Target Classes & Teachers
                   </Typography>
                   <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, bgcolor: alpha(theme.palette.background.default, 0.4) }}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Select Class Levels</Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
-                      {MAKTAB_LEVELS.filter(l => !l.includes('muntazim') && !l.includes('superadmin')).map(level => {
-                        const isSelected = formData.targetGrades.includes(level);
+                      {CLASS_LEVELS.filter(l => !l.includes('manager') && !l.includes('superadmin')).map(level => {
+                        const isSelected = formData.targetClassLevels.includes(level);
                         return (
                           <Chip 
                             key={level} 
                             label={level} 
                             onClick={() => {
-                              const newGrades = isSelected 
-                                ? formData.targetGrades.filter(g => g !== level)
-                                : [...formData.targetGrades, level];
-                              setFormData({ ...formData, targetGrades: newGrades });
+                              const newLevels = isSelected 
+                                ? formData.targetClassLevels.filter(g => g !== level)
+                                : [...formData.targetClassLevels, level];
+                              setFormData({ ...formData, targetClassLevels: newLevels });
                             }}
                             variant={isSelected ? "filled" : "outlined"}
                             color={isSelected ? "primary" : "default"}
@@ -786,20 +773,20 @@ export default function Courses() {
                       })}
                     </Box>
 
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Assigned Mudaris</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Assigned Teachers</Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {allMudaris.map(mudaris => {
-                        const isSelected = formData.assignedMudaris.includes(mudaris.uid);
+                      {allTeachers.map(teacher => {
+                        const isSelected = formData.assignedTeachers.includes(teacher.uid);
                         return (
                           <Chip 
-                            key={mudaris.uid} 
-                            avatar={<Avatar src={mudaris.photoURL} imgProps={{ referrerPolicy: 'no-referrer' }}>{mudaris.displayName?.charAt(0)}</Avatar>}
-                            label={mudaris.displayName} 
+                            key={teacher.uid} 
+                            avatar={<Avatar src={teacher.photoURL} imgProps={{ referrerPolicy: 'no-referrer' }}>{teacher.displayName?.charAt(0)}</Avatar>}
+                            label={teacher.displayName} 
                             onClick={() => {
-                              const newMudaris = isSelected 
-                                ? formData.assignedMudaris.filter(id => id !== mudaris.uid)
-                                : [...formData.assignedMudaris, mudaris.uid];
-                              setFormData({ ...formData, assignedMudaris: newMudaris });
+                              const newTeachers = isSelected 
+                                ? formData.assignedTeachers.filter(id => id !== teacher.uid)
+                                : [...formData.assignedTeachers, teacher.uid];
+                              setFormData({ ...formData, assignedTeachers: newTeachers });
                             }}
                             variant={isSelected ? "filled" : "outlined"}
                             color={isSelected ? "primary" : "default"}
@@ -870,14 +857,14 @@ export default function Courses() {
                       <Typography variant="caption" sx={{ display: 'block', fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 2, lineHeight: 1, mb: 1 }}>
                         Dynamic Module
                       </Typography>
-                      {editingSectionIdx !== null ? 'Dars Update Karein' : 'Naya Dars Shamil Karein'}
+                      {editingSectionIdx !== null ? 'Update Lesson' : 'Add New Lesson'}
                     </Box>
                   </Typography>
 
                   <Stack spacing={3.5}>
                     <TextField
                       fullWidth
-                      label="Sabaq ka Unwan (Lesson Title)"
+                      label="Lesson Title"
                       placeholder="e.g. Introduction to Quranic Science"
                       value={newSection.title}
                       onChange={(e) => setNewSection({ ...newSection, title: e.target.value })}
@@ -949,7 +936,7 @@ export default function Courses() {
                         <Stack spacing={2.5} sx={{ mb: 3 }}>
                            <TextField
                               fullWidth
-                              label="Sawaal (Question)"
+                              label="Question"
                               variant="outlined"
                               value={currentQuizQuestion.question}
                               onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, question: e.target.value })}
@@ -975,10 +962,10 @@ export default function Courses() {
                               ))}
                             </Grid>
                             <FormControl fullWidth size="small">
-                              <InputLabel>Darust Jawab (Correct Answer)</InputLabel>
+                              <InputLabel>Correct Answer</InputLabel>
                               <Select
                                 value={currentQuizQuestion.correctAnswer}
-                                label="Darust Jawab (Correct Answer)"
+                                label="Correct Answer"
                                 onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, correctAnswer: Number(e.target.value) })}
                                 sx={{ borderRadius: 2.5 }}
                               >
@@ -1009,7 +996,7 @@ export default function Courses() {
                         value={newSection.content} 
                         onChange={(value) => setNewSection({ ...newSection, content: value })} 
                         options={{
-                          placeholder: "Sabaq ka matan yahan likhein (Markdown support)...",
+                          placeholder: "Write lesson content here (Markdown support)...",
                           spellChecker: false,
                           status: false,
                           minHeight: isMobile ? "150px" : "300px",
@@ -1143,7 +1130,7 @@ export default function Courses() {
         <Box sx={{ mt: 6, p: 4, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
           <Info size={24} className="text-primary-500" />
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Remember to save your changes using the "{editingCourse ? 'Update' : 'Create'} Mazmoon" button in the top right corner.
+            Remember to save your changes using the "{editingCourse ? 'Update' : 'Create'} Subject" button in the top right corner.
           </Typography>
         </Box>
       </Dialog>
@@ -1193,7 +1180,7 @@ export default function Courses() {
             <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, letterSpacing: -1 }}>{selectedTeacher.displayName}</Typography>
             <Chip 
               icon={<Award size={16} />}
-              label={selectedTeacher.role === 'superadmin' ? 'Administrator' : 'Mudaris (Teacher)'} 
+              label={selectedTeacher.role === 'superadmin' ? 'Administrator' : 'Teacher'} 
               color="primary"
               variant="outlined"
               sx={{ mb: 4, fontWeight: 800, borderRadius: 2 }}
@@ -1228,7 +1215,7 @@ export default function Courses() {
               onClick={() => setOpenTeacherProfile(false)}
               sx={{ borderRadius: 4, py: 2, fontWeight: 900, fontSize: '1rem', boxShadow: '0 10px 20px rgba(15, 118, 110, 0.3)' }}
             >
-              Theek Hai
+              OK
             </Button>
           </Box>
         )}
@@ -1494,7 +1481,7 @@ export default function Courses() {
                             {ReaderTeacher.displayName?.charAt(0)}
                           </Avatar>
                           <Box sx={{ flex: 1, textAlign: { xs: 'center', sm: 'left' } }}>
-                            <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', opacity: 0.8 }}>Mudaris Portfolio</Typography>
+                            <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', opacity: 0.8 }}>Teacher Portfolio</Typography>
                             <Typography variant="h5" sx={{ fontWeight: 950, mb: 0.5 }}>{ReaderTeacher.displayName}</Typography>
                             <Typography variant="body2" sx={{ fontWeight: 700, opacity: 0.7 }}>{ReaderTeacher.subject || 'Islamic Theology & Guidance'}</Typography>
                           </Box>
@@ -1614,7 +1601,7 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sec
             percentage,
             passed: percentage >= quiz.passingScore,
             timestamp: Date.now(),
-            grade: currentUser.maktabLevel || 'N/A'
+            classLevel: currentUser.classLevel || 'N/A'
           });
         } catch (error) {
           handleFirestoreError(error, OperationType.WRITE, 'quiz_results');
@@ -1695,9 +1682,16 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sec
   );
 }
 
+import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
+
 function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead, viewMode, onShowTeacher, teacherPhoto }: any) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+
+  const teacherActions: ActionMenuItem[] = [
+    { label: 'Edit Subject', icon: <Edit2 size={16} />, onClick: onEdit },
+    { label: 'Delete Subject', icon: <Trash2 size={16} />, color: 'error.main', onClick: onDelete, disabled: !isSuperAdmin }
+  ];
   
   if (viewMode === 'list') {
     return (
@@ -1733,6 +1727,7 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
                 : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
               '&:hover': { transform: 'scale(1.05)', transition: '0.3s' }
             }}
+            imgProps={{ referrerPolicy: 'no-referrer' }}
           >
             {course.teacherName?.charAt(0)}
           </Avatar>
@@ -1763,36 +1758,8 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
               <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'primary.main' }}>{course.sections?.length || 0}</Typography>
             </Box>
           </Stack>
-          <Box sx={{ display: 'flex', gap: 1.5 }}>
-            {isTeacher && (
-              <>
-                <IconButton 
-                  size="small" 
-                  onClick={onEdit} 
-                  sx={{ 
-                    bgcolor: 'background.default',
-                    boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
-                    p: 1.5
-                  }}
-                >
-                  <Edit2 size={18} />
-                </IconButton>
-                {isSuperAdmin && (
-                  <IconButton 
-                    size="small" 
-                    color="error" 
-                    onClick={onDelete} 
-                    sx={{ 
-                      bgcolor: 'background.default',
-                      boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
-                      p: 1.5
-                    }}
-                  >
-                    <Trash2 size={18} />
-                  </IconButton>
-                )}
-              </>
-            )}
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+            {isTeacher && <ActionMenu items={teacherActions} />}
             <IconButton 
               aria-label="Read course"
               size="large" 
@@ -1881,14 +1848,7 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
       <CardContent sx={{ p: 4.5, flexGrow: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 900, lineHeight: 1.1, letterSpacing: -1.2, color: 'text.primary' }}>{course.name}</Typography>
-          {isTeacher && (
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <IconButton aria-label="Edit course" size="small" onClick={onEdit} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}><Edit2 size={16} /></IconButton>
-              {isSuperAdmin && (
-                <IconButton aria-label="Delete course" size="small" color="error" onClick={onDelete} sx={{ bgcolor: alpha(theme.palette.error.main, 0.05) }}><Trash2 size={16} /></IconButton>
-              )}
-            </Box>
-          )}
+          {isTeacher && <ActionMenu items={teacherActions} />}
         </Box>
         
         <Typography variant="body2" color="text.secondary" sx={{ mb: 4, fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 60, lineHeight: 1.6 }}>
@@ -1902,7 +1862,7 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'text.secondary' }}>
             <Users size={20} color={theme.palette.primary.main} />
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{(course.sections?.length || 0) * 12 + 10} Tulab</Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{(course.sections?.length || 0) * 12 + 10} Students</Typography>
           </Box>
         </Stack>
 
@@ -1955,7 +1915,7 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
           '&:hover': { bgcolor: 'primary.main', color: 'white' } 
         }}
       >
-        Read Mazmoon
+        Read Subject
       </Button>
     </Card>
   );

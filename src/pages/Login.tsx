@@ -33,7 +33,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [institute, setInstitute] = useState<Partial<InstituteSettings>>({
-    maktabName: 'Wali Ul Aser',
+    instituteName: 'Wali Ul Aser Institute',
     tagline: 'Simple Learning for Everyone'
   });
 
@@ -121,7 +121,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
               textTransform: 'uppercase',
               textShadow: `0 0 30px ${alpha(theme.palette.primary.main, 0.4)}`
             }}>
-              {institute.maktabName}
+              {institute.instituteName}
             </Typography>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, opacity: 0.8, color: 'white', fontStyle: 'italic' }}>
               {institute.tagline}
@@ -188,8 +188,8 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                               onChange={(e) => setRole(e.target.value as UserRole)}
                               sx={{ borderRadius: 4, bgcolor: 'rgba(0,0,0,0.2)' }}
                             >
-                              <MenuItem value="student">Student (Talib-e-Ilm)</MenuItem>
-                              <MenuItem value="teacher">Teacher (Mudaris)</MenuItem>
+                              <MenuItem value="student">Student</MenuItem>
+                              <MenuItem value="teacher">Teacher</MenuItem>
                             </Select>
                           </FormControl>
                         </Stack>
@@ -296,7 +296,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
           </Card>
           <Box sx={{ mt: 6, textAlign: 'center' }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, display: 'block' }}>
-              © {new Date().getFullYear()} {institute.maktabName}
+              © {new Date().getFullYear()} {institute.instituteName}
             </Typography>
           </Box>
         </motion.div>

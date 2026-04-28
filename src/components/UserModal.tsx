@@ -14,7 +14,7 @@ export default function UserModal({ open, onClose, onSubmit }: UserModalProps) {
     displayName: '',
     email: '',
     role: 'student' as UserRole,
-    grade: '',
+    classLevel: '',
     subject: '',
     password: ''
   });
@@ -70,19 +70,19 @@ export default function UserModal({ open, onClose, onSubmit }: UserModalProps) {
               startAdornment={<Shield size={18} style={{ marginRight: 12, color: '#666' }} />}
             >
               <MenuItem value="student">Student</MenuItem>
-              <MenuItem value="mudaris">Mudaris</MenuItem>
-              <MenuItem value="muntazim">Muntazim</MenuItem>
+              <MenuItem value="teacher">Teacher</MenuItem>
+              <MenuItem value="manager">Manager</MenuItem>
               <MenuItem value="superadmin">Administrator</MenuItem>
-              <MenuItem value="pending_mudaris">Pending Mudaris</MenuItem>
+              <MenuItem value="pending_teacher">Pending Teacher</MenuItem>
             </Select>
           </FormControl>
 
           {formData.role === 'student' && (
             <TextField
-              name="grade"
-              label="Grade / Class"
+              name="classLevel"
+              label="Class Level"
               fullWidth
-              value={formData.grade}
+              value={formData.classLevel}
               onChange={handleChange}
               InputProps={{
                 startAdornment: <GraduationCap size={18} style={{ marginRight: 12, color: '#666' }} />,
@@ -90,7 +90,7 @@ export default function UserModal({ open, onClose, onSubmit }: UserModalProps) {
             />
           )}
 
-          {(formData.role === 'mudaris' || formData.role === 'pending_mudaris') && (
+          {(formData.role === 'teacher' || formData.role === 'pending_teacher') && (
             <TextField
               name="subject"
               label="Primary Subject"

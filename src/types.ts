@@ -1,5 +1,5 @@
-export type UserRole = 'student' | 'superadmin' | 'muntazim' | 'mudaris' | 'pending_mudaris';
-export type MaktabLevel = 'Awal' | 'Doum' | 'Soam' | 'Chaharum' | 'panjum' | 'shahsum' | 'haftum' | 'hashtum' | 'dahum' | 'Hafiz' | 'muntazim [m]' | 'muntazimah [f]';
+export type UserRole = 'student' | 'superadmin' | 'manager' | 'teacher' | 'pending_teacher';
+export type ClassLevel = 'Level 1' | 'Level 2' | 'Level 3' | 'Level 4' | 'Level 5' | 'Level 6' | 'Level 7' | 'Level 8' | 'Level 9' | 'Level 10' | 'Hafiz' | 'Manager [m]' | 'Manager [f]';
 
 export interface UserProfile {
   uid: string;
@@ -12,12 +12,11 @@ export interface UserProfile {
   phone?: string;
   whatsapp?: string;
   address?: string;
-  // Tulab specific
+  // Student specific
   studentId?: string; // Admission No.
   admissionNo?: string;
-  grade?: string; // Maktab Level
-  maktabLevel?: MaktabLevel;
-  pendingMaktabLevel?: MaktabLevel;
+  classLevel?: string;
+  pendingClassLevel?: ClassLevel;
   fatherName?: string;
   motherName?: string;
   rollNo?: string;
@@ -25,9 +24,9 @@ export interface UserProfile {
   admissionDate?: string;
   status?: 'Active' | 'Inactive';
   subjectsEnrolled?: string[];
-  haziriStatus?: string; // Summary
+  attendanceStatus?: string; // Summary
   enrolledCourses?: string[];
-  // Mudaris specific
+  // Teacher specific
   teacherId?: string;
   subject?: string;
   expertise?: string[];
@@ -58,11 +57,11 @@ export interface Attendance {
   id: string;
   studentId: string;
   studentName: string;
-  maktabLevel: string;
+  classLevel: string;
   subjects: string[];
   date: string; // ISO string (YYYY-MM-DD)
   status: 'present' | 'absent' | 'leave';
-  markedBy: string; // Mudaris UID
+  markedBy: string; // Teacher UID
   markedByName?: string;
   markedAt: number;
 }
@@ -76,7 +75,7 @@ export interface ClassSchedule {
   endTime: string; // HH:mm
   dayOfWeek: number; // 0-6
   room: string;
-  grade: string; // Maktab Level
+  classLevel: string;
   description?: string;
   materials?: {
     title: string;
@@ -90,10 +89,10 @@ export interface Note {
   title: string;
   description: string;
   fileUrl?: string;
-  uploadedBy: string; // Mudaris UID
+  uploadedBy: string; // Teacher UID
   uploadedAt: number;
   subject: string;
-  grade: string; // Maktab Level
+  classLevel: string;
 }
 
 export interface QuizQuestion {
@@ -143,8 +142,8 @@ export interface Course {
   thumbnailUrl?: string;
   sections?: CourseSection[];
   enrolledStudents?: string[]; // Array of student UIDs
-  assignedMudaris?: string[]; // Array of mudaris UIDs
-  gradeId?: string; // Maktab level it's targeted for
+  assignedTeachers?: string[]; // Array of teacher UIDs
+  classLevelId?: string; // Class level it's targeted for
   isPublished?: boolean;
   views?: number;
 }
@@ -153,7 +152,7 @@ export interface Student {
   id: string;
   name: string;
   email: string;
-  grade: string;
+  classLevel: string;
   studentId: string;
   enrolledCourses: string[]; // Course IDs
   createdAt: number;
@@ -167,9 +166,9 @@ export interface FeeReceipt {
   studentOfficialId?: string; // N21E5... or Admission No
   studentName: string;
   fatherName?: string;
-  grade: string; // Maktab Level
+  classLevel: string;
   amount: number;
-  feeHead: 'Monthly Fee' | 'Admission Fee' | 'Quran / Hifz Fee' | 'Exam / Test Fee' | 'Book / Kitab Fee' | 'Activity / Competition Fee (Gez-z & Gen-x)' | 'Sadqa / Donation' | 'Others';
+  feeHead: 'Monthly Fee' | 'Admission Fee' | 'Quran / Hifz Fee' | 'Exam / Test Fee' | 'Book Fee' | 'Activity / Competition Fee (Gez-z & Gen-x)' | 'Sadqa / Donation' | 'Others';
   paymentMode: 'Cash' | 'UPI' | 'Bank Transfer' | 'Card' | 'Cheque' | 'Others';
   transactionId?: string;
   date: string; // YYYY-MM-DD
@@ -178,7 +177,7 @@ export interface FeeReceipt {
   studentPhotoURL?: string;
   createdAt: number;
   createdBy: string; // UID
-  approvedBy?: string; // Mudaris UID
+  approvedBy?: string; // Teacher UID
   approvedByName?: string;
   approvedAt?: number;
   uploadedBy?: string;
@@ -200,7 +199,7 @@ export interface Notification {
 export interface InstituteSettings {
   id: string;
   name: string;
-  maktabName: string;
+  instituteName: string;
   tagline: string;
   address: string;
   phone: string;

@@ -40,9 +40,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
               // Basic migration and cleanup
               if (!profile.role) profile.role = 'student';
-              if ((profile.role as string) === 'teacher') {
-                profile.role = 'mudaris';
-                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'mudaris' });
+              if ((profile.role as string) === 'mudaris') {
+                profile.role = 'teacher' as any;
+                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'teacher' });
+              }
+              if ((profile.role as string) === 'muntazim') {
+                profile.role = 'manager' as any;
+                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'manager' });
+              }
+              if ((profile.role as string) === 'pending_mudaris') {
+                profile.role = 'pending_teacher' as any;
+                updateDoc(doc(db, 'users', firebaseUser.uid), { role: 'pending_teacher' });
               }
               
               setUser(profile);
@@ -140,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
       
-      const finalRole = role === ('teacher' as any) ? 'pending_mudaris' : role;
+      const finalRole = role === 'teacher' ? 'pending_teacher' : role;
       
       const newUser: UserProfile = {
         uid: firebaseUser.uid,

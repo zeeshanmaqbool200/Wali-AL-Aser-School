@@ -23,6 +23,7 @@ import { useAuth } from '../context/AuthContext';
 import { FEE_HEADS, PAYMENT_MODES } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 import FeeReceiptModal from '../components/FeeReceiptModal';
+import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import confetti from 'canvas-confetti';
 import { format } from 'date-fns';
 import { logger } from '../lib/logger';
@@ -62,10 +63,10 @@ export default function Fees() {
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
   const role = currentUser?.role || 'student';
-  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
-  const isMudarisRole = role === 'mudaris';
-  const isAdmin = isSuperAdmin || isMuntazim;
-  const isStaff = isAdmin || isMudarisRole;
+  const isManagerRole = role === 'manager' || (role === 'superadmin' && !isSuperAdmin);
+  const isTeacherRole = role === 'teacher';
+  const isAdmin = isSuperAdmin || isManagerRole;
+  const isStaff = isAdmin || isTeacherRole;
 
   const [settings, setSettings] = React.useState<any>(null);
 
@@ -91,13 +92,13 @@ export default function Fees() {
     // Filtering receipts
     if (currentUser.role === 'student') {
       q = query(collection(db, 'receipts'), where('studentId', '==', currentUser.uid), orderBy('createdAt', 'desc'));
-    } else if (isMudarisRole) {
-      // Mudaris can only see receipts for their grade and Example grade
+    } else if (isTeacherRole) {
+      // Teacher can only see receipts for their classes
       q = query(
         collection(db, 'receipts'), 
         or(
-          where('grade', 'in', (currentUser.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
-          where('grade', '==', 'Example')
+          where('classLevel', 'in', (currentUser.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
+          where('classLevel', '==', 'Example')
         ),
         orderBy('createdAt', 'desc')
       );
@@ -122,8 +123,8 @@ export default function Fees() {
           and(
             where('role', '==', 'student'),
             or(
-              where('grade', 'in', (currentUser.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
-              where('grade', '==', 'Example')
+              where('classLevel', 'in', (currentUser.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
+              where('classLevel', '==', 'Example')
             )
           )
         );
@@ -137,7 +138,7 @@ export default function Fees() {
     }
 
     return () => unsubscribe();
-  }, [currentUser, isStaff, isAdmin, isMudarisRole]);
+  }, [currentUser, isStaff, isAdmin, isTeacherRole]);
 
   const handleAddReceipt = async () => {
     if (!currentUser) return;
@@ -160,7 +161,7 @@ export default function Fees() {
         receiptNumber: receiptId,
         studentOfficialId: formData.isNonStudent ? 'NON-STUDENT' : (student?.admissionNo || student?.studentId || ''),
         studentPhotoURL: student?.photoURL || '',
-        grade: formData.isNonStudent ? 'General' : (student?.maktabLevel || student?.grade || ''),
+        classLevel: formData.isNonStudent ? 'General' : (student?.classLevel || 'N/A'),
         studentId: formData.isNonStudent ? `non-${Date.now()}` : formData.studentId
       };
       await smartAddDoc(collection(db, 'receipts'), newReceipt);
@@ -334,7 +335,7 @@ export default function Fees() {
     const dataToExport = filteredReceipts.map(r => ({
       'Receipt No': r.receiptNo || r.receiptNumber,
       'Student Name': r.studentName,
-      'Grade': r.grade || 'N/A',
+      'Level': r.classLevel || 'N/A',
       'Amount': r.amount,
       'Head': r.feeHead,
       'Status': r.status,
@@ -342,7 +343,7 @@ export default function Fees() {
       'Date': format(new Date(r.date), 'dd MMM yyyy'),
       'Transaction ID': r.transactionId || 'N/A'
     }));
-    exportToCSV(dataToExport, 'Maktab_Fees_Export');
+    exportToCSV(dataToExport, 'Institute_Fees_Export');
   };
 
   return (
@@ -356,7 +357,7 @@ export default function Fees() {
           <Box>
             <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Fees & Payments</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-              Manage Tulab-e-Ilm payments and official receipts
+              Manage student payments and official receipts
             </Typography>
           </Box>
           <Stack direction="row" spacing={2} sx={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', alignItems: 'center' }}>
@@ -376,7 +377,7 @@ export default function Fees() {
                 <Download size={isMobile ? 18 : 22} />
               </IconButton>
             )}
-            {(!isStaff && currentUser?.role === 'student' && !currentUser?.maktabLevel) ? (
+            {(!isStaff && currentUser?.role === 'student' && !currentUser?.classLevel) ? (
               <Tooltip title="Your class selection must be approved by a teacher before you can use this feature.">
                 <span>
                   <Button 
@@ -565,7 +566,7 @@ export default function Fees() {
                   <Search size={18} color={theme.palette.text.secondary} />
                   <Box 
                     component="input" 
-                    placeholder={isMobile ? "Search..." : "Search receipt or Talib-e-Ilm..."} 
+                    placeholder={isMobile ? "Search..." : "Search receipt or student..."} 
                     value={searchQuery}
                     onChange={(e: any) => setSearchQuery(e.target.value)}
                     sx={{ 
@@ -632,7 +633,7 @@ export default function Fees() {
               <TableHead>
               <TableRow sx={{ bgcolor: alpha(theme.palette.background.default, 0.3) }}>
                 <TableCell sx={{ fontWeight: 800, py: 2.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Receipt Details</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Talib-e-Ilm</TableCell>
+                <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Student</TableCell>
                 <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Fee Head</TableCell>
                 <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Amount</TableCell>
                 <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Date</TableCell>
@@ -700,120 +701,58 @@ export default function Fees() {
                       {getStatusChip(receipt.status)}
                     </TableCell>
                     <TableCell align="right">
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
-                        <Tooltip title="View Receipt">
-                          <Button 
-                            variant="contained"
-                            size="small" 
-                            color="info"
-                            startIcon={<Eye size={16} />}
-                            sx={{ 
-                              borderRadius: 2, fontWeight: 800, textTransform: 'none',
-                              bgcolor: 'info.main',
-                              color: 'white',
-                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                              '&:hover': { bgcolor: 'info.dark', transform: 'translateY(-1px)' }
-                            }}
-                            onClick={() => {
-                              setSelectedReceipt(receipt);
-                              setOpenReceiptModal(true);
-                            }}
-                          >
-                            View
-                          </Button>
-                        </Tooltip>
-                        {isStaff && receipt.status === 'pending' && (
-                          <>
-                            <Tooltip title="Approve">
-                              <Button 
-                                variant="contained"
-                                size="small" 
-                                color="success"
-                                startIcon={<Check size={16} />}
-                                sx={{ 
-                                  borderRadius: 2, fontWeight: 800, textTransform: 'none',
-                                  bgcolor: 'success.main',
-                                  color: 'white',
-                                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                                  '&:hover': { bgcolor: 'success.dark', transform: 'translateY(-1px)' }
-                                }}
-                                onClick={() => handleApprove(receipt)}
-                              >
-                                Approve
-                              </Button>
-                            </Tooltip>
-                            <Tooltip title="Reject">
-                              <Button 
-                                variant="contained"
-                                size="small" 
-                                color="error"
-                                startIcon={<XCircle size={16} />}
-                                sx={{ 
-                                  borderRadius: 2, fontWeight: 800, textTransform: 'none',
-                                  bgcolor: 'error.main',
-                                  color: 'white',
-                                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                                  '&:hover': { bgcolor: 'error.dark', transform: 'translateY(-1px)' }
-                                }}
-                                onClick={() => handleReject(receipt)}
-                              >
-                                Reject
-                              </Button>
-                            </Tooltip>
-                          </>
-                        )}
-                        {isStaff && (
-                          <>
-                            {(isSuperAdmin || receipt.createdBy === currentUser?.uid || receipt.uploadedBy === currentUser?.uid) && (
-                              <>
-                                <Tooltip title="Edit">
-                                  <IconButton 
-                                    size="small" 
-                                    color="primary"
-                                    sx={{ 
-                                      borderRadius: 2,
-                                      bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                      color: 'primary.main',
-                                      '&:hover': { bgcolor: 'primary.main', color: 'white' }
-                                    }}
-                                    onClick={() => {
-                                      setEditingReceipt(receipt);
-                                      setFormData({
-                                        studentId: receipt.studentId,
-                                        isNonStudent: (receipt as any).isNonStudent || false,
-                                        studentName: receipt.studentName,
-                                        amount: receipt.amount.toString(),
-                                        feeHead: receipt.feeHead,
-                                        paymentMode: receipt.paymentMode,
-                                        transactionId: receipt.transactionId || '',
-                                        remarks: receipt.remarks || '',
-                                        date: receipt.date || format(new Date(), 'yyyy-MM-dd')
-                                      });
-                                      setOpenEditDialog(true);
-                                    }}
-                                  >
-                                    <Edit size={16} />
-                                  </IconButton>
-                                </Tooltip>
-                                {isSuperAdmin && (
-                                  <IconButton 
-                                    size="small" 
-                                    color="error"
-                                    sx={{ 
-                                      borderRadius: 2,
-                                      bgcolor: alpha(theme.palette.error.main, 0.1),
-                                      color: 'error.main',
-                                      '&:hover': { bgcolor: 'error.main', color: 'white' }
-                                    }}
-                                    onClick={() => handleDelete(receipt.id)}
-                                  >
-                                    <Trash2 size={16} />
-                                  </IconButton>
-                                )}
-                              </>
-                            )}
-                          </>
-                        )}
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <ActionMenu 
+                          items={[
+                            { 
+                              label: 'View Receipt', 
+                              icon: <Eye size={16} />, 
+                              onClick: () => { setSelectedReceipt(receipt); setOpenReceiptModal(true); } 
+                            },
+                            { 
+                              label: 'Approve', 
+                              icon: <Check size={16} />, 
+                              color: 'success.main',
+                              onClick: () => handleApprove(receipt),
+                              disabled: !(isStaff && receipt.status === 'pending')
+                            },
+                            { 
+                              label: 'Reject', 
+                              icon: <XCircle size={16} />, 
+                              color: 'error.main',
+                              onClick: () => handleReject(receipt),
+                              disabled: !(isStaff && receipt.status === 'pending')
+                            },
+                            { divider: true, label: '', icon: null, onClick: () => {} },
+                            { 
+                              label: 'Edit Info', 
+                              icon: <Edit size={16} />, 
+                              onClick: () => {
+                                setEditingReceipt(receipt);
+                                setFormData({
+                                  studentId: receipt.studentId,
+                                  isNonStudent: (receipt as any).isNonStudent || false,
+                                  studentName: receipt.studentName,
+                                  amount: receipt.amount.toString(),
+                                  feeHead: receipt.feeHead,
+                                  paymentMode: receipt.paymentMode,
+                                  transactionId: receipt.transactionId || '',
+                                  remarks: receipt.remarks || '',
+                                  date: receipt.date || format(new Date(), 'yyyy-MM-dd')
+                                });
+                                setOpenEditDialog(true);
+                              },
+                              disabled: !(isStaff && (isSuperAdmin || receipt.createdBy === currentUser?.uid || receipt.uploadedBy === currentUser?.uid))
+                            },
+                            { 
+                              label: 'Delete', 
+                              icon: <Trash2 size={16} />, 
+                              color: 'error.main',
+                              onClick: () => handleDelete(receipt.id),
+                              disabled: !isSuperAdmin
+                            }
+                          ]} 
+                        />
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -860,7 +799,7 @@ export default function Fees() {
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 4, fontWeight: 600 }}>
             {isStaff 
-              ? 'Enter the details of the Talib-e-Ilm payment below to generate a new receipt.' 
+              ? 'Enter the details of the Student payment below to generate a new receipt.' 
               : 'Submit your fee payment details for verification and official receipt generation.'}
           </Typography>
           <Grid container spacing={3}>
@@ -873,7 +812,7 @@ export default function Fees() {
                     onClick={() => setFormData(prev => ({ ...prev, isNonStudent: !prev.isNonStudent, studentId: '', studentName: '' }))}
                     sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
                   >
-                    {formData.isNonStudent ? "Switch to Student List" : "Direct Name / Mehmaan / Old Record"}
+                    {formData.isNonStudent ? "Switch to Student List" : "Direct Name / Guest / Old Record"}
                   </Button>
                 </Box>
               )}
@@ -881,7 +820,7 @@ export default function Fees() {
               {currentUser?.role === 'student' && !isAdmin ? (
                 <TextField
                   fullWidth
-                  label="Talib-e-Ilm"
+                  label="Student Name"
                   value={currentUser.displayName}
                   disabled
                   InputProps={{ sx: { borderRadius: 4, bgcolor: 'background.default' } }}
@@ -892,7 +831,7 @@ export default function Fees() {
                     fullWidth 
                     label="Enter Student Name / Payer Name" 
                     required 
-                    placeholder="Type name for old receipt or mehmaan"
+                    placeholder="Type name for old receipt or guest"
                     value={formData.studentName}
                     onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
                     InputProps={{ sx: { borderRadius: 4 } }}
@@ -902,7 +841,7 @@ export default function Fees() {
                     options={students}
                     getOptionLabel={(option) => `${option.displayName} (${option.admissionNo || option.studentId || 'N/A'})`}
                     onChange={(e, v) => setFormData({ ...formData, studentId: v?.uid || '', studentName: v?.displayName || '' })}
-                    renderInput={(params) => <TextField {...params} label="Select Talib-e-Ilm from List" required={!formData.isNonStudent} InputProps={{ ...params.InputProps, sx: { borderRadius: 4 } }} />}
+                    renderInput={(params) => <TextField {...params} label="Select Student from List" required={!formData.isNonStudent} InputProps={{ ...params.InputProps, sx: { borderRadius: 4 } }} />}
                   />
                 )
               )}
@@ -947,7 +886,7 @@ export default function Fees() {
                 <option value="Admission Fee" disabled={formData.isNonStudent}>Admission Fee</option>
                 <option value="Quran / Hifz Fee" disabled={formData.isNonStudent}>Quran / Hifz Fee</option>
                 <option value="Exam / Test Fee" disabled={formData.isNonStudent}>Exam / Test Fee</option>
-                <option value="Book / Kitab Fee">Book / Kitab Fee</option>
+                <option value="Book Fee">Book Fee</option>
                 <option value="Activity / Competition Fee (Gez-z & Gen-x)">Activity / Competition Fee (Gez-z & Gen-x)</option>
                 <option value="Sadqa / Donation">Sadqa / Donation</option>
                 <option value="Others">Others</option>

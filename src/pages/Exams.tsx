@@ -25,11 +25,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { logger } from '../lib/logger';
 
+import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
+
 interface Exam {
   id: string;
   title: string;
   subject: string;
-  grade: string;
+  classLevel: string;
   date: string;
   maxMarks: number;
   type: 'test' | 'midterm' | 'final';
@@ -55,7 +57,7 @@ export default function Exams() {
   const [formData, setFormData] = useState({
     title: '',
     subject: '',
-    grade: '',
+    classLevel: '',
     date: format(new Date(), 'yyyy-MM-dd'),
     maxMarks: 100,
     type: 'test' as const,
@@ -63,25 +65,25 @@ export default function Exams() {
   });
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
-  const isMuntazim = currentUser?.role === 'muntazim';
-  const isMudarisRole = currentUser?.role === 'mudaris';
-  const isAdmin = isSuperAdmin || isMuntazim;
-  const isStaff = isAdmin || isMudarisRole;
+  const isManagerRole = currentUser?.role === 'manager';
+  const isTeacherRole = currentUser?.role === 'teacher';
+  const isAdmin = isSuperAdmin || isManagerRole;
+  const isStaff = isAdmin || isTeacherRole;
 
   useEffect(() => {
     let q = query(collection(db, 'exams'), orderBy('date', 'desc'));
     
     // Filtering exams based on role
-    if (isMudarisRole) {
+    if (isTeacherRole) {
       q = query(
         collection(db, 'exams'), 
-        where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']), 
+        where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']), 
         orderBy('date', 'desc')
       );
     } else if (currentUser?.role === 'student') {
       q = query(
         collection(db, 'exams'), 
-        where('grade', '==', currentUser.maktabLevel || currentUser.grade || 'none'), 
+        where('classLevel', '==', currentUser.classLevel || 'none'), 
         orderBy('date', 'desc')
       );
     }
@@ -91,7 +93,7 @@ export default function Exams() {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [currentUser, isMudarisRole]);
+  }, [currentUser, isTeacherRole]);
 
   const handleSave = async () => {
     if (!currentUser) return;
@@ -115,7 +117,7 @@ export default function Exams() {
 
       setOpenDialog(false);
       setFormData({ 
-        title: '', subject: '', grade: '', 
+        title: '', subject: '', classLevel: '', 
         date: format(new Date(), 'yyyy-MM-dd'), 
         maxMarks: 100, type: 'test', status: 'upcoming' 
       });
@@ -144,15 +146,15 @@ export default function Exams() {
   const [levels, setLevels] = useState<string[]>(['All']);
 
   useEffect(() => {
-    const uniqueLevels = Array.from(new Set(exams.map(e => e.grade).filter(Boolean)));
-    setLevels(['All', ...uniqueLevels]);
+    const uniqueLevels = Array.from(new Set(exams.map(e => e.classLevel).filter(Boolean)));
+    setLevels(['All', ...uniqueLevels as string[]]);
   }, [exams]);
 
   const filteredExams = exams.filter(e => {
     const matchesSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          e.subject.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTab = tabValue === 0 ? e.status === 'upcoming' : e.status === 'completed';
-    const matchesLevel = selectedLevel === 'All' || e.grade === selectedLevel;
+    const matchesLevel = selectedLevel === 'All' || e.classLevel === selectedLevel;
     return matchesSearch && matchesTab && matchesLevel;
   });
 
@@ -171,9 +173,9 @@ export default function Exams() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Imtihanat & Janch (Exams)</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Exams & Results</Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Schedule evaluations, track performance, and manage results for Tulab
+              Schedule evaluations, track performance, and manage results for students
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
@@ -233,7 +235,7 @@ export default function Exams() {
                     : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
                 }}
               >
-                Schedule Imtihan
+                Schedule Exam
               </Button>
             )}
           </Stack>
@@ -342,10 +344,10 @@ export default function Exams() {
                   <Table>
                     <TableHead>
                     <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50' }}>
-                      <TableCell sx={{ fontWeight: 800, py: 2.5 }}>Imtihan Title</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>Mazmoon</TableCell>
+                      <TableCell sx={{ fontWeight: 800, py: 2.5 }}>Exam Title</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>Subject</TableCell>
                       <TableCell sx={{ fontWeight: 800 }}>Date & Time</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>Maktab Level</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>Class Level</TableCell>
                       <TableCell sx={{ fontWeight: 800 }} align="right">Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -386,27 +388,27 @@ export default function Exams() {
                             </Stack>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{exam.grade}</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>{exam.classLevel || 'N/A'}</Typography>
                           </TableCell>
                           <TableCell align="right">
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                              {isStaff && (
-                                <Tooltip title="Delete">
-                                  <IconButton 
-                                    size="small" 
-                                    sx={{ bgcolor: 'error.light', color: 'error.dark', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
-                                    onClick={() => handleDelete(exam.id)}
-                                  >
-                                    <Trash2 size={16} />
-                                  </IconButton>
-                                </Tooltip>
-                              )}
-                              <Tooltip title="View Analytics">
-                                <IconButton size="small" sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.4) : 'grey.100', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}>
-                                  <TrendingUp size={16} />
-                                </IconButton>
-                              </Tooltip>
-                              <IconButton size="small" sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              <ActionMenu 
+                                items={[
+                                  { 
+                                    label: 'View Analytics', 
+                                    icon: <TrendingUp size={16} />, 
+                                    onClick: () => {} 
+                                  },
+                                  { 
+                                    label: 'Delete Exam', 
+                                    icon: <Trash2 size={16} />, 
+                                    color: 'error.main',
+                                    onClick: () => handleDelete(exam.id),
+                                    disabled: !isStaff
+                                  }
+                                ]} 
+                              />
+                              <IconButton size="small" sx={{ ml: 1, bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}>
                                 <ArrowRight size={18} />
                               </IconButton>
                             </Box>
@@ -528,19 +530,19 @@ export default function Exams() {
         fullWidth 
         PaperProps={{ sx: { borderRadius: 5, p: 1 } }}
       >
-                <DialogTitle sx={{ fontWeight: 900, fontSize: '1.5rem', pb: 1 }}>
-          Schedule Naya Imtihan
+        <DialogTitle sx={{ fontWeight: 900, fontSize: '1.5rem', pb: 1 }}>
+          Schedule New Exam
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 500 }}>
-            Configure the assessment details below. Notifications will be sent to all enrolled Tulab.
+            Configure the assessment details below. Notifications will be sent to all enrolled students.
           </Typography>
           <Grid container spacing={3}>
             <Grid size={12}>
               <TextField
                 fullWidth
-                label="Imtihan Title"
-                placeholder="e.g. Shashmahi Imtihan 2026"
+                label="Exam Title"
+                placeholder="e.g. Midterm Examination 2026"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -550,7 +552,7 @@ export default function Exams() {
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Mazmoon"
+                label="Subject"
                 placeholder="e.g. Quran with Tajweed"
                 required
                 value={formData.subject}
@@ -561,11 +563,11 @@ export default function Exams() {
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Maktab Level"
+                label="Class Level"
                 placeholder="e.g. Level 1"
                 required
-                value={formData.grade}
-                onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
+                value={formData.classLevel}
+                onChange={(e) => setFormData({ ...formData, classLevel: e.target.value })}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
               />
             </Grid>
@@ -592,15 +594,15 @@ export default function Exams() {
             </Grid>
             <Grid size={12}>
               <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}>
-                <InputLabel>Imtihan Type</InputLabel>
+                <InputLabel>Exam Type</InputLabel>
                 <Select
                   value={formData.type}
-                  label="Imtihan Type"
+                  label="Exam Type"
                   onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
                 >
-                  <MenuItem value="test">Sabaqi Imtihan (Test/Quiz)</MenuItem>
-                  <MenuItem value="midterm">Shashmahi Imtihan (Midterm)</MenuItem>
-                  <MenuItem value="final">Salana Imtihan (Final)</MenuItem>
+                  <MenuItem value="test">Quiz / Monthly Test</MenuItem>
+                  <MenuItem value="midterm">Midterm Exam</MenuItem>
+                  <MenuItem value="final">Final Term Exam</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -615,7 +617,7 @@ export default function Exams() {
             disabled={!formData.title || !formData.subject || submitting}
             sx={{ borderRadius: 3, fontWeight: 800, px: 3, boxShadow: '0 8px 24px rgba(15, 118, 110, 0.3)' }}
           >
-            {submitting ? 'Scheduling...' : 'Schedule Imtihan'}
+            {submitting ? 'Scheduling...' : 'Schedule Exam'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -675,23 +677,26 @@ function ExamCard({ exam, isTeacher, onDelete }: any) {
           }}>
             <BookOpen size={28} />
           </Avatar>
-          <Box sx={{ display: 'flex', gap: 1.5 }}>
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
             <Chip 
               label={exam.type.toUpperCase()} 
               size="small" 
               sx={{ fontWeight: 900, fontSize: '0.7rem', bgcolor: 'background.default', borderRadius: 2.5, border: 'none' }} 
             />
             {isTeacher && (
-              <IconButton size="small" color="error" onClick={onDelete} sx={{ bgcolor: 'background.default', boxShadow: isDark ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff' }}>
-                <Trash2 size={16} />
-              </IconButton>
+              <ActionMenu 
+                items={[
+                  { label: 'Edit Details', icon: <FileText size={16} />, onClick: () => {} },
+                  { label: 'Delete Exam', icon: <Trash2 size={16} />, color: 'error.main', onClick: onDelete }
+                ]} 
+              />
             )}
           </Box>
         </Box>
         
         <Typography variant="h5" sx={{ fontWeight: 900, mb: 1, letterSpacing: -1 }}>{exam.title}</Typography>
         <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 800, mb: 4 }}>
-          {exam.subject} • {exam.grade}
+          {exam.subject} • {exam.classLevel}
         </Typography>
         
         <Stack spacing={2.5} sx={{ mb: 4 }}>

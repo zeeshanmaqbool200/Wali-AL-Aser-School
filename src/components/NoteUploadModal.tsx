@@ -12,7 +12,7 @@ export default function NoteUploadModal({ open, onClose, onSubmit }: NoteUploadM
   const [formData, setFormData] = React.useState({
     title: '',
     subject: '',
-    grade: '',
+    classLevel: '',
     description: ''
   });
 
@@ -64,17 +64,17 @@ export default function NoteUploadModal({ open, onClose, onSubmit }: NoteUploadM
             </Grid>
             <Grid size={{ xs: 6 }}>
               <FormControl fullWidth>
-                <InputLabel>Grade</InputLabel>
+                <InputLabel>Class Level</InputLabel>
                 <Select
-                  name="grade"
-                  value={formData.grade}
+                  name="classLevel"
+                  value={formData.classLevel}
                   onChange={handleChange as any}
-                  label="Grade"
+                  label="Class Level"
                   startAdornment={<Users size={18} style={{ marginRight: 12, color: '#666' }} />}
                 >
-                  <MenuItem value="10A">Grade 10A</MenuItem>
-                  <MenuItem value="10B">Grade 10B</MenuItem>
-                  <MenuItem value="11A">Grade 11A</MenuItem>
+                  <MenuItem value="Level 1">Level 1</MenuItem>
+                  <MenuItem value="Level 2">Level 2</MenuItem>
+                  <MenuItem value="Level 3">Level 3</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -107,7 +107,7 @@ export default function NoteUploadModal({ open, onClose, onSubmit }: NoteUploadM
         <Button
           variant="contained"
           onClick={handleSubmit}
-          disabled={!formData.title || !formData.subject || !formData.grade}
+          disabled={!formData.title || !formData.subject || !formData.classLevel}
           sx={{ px: 4 }}
         >
           Upload Note

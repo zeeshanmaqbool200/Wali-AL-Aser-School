@@ -47,8 +47,8 @@ export default function Reports() {
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
   const role = currentUser?.role || 'student';
-  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
-  const isAdmin = isSuperAdmin || isMuntazim;
+  const isManagerRole = role === 'manager' || (role === 'superadmin' && !isSuperAdmin);
+  const isAdmin = isSuperAdmin || isManagerRole;
 
   useEffect(() => {
     if (!currentUser) return;
@@ -56,14 +56,14 @@ export default function Reports() {
     const unsubscribes: (() => void)[] = [];
 
     // 1. Student Enrollment Distribution
-    const qTulab = query(collection(db, 'users'), where('role', '==', 'student'));
-    const unsubStudents = onSnapshot(qTulab, (snapshot) => {
+    const qStudents = query(collection(db, 'users'), where('role', '==', 'student'));
+    const unsubStudents = onSnapshot(qStudents, (snapshot) => {
       const students = snapshot.docs.map(doc => doc.data());
       setCounts(prev => ({ ...prev, students: students.length }));
 
       const distribution: Record<string, number> = {};
       students.forEach(s => {
-        const level = s.maktabLevel || 'Unassigned';
+        const level = s.classLevel || s.grade || 'Unassigned';
         distribution[level] = (distribution[level] || 0) + 1;
       });
       
@@ -103,18 +103,18 @@ export default function Reports() {
       const qQuizzes = query(collection(db, 'quiz_results'), orderBy('timestamp', 'desc'), limit(500));
       const unsubQuizzes = onSnapshot(qQuizzes, (snapshot) => {
         const results = snapshot.docs.map(doc => doc.data());
-        const gradeStats: Record<string, { totalScore: number, count: number }> = {};
+        const classLevelStats: Record<string, { totalScore: number, count: number }> = {};
         
         results.forEach(r => {
-          const grade = r.grade || 'N/A';
-          if (!gradeStats[grade]) gradeStats[grade] = { totalScore: 0, count: 0 };
-          gradeStats[grade].totalScore += r.percentage;
-          gradeStats[grade].count += 1;
+          const level = r.classLevel || 'N/A';
+          if (!classLevelStats[level]) classLevelStats[level] = { totalScore: 0, count: 0 };
+          classLevelStats[level].totalScore += r.percentage;
+          classLevelStats[level].count += 1;
         });
 
-        setPerformanceData(Object.keys(gradeStats).map(key => ({
+        setPerformanceData(Object.keys(classLevelStats).map(key => ({
           name: key,
-          average: Math.round(gradeStats[key].totalScore / gradeStats[key].count)
+          average: Math.round(classLevelStats[key].totalScore / classLevelStats[key].count)
         })));
       });
       unsubscribes.push(unsubQuizzes);
@@ -151,23 +151,23 @@ export default function Reports() {
   }, [currentUser?.uid, isAdmin]);
 
   const availableReports = [
-    { title: 'Tulab Karkardagi Report', icon: <GraduationCap size={22} />, type: 'PDF', size: '2.4 MB', color: 'primary' },
-    ...((isAdmin) ? [{ title: 'Fee Jama Summary', icon: <DollarSign size={22} />, type: 'XLSX', size: '1.1 MB', color: 'success', page: '/fees' }] : []),
-    { title: 'Mudaris Haziri Log', icon: <Users size={22} />, type: 'CSV', size: '0.8 MB', color: 'warning', page: '/attendance' },
-    ...((isAdmin) ? [{ title: 'Asasa Report', icon: <FileText size={22} />, type: 'PDF', size: '3.2 MB', color: 'error' }] : []),
+    { title: 'Student Performance Report', icon: <GraduationCap size={22} />, type: 'PDF', size: '2.4 MB', color: 'primary' },
+    ...((isAdmin) ? [{ title: 'Fee Collection Summary', icon: <DollarSign size={22} />, type: 'XLSX', size: '1.1 MB', color: 'success', page: '/fees' }] : []),
+    { title: 'Teacher Attendance Log', icon: <Users size={22} />, type: 'CSV', size: '0.8 MB', color: 'warning', page: '/attendance' },
+    ...((isAdmin) ? [{ title: 'System Assets Report', icon: <FileText size={22} />, type: 'PDF', size: '3.2 MB', color: 'error' }] : []),
   ];
 
   const stats = [
-    { title: 'Total Tulab-e-Ilm', value: counts.students.toLocaleString(), trend: '+0%', icon: <Users size={24} />, color: 'primary', link: '/users' },
-    ...(isAdmin ? [{ title: 'Majmua (MTD)', value: `₹${counts.fees.toLocaleString()}`, trend: '+0%', icon: <DollarSign size={24} />, color: 'success', link: '/fees' }] : []),
-    { title: 'Ausat Haziri', value: '94.2%', trend: '94%', icon: <Activity size={24} />, color: 'warning', link: '/attendance' },
-    { title: 'Imtihan Kamyabi', value: performanceData.length > 0 ? `${Math.round(performanceData.reduce((acc, p) => acc + p.average, 0) / performanceData.length)}%` : '0%', trend: 'Avg', icon: <Award size={24} />, color: 'error' }
+    { title: 'Total Students', value: counts.students.toLocaleString(), trend: '+0%', icon: <Users size={24} />, color: 'primary', link: '/users' },
+    ...(isAdmin ? [{ title: 'Collection (MTD)', value: `₹${counts.fees.toLocaleString()}`, trend: '+0%', icon: <DollarSign size={24} />, color: 'success', link: '/fees' }] : []),
+    { title: 'Average Attendance', value: '94.2%', trend: '94%', icon: <Activity size={24} />, color: 'warning', link: '/attendance' },
+    { title: 'Exam Success Rate', value: performanceData.length > 0 ? `${Math.round(performanceData.reduce((acc, p) => acc + p.average, 0) / performanceData.length)}%` : '0%', trend: 'Avg', icon: <Award size={24} />, color: 'error' }
   ];
 
   const handleExportAll = () => {
     // Collect some data to export
     const exportData = revenueData.map(d => ({ Month: d.name, Revenue: d.amount }));
-    exportToCSV(exportData, 'Maktab_Revenue_Report');
+    exportToCSV(exportData, 'Institute_Revenue_Report');
   };
 
   if (loading) return (
@@ -185,9 +185,9 @@ export default function Reports() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Dashbaord Insight</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Dashboard Insight</Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Real-time analytics for Maktab Wali Ul Aser educational & financial operations
+              Real-time analytics for Wali Ul Aser Institute educational & financial operations
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
@@ -371,7 +371,7 @@ export default function Reports() {
           }}>
             <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
               <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5 }}>Financial Health</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Students by Maktab Level</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Students by Class Level</Typography>
             </Box>
             <CardContent sx={{ p: 3 }}>
               <Box sx={{ height: 300, width: '100%' }}>
@@ -411,7 +411,7 @@ export default function Reports() {
                     <Sparkles size={22} color={theme.palette.primary.main} />
                   </Box>
                   <Typography variant="caption" sx={{ fontWeight: 800, lineHeight: 1.5, fontSize: '0.8rem' }}>
-                    Click on a slice to view and filter students in that specific Maktab Level.
+                    Click on a slice to view and filter students in that specific Class Level.
                   </Typography>
                 </Stack>
               </Box>

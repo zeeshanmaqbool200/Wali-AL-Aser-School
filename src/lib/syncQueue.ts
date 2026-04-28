@@ -26,7 +26,7 @@ const QUEUE_KEY = 'edufee_sync_queue';
 
 // Configure localforage
 localforage.config({
-  name: 'MaktabSyncQueue',
+  name: 'InstituteSyncQueue',
   storeName: 'offline_sync'
 });
 

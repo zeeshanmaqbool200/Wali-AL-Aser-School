@@ -49,10 +49,10 @@ export default function AttendancePage() {
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
   const role = currentUser?.role || 'student';
-  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
-  const isMudarisRole = role === 'mudaris';
-  const isAdmin = isSuperAdmin || isMuntazim;
-  const isStaff = isAdmin || isMudarisRole;
+  const isManagerRole = role === 'manager' || (role === 'superadmin' && !isSuperAdmin);
+  const isTeacherRole = role === 'teacher';
+  const isAdmin = isSuperAdmin || isManagerRole;
+  const isStaff = isAdmin || isTeacherRole;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -61,14 +61,14 @@ export default function AttendancePage() {
         let studentsQuery;
         if (isAdmin) {
           studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
-        } else if (isMudarisRole) {
+        } else if (isTeacherRole) {
           studentsQuery = query(
             collection(db, 'users'),
             and(
               where('role', '==', 'student'), 
               or(
-                where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
-                where('grade', '==', 'Example')
+                where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
+                where('classLevel', '==', 'Example')
               )
             )
           );
@@ -83,8 +83,8 @@ export default function AttendancePage() {
           return { 
             uid: doc.id, 
             ...data,
-            // Ensure grade is present if maktabLevel exists (fallback)
-            grade: data.grade || data.maktabLevel 
+            // Ensure classLevel is consistent
+            classLevel: data.classLevel || 'N/A' 
           };
         }) as UserProfile[];
         
@@ -92,7 +92,7 @@ export default function AttendancePage() {
         localStorage.setItem('attendance_students', JSON.stringify(studentsList));
 
         // Extract unique classes
-        const uniqueClasses = Array.from(new Set(studentsList.map(s => s.grade || s.maktabLevel).filter(Boolean))) as string[];
+        const uniqueClasses = Array.from(new Set(studentsList.map(s => s.classLevel).filter(Boolean))) as string[];
         setClasses(uniqueClasses);
         localStorage.setItem('attendance_classes', JSON.stringify(uniqueClasses));
         
@@ -112,14 +112,14 @@ export default function AttendancePage() {
         if (isAdmin) {
           attendanceQuery = query(collection(db, 'attendance'), where('date', '==', dateStr));
         } else {
-          // Mudaris can only fetch attendance for their assigned classes
+          // Teacher can only fetch attendance for their assigned classes
           attendanceQuery = query(
             collection(db, 'attendance'), 
             and(
               where('date', '==', dateStr),
               or(
-                where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
-                where('grade', '==', 'Example')
+                where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
+                where('classLevel', '==', 'Example')
               )
             )
           );
@@ -160,7 +160,7 @@ export default function AttendancePage() {
         status,
         markedBy: currentUser?.uid,
         markedAt: Date.now(),
-        grade: selectedClass
+        classLevel: selectedClass
       });
       setSnackbar({ open: true, message: `${student?.displayName} marked as ${status}`, severity: 'success' });
     } catch (error) {
@@ -184,7 +184,7 @@ export default function AttendancePage() {
           markedBy: currentUser.uid,
           markedByName: currentUser.displayName,
           markedAt: Date.now(),
-          grade: selectedClass
+          classLevel: selectedClass
         });
       });
       await Promise.all(promises);
@@ -196,7 +196,7 @@ export default function AttendancePage() {
   };
 
   const filteredStudents = students.filter(s => 
-    s.grade === selectedClass && 
+    s.classLevel === selectedClass && 
     (s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
      s.studentId?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -210,13 +210,13 @@ export default function AttendancePage() {
       const attendance = attendanceData.find(a => a.studentId === student.uid);
       return {
         'Student Name': student.displayName,
-        'Maktab Level': student.grade || 'N/A',
+        'Class Level': student.classLevel || 'N/A',
         'Date': format(selectedDate, 'dd MMM yyyy'),
         'Status': attendance ? (attendance.status === 'present' ? 'Present' : 'Absent') : 'Not Marked',
         'Marked By': attendance?.markedByName || 'N/A'
       };
     });
-    exportToCSV(dataToExport, `Maktab_Attendance_${selectedClass}_${format(selectedDate, 'yyyy-MM-dd')}`);
+    exportToCSV(dataToExport, `Institute_Attendance_${selectedClass}_${format(selectedDate, 'yyyy-MM-dd')}`);
   };
 
   if (loading) return (
@@ -234,7 +234,7 @@ export default function AttendancePage() {
           onClick={() => navigate(-1)}
           sx={{ fontWeight: 800, color: 'text.secondary' }}
         >
-          Back / Wapis
+          Back
         </Button>
       </Box>
       <motion.div
@@ -243,9 +243,9 @@ export default function AttendancePage() {
         transition={{ duration: 0.5 }}
       >
         <Box sx={{ mb: 6, textAlign: 'center' }}>
-          <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: -2, mb: 1 }}>Haziri (Attendance)</Typography>
+          <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: -2, mb: 1 }}>Attendance</Typography>
           <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.5 }}>
-            Track and manage Tulab-e-Ilm daily haziri for {selectedClass}
+            Track and manage student daily attendance for {selectedClass}
           </Typography>
         </Box>
       </motion.div>
@@ -254,7 +254,7 @@ export default function AttendancePage() {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 3, mb: 4 }}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <SummaryCard 
-            title="Haziri Rate" 
+            title="Attendance Rate" 
             value={`${attendanceRate}%`} 
             icon={<TrendingUp size={24} />} 
             color="primary" 
@@ -263,7 +263,7 @@ export default function AttendancePage() {
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <SummaryCard 
-            title="Hazir (Present) Today" 
+            title="Present Today" 
             value={presentCount} 
             icon={<UserCheck size={24} />} 
             color="success" 
@@ -271,7 +271,7 @@ export default function AttendancePage() {
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <SummaryCard 
-            title="Ghair Hazir (Absent) Today" 
+            title="Absent Today" 
             value={absentCount} 
             icon={<UserMinus size={24} />} 
             color="error" 
@@ -329,10 +329,10 @@ export default function AttendancePage() {
               </Grid>
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <FormControl fullWidth size="small">
-                  <InputLabel sx={{ fontWeight: 800 }}>Select Maktab Level</InputLabel>
+                  <InputLabel sx={{ fontWeight: 800 }}>Select Class Level</InputLabel>
                   <Select
                     value={selectedClass}
-                    label="Select Maktab Level"
+                    label="Select Class Level"
                     onChange={(e) => setSelectedClass(e.target.value)}
                     sx={{ 
                       borderRadius: 2, 
@@ -365,7 +365,7 @@ export default function AttendancePage() {
                     <Search size={20} color={theme.palette.text.secondary} />
                     <Box 
                       component="input" 
-                      placeholder="Search Talib-e-Ilm..." 
+                      placeholder="Search Students..." 
                       value={searchQuery}
                       onChange={(e: any) => setSearchQuery(e.target.value)}
                       sx={{ 
@@ -440,7 +440,7 @@ export default function AttendancePage() {
               <Table>
                 <TableHead>
                   <TableRow sx={{ bgcolor: alpha(theme.palette.background.default, 0.3) }}>
-                    <TableCell sx={{ fontWeight: 800, py: 2.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Talib-e-Ilm Details</TableCell>
+                    <TableCell sx={{ fontWeight: 800, py: 2.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Student Details</TableCell>
                     <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Roll Number</TableCell>
                     <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }} align="center">Status</TableCell>
                     <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }} align="right">Actions</TableCell>
@@ -481,7 +481,7 @@ export default function AttendancePage() {
                               </Avatar>
                               <Box>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{student.displayName}</Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{student.grade}</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{student.classLevel}</Typography>
                               </Box>
                             </Box>
                           </TableCell>
@@ -530,7 +530,7 @@ export default function AttendancePage() {
                                   boxShadow: record?.status === 'present' ? '0 4px 12px rgba(16, 185, 129, 0.3)' : 'none'
                                 }}
                               >
-                                Hazir
+                                Present
                               </Button>
                               <Button 
                                 size="small" 
@@ -547,7 +547,7 @@ export default function AttendancePage() {
                                   boxShadow: record?.status === 'absent' ? '0 4px 12px rgba(239, 68, 68, 0.3)' : 'none'
                                 }}
                               >
-                                Ghair Hazir
+                                Absent
                               </Button>
                             </Box>
                           </TableCell>
@@ -563,7 +563,7 @@ export default function AttendancePage() {
           {filteredStudents.length === 0 && (
             <Box sx={{ p: 10, textAlign: 'center' }}>
               <Users size={64} color={theme.palette.divider} style={{ marginBottom: 16 }} />
-              <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 700 }}>No Tulab-e-Ilm found</Typography>
+              <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 700 }}>No students found</Typography>
               <Typography variant="body2" color="text.secondary">Try adjusting your filters or search query</Typography>
             </Box>
           )}
@@ -573,7 +573,7 @@ export default function AttendancePage() {
       {!isStaff && (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" sx={{ fontWeight: 800, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Clock size={20} color={theme.palette.primary.main} /> Your Haziri History
+            <Clock size={20} color={theme.palette.primary.main} /> Your Attendance History
           </Typography>
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 8 }}>
@@ -613,11 +613,11 @@ export default function AttendancePage() {
                     <Typography variant="h4" sx={{ fontWeight: 900 }}>24</Typography>
                   </Box>
                   <Box>
-                    <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 700 }}>Days Hazir</Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 700 }}>Days Present</Typography>
                     <Typography variant="h4" sx={{ fontWeight: 900 }}>22</Typography>
                   </Box>
                   <Box>
-                    <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 700 }}>Ghair Haziri</Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 700 }}>Days Absent</Typography>
                     <Typography variant="h4" sx={{ fontWeight: 900 }}>2</Typography>
                   </Box>
                 </Stack>

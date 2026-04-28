@@ -64,18 +64,18 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
 
   const role = user.role || 'student';
   const isSuperAdmin = user.email === 'zeeshanmaqbool200@gmail.com';
-  const isMuntazim = role === 'muntazim';
-  const isMudarisRole = role === 'mudaris';
-  const isAdmin = isSuperAdmin || isMuntazim;
-  const isStaff = isAdmin || isMudarisRole;
+  const isManagerRole = role === 'manager';
+  const isTeacherRole = role === 'teacher';
+  const isAdmin = isSuperAdmin || isManagerRole;
+  const isStaff = isAdmin || isTeacherRole;
 
   const menuItems = [
-    { label: 'Home', icon: <LayoutDashboard size={20} />, path: '/', roles: ['student', 'mudaris', 'pending_mudaris', 'superadmin', 'muntazim'] },
-    { label: 'Courses', icon: <BookOpen size={20} />, path: '/courses', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
-    { label: 'Tulab', icon: <Users size={20} />, path: '/users', roles: ['superadmin', 'muntazim'] },
-    { label: 'Fees', icon: <CreditCard size={20} />, path: '/fees', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
+    { label: 'Home', icon: <LayoutDashboard size={20} />, path: '/', roles: ['student', 'teacher', 'pending_teacher', 'superadmin', 'manager'] },
+    { label: 'Courses', icon: <BookOpen size={20} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Students', icon: <Users size={20} />, path: '/users', roles: ['superadmin', 'manager'] },
+    { label: 'Fees', icon: <CreditCard size={20} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['superadmin'] },
-    { label: 'Settings', icon: <SettingsIcon size={20} />, path: '/settings', roles: ['student', 'mudaris', 'superadmin', 'muntazim'] },
+    { label: 'Settings', icon: <SettingsIcon size={20} />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(role));

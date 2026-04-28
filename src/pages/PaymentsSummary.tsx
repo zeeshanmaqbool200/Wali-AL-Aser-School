@@ -40,19 +40,19 @@ export default function PaymentsSummary() {
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
   const role = currentUser?.role || 'student';
-  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
-  const isMudarisRole = role === 'mudaris';
-  const isAdmin = isSuperAdmin || isMuntazim;
-  const isStaff = isAdmin || isMudarisRole;
+  const isManagerRole = role === 'manager' || (role === 'superadmin' && !isSuperAdmin);
+  const isTeacherRole = role === 'teacher';
+  const isAdmin = isSuperAdmin || isManagerRole;
+  const isStaff = isAdmin || isTeacherRole;
 
   useEffect(() => {
     let q = query(collection(db, 'receipts'), orderBy('createdAt', 'desc'));
     
     // Filtering based on role
-    if (isMudarisRole && !isSuperAdmin) {
+    if (isTeacherRole && !isSuperAdmin) {
       q = query(
         collection(db, 'receipts'), 
-        where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']), 
+        where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']), 
         orderBy('createdAt', 'desc')
       );
     } else if (currentUser?.role === 'student') {
@@ -71,12 +71,12 @@ export default function PaymentsSummary() {
       handleFirestoreError(error, OperationType.LIST, 'receipts');
     });
     return () => unsubscribe();
-  }, [currentUser, isStaff, isMudarisRole]);
+  }, [currentUser, isStaff, isTeacherRole]);
 
   const filteredReceipts = receipts.filter(r => {
     const matchesSearch = r.studentName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          r.receiptNo?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesClass = filterClass === 'All' || r.grade === filterClass;
+    const matchesClass = filterClass === 'All' || r.classLevel === filterClass;
     const matchesFeeHead = filterFeeHead === 'All' || r.feeHead === filterFeeHead;
     const matchesMode = filterMode === 'All' || r.paymentMode === filterMode;
     
@@ -121,7 +121,7 @@ export default function PaymentsSummary() {
   const handleExportCSV = () => {
     const headers = ['Receipt No', 'Student', 'Class', 'Fee Head', 'Amount', 'Mode', 'Date', 'Status'];
     const rows = filteredReceipts.map(r => [
-      r.receiptNo, r.studentName, r.grade, r.feeHead, r.amount, r.paymentMode, r.date, r.status
+      r.receiptNo, r.studentName, r.classLevel, r.feeHead, r.amount, r.paymentMode, r.date, r.status
     ]);
     
     const csvContent = "data:text/csv;charset=utf-8," 
@@ -151,9 +151,9 @@ export default function PaymentsSummary() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Adaigi ka Khulasa (Payments Summary)</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Payments Summary</Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Fees ki jama-shuda raqam ka tafseeli tajziya
+              Detailed analysis of fees and collections
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
@@ -176,9 +176,9 @@ export default function PaymentsSummary() {
                 onChange={(e) => setTimeRange(e.target.value)}
                 sx={{ fontWeight: 800 }}
               >
-                <MenuItem value="today" sx={{ fontWeight: 700 }}>Aaj (Today)</MenuItem>
-                <MenuItem value="month" sx={{ fontWeight: 700 }}>Is Mahine (This Month)</MenuItem>
-                <MenuItem value="year" sx={{ fontWeight: 700 }}>Is Saal (This Year)</MenuItem>
+                <MenuItem value="today" sx={{ fontWeight: 700 }}>Today</MenuItem>
+                <MenuItem value="month" sx={{ fontWeight: 700 }}>This Month</MenuItem>
+                <MenuItem value="year" sx={{ fontWeight: 700 }}>This Year</MenuItem>
               </Select>
             </FormControl>
             <Button 
@@ -206,10 +206,10 @@ export default function PaymentsSummary() {
       {isSuperAdmin && (
         <Grid container spacing={3} sx={{ mb: 4 }}>
         {[
-          { title: 'Kul Jama-shuda', value: `₹${totalCollected.toLocaleString()}`, trend: '+12.5%', icon: <TrendingUp size={24} />, color: 'success', subtitle: 'Manzur-shuda adaigiyan' },
-          { title: 'Baqaya Raqam', value: `₹${pendingAmount.toLocaleString()}`, trend: 'Awaiting', icon: <Clock size={24} />, color: 'warning', subtitle: 'Tajziye ki zarurat hai' },
-          { title: 'Manzur-shuda Raseedein', value: approvedCount, trend: 'Success', icon: <CheckCircle size={24} />, color: 'primary', subtitle: 'Mukammal shuda' },
-          { title: 'Zair-e-Ghaur Raseedein', value: pendingCount, trend: 'Review', icon: <FileText size={24} />, color: 'error', subtitle: 'Mudaris ka tajziya' }
+          { title: 'Total Collected', value: `₹${totalCollected.toLocaleString()}`, trend: '+12.5%', icon: <TrendingUp size={24} />, color: 'success', subtitle: 'Approved payments' },
+          { title: 'Pending Amount', value: `₹${pendingAmount.toLocaleString()}`, trend: 'Awaiting', icon: <Clock size={24} />, color: 'warning', subtitle: 'Requires review' },
+          { title: 'Approved Receipts', value: approvedCount, trend: 'Success', icon: <CheckCircle size={24} />, color: 'primary', subtitle: 'Completed' },
+          { title: 'Pending Receipts', value: pendingCount, trend: 'Review', icon: <FileText size={24} />, color: 'error', subtitle: 'Teacher review needed' }
         ].map((stat, i) => (
           <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
             <motion.div
@@ -285,8 +285,8 @@ export default function PaymentsSummary() {
               : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
           }}>
             <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5 }}>Adaigi ka Rujhan (Collection Trend)</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Rozana ki amdani ka tajziya</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5 }}>Collection Trend</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Analysis of daily income</Typography>
             </Box>
             <CardContent sx={{ p: 3 }}>
               <Box sx={{ height: 350, width: '100%' }}>
@@ -344,8 +344,8 @@ export default function PaymentsSummary() {
             height: '100%'
           }}>
             <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5 }}>Adaigi ki Taqseem (Payment Distribution)</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Adaigi ke tariqe ke mutabiq tafseel</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5 }}>Payment Distribution</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Details by payment method</Typography>
             </Box>
             <CardContent sx={{ p: 3 }}>
               <Box sx={{ height: 300, width: '100%' }}>
@@ -447,10 +447,10 @@ export default function PaymentsSummary() {
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3.5 }}>
               <FormControl fullWidth size="small">
-                <InputLabel sx={{ fontWeight: 800 }}>Fees ki Qism</InputLabel>
+                <InputLabel sx={{ fontWeight: 800 }}>Fee Category</InputLabel>
                 <Select 
                   value={filterFeeHead} 
-                  label="Fees ki Qism" 
+                  label="Fee Category" 
                   onChange={(e) => setFilterFeeHead(e.target.value)}
                   sx={{ 
                     borderRadius: 4, 
@@ -462,7 +462,7 @@ export default function PaymentsSummary() {
                       : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
                   }}
                 >
-                  <MenuItem value="All" sx={{ fontWeight: 700 }}>Tamam Qismein</MenuItem>
+                  <MenuItem value="All" sx={{ fontWeight: 700 }}>All Categories</MenuItem>
                   <MenuItem value="Tuition Fee" sx={{ fontWeight: 700 }}>Tuition Fee</MenuItem>
                   <MenuItem value="Exam Fee" sx={{ fontWeight: 700 }}>Exam Fee</MenuItem>
                   <MenuItem value="Library Fee" sx={{ fontWeight: 700 }}>Library Fee</MenuItem>
@@ -472,10 +472,10 @@ export default function PaymentsSummary() {
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3.5 }}>
               <FormControl fullWidth size="small">
-                <InputLabel sx={{ fontWeight: 800 }}>Adaigi ka Tariqa</InputLabel>
+                <InputLabel sx={{ fontWeight: 800 }}>Payment Method</InputLabel>
                 <Select 
                   value={filterMode} 
-                  label="Adaigi ka Tariqa" 
+                  label="Payment Method" 
                   onChange={(e) => setFilterMode(e.target.value)}
                   sx={{ 
                     borderRadius: 4, 
@@ -487,7 +487,7 @@ export default function PaymentsSummary() {
                       : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
                   }}
                 >
-                  <MenuItem value="All" sx={{ fontWeight: 700 }}>Tamam Tariqe</MenuItem>
+                  <MenuItem value="All" sx={{ fontWeight: 700 }}>All Methods</MenuItem>
                   <MenuItem value="Cash" sx={{ fontWeight: 700 }}>Cash</MenuItem>
                   <MenuItem value="UPI" sx={{ fontWeight: 700 }}>UPI</MenuItem>
                   <MenuItem value="Card" sx={{ fontWeight: 700 }}>Card</MenuItem>
@@ -504,14 +504,14 @@ export default function PaymentsSummary() {
           <Table>
             <TableHead>
               <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50' }}>
-                <TableCell sx={{ fontWeight: 800, py: 2.5 }}>Raseed Number</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Talib-e-Ilm</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Maktab Level</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Fees ki Qism</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Raqam</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Tariqa</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>Tareekh</TableCell>
-                <TableCell sx={{ fontWeight: 800 }} align="center">Halat</TableCell>
+                <TableCell sx={{ fontWeight: 800, py: 2.5 }}>Receipt Number</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Student</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Class Level</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Fee Category</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Amount</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Method</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>Date</TableCell>
+                <TableCell sx={{ fontWeight: 800 }} align="center">Status</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -541,7 +541,7 @@ export default function PaymentsSummary() {
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{r.grade || 'N/A'}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{r.classLevel || 'N/A'}</Typography>
                     </TableCell>
                     <TableCell>
                       <Chip label={r.feeHead} size="small" sx={{ fontWeight: 700, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.100' }} />

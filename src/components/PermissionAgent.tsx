@@ -191,7 +191,7 @@ export default function PermissionAgent() {
           
           <DialogContent sx={{ p: 3 }}>
             <Typography variant="body2" sx={{ mb: 3, fontWeight: 500, color: 'text.secondary' }}>
-              To provide the best experience for **Maktab Wali Ul Aser**, we need access to your device hardware. This allows real-time alerts and communication.
+              To provide the best experience for **Wali Ul Aser Institute**, we need access to your device hardware. This allows real-time alerts and communication.
             </Typography>
             
             <Stack spacing={2}>

@@ -1,139 +1,74 @@
 {
   "entities": {
-    "UserProfile": {
-      "title": "UserProfile",
-      "description": "User profile data including roles and permissions",
+    "User": {
+      "title": "User Profile",
+      "description": "Core identity and profile information for all members.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
-        "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["superadmin", "approved_mudaris", "pending_mudaris", "student"] },
         "displayName": { "type": "string" },
-        "assignedClasses": { "type": "array", "items": { "type": "string" } },
-        "maktabLevel": { "type": "string" },
-        "grade": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "teacher", "manager", "superadmin", "pending_teacher"] },
         "phone": { "type": "string" },
-        "isActive": { "type": "boolean" },
-        "createdAt": { "type": "number" },
-        "updatedAt": { "type": "number" }
+        "whatsapp": { "type": "string" },
+        "address": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "classLevel": { "type": "string" },
+        "assignedClasses": { "type": "array" },
+        "subjectsEnrolled": { "type": "array" },
+        "hardwareStatus": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "role"]
     },
-    "FeeReceipt": {
-      "title": "FeeReceipt",
-      "description": "Student fee payment receipts",
+    "Receipt": {
+      "title": "Fee Receipt",
+      "description": "Financial record of payments made by students or others.",
       "type": "object",
       "properties": {
         "studentId": { "type": "string" },
         "studentName": { "type": "string" },
         "amount": { "type": "number" },
-        "date": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
         "feeHead": { "type": "string" },
         "paymentMode": { "type": "string" },
-        "grade": { "type": "string" },
-        "receiptNo": { "type": "string" },
-        "month": { "type": "string" },
-        "year": { "type": "number" },
-        "uploadedAt": { "type": "number" }
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "date": { "type": "string", "format": "date" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["studentId", "amount", "status"]
     },
-    "AttendanceRecord": {
-      "title": "AttendanceRecord",
-      "description": "Daily student attendance logs",
+    "Attendance": {
+      "title": "Attendance Record",
+      "description": "Daily attendance tracking for students.",
       "type": "object",
       "properties": {
         "studentId": { "type": "string" },
         "studentName": { "type": "string" },
-        "grade": { "type": "string" },
-        "date": { "type": "string" },
-        "status": { "type": "string", "enum": ["present", "absent", "late", "excused"] },
-        "markedBy": { "type": "string" },
-        "timestamp": { "type": "number" }
+        "classLevel": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["present", "absent", "late", "leave"] },
+        "markedBy": { "type": "string" }
       },
-      "required": ["studentId", "status", "date"]
-    },
-    "LogEntry": {
-      "title": "LogEntry",
-      "description": "Security and system logs",
-      "type": "object",
-      "properties": {
-        "level": { "type": "string" },
-        "message": { "type": "string" },
-        "ip": { "type": "string" },
-        "userAgent": { "type": "string" },
-        "timestamp": { "type": "number" }
-      }
-    },
-    "InstituteSettings": {
-      "title": "InstituteSettings",
-      "description": "Global settings for the institute",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "maktabName": { "type": "string" },
-        "tagline": { "type": "string" },
-        "address": { "type": "string" },
-        "logoUrl": { "type": "string" },
-        "bannerUrl": { "type": "string" },
-        "receiptLeftImageUrl": { "type": "string" },
-        "receiptRightImageUrl": { "type": "string" },
-        "primaryColor": { "type": "string" },
-        "secondaryColor": { "type": "string" }
-      }
-    },
-    "Event": {
-      "title": "Event",
-      "description": "Institute activities and meetings",
-      "type": "object",
-      "properties": {
-        "title": { "type": "string" },
-        "date": { "type": "string" },
-        "time": { "type": "string" },
-        "type": { "type": "string" },
-        "color": { "type": "string" },
-        "createdAt": { "type": "number" }
-      },
-      "required": ["title", "date", "time"]
+      "required": ["studentId", "date", "status"]
     }
   },
   "firestore": {
-    "/events/{eventId}": {
-      "schema": "Event",
-      "description": "Institute activities and events"
-    },
-    "/settings/{settingId}": {
-      "schema": "InstituteSettings",
-      "description": "Institute settings"
-    },
     "/users/{userId}": {
-      "schema": "UserProfile",
-      "description": "User profiles"
+      "schema": "User",
+      "description": "User profile collection."
     },
     "/receipts/{receiptId}": {
-      "schema": "FeeReceipt",
-      "description": "Fee payments"
+      "schema": "Receipt",
+      "description": "Payment records."
     },
     "/attendance/{recordId}": {
-      "schema": "AttendanceRecord",
-      "description": "Attendance logs"
+      "schema": "Attendance",
+      "description": "Daily attendance."
     },
-    "/exams/{examId}": {
-      "schema": { "$ref": "#/entities/Exam" },
-      "description": "Exam schedules"
-    },
-    "/schedules/{scheduleId}": {
-      "schema": { "$ref": "#/entities/Schedule" },
-      "description": "Class schedules"
-    },
-    "/access_logs/{logId}": {
-      "schema": "LogEntry",
-      "description": "Security access logs"
-    },
-    "/system_logs/{logId}": {
-      "schema": "LogEntry",
-      "description": "General system logs"
+    "/courses/{courseId}": {
+      "schema": "object",
+      "description": "Mazameen (Courses)."
     }
   }
 }

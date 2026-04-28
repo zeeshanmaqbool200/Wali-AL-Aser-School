@@ -46,10 +46,10 @@ export default function Settings() {
   const [searchParams] = useSearchParams();
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
-  const isMuntazim = currentUser?.role === 'muntazim';
-  const isMudarisRole = currentUser?.role === 'mudaris';
-  const isAdmin = isSuperAdmin || isMuntazim;
-  const isStaff = isAdmin || isMudarisRole;
+  const isManagerRole = currentUser?.role === 'manager' || (currentUser?.role === 'superadmin' && !isSuperAdmin);
+  const isTeacherRole = currentUser?.role === 'teacher';
+  const isAdmin = isSuperAdmin || isManagerRole;
+  const isStaff = isAdmin || isTeacherRole;
 
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState(searchParams.get('tab') || 'appearance');
@@ -235,7 +235,7 @@ export default function Settings() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `maktab_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `institute_backup_${new Date().toISOString().split('T')[0]}.json`;
       a.click();
     } catch (err) {
       setSnackbar({ open: true, message: 'Failed to generate backup', severity: 'error' });
@@ -312,7 +312,7 @@ export default function Settings() {
     { id: 'notifications', label: 'Notifications', icon: <Bell size={20} />, role: 'all' },
     { id: 'security', label: 'Security & Privacy', icon: <Shield size={20} />, role: 'all' },
     { id: 'hardware', label: 'Device & Permissions', icon: <Camera size={20} />, role: 'all' },
-    { id: 'branding', label: 'Maktab Branding', icon: <Globe size={20} />, role: 'superadmin' },
+    { id: 'branding', label: 'Institute Branding', icon: <Globe size={20} />, role: 'superadmin' },
     { id: 'system', label: 'System & Data', icon: <Database size={20} />, role: 'superadmin' },
   ].filter(item => {
     if (item.role === 'all') return true;
@@ -342,7 +342,7 @@ export default function Settings() {
             Settings
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.5 }}>
-            {isMobile ? 'Manage account & Maktab' : 'Manage your personal profile and Maktab preferences'}
+            {isMobile ? 'Manage account & Institute' : 'Manage your personal profile and institute preferences'}
           </Typography>
         </Box>
       </motion.div>
@@ -452,15 +452,15 @@ export default function Settings() {
               <motion.div key="branding" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
                 <Card variant="outlined" sx={{ borderRadius: 2, bgcolor: 'background.paper' }}>
                   <CardContent sx={{ p: 4 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900, mb: 4, letterSpacing: -0.5 }}>Maktab Branding</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 900, mb: 4, letterSpacing: -0.5 }}>Institute Branding</Typography>
                     <Grid container spacing={4}>
                       <Grid size={{ xs: 12 }}>
                         <Stack spacing={3}>
                           <TextField
                             fullWidth
                             label="Institute Name"
-                            value={instituteData.maktabName || ''}
-                            onChange={(e) => setInstituteData({ ...instituteData, maktabName: e.target.value })}
+                            value={instituteData.instituteName || ''}
+                            onChange={(e) => setInstituteData({ ...instituteData, instituteName: e.target.value })}
                             InputProps={{ sx: { borderRadius: 1 } }}
                           />
                           
@@ -1066,7 +1066,7 @@ export default function Settings() {
                             { key: 'push', label: 'Push Notifications', desc: 'Get real-time alerts on your mobile/laptop', icon: <Zap size={20} /> },
                             { key: 'feeReminders', label: 'Fee Reminders', desc: 'Get notified about upcoming fee deadlines', icon: <CreditCard size={20} /> },
                             { key: 'attendance', label: 'Attendance Alerts', desc: 'Notifications about daily attendance status', icon: <CheckCircle size={20} /> },
-                            { key: 'announcements', label: 'Maktab Announcements', desc: 'Important news from the administration', icon: <Bell size={20} /> }
+                            { key: 'announcements', label: 'Institute Announcements', desc: 'Important news from the administration', icon: <Bell size={20} /> }
                           ].map((item, i) => (
                             <Box 
                               key={i} 
@@ -1169,7 +1169,7 @@ export default function Settings() {
                               <Box sx={{ bgcolor: '#333', p: 1.5, borderRadius: 2, display: 'flex', gap: 1.5, alignItems: 'center' }}>
                                 <Avatar sx={{ width: 32, height: 32, bgcolor: theme.palette.primary.main, fontSize: '0.8rem' }}>M</Avatar>
                                 <Box sx={{ flex: 1 }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', lineHeight: 1 }}>Maktab LMS</Typography>
+                                  <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', lineHeight: 1 }}>Institute LMS</Typography>
                                   <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mt: 0.5 }}>Fee Reminder</Typography>
                                   <Typography variant="caption" sx={{ fontSize: '0.65rem', opacity: 0.7 }}>Please submit your monthly fees by tomorrow...</Typography>
                                 </Box>
@@ -1191,7 +1191,7 @@ export default function Settings() {
                             }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
                                 <Avatar sx={{ width: 24, height: 24, bgcolor: theme.palette.primary.main, fontSize: '0.6rem' }}>M</Avatar>
-                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, flex: 1, opacity: 0.6 }}>MAKTAB LMS</Typography>
+                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, flex: 1, opacity: 0.6 }}>INSTITUTE LMS</Typography>
                                 <Typography sx={{ fontSize: '0.7rem', opacity: 0.5 }}>now</Typography>
                               </Box>
                               <Typography sx={{ fontSize: '0.9rem', fontWeight: 700, mb: 0.3 }}>Class Timing Updated</Typography>

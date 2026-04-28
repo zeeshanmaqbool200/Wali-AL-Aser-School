@@ -34,7 +34,7 @@ export const initLoggerDb = (db: Firestore) => {
   firestoreDb = db;
   // Print initial beautiful header only once
   console.log(
-    `%c Maktab Wali Ul Aser V${APP_VERSION} %c ${getIslamicDate()} %c ${new Date().toLocaleDateString()} `,
+    `%c Institute Wali Ul Aser V${APP_VERSION} %c ${getIslamicDate()} %c ${new Date().toLocaleDateString()} `,
     `background: ${BRAND_COLOR}; color: white; border-radius: 4px; padding: 4px 8px; font-weight: 900; font-size: 1.1rem;`,
     'background: #111827; color: #fbbf24; border-radius: 4px; padding: 4px 8px; font-weight: 700;',
     'color: #6b7280; font-size: 0.9rem; font-weight: 500;'

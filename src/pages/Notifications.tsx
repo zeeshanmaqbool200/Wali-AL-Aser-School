@@ -48,10 +48,10 @@ export default function Notifications() {
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
   const role = currentUser?.role || 'student';
-  const isMuntazim = role === 'muntazim' || (role === 'superadmin' && !isSuperAdmin);
-  const isMudarisRole = role === 'mudaris';
-  const isAdmin = isSuperAdmin || isMuntazim;
-  const isStaff = isAdmin || isMudarisRole;
+  const isManager = role === 'manager' || (role === 'superadmin' && !isSuperAdmin);
+  const isTeacherRole = role === 'teacher';
+  const isAdmin = isSuperAdmin || isManager;
+  const isStaff = isAdmin || isTeacherRole;
 
   useEffect(() => {
     if (!currentUser) return;
@@ -66,8 +66,7 @@ export default function Notifications() {
         or(
           where('targetType', '==', 'all'),
           where('targetId', '==', currentUser.uid),
-          where('targetId', '==', currentUser.grade || 'none'),
-          where('targetId', '==', currentUser.maktabLevel || 'none')
+          where('targetId', '==', currentUser.classLevel || 'none')
         ),
         orderBy('createdAt', 'desc')
       );
@@ -91,8 +90,8 @@ export default function Notifications() {
             and(
               where('role', '==', 'student'),
               or(
-                where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
-                where('grade', '==', 'Example')
+                where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
+                where('classLevel', '==', 'Example')
               )
             )
           );
@@ -226,9 +225,9 @@ export default function Notifications() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Ittila'at (Notifications)</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Notifications</Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Idarah ke elanat aur zaati ittila'at se bakhabar rahein
+              Stay updated with institute announcements and personal alerts
             </Typography>
           </Box>
           {isStaff && (
@@ -247,7 +246,7 @@ export default function Notifications() {
                   : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
               }}
             >
-              Ittila Bhejein
+              Send Notification
             </Button>
           )}
         </Box>
@@ -288,7 +287,7 @@ export default function Notifications() {
                 >
                   <Tab label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                      Inbox (Nayi)
+                      Inbox (New)
                       {notifications.filter(n => !n.readBy.includes(currentUser?.uid || '')).length > 0 && (
                         <Chip 
                           label={notifications.filter(n => !n.readBy.includes(currentUser?.uid || '')).length} 
@@ -299,7 +298,7 @@ export default function Notifications() {
                       )}
                     </Box>
                   } />
-                  <Tab label="Old (Sabiqa)" />
+                  <Tab label="Archived (Old)" />
                 </Tabs>
                 
                 <Select
@@ -318,11 +317,11 @@ export default function Notifications() {
                       : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
                   }}
                 >
-                  <MenuItem value="all" sx={{ fontWeight: 700 }}>Sari Qismein</MenuItem>
-                  <MenuItem value="general" sx={{ fontWeight: 700 }}>Aam Ittila</MenuItem>
-                  <MenuItem value="fee_request" sx={{ fontWeight: 700 }}>Fees</MenuItem>
+                  <MenuItem value="all" sx={{ fontWeight: 700 }}>All Categories</MenuItem>
+                  <MenuItem value="general" sx={{ fontWeight: 700 }}>General</MenuItem>
+                  <MenuItem value="fee_request" sx={{ fontWeight: 700 }}>Payments</MenuItem>
                   <MenuItem value="class_timing" sx={{ fontWeight: 700 }}>Class Timing</MenuItem>
-                  <MenuItem value="announcement" sx={{ fontWeight: 700 }}>Elanat</MenuItem>
+                  <MenuItem value="announcement" sx={{ fontWeight: 700 }}>Announcements</MenuItem>
                 </Select>
               </Box>
               
@@ -345,7 +344,7 @@ export default function Notifications() {
                   <Search size={20} style={{ marginRight: 8, color: theme.palette.text.secondary }} />
                   <Box 
                     component="input"
-                    placeholder="Talash karein..."
+                    placeholder="Search notifications..."
                     value={searchQuery}
                     onChange={(e: any) => setSearchQuery(e.target.value)}
                     sx={{ 
@@ -413,9 +412,9 @@ export default function Notifications() {
                       <Check size={16} />
                     </Box>
                   </Box>
-                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>Sab mukammal hai!</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>All caught up!</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {searchQuery ? 'No notifications match your search.' : 'Is waqt aapke paas koi nayi ittila nahi hai.'}
+                    {searchQuery ? 'No notifications match your search.' : 'You have no new notifications at this time.'}
                   </Typography>
                 </Box>
               )}
@@ -482,7 +481,7 @@ export default function Notifications() {
               bgcolor: 'background.paper'
             }}>
               <CardContent sx={{ p: 4 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 3, letterSpacing: -0.5 }}>Ittila'at Summary</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 3, letterSpacing: -0.5 }}>Notification Summary</Typography>
                 <Stack spacing={3}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>Total Messages</Typography>
@@ -542,18 +541,18 @@ export default function Notifications() {
         }}
       >
         <DialogTitle sx={{ fontWeight: 900, fontSize: '1.6rem', pb: 1, letterSpacing: -1 }}>
-          Elan Bhejein
+          Create Announcement
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 4, fontWeight: 600 }}>
-            Tulab ya classes ko ittila bhejein. Ye foran unke inbox mein zahir hogi.
+            Send an announcement to students or classes. It will appear instantly in their inbox.
           </Typography>
           <Grid container spacing={3}>
             <Grid size={12}>
               <TextField
                 fullWidth
-                label="Ittila ka Title"
-                placeholder="e.g. Zaruri: Class ke Auqat ki Tabdeeli"
+                label="Notification Title"
+                placeholder="e.g. Important: Class Timing Change"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -563,8 +562,8 @@ export default function Notifications() {
             <Grid size={12}>
               <TextField
                 fullWidth
-                label="Paigham"
-                placeholder="Apna tafseeli paigham yahan likhein..."
+                label="Message Content"
+                placeholder="Write your detailed announcement here..."
                 multiline
                 rows={4}
                 required
@@ -575,30 +574,30 @@ export default function Notifications() {
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 } }}>
-                <InputLabel sx={{ fontWeight: 800 }}>Qism</InputLabel>
+                <InputLabel sx={{ fontWeight: 800 }}>Type</InputLabel>
                 <Select
                   value={formData.type}
-                  label="Qism"
+                  label="Type"
                   onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
                 >
-                  <MenuItem value="general" sx={{ fontWeight: 700 }}>Aam Ittila</MenuItem>
-                  <MenuItem value="fee_request" sx={{ fontWeight: 700 }}>Fees ki Adaigi ki Darkhwast</MenuItem>
-                  <MenuItem value="class_timing" sx={{ fontWeight: 700 }}>Class ke Auqat ki Tabdeeli</MenuItem>
-                  <MenuItem value="announcement" sx={{ fontWeight: 700 }}>Sarkari Elan</MenuItem>
+                  <MenuItem value="general" sx={{ fontWeight: 700 }}>General</MenuItem>
+                  <MenuItem value="fee_request" sx={{ fontWeight: 700 }}>Payment Request</MenuItem>
+                  <MenuItem value="class_timing" sx={{ fontWeight: 700 }}>Class Timing Change</MenuItem>
+                  <MenuItem value="announcement" sx={{ fontWeight: 700 }}>Official Announcement</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 } }}>
-                <InputLabel sx={{ fontWeight: 800 }}>Jinhein Bhejna Hai</InputLabel>
+                <InputLabel sx={{ fontWeight: 800 }}>Recipients</InputLabel>
                 <Select
                   value={formData.targetType}
-                  label="Jinhein Bhejna Hai"
+                  label="Recipients"
                   onChange={(e) => setFormData({ ...formData, targetType: e.target.value as any, targetId: '' })}
                 >
-                  <MenuItem value="all" sx={{ fontWeight: 700 }}>Sabhi (Sare Tulab)</MenuItem>
-                  <MenuItem value="class" sx={{ fontWeight: 700 }}>Khas Level / Class</MenuItem>
-                  <MenuItem value="individual" sx={{ fontWeight: 700 }}>Infradi Talib-e-Ilm</MenuItem>
+                  <MenuItem value="all" sx={{ fontWeight: 700 }}>Everyone (All Students)</MenuItem>
+                  <MenuItem value="class" sx={{ fontWeight: 700 }}>Specific Level / Class</MenuItem>
+                  <MenuItem value="individual" sx={{ fontWeight: 700 }}>Individual Student</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -608,8 +607,8 @@ export default function Notifications() {
                 <Grid size={12} component={motion.div} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
                   <TextField
                     fullWidth
-                    label="Class Name"
-                    placeholder="e.g. 10th-A"
+                    label="Class Identification"
+                    placeholder="e.g. Level 1"
                     value={formData.targetId}
                     onChange={(e) => setFormData({ ...formData, targetId: e.target.value })}
                     InputProps={{ sx: { borderRadius: 4 } }}
@@ -619,10 +618,10 @@ export default function Notifications() {
               {formData.targetType === 'individual' && (
                 <Grid size={12} component={motion.div} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
                   <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 } }}>
-                    <InputLabel sx={{ fontWeight: 800 }}>Talib-e-Ilm Muntakhib Karein</InputLabel>
+                    <InputLabel sx={{ fontWeight: 800 }}>Select Student</InputLabel>
                     <Select
                       value={formData.targetId}
-                      label="Talib-e-Ilm Muntakhib Karein"
+                      label="Select Student"
                       onChange={(e) => setFormData({ ...formData, targetId: e.target.value })}
                     >
                       {students.map(s => (
@@ -653,7 +652,7 @@ export default function Notifications() {
                 : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
             }}
           >
-            Abhi Bhejein
+            Send Now
           </Button>
         </DialogActions>
       </Dialog>

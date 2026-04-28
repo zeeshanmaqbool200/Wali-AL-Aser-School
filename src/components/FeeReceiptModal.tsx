@@ -62,7 +62,7 @@ const pdfStyles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 4,
   },
-  maktabName: {
+  instituteSubtitle: {
     fontSize: 10,
     fontWeight: 'bold',
     fontFamily: 'Noto Sans Bold',
@@ -236,7 +236,7 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
           )}
           <View style={pdfStyles.headerText}>
             <Text style={pdfStyles.instituteName}>{settings.name}</Text>
-            <Text style={pdfStyles.maktabName}>{settings.maktabName}</Text>
+            <Text style={pdfStyles.instituteSubtitle}>{settings.instituteName}</Text>
             <Text style={pdfStyles.address}>{settings.address}</Text>
             <Text style={pdfStyles.address}>Ph: {settings.phone} • {settings.email}</Text>
           </View>
@@ -247,7 +247,7 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
           </View>
         </View>
         <View style={pdfStyles.receiptMeta}>
-          <Text style={pdfStyles.receiptTitle}>RASEED</Text>
+          <Text style={pdfStyles.receiptTitle}>RECEIPT</Text>
           <Text style={pdfStyles.receiptNo}>No: {receipt.receiptNo || receipt.receiptNumber}</Text>
           <Text style={pdfStyles.date}>Date: {format(new Date(receipt.date), 'dd MMM, yyyy')}</Text>
         </View>
@@ -255,13 +255,13 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
 
       <View style={pdfStyles.detailsGrid}>
         <View style={pdfStyles.detailColumn}>
-          <Text style={pdfStyles.label}>Talib-e-Ilm Details</Text>
+          <Text style={pdfStyles.label}>Student Details</Text>
           <Text style={[pdfStyles.value, { fontSize: 13 }]}>{receipt.studentName}</Text>
           <Text style={pdfStyles.subValue}>Admission No: {receipt.studentOfficialId || receipt.studentId}</Text>
-          <Text style={pdfStyles.subValue}>Maktab Level: {receipt.grade || 'N/A'}</Text>
+          <Text style={pdfStyles.subValue}>Class Level: {receipt.classLevel || 'N/A'}</Text>
         </View>
         <View style={[pdfStyles.detailColumn, { textAlign: 'right' }]}>
-          <Text style={pdfStyles.label}>Adaigi ki Tafseel</Text>
+          <Text style={pdfStyles.label}>Payment Details</Text>
           <Text style={[pdfStyles.value, { color: '#0d9488' }]}>{receipt.status.toUpperCase()}</Text>
           <Text style={pdfStyles.subValue}>Mode: {receipt.paymentMode}</Text>
           {receipt.transactionId && (
@@ -272,8 +272,8 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
 
       <View style={pdfStyles.table}>
         <View style={pdfStyles.tableHeader}>
-          <Text style={[pdfStyles.colDesc, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>TAFSEEL (DESCRIPTION)</Text>
-          <Text style={[pdfStyles.colAmount, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>RAQAM (AMOUNT)</Text>
+          <Text style={[pdfStyles.colDesc, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>DESCRIPTION</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>AMOUNT</Text>
         </View>
         <View style={pdfStyles.tableRow}>
           <View style={pdfStyles.colDesc}>
@@ -283,7 +283,7 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
           <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
         </View>
         <View style={pdfStyles.tableFooter}>
-          <Text style={[pdfStyles.colDesc, { textAlign: 'right', fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>KUL ADA-SHUDA RAQAM</Text>
+          <Text style={[pdfStyles.colDesc, { textAlign: 'right', fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>TOTAL PAID AMOUNT</Text>
           <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', color: '#0d9488' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
         </View>
       </View>
@@ -305,7 +305,7 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
 
       <View style={pdfStyles.footer}>
         <View style={pdfStyles.signatureBox}>
-          <Text style={pdfStyles.signatureLabel}>Talib-e-Ilm ke Dastakhat</Text>
+          <Text style={pdfStyles.signatureLabel}>Student Signature</Text>
         </View>
         <View style={{ alignItems: 'center' }}>
           {receipt.status === 'approved' && (
@@ -315,7 +315,7 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
             </View>
           )}
           <View style={pdfStyles.signatureBox}>
-            <Text style={pdfStyles.signatureLabel}>Tasdiq-shuda Dastakhat</Text>
+            <Text style={pdfStyles.signatureLabel}>Authorized Signature</Text>
           </View>
         </View>
       </View>
@@ -339,7 +339,7 @@ interface FeeReceiptModalProps {
 
 const defaultSettings: InstituteSettings = {
   name: 'EDUFEE TRACK',
-  maktabName: 'MAKTAB WALI UL ASER',
+  instituteName: 'Wali Ul Aser Institute',
   tagline: 'First Step Towards Building Taqwa',
   address: 'Banpora Chattergam 191113, Kashmir',
   phone: '+91 7006123456',
@@ -441,7 +441,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             <FileText size={isMobile ? 14 : 18} />
           </Box>
           <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5, fontSize: { xs: '0.9rem', sm: '1.1rem' } }}>
-            Official Raseed - {receiptNo}
+            Official Receipt - {receiptNo}
           </Typography>
         </Box>
         <IconButton onClick={onClose} size="small">
@@ -523,7 +523,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
                 color: '#0f766e !important',
                 mb: 1
               }}>
-                {settings.maktabName}
+                {settings.instituteName}
               </Typography>
               <Typography variant="caption" sx={{ fontSize: { xs: '0.65rem', sm: '0.85rem' }, display: 'block', color: '#4b5563 !important', lineHeight: 1.3, fontWeight: 600 }}>
                 {settings.address}
@@ -549,7 +549,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
                 lineHeight: 1,
                 fontSize: { xs: '1.5rem', sm: '2.5rem' }
               }}>
-                RASEED
+                RECEIPT
               </Typography>
               <Typography variant="h6" sx={{ fontWeight: 800, color: '#0d9488 !important', mt: 1, fontSize: { xs: '0.9rem', sm: '1.1rem' } }}>
                 No: {receiptNo}
@@ -570,13 +570,13 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
 
           <Grid container spacing={3} sx={{ mb: 3 }}>
             <Grid size={6}>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important', letterSpacing: 0.5 }}>TALIB-E-ILM DETAILS</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important', letterSpacing: 0.5 }}>STUDENT DETAILS</Typography>
               <Typography variant="subtitle1" sx={{ fontWeight: 900, mt: 0.5 }}>{receipt.studentName}</Typography>
               <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>ID: {receipt.studentOfficialId || receipt.studentId}</Typography>
-              <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>Class: {receipt.grade || 'N/A'}</Typography>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>Class: {receipt.classLevel || 'N/A'}</Typography>
             </Grid>
             <Grid size={6} sx={{ textAlign: 'right' }}>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important', letterSpacing: 0.5 }}>ADAIGI KI TAFSEEL</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important', letterSpacing: 0.5 }}>PAYMENT DETAILS</Typography>
               <Typography variant="subtitle1" sx={{ fontWeight: 900, mt: 0.5, color: '#0d9488 !important' }}>{receipt.status.toUpperCase()}</Typography>
               <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>Mode: {receipt.paymentMode}</Typography>
               {receipt.transactionId && (
@@ -587,8 +587,8 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
           
           <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 1, mb: 3, overflow: 'hidden' }}>
             <Box sx={{ display: 'flex', bgcolor: '#f9fafb', p: 1, borderBottom: '1px solid #e5e7eb' }}>
-              <Typography variant="caption" sx={{ flex: 3, fontWeight: 800 }}>TAFSEEL (DESCRIPTION)</Typography>
-              <Typography variant="caption" sx={{ flex: 1, textAlign: 'right', fontWeight: 800 }}>RAQAM (AMOUNT)</Typography>
+              <Typography variant="caption" sx={{ flex: 3, fontWeight: 800 }}>DESCRIPTION</Typography>
+              <Typography variant="caption" sx={{ flex: 1, textAlign: 'right', fontWeight: 800 }}>AMOUNT</Typography>
             </Box>
             <Box sx={{ display: 'flex', p: 1.5 }}>
               <Box sx={{ flex: 3 }}>
@@ -600,7 +600,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
               <Typography variant="body2" sx={{ flex: 1, textAlign: 'right', fontWeight: 800 }}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
             </Box>
             <Box sx={{ display: 'flex', bgcolor: '#f0f9f9', p: 1.5, borderTop: '1px solid #e5e7eb' }}>
-              <Typography variant="body2" sx={{ flex: 3, textAlign: 'right', fontWeight: 800 }}>KUL ADA-SHUDA RAQAM</Typography>
+              <Typography variant="body2" sx={{ flex: 3, textAlign: 'right', fontWeight: 800 }}>TOTAL PAID AMOUNT</Typography>
               <Typography variant="subtitle2" sx={{ flex: 1, textAlign: 'right', fontWeight: 900, color: '#0d9488 !important' }}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
             </Box>
           </Box>
@@ -621,7 +621,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mt: 6 }}>
             <Box sx={{ textAlign: 'center', width: 160 }}>
               <Box sx={{ borderTop: '1px solid #e5e7eb', pt: 1 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase' }}>Talib-e-Ilm ke Dastakhat</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase' }}>Student Signature</Typography>
               </Box>
             </Box>
             
@@ -633,7 +633,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
                 </Box>
               )}
               <Box sx={{ borderTop: '1px solid #e5e7eb', pt: 1, width: 160 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase' }}>Tasdiq-shuda Dastakhat</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem', textTransform: 'uppercase' }}>Authorized Signature</Typography>
               </Box>
             </Box>
           </Box>
@@ -662,7 +662,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             py: 1
           }}
         >
-          Band Karein
+          Close
         </Button>
         <Stack direction="row" spacing={1} sx={{ flex: 1, justifyContent: 'flex-end' }}>
           <Button
@@ -692,7 +692,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
                   whiteSpace: 'nowrap'
                 }}
               >
-                {pdfLoading ? 'Taiyar ho raha...' : 'PDF Download'}
+                {pdfLoading ? 'Preparing...' : 'PDF Download'}
               </Button>
             )}
           </PDFDownloadLink>

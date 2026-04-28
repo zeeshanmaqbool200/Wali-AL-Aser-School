@@ -99,9 +99,9 @@ function AppContent() {
   }
 
   const systemAdminRoles = ['superadmin'];
-  const fullAdminRoles = ['superadmin', 'muntazim'];
-  const staffRoles = ['superadmin', 'muntazim', 'mudaris'];
-  const allAuthenticatedRoles = ['superadmin', 'muntazim', 'mudaris', 'pending_mudaris', 'student'];
+  const fullAdminRoles = ['superadmin', 'manager'];
+  const staffRoles = ['superadmin', 'manager', 'teacher'];
+  const allAuthenticatedRoles = ['superadmin', 'manager', 'teacher', 'pending_teacher', 'student'];
   const reportRoles = ['superadmin'];
   const brandingSettingsRoles = ['superadmin'];
 
@@ -113,7 +113,7 @@ function AppContent() {
       <NotificationBanner />
       <PermissionAgent />
       <AnimatePresence>
-        {user && user.role === 'student' && !user.maktabLevel && user.pendingMaktabLevel && !hidePendingBanner && (
+        {user && user.role === 'student' && !user.classLevel && user.pendingClassLevel && !hidePendingBanner && (
           <motion.div
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -131,7 +131,7 @@ function AppContent() {
               position: 'relative'
             }}>
               <Clock size={16} />
-              Your class selection ({user.pendingMaktabLevel}) is pending approval from a teacher.
+              Your class selection ({user.pendingClassLevel}) is pending approval from a teacher.
               <IconButton 
                 size="small" 
                 onClick={() => setHidePendingBanner(true)}

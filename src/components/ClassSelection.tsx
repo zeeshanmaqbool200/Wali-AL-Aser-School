@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { BookOpen, CheckCircle } from 'lucide-react';
-import { MaktabLevel } from '../types';
+import { ClassLevel } from '../types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { motion } from 'motion/react';
@@ -20,12 +20,12 @@ interface ClassSelectionProps {
 
 export default function ClassSelection({ open, userId, onComplete }: ClassSelectionProps) {
   const theme = useTheme();
-  const [selected, setSelected] = useState<MaktabLevel | null>(null);
+  const [selected, setSelected] = useState<ClassLevel | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const levels: MaktabLevel[] = [
-    'Awal', 'Doum', 'Soam', 'Chaharum', 'panjum', 'shahsum', 
-    'haftum', 'hashtum', 'dahum', 'Hafiz'
+  const levels: ClassLevel[] = [
+    'Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 
+    'Level 7', 'Level 8', 'Level 9', 'Level 10', 'Hafiz'
   ];
 
   const handleSelect = async () => {
@@ -33,7 +33,7 @@ export default function ClassSelection({ open, userId, onComplete }: ClassSelect
     setLoading(true);
     try {
       await updateDoc(doc(db, 'users', userId), {
-        pendingMaktabLevel: selected
+        pendingClassLevel: selected
       });
       onComplete();
     } catch (error) {
@@ -52,7 +52,7 @@ export default function ClassSelection({ open, userId, onComplete }: ClassSelect
     >
       <DialogTitle component="div" sx={{ textAlign: 'center', pt: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5 }}>
-          Select Your Maktab Level
+          Select Your Class Level
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 1, fontWeight: 500 }}>
           Please select the class you want to join. A teacher will approve your request.

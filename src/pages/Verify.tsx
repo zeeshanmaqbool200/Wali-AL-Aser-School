@@ -83,7 +83,7 @@ export default function Verify() {
 
           <Typography variant="h5" sx={{ fontWeight: 900, mb: 1 }}>Official Verification</Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 4 }}>
-            This document is authentic and verified by Al-Maktab Al-Wasati System.
+            This document is authentic and verified by the Institute System.
           </Typography>
 
           <Divider sx={{ mb: 4 }} />
@@ -100,7 +100,7 @@ export default function Verify() {
             <Box sx={{ textAlign: 'left' }}>
               <DataRow label="Name" value={data.displayName} icon={<User size={18} />} />
               <DataRow label="ID / Admission #" value={data.admissionNo || data.teacherId || 'N/A'} icon={<ShieldCheck size={18} />} />
-              <DataRow label="Grade / Level" value={data.maktabLevel || data.grade || data.subject || 'Standard'} icon={<BookOpen size={18} />} />
+              <DataRow label="Class / Level" value={data.classLevel || data.subject || 'Standard'} icon={<BookOpen size={18} />} />
               <DataRow label="Role" value={data.role?.toUpperCase() || 'N/A'} icon={<User size={18} />} />
               <DataRow label="Join Date" value={data.admissionDate || data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'N/A'} icon={<Calendar size={18} />} />
             </Box>

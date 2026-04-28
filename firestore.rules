@@ -3,17 +3,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Default deny catch-all MUST be first
+    // 0. Global Safety Net (Deny all by default)
     match /{document=**} {
       allow read, write: if false;
-    }
-    
-    // -------------------------------------------------------------------------
-    // PUBLIC SETTINGS
-    // -------------------------------------------------------------------------
-    match /settings/{settingId} {
-      allow read: if true;
-      allow write: if isSuperAdmin() || isMuntazim();
     }
     
     // -------------------------------------------------------------------------
@@ -24,54 +16,14 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    // Strictly mandated by integration instructions
+    // We check if email is verified.
     function isEmailVerified() {
-      return request.auth.token.email_verified == true;
-    }
-    
-    function getUserData() {
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
-        : null;
-    }
-    
-    function isSuperAdmin() {
-      return isSignedIn() && (
-        request.auth.uid == 'sZUiAgoSF8MTPBQAOtj6jbFkot93' ||
-        (request.auth.token.keys().contains('email') && request.auth.token.email.lower() == 'zeeshanmaqbool200@gmail.com') ||
-        (getUserData() != null && getUserData().get('role', '') == 'superadmin')
-      );
-    }
-    
-    function isMuntazim() {
-      return isSignedIn() && (
-        request.auth.uid == 'sZUiAgoSF8MTPBQAOtj6jbFkot93' ||
-        (request.auth.token.keys().contains('email') && request.auth.token.email.lower() == 'zeeshanmaqbool200@gmail.com') ||
-        (getUserData() != null && (getUserData().get('role', '') == 'muntazim' || getUserData().get('role', '') == 'superadmin'))
-      );
-    }
-    
-    function isMudaris() {
-      let data = getUserData();
-      return isSignedIn() && data != null && (
-        data.get('role', '') == 'mudaris' ||
-        data.get('role', '') == 'approved_mudaris'
-      );
+      return isSignedIn() && request.auth.token.email_verified == true;
     }
 
-    function isStaff() {
-      return isSuperAdmin() || isMuntazim() || isMudaris();
-    }
-    
-    function isPendingMudaris() {
-      return isSignedIn() && getUserData() != null && getUserData().get('role', '') == 'pending_mudaris';
-    }
-    
-    function isStudent() {
-      return isSignedIn() && getUserData() != null && getUserData().get('role', '') == 'student';
-    }
-    
-    function getAssignedClasses() {
-      return getUserData() != null ? getUserData().get('assignedClasses', []) : [];
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
     function incoming() {
@@ -81,220 +33,156 @@ service cloud.firestore {
     function existing() {
       return resource.data;
     }
+
+    // Hardened Identity Checks
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.uid == 'sZUiAgoSF8MTPBQAOtj6jbFkot93' ||
+        request.auth.token.get('email', '') == 'zeeshanmaqbool200@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'superadmin')
+      );
+    }
     
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    function isManager() {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'none') == 'manager')
+      );
+    }
+    
+    function isTeacher() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'none') == 'teacher';
+    }
+
+    function isStaff() {
+      return isSuperAdmin() || isManager() || isTeacher();
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
     }
 
     // -------------------------------------------------------------------------
-    // USERS COLLECTION
+    // ENTITY VALIDATION HELPERS (Eight Pillars: Anti-Update-Gap)
     // -------------------------------------------------------------------------
+    
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() <= 256 &&
+             data.role in ['student', 'teacher', 'manager', 'superadmin', 'pending_teacher'] &&
+             (!data.keys().contains('displayName') || (data.displayName is string && data.displayName.size() <= 128)) &&
+             (!data.keys().contains('phone') || (data.phone is string && data.phone.size() <= 128)) &&
+             (!data.keys().contains('updatedAt') || data.updatedAt == request.time);
+    }
+
+    function isValidReceipt(data) {
+      return data.keys().hasAll(['studentId', 'amount', 'status']) &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             data.amount is number && data.amount >= 0 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (!data.keys().contains('feeHead') || (data.feeHead is string && data.feeHead.size() <= 128));
+    }
+
+    // -------------------------------------------------------------------------
+    // COLLECTIONS
+    // -------------------------------------------------------------------------
+
+    // USERS
     match /users/{userId} {
-      // SuperAdmins and Admins can read all users
-      allow read: if isSuperAdmin() || isMuntazim();
+      allow get: if isSignedIn() && (isOwner(userId) || isStaff());
+      allow list: if isStaff();
       
-      // Individual users can see themselves and staff
-      allow get: if isSignedIn() && (
-        request.auth.uid == userId || 
-        resource.data.role in ['mudaris', 'muntazim', 'superadmin']
-      );
-
-      // Mudaris can list students they teach
-      allow list: if isMudaris() && resource.data.role == 'student' && (
-        resource.data.grade in getAssignedClasses() || 
-        resource.data.maktabLevel in getAssignedClasses() ||
-        resource.data.grade == 'Example'
+      allow create: if isSignedIn() && isValidId(userId) && isValidUser(incoming()) && (
+        isManager() || (isOwner(userId) && incoming().role in ['student', 'pending_teacher'])
       );
       
-      allow create: if isSignedIn() && (
-        isSuperAdmin() || isMuntazim() || isMudaris() ||
-        (request.auth.uid == userId && (incoming().get('role', '') == 'student' || incoming().get('role', '') == 'pending_mudaris'))
+      allow update: if isSignedIn() && isValidId(userId) && (
+        isSuperAdmin() ||
+        (isManager() && incoming().role == existing().role) ||
+        (isOwner(userId) && incoming().role == existing().role && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phone', 'whatsapp', 'address', 'photoURL', 'updatedAt', 'notificationPrefs', 'uiPrefs', 'pendingClassLevel', 'classLevel']))
       );
       
-      allow update: if isSuperAdmin() || isMuntazim() ||
-                      (isMudaris() && existing().get('role', '') == 'student' && (existing().get('grade', '') in getAssignedClasses() || existing().get('grade', '') == 'Example')) ||
-                      (request.auth.uid == userId && incoming().get('role', '') == existing().get('role', '') && incoming().get('email', '') == existing().get('email', '') &&
-                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phone', 'whatsapp', 'address', 'photoURL', 'updatedAt', 'hardwareStatus', 'notificationPrefs', 'uiPrefs', 'pendingMaktabLevel']));
-      
-      allow delete: if isSuperAdmin(); // ONLY super admin can delete users
+      // EXPLICIT BY UID TO OVERRIDE ANY PERMISSION ISSUES
+      allow delete: if isSignedIn() && (request.auth.uid == 'sZUiAgoSF8MTPBQAOtj6jbFkot93' || isSuperAdmin());
     }
 
-    // -------------------------------------------------------------------------
-    // COURSES (MAZAMEEN)
-    // -------------------------------------------------------------------------
-    match /courses/{courseId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSuperAdmin() || isMuntazim() || isMudaris();
-      allow delete: if isSuperAdmin(); // Sensitive info
-    }
-
-    // -------------------------------------------------------------------------
-    // RECEIPTS (FEES)
-    // -------------------------------------------------------------------------
+    // RECEIPTS
     match /receipts/{receiptId} {
-      allow read: if isSuperAdmin() || isMuntazim() ||
-                    (isMudaris() && (
-                      resource.data.get('grade', '') in getAssignedClasses() || 
-                      resource.data.get('grade', '') == 'Example'
-                    )) ||
-                    (isSignedIn() && resource.data.get('studentId', '') == request.auth.uid);
-      
-      allow create: if isSuperAdmin() || isMuntazim() ||
-                      (isMudaris() && (
-                        incoming().get('grade', '') in getAssignedClasses() || 
-                        incoming().get('grade', '') == 'Example' ||
-                        incoming().get('grade', '') == '__none__'
-                      ));
-      
-      allow update: if isSuperAdmin() || isMuntazim() || 
-                      (isMudaris() && (existing().get('createdBy', '') == request.auth.uid || existing().get('uploadedBy', '') == request.auth.uid));
-      allow delete: if isSuperAdmin(); // Muntazim cannot delete sensitive info (receipts)
+      allow read: if isManager() || (isSignedIn() && (resource.data.studentId == request.auth.uid || resource.data.createdBy == request.auth.uid));
+      allow create: if isStaff() && isValidReceipt(incoming());
+      allow update: if isManager() || (isTeacher() && existing().createdBy == request.auth.uid);
+      allow delete: if isSuperAdmin();
     }
 
-    // -------------------------------------------------------------------------
     // ATTENDANCE
-    // -------------------------------------------------------------------------
-    match /attendance/{recordId} {
-      allow read: if isSuperAdmin() || isMuntazim() ||
-                    (isMudaris() && (
-                      existing().get('grade', '') in getAssignedClasses() || 
-                      existing().get('grade', '') == 'Example' || 
-                      existing().get('grade', '') == '__none__'
-                    )) ||
-                    (isSignedIn() && existing().get('studentId', '') == request.auth.uid);
-      
-      allow create, update: if isSuperAdmin() || isMuntazim() ||
-                             (isMudaris() && (
-                               incoming().get('grade', '') in getAssignedClasses() || 
-                               incoming().get('grade', '') == 'Example' ||
-                               incoming().get('grade', '') == '__none__'
-                             ));
-      
+    match /attendance/{id} {
+      allow read: if isStaff() || (isSignedIn() && resource.data.studentId == request.auth.uid);
+      allow create, update: if isStaff();
       allow delete: if isSuperAdmin();
     }
 
-    // -------------------------------------------------------------------------
     // EXAMS
-    // -------------------------------------------------------------------------
-    match /exams/{examId} {
-      allow read: if isSuperAdmin() || isMuntazim() ||
-                    (isMudaris() && (
-                      existing().get('grade', '') in getAssignedClasses() || 
-                      existing().get('grade', '') == 'Example' ||
-                      existing().get('grade', '') == '__none__'
-                    )) ||
-                    (isSignedIn() && (
-                      getUserData().get('maktabLevel', '') == existing().get('grade', '') || 
-                      getUserData().get('grade', '') == existing().get('grade', '') || 
-                      existing().get('grade', '') == 'Example' ||
-                      existing().get('grade', '') == '__none__'
-                    ));
-      
-      allow create, update: if isSuperAdmin() || isMuntazim() ||
-                             (isMudaris() && (
-                               incoming().get('grade', '') in getAssignedClasses() || 
-                               incoming().get('grade', '') == 'Example' ||
-                               incoming().get('grade', '') == '__none__'
-                             ));
-      
-      allow delete: if isSuperAdmin();
-    }
-
-    // -------------------------------------------------------------------------
-    // SCHEDULES
-    // -------------------------------------------------------------------------
-    match /schedules/{scheduleId} {
-      allow read: if isSuperAdmin() || isMuntazim() ||
-                    (isMudaris() && (
-                      existing().get('grade', '') in getAssignedClasses() || 
-                      existing().get('grade', '') == 'Example' ||
-                      existing().get('grade', '') == '__none__'
-                    )) ||
-                    (isSignedIn() && (
-                      getUserData().get('maktabLevel', '') == existing().get('grade', '') || 
-                      getUserData().get('grade', '') == existing().get('grade', '') || 
-                      existing().get('grade', '') == 'Example' ||
-                      existing().get('grade', '') == '__none__'
-                    ));
-      
-      allow create, update: if isSuperAdmin() || isMuntazim() ||
-                             (isMudaris() && (
-                               incoming().get('grade', '') in getAssignedClasses() || 
-                               incoming().get('grade', '') == 'Example' ||
-                               incoming().get('grade', '') == '__none__'
-                             ));
-      
-      allow delete: if isSuperAdmin();
-    }
-
-    // -------------------------------------------------------------------------
-    // NOTES (STUDY MATERIALS)
-    // -------------------------------------------------------------------------
-    match /notes/{noteId} {
-      allow read: if isSuperAdmin() || isMuntazim() ||
-                    (isMudaris() && (
-                      existing().get('grade', '') == 'All' || 
-                      existing().get('grade', '') in getAssignedClasses() || 
-                      existing().get('grade', '') == 'Example' ||
-                      existing().get('grade', '') == '__none__' ||
-                      existing().get('uploadedBy', '') == request.auth.uid
-                    )) ||
-                    (isSignedIn() && (
-                      existing().get('grade', '') == 'All' || 
-                      getUserData().get('maktabLevel', '') == existing().get('grade', '') || 
-                      getUserData().get('grade', '') == existing().get('grade', '') || 
-                      existing().get('grade', '') == 'Example' ||
-                      existing().get('grade', '') == '__none__'
-                    ));
-      
-      allow create: if isStaff();
-      
-      allow update: if isSuperAdmin() || isMuntazim() || (isMudaris() && existing().get('uploadedBy', '') == request.auth.uid);
-      allow delete: if isSuperAdmin(); // ONLY super admin can delete materials
-    }
-
-    // -------------------------------------------------------------------------
-    // NOTIFICATIONS
-    // -------------------------------------------------------------------------
-    match /notifications/{notifId} {
-      allow read: if isSuperAdmin() || isMuntazim() || isMudaris() || (
-        isSignedIn() && (
-          resource.data.targetType == 'all' ||
-          (resource.data.targetType == 'individual' && resource.data.targetId == request.auth.uid) ||
-          (resource.data.targetType == 'class' && (
-            resource.data.targetId == getUserData().get('maktabLevel', '') || 
-            resource.data.targetId == getUserData().get('grade', '')
-          ))
-        )
-      );
-      allow create: if isStaff();
-      allow update, delete: if isSuperAdmin();
-    }
-
-    // -------------------------------------------------------------------------
-    // EVENTS
-    // -------------------------------------------------------------------------
-    match /events/{eventId} {
+    match /exams/{id} {
       allow read: if isSignedIn();
       allow create, update: if isStaff();
       allow delete: if isSuperAdmin();
     }
 
-    // -------------------------------------------------------------------------
-    // LOGS (SECURITY & SYSTEM)
-    // -------------------------------------------------------------------------
-    match /access_logs/{logId} {
-      allow read: if isSuperAdmin() || isMuntazim();
-      allow create: if isSignedIn();
-      allow update: if false;
+    // COURSES
+    match /courses/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff();
       allow delete: if isSuperAdmin();
     }
 
-    match /system_logs/{logId} {
+    // SCHEDULES / EVENTS
+    match /schedules/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff();
+      allow delete: if isSuperAdmin();
+    }
+    
+    match /events/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff();
+      allow delete: if isSuperAdmin();
+    }
+
+    // NOTES
+    match /notes/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if isStaff();
+      allow delete: if isSuperAdmin();
+    }
+
+    // SETTINGS
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // NOTIFICATIONS
+    match /notifications/{id} {
+      allow read: if isSignedIn();
+      allow create: if isStaff();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // LOGS
+    match /access_logs/{id} {
+      allow read: if isStaff();
+      allow create: if isSignedIn();
+    }
+
+    match /system_logs/{id} {
       allow read: if isSuperAdmin();
       allow create: if true;
-      allow update: if false;
-      allow delete: if isSuperAdmin();
     }
   }
 }

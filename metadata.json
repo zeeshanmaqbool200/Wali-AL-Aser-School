@@ -1,5 +1,5 @@
 {
-  "name": "Maktab Wali Ul Aser",
+  "name": "Institute Management System",
   "description": "Student Fee Management System. Managing Tulab records, fees, attendance, and academic schedules with professional reports and PWA support.",
   "requestFramePermissions": [
     "camera",

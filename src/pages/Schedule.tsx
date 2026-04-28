@@ -21,6 +21,7 @@ import { ClassSchedule, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
+import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import confetti from 'canvas-confetti';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -47,7 +48,7 @@ export default function Schedule() {
     endTime: '10:00',
     room: '',
     dayOfWeek: 0,
-    grade: '',
+    classLevel: '',
     description: '',
     materials: [] as { title: string, url: string, type: 'pdf' | 'text' | 'link' }[]
   });
@@ -65,10 +66,10 @@ export default function Schedule() {
   });
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
-  const isMuntazim = currentUser?.role === 'muntazim';
-  const isMudarisRole = currentUser?.role === 'mudaris';
-  const isAdmin = isSuperAdmin || isMuntazim;
-  const isStaff = isAdmin || isMudarisRole;
+  const isManagerRole = currentUser?.role === 'manager';
+  const isTeacherRole = currentUser?.role === 'teacher';
+  const isAdmin = isSuperAdmin || isManagerRole;
+  const isStaff = isAdmin || isTeacherRole;
 
   useEffect(() => {
     let q = query(collection(db, 'schedules'), orderBy('startTime', 'asc'));
@@ -76,18 +77,17 @@ export default function Schedule() {
     // Filtering schedules based on role
     if (isAdmin) {
       q = query(collection(db, 'schedules'), orderBy('startTime', 'asc'));
-    } else if (isMudarisRole) {
+    } else if (isTeacherRole) {
       q = query(
         collection(db, 'schedules'), 
-        where('grade', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']), 
+        where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']), 
         orderBy('startTime', 'asc')
       );
     } else if (currentUser?.role === 'student') {
       q = query(
         collection(db, 'schedules'), 
         or(
-          where('grade', '==', currentUser.maktabLevel || 'none'),
-          where('grade', '==', currentUser.grade || 'none')
+          where('classLevel', '==', currentUser.classLevel || 'none')
         ),
         orderBy('startTime', 'asc')
       );
@@ -124,7 +124,7 @@ export default function Schedule() {
       unsubscribe();
       unsubscribeEvents();
     };
-  }, [currentUser?.uid, currentUser?.assignedClasses, isMudarisRole, isAdmin]);
+  }, [currentUser?.uid, currentUser?.assignedClasses, isTeacherRole, isAdmin]);
 
   const handleSaveEvent = async () => {
     try {
@@ -187,7 +187,7 @@ export default function Schedule() {
       setEditingSchedule(null);
       setFormData({ 
         subject: '', teacherName: '', teacherId: '', startTime: '09:00', endTime: '10:00', 
-        room: '', dayOfWeek: selectedDay, grade: '', description: '', materials: [] 
+        room: '', dayOfWeek: selectedDay, classLevel: '', description: '', materials: [] 
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'schedules');
@@ -210,7 +210,7 @@ export default function Schedule() {
         message: `Your class for ${schedule.subject} starts at ${schedule.startTime} in Room ${schedule.room}.`,
         type: 'class_timing',
         targetType: 'class',
-        targetId: schedule.grade,
+        targetId: (schedule as any).classLevel,
         senderId: currentUser.uid,
         senderName: currentUser.displayName,
         createdAt: Date.now(),
@@ -237,9 +237,9 @@ export default function Schedule() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Schedule (Auqat)</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Class Schedule</Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Manage weekly Maktab Level schedules and room assignments
+              Manage weekly Class Level schedules and room assignments
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
@@ -418,7 +418,7 @@ export default function Schedule() {
                       <Bell size={20} />
                     </Box>
                     <Typography variant="caption" sx={{ fontWeight: 600, lineHeight: 1.4 }}>
-                      Mudaris can send instant push notifications to all Tulab in a class for any timing changes.
+                      Teachers can send instant push notifications to all students in a class for any timing changes.
                     </Typography>
                   </Box>
                 </Stack>
@@ -447,14 +447,25 @@ export default function Schedule() {
                         disableGutters 
                         sx={{ py: 1.5, borderBottom: i < events.length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}
                         secondaryAction={isStaff && (
-                          <Box>
-                            <IconButton size="small" onClick={() => {
-                              setEditingEvent(event);
-                              setEventFormData({ title: event.title, date: event.date, time: event.time, type: event.type, color: event.color });
-                              setOpenEventDialog(true);
-                            }}><Edit2 size={14} /></IconButton>
-                            <IconButton size="small" color="error" onClick={() => handleDeleteEvent(event.id)}><Trash2 size={14} /></IconButton>
-                          </Box>
+                          <ActionMenu 
+                            items={[
+                              { 
+                                label: 'Edit Event', 
+                                icon: <Edit2 size={16} />, 
+                                onClick: () => {
+                                  setEditingEvent(event);
+                                  setEventFormData({ title: event.title, date: event.date, time: event.time, type: event.type, color: event.color });
+                                  setOpenEventDialog(true);
+                                }
+                              },
+                              { 
+                                label: 'Delete Event', 
+                                icon: <Trash2 size={16} />, 
+                                color: 'error.main',
+                                onClick: () => handleDeleteEvent(event.id)
+                              }
+                            ]} 
+                          />
                         )}
                       >
                         <ListItemAvatar>
@@ -509,14 +520,14 @@ export default function Schedule() {
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 500 }}>
-            Configure the class details below. This will be visible to all Tulab in the selected level.
+            Configure the class details below. This will be visible to all students in the selected level.
           </Typography>
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, sm: 8 }}>
               <TextField
                 fullWidth
-                label="Mazmoon Name"
-                placeholder="e.g. Quran with Tajweed"
+                label="Subject Name"
+                placeholder="e.g. Science"
                 value={formData.subject}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
@@ -525,10 +536,10 @@ export default function Schedule() {
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
-                label="Maktab Level"
+                label="Class Level"
                 placeholder="e.g. Level 1"
-                value={formData.grade}
-                onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
+                value={formData.classLevel}
+                onChange={(e) => setFormData({ ...formData, classLevel: e.target.value })}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
               />
             </Grid>
@@ -636,7 +647,7 @@ export default function Schedule() {
             onClick={handleSave} 
             variant="contained" 
             startIcon={<Save size={18} />} 
-            disabled={!formData.subject || !formData.grade}
+            disabled={!formData.subject || !formData.classLevel}
             sx={{ borderRadius: 3, fontWeight: 800, px: 3, boxShadow: '0 8px 24px rgba(15, 118, 110, 0.3)' }}
           >
             {editingSchedule ? 'Update Schedule' : 'Add to Schedule'}
@@ -760,7 +771,7 @@ function ScheduleCard({ schedule, isTeacher, onEdit, onDelete, onNotify, onViewM
             <Typography variant="h5" sx={{ fontWeight: 900, mb: 1.5, letterSpacing: -1 }}>{schedule.subject}</Typography>
             <Stack direction="row" spacing={2.5}>
               <Chip 
-                label={schedule.grade} 
+                label={schedule.classLevel} 
                 size="small" 
                 sx={{ 
                   fontWeight: 900, 
@@ -782,7 +793,7 @@ function ScheduleCard({ schedule, isTeacher, onEdit, onDelete, onNotify, onViewM
             <Box sx={{ display: 'flex', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, alignItems: 'center', gap: 2.5 }}>
               <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 900, display: 'block' }}>{schedule.teacherName}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Mudaris</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Teacher</Typography>
               </Box>
               <Avatar 
                 sx={{ 
@@ -821,7 +832,7 @@ function ScheduleCard({ schedule, isTeacher, onEdit, onDelete, onNotify, onViewM
                 </Tooltip>
                 {isTeacher && (
                   <>
-                    <Tooltip title="Notify Tulab">
+                    <Tooltip title="Notify Students">
                       <IconButton 
                         size="small" 
                         color="primary" 
