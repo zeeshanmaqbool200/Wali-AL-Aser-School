@@ -173,32 +173,39 @@ export default function Exams() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Exams & Results</Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Schedule evaluations, track performance, and manage results for students
+            <Typography 
+              variant="h4" 
+              sx={{ 
+                fontFamily: 'var(--font-display)',
+                fontWeight: 900, 
+                letterSpacing: -1, 
+                mb: 0.5,
+                color: 'primary.main'
+              }}
+            >
+              Exams & Results
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600 }}>
+              Schedule evaluations and track student performance
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
             <Box sx={{ 
               display: 'flex', 
               bgcolor: 'background.default', 
-              p: 0.8, 
+              p: 0.6, 
               borderRadius: 2,
-              boxShadow: theme.palette.mode === 'dark'
-                ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+              border: '1px solid',
+              borderColor: 'divider',
             }}>
               <IconButton 
                 size="small" 
                 onClick={() => setViewMode('grid')}
                 sx={{ 
-                  borderRadius: 3, 
+                  borderRadius: 2, 
                   bgcolor: viewMode === 'grid' ? 'background.paper' : 'transparent', 
-                  boxShadow: viewMode === 'grid' 
-                    ? (theme.palette.mode === 'dark' ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff')
-                    : 'none',
+                  boxShadow: viewMode === 'grid' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
                   color: viewMode === 'grid' ? 'primary.main' : 'text.secondary',
-                  transition: 'all 0.3s ease'
                 }}
               >
                 <Layout size={18} />
@@ -207,13 +214,10 @@ export default function Exams() {
                 size="small" 
                 onClick={() => setViewMode('list')}
                 sx={{ 
-                  borderRadius: 3, 
+                  borderRadius: 2, 
                   bgcolor: viewMode === 'list' ? 'background.paper' : 'transparent', 
-                  boxShadow: viewMode === 'list' 
-                    ? (theme.palette.mode === 'dark' ? '4px 4px 8px #060a12, -4px -4px 8px #182442' : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff')
-                    : 'none',
+                  boxShadow: viewMode === 'list' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
                   color: viewMode === 'list' ? 'primary.main' : 'text.secondary',
-                  transition: 'all 0.3s ease'
                 }}
               >
                 <Layers size={18} />
@@ -226,13 +230,12 @@ export default function Exams() {
                 onClick={() => setOpenDialog(true)}
                 sx={{ 
                   borderRadius: 2, 
-                  fontWeight: 900, 
-                  px: 4, 
-                  py: 1.5,
+                  fontWeight: 800, 
+                  px: 3, 
+                  py: 1,
                   textTransform: 'none',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                    : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  '&:hover': { transform: 'translateY(-2px)' }
                 }}
               >
                 Schedule Exam

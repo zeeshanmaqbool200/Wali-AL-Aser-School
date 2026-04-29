@@ -355,7 +355,18 @@ export default function Fees() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Fees & Payments</Typography>
+            <Typography 
+              variant={isMobile ? "h5" : "h4"} 
+              sx={{ 
+                fontFamily: 'var(--font-display)',
+                fontWeight: 900, 
+                letterSpacing: -1, 
+                mb: 0.5,
+                color: 'primary.main'
+              }}
+            >
+              Fees & Payments
+            </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
               Manage student payments and official receipts
             </Typography>
@@ -1112,36 +1123,50 @@ export default function Fees() {
 
 const SummaryCard = React.memo(({ title, value, icon, color, trend }: any) => {
   const theme = useTheme();
-  const mainColor = theme.palette[color as 'primary' | 'success' | 'error' | 'warning'].main;
+  const mainColor = theme.palette[color as 'primary' | 'success' | 'warning'].main;
   
   return (
     <Card sx={{ 
-      borderRadius: 1, 
+      borderRadius: 4, 
       height: '100%', 
-      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-      border: `1px solid ${theme.palette.divider}`,
+      transition: 'all 0.3s ease',
+      border: '1px solid',
+      borderColor: 'divider',
       bgcolor: 'background.paper',
-      boxShadow: 'none',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
       '&:hover': { 
         transform: 'translateY(-4px)', 
-        borderColor: mainColor
+        boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+        borderColor: alpha(mainColor, 0.3)
       }
     }}>
-      <CardContent sx={{ p: 2.5 }}>
+      <CardContent sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <Box sx={{ 
-            p: 1.2, 
-            borderRadius: 0.5, 
+            p: 1.5, 
+            borderRadius: 2, 
             bgcolor: alpha(mainColor, 0.1), 
             color: mainColor,
-            border: `1px solid ${alpha(mainColor, 0.1)}`
+            display: 'flex'
           }}>
             {icon}
           </Box>
-          <Typography variant="caption" sx={{ fontWeight: 800, color: mainColor, fontSize: '0.65rem', bgcolor: alpha(mainColor, 0.05), px: 1, py: 0.5, borderRadius: 0.5 }}>{trend}</Typography>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: mainColor, fontSize: '0.65rem', bgcolor: alpha(mainColor, 0.05), px: 1, py: 0.5, borderRadius: 1 }}>{trend}</Typography>
         </Box>
-        <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5, letterSpacing: -1 }}>{value}</Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.65rem' }}>{title}</Typography>
+        <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5, letterSpacing: -0.5 }}>{value}</Typography>
+        <Typography 
+          variant="caption" 
+          color="text.secondary" 
+          sx={{ 
+            fontWeight: 800, 
+            textTransform: 'uppercase', 
+            letterSpacing: 1,
+            fontFamily: 'var(--font-display)',
+            fontSize: '0.65rem'
+          }}
+        >
+          {title}
+        </Typography>
       </CardContent>
     </Card>
   );

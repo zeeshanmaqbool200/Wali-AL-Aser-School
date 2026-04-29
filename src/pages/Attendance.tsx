@@ -243,7 +243,18 @@ export default function AttendancePage() {
         transition={{ duration: 0.5 }}
       >
         <Box sx={{ mb: 6, textAlign: 'center' }}>
-          <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: -2, mb: 1 }}>Attendance</Typography>
+          <Typography 
+            variant="h3" 
+            sx={{ 
+              fontFamily: 'var(--font-display)',
+              fontWeight: 900, 
+              letterSpacing: -1.5, 
+              mb: 1,
+              color: 'primary.main'
+            }}
+          >
+            Attendance
+          </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.5 }}>
             Track and manage student daily attendance for {selectedClass}
           </Typography>

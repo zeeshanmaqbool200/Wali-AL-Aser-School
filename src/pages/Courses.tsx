@@ -397,7 +397,18 @@ export default function Courses() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>Subjects</Typography>
+            <Typography 
+              variant="h4" 
+              sx={{ 
+                fontFamily: 'var(--font-display)',
+                fontWeight: 900, 
+                letterSpacing: -1, 
+                mb: 0.5,
+                color: 'primary.main'
+              }}
+            >
+              Subjects
+            </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
               Manage Islamic curriculum, Student enrollment, and learning paths
             </Typography>

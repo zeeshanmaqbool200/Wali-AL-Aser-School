@@ -104,7 +104,8 @@ export default function Dashboard({ user }: DashboardProps) {
             const instData = instDoc.data() as any;
             setInstituteData({
               instituteName: instData.instituteName || 'Institute Name',
-              tagline: instData.tagline || 'Education for Excellence'
+              tagline: instData.tagline || 'Education for Excellence',
+              bannerUrl: instData.bannerUrl || ''
             });
             offset = instData.jafariOffset || 0;
           }
@@ -466,12 +467,12 @@ export default function Dashboard({ user }: DashboardProps) {
           p: { xs: 4, md: 10 },
           bgcolor: 'black',
           backgroundImage: instituteData.bannerUrl 
-            ? `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.9)), url(${instituteData.bannerUrl})` 
+            ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.7)), url(${instituteData.bannerUrl})` 
             : 'radial-gradient(circle at center, #0f766e 0%, #000 100%)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
-          borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.4)}`
+          boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
+          borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`
         }}
       >
         <motion.div
@@ -502,15 +503,15 @@ export default function Dashboard({ user }: DashboardProps) {
           <Typography 
             variant={isMobile ? "h3" : "h2"} 
             sx={{ 
-              fontFamily: 'var(--font-serif)', 
+              fontFamily: 'var(--font-display)', 
               fontWeight: 950, 
               mb: 2, 
               color: 'primary.main', 
               textTransform: 'uppercase', 
-              letterSpacing: { xs: 2, md: 8 },
-              textShadow: '0 0 50px rgba(13, 148, 136, 0.8)',
+              letterSpacing: { xs: 2, md: 4 },
+              textShadow: '0 0 30px rgba(13, 148, 136, 0.4)',
               lineHeight: 1.1,
-              fontSize: { xs: '2.8rem', md: '5rem' }
+              fontSize: { xs: '2.5rem', md: '4.5rem' }
             }}
           >
             Greetings, {user.displayName}!
@@ -518,11 +519,12 @@ export default function Dashboard({ user }: DashboardProps) {
           <Typography 
             variant={isMobile ? "h5" : "h4"} 
             sx={{ 
+              fontFamily: 'var(--font-display)',
               fontWeight: 950, 
               color: 'white', 
               mb: 4, 
               opacity: 1,
-              textShadow: '2px 4px 20px rgba(0,0,0,1)',
+              textShadow: '2px 4px 10px rgba(0,0,0,0.5)',
               letterSpacing: 0.5
             }}
           >

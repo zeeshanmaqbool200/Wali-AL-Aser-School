@@ -791,114 +791,82 @@ export default function Users() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>{tabValue === 0 ? 'Students' : tabValue === 1 ? 'Teachers' : 'Approval'} Management</Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Manage Students, Teachers, and administrative staff
+            <Typography 
+              variant="h4" 
+              sx={{ 
+                fontFamily: 'var(--font-display)',
+                fontWeight: 900, 
+                letterSpacing: -1, 
+                mb: 0.5,
+                color: 'primary.main'
+              }}
+            >
+              {tabValue === 0 ? 'Students' : tabValue === 1 ? 'Staff' : 'Approvals'}
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600 }}>
+              System Directory & Access Control
             </Typography>
           </Box>
           <Stack direction="row" spacing={2} sx={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', alignItems: 'center' }}>
-            {isSuperAdmin && (
-              <Tooltip title="Purge Data / System Reset">
-                <Button 
-                  onClick={() => setResetConfirmOpen(true)}
-                  variant="outlined"
-                  color="error"
-                  startIcon={<Database size={18} />}
-                  sx={{ 
-                    borderRadius: 2,
-                    fontWeight: 800,
-                    textTransform: 'none',
-                    bgcolor: alpha(theme.palette.error.main, 0.05),
-                  }}
-                >
-                  Purge Data
-                </Button>
-              </Tooltip>
-            )}
-            <Tooltip title="Manual Refresh">
-              <IconButton 
-                onClick={handleManualRefresh}
-                sx={{ 
-                  bgcolor: 'background.paper', 
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 2
-                }}
-              >
-                <RotateCcw size={18} />
-              </IconButton>
-            </Tooltip>
             <Box sx={{ 
               display: 'flex', 
               bgcolor: 'background.default', 
               p: 0.6, 
               borderRadius: 2,
-              boxShadow: theme.palette.mode === 'dark'
-                ? 'inset 2px 2px 4px #060a12, inset -2px -2px 4px #182442'
-                : 'inset 2px 2px 4px #cbd5e1, inset -2px -2px 4px #ffffff',
+              border: '1px solid',
+              borderColor: 'divider',
             }}>
               <IconButton 
                 size="small" 
                 onClick={() => setViewMode('grid')}
                 sx={{ 
-                  borderRadius: 2.5, 
-                  p: 1,
+                  borderRadius: 2, 
                   bgcolor: viewMode === 'grid' ? 'background.paper' : 'transparent', 
-                  boxShadow: viewMode === 'grid' 
-                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '1px 2px 4px rgba(0,0,0,0.05)')
-                    : 'none',
+                  boxShadow: viewMode === 'grid' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
                   color: viewMode === 'grid' ? 'primary.main' : 'text.secondary',
-                  transition: 'all 0.3s ease'
                 }}
               >
-                <Layout size={isMobile ? 16 : 18} />
+                <Layout size={18} />
               </IconButton>
               <IconButton 
                 size="small" 
                 onClick={() => setViewMode('list')}
                 sx={{ 
-                  borderRadius: 2.5, 
-                  p: 1,
+                  borderRadius: 2, 
                   bgcolor: viewMode === 'list' ? 'background.paper' : 'transparent', 
-                  boxShadow: viewMode === 'list' 
-                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '1px 2px 4px rgba(0,0,0,0.05)')
-                    : 'none',
+                  boxShadow: viewMode === 'list' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
                   color: viewMode === 'list' ? 'primary.main' : 'text.secondary',
-                  transition: 'all 0.3s ease'
                 }}
               >
-                <Layers size={isMobile ? 16 : 18} />
+                <Layers size={18} />
               </IconButton>
             </Box>
-            {isAdmin && (
-              <Button
-                variant="outlined"
-                color="primary"
-                startIcon={<Download size={18} />}
-                onClick={handleExport}
-                sx={{
-                  borderRadius: 2,
-                  fontWeight: 800,
-                  px: isMobile ? 2 : 3,
-                  py: isMobile ? 1 : 1.2,
-                  minHeight: isMobile ? 40 : 48,
-                  textTransform: 'none',
-                  fontSize: isMobile ? '0.8rem' : '0.9rem',
-                  borderColor: 'divider',
-                  bgcolor: 'background.paper',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
-                    : '4px 4px 10px #cbd5e1, -4px -4px 10px #ffffff',
-                }}
-              >
-                {isMobile ? "" : "Export"}
-              </Button>
-            )}
+
+            <ActionMenu 
+              items={[
+                { label: 'Export Data', icon: <Download size={18} />, onClick: handleExport, disabled: !isAdmin },
+                { label: 'Manual Refresh', icon: <RotateCcw size={18} />, onClick: handleManualRefresh },
+                { divider: true, label: '', icon: null, onClick: () => {} },
+                { 
+                  label: 'Purge System Data', 
+                  icon: <Database size={18} />, 
+                  color: 'error.main', 
+                  onClick: () => { setPurgeType('ALL'); setResetConfirmOpen(true); },
+                  disabled: !isSuperAdmin 
+                },
+              ]}
+              trigger={
+                <IconButton sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                  <MoreVertical size={20} />
+                </IconButton>
+              }
+            />
+            
             {canAddStudent && (
               <Button 
                 variant="contained" 
                 color="primary"
-                startIcon={<UserPlus size={isMobile ? 18 : 22} />} 
+                startIcon={<UserPlus size={20} />} 
                 onClick={() => {
                   setEditingUser(null);
                   setFormData({ 
@@ -927,23 +895,14 @@ export default function Users() {
                 sx={{ 
                   borderRadius: 2, 
                   fontWeight: 800, 
-                  px: isMobile ? 2 : 3, 
-                  py: isMobile ? 1 : 1.2,
-                  minHeight: isMobile ? 40 : 48,
+                  px: 3, 
+                  py: 1.2,
                   textTransform: 'none',
-                  fontSize: isMobile ? '0.8rem' : '0.9rem',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
-                    : '1px 2px 8px rgba(0,0,0,0.05)',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: theme.palette.mode === 'dark'
-                      ? '6px 6px 14px #060a12, -6px -6px 14px #182442'
-                      : '2px 4px 12px rgba(0,0,0,0.1)',
-                  }
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  '&:hover': { transform: 'translateY(-2px)' }
                 }}
               >
-                {isMobile ? "Add" : (tabValue === 0 ? 'Add Student' : 'Add Teacher')}
+                {isMobile ? "Add" : (tabValue === 0 ? 'Register Student' : 'Add Teacher')}
               </Button>
             )}
           </Stack>
@@ -2125,43 +2084,49 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, actionMenu }: any) =
 
 const SummaryCard = React.memo(({ title, value, icon, color }: any) => {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const mainColor = theme.palette[color as 'primary' | 'success' | 'error' | 'warning'].main;
+  const mainColor = theme.palette[color as 'primary' | 'success' | 'warning'].main;
   
   return (
     <Card sx={{ 
-      borderRadius: 2, 
+      borderRadius: 4, 
       height: '100%', 
-      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-      border: 'none',
+      transition: 'all 0.3s ease',
+      border: '1px solid',
+      borderColor: 'divider',
       bgcolor: 'background.paper',
-      boxShadow: isDark 
-        ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
-        : '2px 2px 8px rgba(0,0,0,0.05)',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
       '&:hover': { 
-        transform: 'translateY(-6px)', 
-        boxShadow: isDark 
-          ? '6px 6px 12px #060a12, -6px -6px 12px #182442'
-          : '4px 4px 12px rgba(0,0,0,0.1)',
-        borderColor: alpha(mainColor, 0.2)
+        transform: 'translateY(-4px)', 
+        boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+        borderColor: alpha(mainColor, 0.3)
       }
     }}>
-      <CardContent sx={{ p: 3.5 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
+      <CardContent sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <Box sx={{ 
-            p: 1.8, 
-            borderRadius: '20px', 
+            p: 1.5, 
+            borderRadius: 2, 
             bgcolor: alpha(mainColor, 0.1), 
             color: mainColor,
-            boxShadow: isDark
-              ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-              : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+            display: 'flex'
           }}>
             {icon}
           </Box>
         </Box>
-        <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5, letterSpacing: -1.5 }}>{value}</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.75rem' }}>{title}</Typography>
+        <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5, letterSpacing: -0.5 }}>{value}</Typography>
+        <Typography 
+          variant="caption" 
+          color="text.secondary" 
+          sx={{ 
+            fontWeight: 800, 
+            textTransform: 'uppercase', 
+            letterSpacing: 1,
+            fontFamily: 'var(--font-display)',
+            fontSize: '0.65rem'
+          }}
+        >
+          {title}
+        </Typography>
       </CardContent>
     </Card>
   );
