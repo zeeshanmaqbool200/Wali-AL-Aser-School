@@ -9,7 +9,7 @@ import { useTheme, alpha } from '@mui/material/styles';
 import { 
   LogOut, User, Bell, Menu as MenuIcon, Search,
   LayoutDashboard, Users, Calendar, BookOpen, CreditCard, ClipboardList, FileText,
-  ChevronRight, X, Shield
+  ChevronRight, X, Shield, Sun, Moon
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserProfile, Notification as NotificationType } from '../types';
@@ -19,6 +19,7 @@ import { collection, query, onSnapshot, orderBy, limit, updateDoc, doc, arrayUni
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { InstituteSettings } from '../types';
+import { useThemeContext } from '../context/ThemeContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -28,6 +29,7 @@ interface LayoutProps {
 
 export default function Layout({ children, user, onLogout }: LayoutProps) {
   const theme = useTheme();
+  const { mode, setMode } = useThemeContext();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,7 +38,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [instituteName, setInstituteName] = useState('Wali Ul Aser Institute');
-  const [logoUrl, setLogoUrl] = useState('https://idarahwaliulaser.netlify.app/img/logo.png');
+  const [logoUrl, setLogoUrl] = useState('https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png');
   const [bottomNavVisible, setBottomNavVisible] = useState(false);
   const [profileAnchorEl, setProfileAnchorEl] = useState<null | HTMLElement>(null);
   const mainRef = React.useRef<HTMLDivElement>(null);
@@ -67,7 +69,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           document.title = data.instituteName || 'Wali Ul Aser Institute';
         }
         if (data.logoUrl !== undefined) {
-          const finalLogo = data.logoUrl || 'https://idarahwaliulaser.netlify.app/img/logo.png';
+          const finalLogo = data.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png';
           setLogoUrl(finalLogo);
           // Dynamically update favicon
           const link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
@@ -133,8 +135,17 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
 
   if (!user) return <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>{children}</Box>;
 
+  // Standalone Verification Page
+  if (location.pathname.startsWith('/verify')) {
+    return (
+      <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default', display: 'flex', flexDirection: 'column' }}>
+        {children}
+      </Box>
+    );
+  }
+
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default', overflowX: 'hidden' }}>
       {/* Sidebar for Desktop */}
       {!isMobile && (
         <Sidebar 
@@ -277,6 +288,28 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                   >
                     <Bell size={isMobile ? 18 : 22} />
                   </Badge>
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title={`Switch to ${theme.palette.mode === 'dark' ? 'Light' : 'Dark'} Mode`}>
+                <IconButton 
+                  onClick={() => setMode(mode === 'dark' ? 'light' : 'dark')} 
+                  size="large"
+                  sx={{ 
+                    bgcolor: 'background.default',
+                    color: 'text.secondary',
+                    width: isMobile ? 36 : 48,
+                    height: isMobile ? 36 : 48,
+                    boxShadow: theme.palette.mode === 'dark'
+                      ? '1px 1px 3px #060a12, -1px -1px 3px #182442'
+                      : '1px 1px 3px rgba(0,0,0,0.05)',
+                    '&:hover': { 
+                      transform: 'scale(1.05)',
+                      color: 'primary.main' 
+                    }
+                  }}
+                >
+                  {theme.palette.mode === 'dark' ? <Sun size={isMobile ? 18 : 22} /> : <Moon size={isMobile ? 18 : 22} />}
                 </IconButton>
               </Tooltip>
 

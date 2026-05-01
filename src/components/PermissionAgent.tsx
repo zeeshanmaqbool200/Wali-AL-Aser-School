@@ -159,7 +159,7 @@ export default function PermissionAgent() {
           open={open} 
           onClose={() => setOpen(false)}
           disableEnforceFocus
-          style={{ zIndex: 9999 }}
+          style={{ zIndex: 30000 }}
           PaperProps={{
             sx: { 
               borderRadius: 6, 
@@ -168,7 +168,7 @@ export default function PermissionAgent() {
               overflow: 'hidden',
               boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
               position: 'relative',
-              zIndex: 9999
+              zIndex: 30001
             }
           }}
         >

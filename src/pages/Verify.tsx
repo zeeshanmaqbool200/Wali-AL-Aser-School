@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Box, Typography, Paper, CircularProgress, alpha, useTheme, Avatar, Divider, Button } from '@mui/material';
-import { ShieldCheck, Calendar, User, BookOpen, Clock, CheckCircle, Smartphone } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { Box, Typography, Paper, CircularProgress, alpha, useTheme, Avatar, Divider, Button, Chip, Skeleton, Card, CardContent, Stack } from '@mui/material';
+import { ShieldCheck, Calendar, User, BookOpen, Clock, CheckCircle, Smartphone, XCircle } from 'lucide-react';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { motion } from 'motion/react';
 
@@ -18,11 +18,29 @@ export default function Verify() {
       if (!id || !type) return;
       try {
         const collectionName = type === 'receipt' ? 'receipts' : 'users';
+        
+        // 1. Try fetching by document ID
         const docRef = doc(db, collectionName, id);
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
           setData(docSnap.data());
+        } else {
+          // 2. If document ID not found, try searching by business ID (receiptNo or uid/admissionNo)
+          const fieldToSearch = type === 'receipt' ? 'receiptNo' : 'uid';
+          const q = query(collection(db, collectionName), where(fieldToSearch, '==', id));
+          const querySnap = await getDocs(q);
+          
+          if (!querySnap.empty) {
+            setData(querySnap.docs[0].data());
+          } else if (type === 'user') {
+             // Try admissionNo for users
+             const q2 = query(collection(db, 'users'), where('admissionNo', '==', id));
+             const querySnap2 = await getDocs(q2);
+             if (!querySnap2.empty) {
+               setData(querySnap2.docs[0].data());
+             }
+          }
         }
       } catch (error) {
         console.error("Verification error:", error);
@@ -35,102 +53,69 @@ export default function Verify() {
 
   if (loading) {
     return (
-      <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <CircularProgress />
+      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', p: 4 }}>
+        <Skeleton variant="circular" width={80} height={80} sx={{ mb: 4 }} />
+        <Skeleton variant="text" width={200} height={30} />
       </Box>
     );
   }
 
-  if (!data) {
+  if (!id || !type || !data) {
     return (
-      <Box sx={{ p: 4, textAlign: 'center', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="h4" color="error" gutterBottom>Verification Failed</Typography>
-        <Typography variant="body1">This document could not be verified. It may be invalid or expired.</Typography>
+      <Box sx={{ p: 4, textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
+        <XCircle size={64} color={theme.palette.error.main} style={{ marginBottom: 24 }} />
+        <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, fontFamily: 'var(--font-heading)' }}>Invalid Entry</Typography>
+        <Typography variant="body1" sx={{ color: 'text.secondary', mb: 4 }}>The scanned document could not be verified.</Typography>
+        <Button variant="outlined" onClick={() => window.location.href = '/'} sx={{ borderRadius: 100, px: 4 }}>Back Home</Button>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', bgcolor: 'background.default' }}>
-      <motion.div
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-      >
-        <Paper sx={{ 
-          p: 4, 
-          maxWidth: 500, 
-          width: '100%', 
-          borderRadius: 8, 
-          textAlign: 'center',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-          border: '1px solid',
-          borderColor: 'divider'
-        }}>
-          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
-            <Box sx={{ 
-              width: 80, 
-              height: 80, 
-              borderRadius: '50%', 
-              bgcolor: alpha(theme.palette.success.main, 0.1), 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              color: 'success.main'
-            }}>
-              <ShieldCheck size={48} />
-            </Box>
+    <Box sx={{ minHeight: '100vh', p: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ width: '100%', maxWidth: 450 }}>
+        <Card sx={{ borderRadius: 8, boxShadow: theme.palette.mode === 'dark' ? '0 30px 60px rgba(0,0,0,0.5)' : '0 30px 60px rgba(0,0,0,0.05)', border: 'none', overflow: 'hidden' }}>
+          <Box sx={{ p: 4, textAlign: 'center', bgcolor: alpha(theme.palette.success.main, 0.05) }}>
+            <CheckCircle size={48} color={theme.palette.success.main} />
+            <Typography variant="h5" sx={{ mt: 2, fontWeight: 900, fontFamily: 'var(--font-heading)', color: 'success.main', letterSpacing: 1 }}>AUTHENTICATED</Typography>
           </Box>
-
-          <Typography variant="h5" sx={{ fontWeight: 900, mb: 1 }}>Official Verification</Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 4 }}>
-            This document is authentic and verified by the Institute System.
-          </Typography>
-
-          <Divider sx={{ mb: 4 }} />
-
-          {type === 'receipt' ? (
-            <Box sx={{ textAlign: 'left' }}>
-              <DataRow label="Student Name" value={data.studentName} icon={<User size={18} />} />
-              <DataRow label="Receipt No" value={data.receiptNo || data.receiptNumber || 'N/A'} icon={<Smartphone size={18} />} />
-              <DataRow label="Amount Paid" value={`₹${data.amount}`} icon={<BookOpen size={18} />} />
-              <DataRow label="Fee Head" value={data.feeHead} icon={<ShieldCheck size={18} />} />
-              <DataRow label="Date of Payment" value={data.date} icon={<Clock size={18} />} />
-            </Box>
-          ) : (
-            <Box sx={{ textAlign: 'left' }}>
-              <DataRow label="Name" value={data.displayName} icon={<User size={18} />} />
-              <DataRow label="ID / Admission #" value={data.admissionNo || data.teacherId || 'N/A'} icon={<ShieldCheck size={18} />} />
-              <DataRow label="Class / Level" value={data.classLevel || data.subject || 'Standard'} icon={<BookOpen size={18} />} />
-              <DataRow label="Role" value={data.role?.toUpperCase() || 'N/A'} icon={<User size={18} />} />
-              <DataRow label="Join Date" value={data.admissionDate || data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'N/A'} icon={<Calendar size={18} />} />
-            </Box>
-          )}
-
-          <Box sx={{ mt: 4, p: 2, borderRadius: 4, bgcolor: alpha(theme.palette.success.main, 0.05), display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'center' }}>
-            <CheckCircle size={20} className="text-success-500" />
-            <Typography variant="subtitle2" sx={{ color: 'success.main', fontWeight: 900 }}>VERIFIED DOCUMENT</Typography>
-          </Box>
-
-          <Typography variant="caption" sx={{ mt: 4, display: 'block', color: 'text.disabled' }}>
-            Verification Date: {new Date().toLocaleString()}
-          </Typography>
-        </Paper>
+          <CardContent sx={{ p: 4 }}>
+            {type === 'receipt' ? (
+              <Stack spacing={2.5}>
+                <DataRow label="STUDENT" value={data.studentName} />
+                <DataRow label="RECEIPT NO" value={data.receiptNo} />
+                <DataRow label="AMOUNT" value={`Rs.${data.amount}`} />
+                <DataRow label="CATEGORY" value={data.feeHead} />
+                <DataRow label="DATE" value={data.date} />
+              </Stack>
+            ) : (
+              <Stack spacing={2.5}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                  <Avatar src={data.photoURL} sx={{ width: 100, height: 100, border: '3px solid', borderColor: 'primary.main' }} />
+                </Box>
+                <DataRow label="NAME" value={data.displayName} />
+                <DataRow label="CLASS" value={data.classLevel} />
+                <DataRow label="ID NO" value={data.admissionNo || data.teacherId || 'N/A'} />
+                <DataRow label="ROLE" value={data.role?.toUpperCase()} />
+              </Stack>
+            )}
+            <Divider sx={{ my: 3 }} />
+            <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', color: 'text.disabled', fontWeight: 800 }}>
+              VERIFIED ON: {new Date().toLocaleString()}
+            </Typography>
+            <Button fullWidth onClick={() => window.location.href = '/'} sx={{ mt: 3, borderRadius: 2, fontWeight: 800 }}>Close</Button>
+          </CardContent>
+        </Card>
       </motion.div>
     </Box>
   );
 }
 
-function DataRow({ label, value, icon }: { label: string, value: string, icon: any }) {
-  const theme = useTheme();
+function DataRow({ label, value }: { label: string, value: string }) {
   return (
-    <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-       <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main' }}>
-        {icon}
-       </Box>
-       <Box>
-         <Typography variant="caption" sx={{ color: 'text.disabled', fontWeight: 700, display: 'block', textTransform: 'uppercase' }}>{label}</Typography>
-         <Typography variant="body1" sx={{ fontWeight: 800 }}>{value}</Typography>
-       </Box>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', letterSpacing: 0.5 }}>{label}</Typography>
+      <Typography variant="body1" sx={{ fontWeight: 800 }}>{value || 'N/A'}</Typography>
     </Box>
   );
 }

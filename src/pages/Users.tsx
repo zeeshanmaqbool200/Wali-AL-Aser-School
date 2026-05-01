@@ -8,26 +8,27 @@ import {
   TableHead, TableRow, Paper, InputAdornment, Tab, Tabs,
   FormControl, InputLabel, Select, MenuItem,
   useMediaQuery, Stack, Tooltip, Zoom, Fade,
-  LinearProgress, Divider, Snackbar, Alert, Switch
+  LinearProgress, Divider, Snackbar, Alert, Switch, Checkbox
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import QRCode from 'qrcode';
 import { 
   Plus, Search, Edit2, Trash2, UserPlus, 
-  Filter, Mail, Phone, MapPin, Shield,
+  Filter, Mail, Phone, MapPin, Shield, Calendar,
   MoreVertical, User, GraduationCap, UserCheck,
   ArrowRight, ExternalLink, Download, Layout,
   Layers, CheckCircle, XCircle, Clock, Save,
-  Bell, Camera, X, Printer, RotateCcw, ArrowLeft, FileText, Database
+  Bell, Camera, X, Printer, RotateCcw, ArrowLeft, FileText, Database, IndianRupee
 } from 'lucide-react';
 import { 
   collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, 
-  orderBy, where, getDocs, writeBatch, getDoc, or, and, documentId, setDoc
+  orderBy, where, getDocs, writeBatch, getDoc, or, and, documentId, setDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartSetDoc, smartDeleteDoc, firebaseConfig } from '../firebase';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { UserProfile, UserRole, ClassLevel, InstituteSettings } from '../types';
+import { UserProfile, UserRole, ClassLevel, InstituteSettings, FeeReceipt } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { CLASS_LEVELS, SUBJECT_OPTIONS } from '../constants';
 import { logger } from '../lib/logger';
@@ -36,6 +37,7 @@ import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { exportToCSV } from '../lib/exportUtils';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import { useHardwarePermissions } from '../services/hardwareService';
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 
@@ -69,19 +71,53 @@ export default function Users() {
   const [openDialog, setOpenDialog] = useState(false);
   const [openPromoteDialog, setOpenPromoteDialog] = useState(false);
   const [openViewProfile, setOpenViewProfile] = useState(false);
+  const [viewProfileMode, setViewProfileMode] = useState<'digital' | 'print'>('digital');
   const [profileToView, setProfileToView] = useState<UserProfile | null>(null);
   const [instituteSettings, setInstituteSettings] = useState<Partial<InstituteSettings>>({});
   const [promotingUser, setPromotingUser] = useState<UserProfile | null>(null);
   const [newClassLevel, setNewClassLevel] = useState<string | ''>('');
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [studentReceipts, setStudentReceipts] = useState<FeeReceipt[]>([]);
+  const [loadingReceipts, setLoadingReceipts] = useState(false);
+
+  useEffect(() => {
+    if (openViewProfile && profileToView?.uid) {
+      setLoadingReceipts(true);
+      const q = query(
+        collection(db, 'receipts'),
+        where('studentId', '==', profileToView.uid),
+        orderBy('createdAt', 'desc')
+      );
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        setStudentReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
+        setLoadingReceipts(false);
+      });
+      return () => unsubscribe();
+    }
+  }, [openViewProfile, profileToView]);
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [stayOpen, setStayOpen] = useState(false);
+  const [userToDeleteRef, setUserToDeleteRef] = useState<{ id: string, profile: UserProfile } | null>(null);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
-  const [purgeType, setPurgeType] = useState<'ALL' | 'STUDENTS'>('ALL');
-  const [userToDeleteRef, setUserToDeleteRef] = useState<{ id: string, profile: UserProfile } | null>(null);
+  const [purgeType, setPurgeType] = useState<'ALL' | 'STUDENTS'>('STUDENTS');
+
+  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.checked) {
+      setSelectedUsers(filteredUsers.map(u => u.uid));
+    } else {
+      setSelectedUsers([]);
+    }
+  };
+
+  const handleSelectOne = (id: string) => {
+    setSelectedUsers(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
   
   const [formData, setFormData] = useState({
     displayName: '',
@@ -193,6 +229,252 @@ export default function Users() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (!isSuperAdmin || selectedUsers.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedUsers.length} users? This cannot be undone.`)) return;
+    
+    setLoading(true);
+    try {
+      const batchSize = 100;
+      for (let i = 0; i < selectedUsers.length; i += batchSize) {
+        const chunk = selectedUsers.slice(i, i + batchSize);
+        const batch = writeBatch(db);
+        chunk.forEach(uid => {
+          batch.delete(doc(db, 'users', uid));
+        });
+        await batch.commit();
+      }
+      setSelectedUsers([]);
+      setSnackbar({ open: true, message: `Successfully deleted ${selectedUsers.length} users`, severity: 'success' });
+    } catch (error) {
+      console.error("Bulk delete error:", error);
+      setSnackbar({ open: true, message: 'Bulk delete failed', severity: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkPrint = (type: 'admission' | 'receipt') => {
+    const selectedDocs = users.filter(u => selectedUsers.includes(u.uid));
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    if (type === 'admission') {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Admission Forms - ${instituteSettings.instituteName}</title>
+            <style>
+              @page { size: A4; margin: 0; }
+              body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              .page {
+                width: 210mm;
+                height: 297mm;
+                padding: 15mm;
+                box-sizing: border-box;
+                page-break-after: always;
+                position: relative;
+                background: white;
+              }
+              .border-frame {
+                position: absolute;
+                top: 5mm; left: 5mm; right: 5mm; bottom: 5mm;
+                border: 2px double #0d9488;
+                pointer-events: none;
+              }
+              .header { display: flex; align-items: center; border-bottom: 2px solid #0d9488; padding-bottom: 5mm; margin-bottom: 8mm; }
+              .logo { width: 35mm; height: 35mm; object-fit: contain; margin-right: 8mm; }
+              .inst-info { flex: 1; }
+              .inst-name { font-size: 26pt; font-weight: 950; color: #0d9488; margin: 0; font-family: 'Cinzel', serif; letter-spacing: 1px; }
+              .inst-tagline { font-size: 11pt; font-weight: 700; color: #444; margin: 2mm 0; font-style: italic; }
+              .form-type { background: #0d9488; color: white; padding: 2mm 6mm; display: inline-block; font-weight: 900; font-size: 14pt; border-radius: 4px; }
+              
+              .main-grid { display: grid; grid-template-columns: 3fr 1fr; gap: 10mm; margin-top: 5mm; }
+              .field { margin-bottom: 5mm; border-bottom: 1px dotted #ccc; padding-bottom: 1mm; }
+              .label { font-size: 9pt; color: #666; font-weight: 800; text-transform: uppercase; margin-bottom: 1mm; display: block; }
+              .value { font-size: 13pt; font-weight: 700; color: #000; }
+              
+              .photo-area { 
+                width: 40mm; 
+                height: 50mm; 
+                border: 2px dashed #0d9488; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                background: #f9f9f9;
+                text-align: center;
+                font-size: 8pt;
+                color: #888;
+                overflow: hidden;
+              }
+              .photo-area img { width: 100%; height: 100%; object-fit: cover; }
+              
+              .section-title { 
+                background: #f0fdfa; 
+                border-left: 5px solid #0d9488; 
+                padding: 2mm 4mm; 
+                font-weight: 900; 
+                font-size: 12pt; 
+                color: #0d9488;
+                margin: 8mm 0 5mm 0;
+                text-transform: uppercase;
+              }
+              
+              .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5mm; }
+              .academic-table { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+              .academic-table th { background: #f0fdfa; border: 1px solid #0d9488; padding: 3mm; font-weight: 900; text-align: left; font-size: 10pt; }
+              .academic-table td { border: 1px solid #ddd; padding: 4mm; font-size: 11pt; }
+              
+              .footer { position: absolute; bottom: 25mm; left: 15mm; right: 15mm; display: flex; justify-content: space-between; align-items: flex-end; }
+              .sig-line { width: 50mm; border-top: 1px solid #000; text-align: center; padding-top: 2mm; font-size: 9pt; font-weight: 800; }
+              .qr-zone { text-align: center; }
+              .qr-zone img { width: 30mm; height: 30mm; }
+              .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 100pt; color: rgba(13, 148, 136, 0.03); font-weight: 900; z-index: -1; pointer-events: none; white-space: nowrap; }
+            </style>
+          </head>
+          <body>
+            ${selectedDocs.map(u => `
+              <div class="page">
+                <div class="border-frame"></div>
+                <div class="watermark">WALI UL ASER</div>
+                <div class="header">
+                  <img class="logo" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}">
+                  <div class="inst-info">
+                    <h1 class="inst-name">${instituteSettings.instituteName || 'WALI UL ASER INSTITUTE'}</h1>
+                    <p class="inst-tagline">${instituteSettings.tagline || 'Religious and Academic Excellence'}</p>
+                    <p style="font-size: 9pt; font-weight: 600; color: #555;">${instituteSettings.address || ''} | ${instituteSettings.phone || ''}</p>
+                  </div>
+                  <div style="text-align: right;">
+                    <div class="form-type">ADMISSION FORM</div>
+                    <p style="font-weight: 800; margin-top: 4mm; color: #0d9488;">Session ${new Date().getFullYear()}-${new Date().getFullYear() + 1}</p>
+                  </div>
+                </div>
+
+                <div class="main-grid">
+                  <div class="fields-column">
+                    <div class="field">
+                      <span class="label">Full Name of Student</span>
+                      <span class="value">${u.displayName}</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5mm;">
+                      <div class="field">
+                        <span class="label">Father's Name</span>
+                        <span class="value">${u.fatherName || 'Not Provided'}</span>
+                      </div>
+                      <div class="field">
+                        <span class="label">Mother's Name</span>
+                        <span class="value">${u.motherName || 'Not Provided'}</span>
+                      </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 5mm;">
+                      <div class="field">
+                        <span class="label">Date of Birth (DOB)</span>
+                        <span class="value">${u.dob ? format(new Date(u.dob), 'dd MMMM yyyy') : 'Not Provided'}</span>
+                      </div>
+                      <div class="field">
+                        <span class="label">Gender</span>
+                        <span class="value">_________</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="photo-area">
+                    ${u.photoURL ? `<img src="${u.photoURL}">` : 'Affix Recent<br>Passport Size<br>Photograph'}
+                  </div>
+                </div>
+
+                <div class="section-title">Registration Details</div>
+                <div class="info-grid">
+                  <div class="field">
+                    <span class="label">Admission Number</span>
+                    <span class="value">${u.admissionNo || u.uid.slice(0, 8)}</span>
+                  </div>
+                  <div class="field">
+                    <span class="label">Class / Level</span>
+                    <span class="value">${u.classLevel || 'N/A'}</span>
+                  </div>
+                  <div class="field">
+                    <span class="label">Roll Number</span>
+                    <span class="value">${u.rollNo || 'Pending'}</span>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <span class="label">Permanent Residential Address</span>
+                  <span class="value">${u.address || '____________________________________________________________________'}</span>
+                </div>
+
+                <div class="section-title">Academic & Contact</div>
+                <table class="academic-table">
+                  <tr>
+                    <th>Enrolled Subjects / Courses</th>
+                    <th>Contact Phone Number</th>
+                  </tr>
+                  <tr>
+                    <td>${u.subjectsEnrolled?.join(', ') || 'General Curriculum'}</td>
+                    <td>${u.phone || 'Not Provided'}</td>
+                  </tr>
+                </table>
+
+                <div style="margin-top: 10mm; font-size: 9pt; line-height: 1.5; color: #444; border: 1px solid #eee; padding: 4mm; border-radius: 4px;">
+                  <strong>Declaration:</strong> I hereby declare that the information provided above is true to the best of my knowledge. I agree to abide by the rules and regulations of the institute.
+                </div>
+
+                <div class="footer">
+                  <div class="sig-line">Parent Signature</div>
+                  <div class="qr-zone">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://${window.location.host}/verify/profile/${u.uid}">
+                    <div style="font-size: 7pt; font-weight: 800; margin-top: 1mm; color: #0d9488;">VERIFIED IDENTITY</div>
+                  </div>
+                  <div class="sig-line">Admin/Principal Signature</div>
+                </div>
+                
+                <div style="position: absolute; bottom: 8mm; width: 100%; text-align: center; font-size: 8pt; color: #888;">
+                  Generated on ${format(new Date(), 'dd-MM-yyyy hh:mm a')} | Ref: ${u.uid}
+                </div>
+              </div>
+            `).join('')}
+            <script>
+              window.onload = () => {
+                setTimeout(() => { window.print(); window.close(); }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+    } else {
+      // Small fee summary report
+      printWindow.document.write(`
+        <html>
+          <head><title>Fee Summary</title></head>
+          <body>
+            <h1>Fee Summary Report</h1>
+            <table border="1" width="100%" cellpadding="10" style="border-collapse: collapse;">
+              <thead>
+                <tr>
+                  <th>Admission No</th>
+                  <th>Student Name</th>
+                  <th>Class Level</th>
+                  <th>Balance Due</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${selectedDocs.map(u => `
+                  <tr>
+                    <td>${u.admissionNo || 'N/A'}</td>
+                    <td>${u.displayName}</td>
+                    <td>${u.classLevel || 'N/A'}</td>
+                    <td>Pending Calculation</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <script>window.onload = () => { window.print(); window.close(); }</script>
+          </body>
+        </html>
+      `);
+    }
+    printWindow.document.close();
+  };
   const subjectsOptions = SUBJECT_OPTIONS;
   const classLevels = CLASS_LEVELS;
 
@@ -448,14 +730,14 @@ export default function Users() {
       if (!editingUser && formData.role === 'student' && !formData.admissionNo) {
         const year = format(new Date(), 'yyyy');
         const timestamp = Date.now().toString().slice(-4);
-        const namePart = formData.displayName.slice(0, 3).toUpperCase();
+        const namePart = (formData.displayName || 'USR').slice(0, 3).toUpperCase();
         finalFormData.admissionNo = `ADM-${year}-${namePart}-${timestamp}`;
       }
 
       // Auto-assign teacherId if not provided
       if (!editingUser && formData.role === 'teacher' && !formData.teacherId) {
         const timestamp = Date.now().toString().slice(-4);
-        const namePart = formData.displayName.slice(0, 3).toUpperCase();
+        const namePart = (formData.displayName || 'TCH').slice(0, 3).toUpperCase();
         finalFormData.teacherId = `TCH-${namePart}-${timestamp}`;
       }
 
@@ -476,7 +758,11 @@ export default function Users() {
       }
 
       if (editingUser) {
-        await smartUpdateDoc(doc(db, 'users', editingUser.uid), finalFormData);
+        const { password: _, ...dataToUpdate } = finalFormData as any;
+        await smartUpdateDoc(doc(db, 'users', editingUser.uid), {
+          ...dataToUpdate,
+          updatedAt: serverTimestamp()
+        });
       } else {
         setLoading(true);
         
@@ -541,7 +827,8 @@ export default function Users() {
           uid,
           id: uid, 
           instituteId: instituteSettings.id || 'default',
-          createdAt: Date.now(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
           role: finalFormData.role === 'pending_teacher' ? 'pending_teacher' : finalFormData.role,
           photoURL: finalFormData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(finalFormData.displayName)}&background=random&color=fff`,
           authEnabled: createAuthAccount
@@ -672,7 +959,7 @@ export default function Users() {
       if (user.role === 'student' && !user.admissionNo) {
         const year = format(new Date(), 'yyyy');
         const timestamp = Date.now().toString().slice(-4);
-        const namePart = user.displayName.slice(0, 3).toUpperCase();
+        const namePart = (user.displayName || 'STU').slice(0, 3).toUpperCase();
         updateData.admissionNo = `ADM-${year}-${namePart}-${timestamp}`;
       }
 
@@ -734,10 +1021,13 @@ export default function Users() {
     // Hide super admin from the list to prevent accidental deletion
     if (u.email === 'zeeshanmaqbool200@gmail.com') return false;
 
-    const matchesSearch = u.displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         (u.admissionNo && u.admissionNo.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                         (u.teacherId && u.teacherId.toLowerCase().includes(searchQuery.toLowerCase()));
+    const s = searchQuery.toLowerCase();
+    const matchesSearch = u.displayName.toLowerCase().includes(s) || 
+                         u.email.toLowerCase().includes(s) ||
+                         (u.admissionNo && u.admissionNo.toLowerCase().includes(s)) ||
+                         (u.teacherId && u.teacherId.toLowerCase().includes(s)) ||
+                         (u.fatherName && u.fatherName.toLowerCase().includes(s)) ||
+                         (u.rollNo && u.rollNo.toString().includes(s));
     
     const matchesStatus = statusFilter === 'All' || u.status === statusFilter;
     const matchesLevel = levelFilter === 'All' || u.classLevel === levelFilter;
@@ -752,8 +1042,18 @@ export default function Users() {
   });
 
   if (loading) return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-      <CircularProgress size={60} thickness={4} />
+    <Box sx={{ p: 4, width: '100%' }}>
+      <Stack spacing={3}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Skeleton variant="text" width="30%" height={60} />
+          <Skeleton variant="rectangular" width={150} height={50} sx={{ borderRadius: 2 }} />
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Skeleton variant="rectangular" width={200} height={40} sx={{ borderRadius: 1 }} />
+          <Skeleton variant="rectangular" width={200} height={40} sx={{ borderRadius: 1 }} />
+        </Box>
+        <Skeleton variant="rectangular" width="100%" height={500} sx={{ borderRadius: 4 }} />
+      </Stack>
     </Box>
   );
 
@@ -793,15 +1093,17 @@ export default function Users() {
           <Box>
             <Typography 
               variant="h4" 
+              className={tabValue === 0 || tabValue === 1 ? "urdu-text" : ""}
               sx={{ 
-                fontFamily: 'var(--font-display)',
+                fontFamily: tabValue === 0 || tabValue === 1 ? 'var(--font-urdu)' : 'var(--font-display)',
                 fontWeight: 900, 
                 letterSpacing: -1, 
                 mb: 0.5,
-                color: 'primary.main'
+                color: 'primary.main',
+                lineHeight: 1.5
               }}
             >
-              {tabValue === 0 ? 'Students' : tabValue === 1 ? 'Staff' : 'Approvals'}
+              {tabValue === 0 ? 'طالب علم (Talaba)' : tabValue === 1 ? 'اساتذہ اور سٹاف' : 'Naye Talaba'}
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600 }}>
               System Directory & Access Control
@@ -843,9 +1145,159 @@ export default function Users() {
             </Box>
 
             <ActionMenu 
+              icon={
+                <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 0.5, display: 'flex' }}>
+                  <MoreVertical size={20} />
+                </Box>
+              }
               items={[
-                { label: 'Export Data', icon: <Download size={18} />, onClick: handleExport, disabled: !isAdmin },
-                { label: 'Manual Refresh', icon: <RotateCcw size={18} />, onClick: handleManualRefresh },
+                { label: 'Data Export Karein', icon: <Download size={18} />, onClick: handleExport, disabled: !isAdmin },
+                { label: 'Taza Karein (Refresh)', icon: <RotateCcw size={18} />, onClick: handleManualRefresh },
+                { 
+                  label: 'Admission Forms Print Karein', 
+                  icon: <Printer size={18} />, 
+                  onClick: () => {
+                    const selectedDocs = users.filter(u => selectedUsers.includes(u.uid));
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow) {
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>Bulk Admission Forms</title>
+                            <style>
+                              @page { size: A4; margin: 0; }
+                              body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+                              .page {
+                                width: 210mm;
+                                height: 297mm;
+                                padding: 15mm;
+                                box-sizing: border-box;
+                                page-break-after: always;
+                                border: 1px solid #eee;
+                              }
+                              .header { display: flex; align-items: center; border-bottom: 3px solid black; padding-bottom: 5mm; margin-bottom: 10mm; position: relative; }
+                              .logo-container { width: 35mm; height: 35mm; margin-right: 10mm; flex-shrink: 0; }
+                              .logo { width: 100%; height: 100%; object-fit: contain; }
+                              .title-box { flex: 1; }
+                              .inst-name { font-size: 24pt; font-weight: 900; text-transform: uppercase; margin: 0; font-family: 'Cinzel', serif; }
+                              .tagline { font-size: 12pt; font-weight: 700; margin: 2mm 0; }
+                              .form-title { border: 2px solid black; padding: 2mm 5mm; font-weight: 900; display: inline-block; font-size: 14pt; }
+                              .content-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 5mm; }
+                              .field-row { border-bottom: 1px solid black; padding: 3mm 0; display: flex; align-items: baseline; }
+                              .field-label { width: 40mm; font-weight: 800; font-size: 10pt; flex-shrink: 0; }
+                              .field-value { font-size: 11pt; border-bottom: 1px solid transparent; }
+                              .photo-box { width: 35mm; height: 45mm; border: 1px dashed black; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 8pt; margin-left: auto; overflow: hidden; }
+                              .photo-box img { width: 100%; height: 100%; object-fit: cover; }
+                              .section-title { font-weight: 900; font-size: 12pt; border-bottom: 2px solid black; display: inline-block; margin: 10mm 0 5mm 0; text-transform: uppercase; }
+                              .academic-table { width: 100%; border-collapse: collapse; margin-top: 5mm; }
+                              .academic-table td { border: 1px solid black; padding: 3mm; width: 50%; height: 20mm; vertical-align: top; }
+                              .table-head { background-color: #f0f0f0; font-weight: 900; font-size: 9pt; }
+                              .footer { margin-top: 20mm; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 10mm; }
+                              .sign-box { text-align: center; border-top: 1px solid black; width: 40mm; padding-top: 2mm; font-weight: 800; font-size: 9pt; }
+                              .qr-box { text-align: center; }
+                              .qr-box img { width: 25mm; height: 25mm; }
+                            </style>
+                          </head>
+                          <body>
+                            ${selectedDocs.map(u => `
+                              <div class="page">
+                                <div class="header">
+                                  <div class="logo-container" style="position: relative; padding: 4mm;">
+                                    <div style="position: absolute; inset: 0; background: rgba(13, 148, 136, 0.1); border-radius: 50%; border: 1px solid rgba(13, 148, 136, 0.3);"></div>
+                                    <img class="logo" src="${instituteSettings.logoUrl}" style="position: relative; z-index: 1;" onerror="this.src='https://ui-avatars.com/api/?name=${u.displayName}&background=0d9488&color=fff'">
+                                  </div>
+                                  <div class="title-box">
+                                    <h1 class="inst-name">${instituteSettings.instituteName || 'INSTITUTE NAME'}</h1>
+                                    <p class="tagline">${instituteSettings.tagline || ''}</p>
+                                    <p style="font-size: 9pt;">${instituteSettings.address || ''} | ${instituteSettings.phone || ''}</p>
+                                  </div>
+                                  <div style="text-align: right;">
+                                    <div class="form-title">ADMISSION FORM</div>
+                                    <p style="font-weight: 800; margin-top: 5mm;">Session: ${new Date().getFullYear()}-${new Date().getFullYear() + 1}</p>
+                                  </div>
+                                </div>
+                                <div class="content-grid">
+                                  <div>
+                                    <div class="field-row">
+                                      <span class="field-label">Student Name:</span>
+                                      <span class="field-value">${u.displayName}</span>
+                                    </div>
+                                    <div class="field-row">
+                                      <span class="field-label">Father's Name:</span>
+                                      <span class="field-value">${u.fatherName || '____________________'}</span>
+                                    </div>
+                                    <div class="field-row">
+                                      <span class="field-label">Mother's Name:</span>
+                                      <span class="field-value">${u.motherName || '____________________'}</span>
+                                    </div>
+                                    <div class="field-row">
+                                      <span class="field-label">Date of Birth:</span>
+                                      <span class="field-value">${u.dob ? format(new Date(u.dob), 'dd MMMM yyyy') : '____________________'}</span>
+                                    </div>
+                                  </div>
+                                  <div class="photo-box">
+                                    ${u.photoURL ? `<img src="${u.photoURL}">` : 'PASTE PHOTO'}
+                                  </div>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; margin-top: 5mm;">
+                                  <div class="field-row">
+                                    <span class="field-label">Admission No:</span>
+                                    <span class="field-value">${u.admissionNo || u.uid}</span>
+                                  </div>
+                                  <div class="field-row">
+                                    <span class="field-label">Class / Level:</span>
+                                    <span class="field-value">${u.classLevel || 'N/A'}</span>
+                                  </div>
+                                  <div class="field-row">
+                                    <span class="field-label">Phone No:</span>
+                                    <span class="field-value">${u.phone || '____________________'}</span>
+                                  </div>
+                                  <div class="field-row">
+                                    <span class="field-label">Admission Date:</span>
+                                    <span class="field-value">${u.admissionDate || format(new Date(), 'dd-MM-yyyy')}</span>
+                                  </div>
+                                </div>
+                                <div class="field-row" style="width: 100%;">
+                                  <span class="field-label">Home Address:</span>
+                                  <span class="field-value">${u.address || '____________________________________________________________'}</span>
+                                </div>
+                                <div class="section-title">Academic Details</div>
+                                <table class="academic-table">
+                                  <tr class="table-head">
+                                    <td>Enrolled Subjects</td>
+                                    <td>Previous Academic Record</td>
+                                  </tr>
+                                  <tr>
+                                    <td>${u.subjectsEnrolled?.join(', ') || 'N/A'}</td>
+                                    <td>N/A</td>
+                                  </tr>
+                                </table>
+                                <div class="footer">
+                                  <div class="sign-box">Parent / Guardian Signature</div>
+                                  <div class="qr-box">
+                                    <div style="font-weight: 800; font-size: 6pt; margin-bottom: 1mm;">SECURE QR</div>
+                                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://${window.location.host}/verify/profile/${u.uid}">
+                                  </div>
+                                  <div class="sign-box">Principal / Admin Signature</div>
+                                </div>
+                                <p style="text-align: center; font-size: 7pt; color: #777; margin-top: 15mm; font-style: italic;">
+                                  This is a computer-generated admission form. All rights reserved by ${instituteSettings.instituteName}.
+                                </p>
+                              </div>
+                            `).join('')}
+                            <script>
+                              window.onload = () => {
+                                window.print();
+                              };
+                            </script>
+                          </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                    }
+                  },
+                  disabled: selectedUsers.length === 0 
+                },
                 { divider: true, label: '', icon: null, onClick: () => {} },
                 { 
                   label: 'Purge System Data', 
@@ -855,11 +1307,6 @@ export default function Users() {
                   disabled: !isSuperAdmin 
                 },
               ]}
-              trigger={
-                <IconButton sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-                  <MoreVertical size={20} />
-                </IconButton>
-              }
             />
             
             {canAddStudent && (
@@ -902,7 +1349,7 @@ export default function Users() {
                   '&:hover': { transform: 'translateY(-2px)' }
                 }}
               >
-                {isMobile ? "Add" : (tabValue === 0 ? 'Register Student' : 'Add Teacher')}
+                {isMobile ? "Add" : (tabValue === 0 ? 'Naya Talib-e-Ilm' : 'Naya Ustad')}
               </Button>
             )}
           </Stack>
@@ -912,10 +1359,10 @@ export default function Users() {
       {/* Stats Summary */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 3, mb: 4 }}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <SummaryCard title="Total Students" value={users.filter(u => u.role === 'student').length} icon={<GraduationCap size={24} />} color="primary" />
+          <SummaryCard title="Kul Talaba" value={users.filter(u => u.role === 'student').length} icon={<GraduationCap size={24} />} color="primary" />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <SummaryCard title="Total Teachers" value={users.filter(u => u.role === 'teacher').length} icon={<UserCheck size={24} />} color="success" />
+          <SummaryCard title="Kul Asatiza" value={users.filter(u => u.role === 'teacher').length} icon={<UserCheck size={24} />} color="success" />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <SummaryCard title="Administrators" value={users.filter(u => u.role === 'manager' || u.role === 'superadmin').length} icon={<Shield size={24} />} color="secondary" />
@@ -924,6 +1371,92 @@ export default function Users() {
           <SummaryCard title="Active Now" value={users.filter(u => u.status === 'Active').length} icon={<Clock size={24} />} color="warning" />
         </motion.div>
       </Box>
+
+      {/* Floating Bulk Actions Bar */}
+      <AnimatePresence>
+        {selectedUsers.length > 0 && (
+          <Box
+            component={motion.div}
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            sx={{
+              position: 'fixed',
+              bottom: { xs: 80, md: 30 },
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 1000,
+              bgcolor: 'background.paper',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+              borderRadius: 4,
+              p: 2,
+              px: { xs: 2, md: 4 },
+              display: 'flex',
+              alignItems: 'center',
+              gap: { xs: 2, md: 4 },
+              border: '2px solid',
+              borderColor: 'primary.main',
+              minWidth: { xs: '90%', md: 600 },
+              maxWidth: '95%'
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
+              <Box sx={{ bgcolor: 'primary.main', color: 'white', width: 28, height: 28, borderRadius: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>
+                {selectedUsers.length}
+              </Box>
+              <Typography sx={{ fontWeight: 800, color: 'text.primary', fontSize: { xs: '0.8rem', md: '1rem' } }}>
+                {selectedUsers.length} Selected
+              </Typography>
+            </Box>
+
+            <Divider orientation="vertical" flexItem sx={{ opacity: 0.5 }} />
+
+            <Box sx={{ display: 'flex', gap: 1, flexGrow: 1, justifyContent: 'flex-end', overflowX: 'auto', p: 0.5 }}>
+              <Button 
+                variant="outlined" 
+                size="small" 
+                startIcon={<X size={16} />} 
+                onClick={() => setSelectedUsers([])}
+                sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none', color: 'text.secondary', borderColor: 'divider', flexShrink: 0 }}
+              >
+                Clear
+              </Button>
+              <Button 
+                variant="contained" 
+                size="small" 
+                startIcon={<Printer size={16} />} 
+                onClick={() => handleBulkPrint('admission')}
+                sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none', bgcolor: 'primary.main', flexShrink: 0 }}
+              >
+                Admission Forms
+              </Button>
+              {tabValue === 0 && (
+                <Button 
+                  variant="outlined" 
+                  size="small" 
+                  startIcon={<FileText size={16} />} 
+                  onClick={() => handleBulkPrint('receipt')}
+                  sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none', color: 'primary.main', borderColor: 'primary.main', flexShrink: 0 }}
+                >
+                  Fee Summary
+                </Button>
+              )}
+              {isSuperAdmin && (
+                <Button 
+                  variant="outlined" 
+                  size="small" 
+                  color="error"
+                  startIcon={<Trash2 size={16} />} 
+                  onClick={handleBulkDelete}
+                  sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none', flexShrink: 0 }}
+                >
+                  Delete
+                </Button>
+              )}
+            </Box>
+          </Box>
+        )}
+      </AnimatePresence>
 
       <Card sx={{ 
         borderRadius: 2, 
@@ -954,11 +1487,11 @@ export default function Users() {
               '& .MuiTabs-indicator': { height: 4, borderRadius: '4px 4px 0 0' }
             }}
           >
-            <Tab label="Students" icon={<GraduationCap size={20} />} iconPosition="start" />
-            <Tab label="Teachers" icon={<UserCheck size={20} />} iconPosition="start" />
+            <Tab label="Talaba" icon={<GraduationCap size={20} />} iconPosition="start" />
+            <Tab label="Asatiza" icon={<UserCheck size={20} />} iconPosition="start" />
             <Tab label={
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                Pending Approvals
+                Manzoori (Pending)
                 {users.filter(u => u.pendingClassLevel).length > 0 && (
                   <Chip 
                     label={users.filter(u => u.pendingClassLevel).length} 
@@ -978,26 +1511,27 @@ export default function Users() {
                   display: 'flex', 
                   alignItems: 'center', 
                   px: 2, 
-                  borderRadius: 2, 
+                  borderRadius: 3, 
                   border: '1px solid',
                   borderColor: 'divider',
-                  bgcolor: 'background.default',
-                  flex: 1
+                  bgcolor: 'background.paper',
+                  flex: 1,
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.01)'
                 }}
               >
-                <Search size={20} color={theme.palette.text.secondary} />
+                <Search size={18} color={theme.palette.text.secondary} />
                 <Box 
                   component="input" 
-                  placeholder={`Search ${tabValue === 0 ? 'Students' : 'Teachers'}...`} 
+                  placeholder={`Search ${tabValue === 0 ? 'Talaba' : 'Asatiza'}...`} 
                   value={searchQuery}
                   onChange={(e: any) => setSearchQuery(e.target.value)}
                   sx={{ 
                     border: 'none', 
                     outline: 'none', 
-                    p: 1.5, 
+                    p: 1.2, 
                     width: '100%', 
-                    fontWeight: 700,
-                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
                     bgcolor: 'transparent',
                     color: 'text.primary',
                     '&::placeholder': { color: 'text.disabled' }
@@ -1062,6 +1596,13 @@ export default function Users() {
               <Table sx={{ minWidth: { xs: 800, md: '100%' } }}>
                 <TableHead>
                 <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50' }}>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      indeterminate={selectedUsers.length > 0 && selectedUsers.length < filteredUsers.length}
+                      checked={filteredUsers.length > 0 && selectedUsers.length === filteredUsers.length}
+                      onChange={handleSelectAll}
+                    />
+                  </TableCell>
                   <TableCell sx={{ fontWeight: 800, py: 2.5 }}>Profile</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Admission No / ID</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>{tabValue === 0 ? 'Class Level' : 'Subject'}</TableCell>
@@ -1071,18 +1612,33 @@ export default function Users() {
               </TableHead>
               <TableBody>
                 <AnimatePresence mode="popLayout">
-                  {filteredUsers.map((user) => (
-                    <TableRow 
-                      component={motion.tr}
-                      layout
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      key={user.uid} 
-                      hover
-                      sx={{ transition: 'all 0.2s' }}
-                    >
-                      <TableCell>
+                  {filteredUsers.map((user) => {
+                    const isItemSelected = selectedUsers.includes(user.uid);
+                    return (
+                      <TableRow 
+                        component={motion.tr}
+                        layout
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        key={user.uid} 
+                        hover
+                        selected={isItemSelected}
+                        onClick={(e) => {
+                          // Prevent click from triggering when clicking on user actions (like buttons inside)
+                          if ((e.target as HTMLElement).closest('.action-menu-trigger')) return;
+                          handleSelectOne(user.uid);
+                        }}
+                        sx={{ transition: 'all 0.2s', cursor: 'pointer' }}
+                      >
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            checked={isItemSelected}
+                            onChange={() => handleSelectOne(user.uid)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </TableCell>
+                        <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           <Avatar 
                             src={user.photoURL} 
@@ -1155,8 +1711,9 @@ export default function Users() {
                         <UserActionMenu user={user} />
                       </TableCell>
                     </TableRow>
-                  ))}
-                </AnimatePresence>
+                  );
+                })}
+              </AnimatePresence>
               </TableBody>
             </Table>
           </TableContainer>
@@ -1512,7 +2069,7 @@ export default function Users() {
                 className="w-4 h-4 text-primary-600 rounded" 
               />
               <Typography variant="caption" sx={{ fontWeight: 700, cursor: 'pointer' }} component="label" htmlFor="stay-open">
-                Add another student after saving (Save and stay)
+                Agla Talib-e-Ilm Shamil Karein (Save and stay)
               </Typography>
             </Box>
           )}
@@ -1531,7 +2088,7 @@ export default function Users() {
               disabled={!formData.displayName || !formData.email}
               sx={{ borderRadius: 3, fontWeight: 800, px: 4, boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}` }}
             >
-              {editingUser ? 'Update Profile' : 'Register Now'}
+              {editingUser ? 'Profile Update' : 'Admission Karein'}
             </Button>
           </Box>
         </DialogActions>
@@ -1546,7 +2103,7 @@ export default function Users() {
         PaperProps={{ sx: { borderRadius: 4, bgcolor: 'black', color: 'white' } }}
       >
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
-          <Typography variant="h6" sx={{ fontWeight: 900 }}>Capture Student Photo</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 900 }}>Tasveer Lejiye</Typography>
           <IconButton onClick={() => setCameraOpen(false)} sx={{ color: 'white' }}>
             <X size={24} />
           </IconButton>
@@ -1587,7 +2144,7 @@ export default function Users() {
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Select the new class for <strong>{promotingUser?.displayName}</strong>.
+            <strong>{promotingUser?.displayName}</strong> ke liye agli class select karein.
           </Typography>
           <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}>
             <InputLabel>New Class Level</InputLabel>
@@ -1605,7 +2162,7 @@ export default function Users() {
         <DialogActions sx={{ p: 3 }}>
           <Button onClick={() => setOpenPromoteDialog(false)} sx={{ fontWeight: 800 }}>Cancel</Button>
           <Button onClick={handlePromote} variant="contained" disabled={!newClassLevel} sx={{ borderRadius: 3, fontWeight: 800 }}>
-            Confirm Promotion
+            Promotion Confirm Karein
           </Button>
         </DialogActions>
       </Dialog>
@@ -1629,59 +2186,146 @@ export default function Users() {
               margin: 0,
               p: 0,
               overflow: 'visible',
-              bgcolor: 'white',
-              color: 'black'
+              bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : 'white',
+              color: 'text.primary'
             }
           } 
         }}
       >
-        <DialogTitle className="no-print" sx={{ fontWeight: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <FileText size={24} className="text-primary-500" />
-            Student Admission Form
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button 
-              variant="outlined" 
-              size="small" 
-              onClick={() => setOpenViewProfile(false)}
-              sx={{ fontWeight: 800, borderRadius: 2 }}
-            >
-              Back
-            </Button>
-            <IconButton 
-              onClick={handlePrint} 
-              size="small" 
-              className="print-button"
-              sx={{ bgcolor: 'primary.light', color: 'primary.dark', borderRadius: 2 }}
-            >
-              <Printer size={18} />
-            </IconButton>
-            <IconButton onClick={() => setOpenViewProfile(false)} size="small" sx={{ borderRadius: 2 }}>
-              <X size={18} />
-            </IconButton>
+        <DialogTitle className="no-print" sx={{ p: 0, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.primary.main, 0.05) }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <FileText size={24} className="text-primary-500" />
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                {viewProfileMode === 'digital' ? 'Student Profile Card' : 'Admission Form (Preview)'}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Tabs 
+                value={viewProfileMode} 
+                onChange={(_, v) => setViewProfileMode(v)} 
+                sx={{ 
+                  minHeight: 0, 
+                  mr: 2,
+                  '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' }
+                }}
+              >
+                <Tab value="digital" label="Digital View" sx={{ minHeight: 40, fontWeight: 800, textTransform: 'none' }} />
+                <Tab value="print" label="Print Mode" sx={{ minHeight: 40, fontWeight: 800, textTransform: 'none' }} />
+              </Tabs>
+              <IconButton 
+                onClick={handlePrint} 
+                size="small" 
+                className="print-button"
+                sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'white', color: 'primary.dark', borderRadius: 2, '&:hover': { bgcolor: 'grey.100' } }}
+              >
+                <Printer size={18} />
+              </IconButton>
+              <IconButton onClick={() => setOpenViewProfile(false)} size="small" sx={{ borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'white' }}>
+                <X size={18} />
+              </IconButton>
+            </Box>
           </Box>
         </DialogTitle>
-        <DialogActions className="no-print" sx={{ p: isMobile ? 2 : 3, bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider' }}>
-          <Button 
-            onClick={() => setOpenViewProfile(false)} 
-            variant="contained" 
-            sx={{ borderRadius: 2, fontWeight: 900, px: 4 }}
-          >
-            Finished / Wapis
-          </Button>
-        </DialogActions>
         <DialogContent sx={{ 
-          p: 0,
+          p: viewProfileMode === 'digital' ? 3 : 0,
+          bgcolor: viewProfileMode === 'digital' ? 'background.default' : 'white',
           '@media print': {
             overflow: 'visible',
             height: 'auto'
           }
         }}>
-          <Box id="printable-profile" className="admission-page" sx={{ position: 'relative', color: 'black', bgcolor: 'white', p: { xs: 0, md: 1 }, borderRadius: 0, width: '100%' }}>
-             {/* Printable Form Content */}
-             <Box sx={{ border: '2px solid black', p: { xs: 2, md: 3 }, position: 'relative', width: '100%', boxSizing: 'border-box' }}>
-                {/* Header with Logo */}
+          {viewProfileMode === 'digital' ? (
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+              <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+                <Card sx={{ 
+                  borderRadius: 6, 
+                  overflow: 'hidden', 
+                  border: 'none',
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? '20px 20px 60px #060a12, -20px -20px 60px #182442'
+                    : '20px 20px 60px #d1d9e6, -20px -20px 60px #ffffff',
+                }}>
+                  <Box sx={{ 
+                    h: 160, 
+                    bgcolor: 'primary.main', 
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                    position: 'relative',
+                    p: 3,
+                    display: 'flex',
+                    alignItems: 'flex-end'
+                  }}>
+                    <Avatar 
+                      src={profileToView?.photoURL}
+                      sx={{ 
+                        width: 140, 
+                        height: 140, 
+                        border: '6px solid', 
+                        borderColor: 'background.paper', 
+                        mb: -10,
+                        zIndex: 2,
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+                      }}
+                    >
+                      {profileToView?.displayName?.charAt(0)}
+                    </Avatar>
+                  </Box>
+                  <Box sx={{ pt: 12, p: 4 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
+                      <Box>
+                        <Typography variant="h4" sx={{ fontWeight: 900, color: 'text.primary', letterSpacing: -1 }}>
+                          {profileToView?.displayName}
+                        </Typography>
+                        <Typography variant="h6" color="primary" sx={{ fontWeight: 700, mt: 0.5 }}>
+                          {profileToView?.classLevel} • {profileToView?.admissionNo || 'No ID'}
+                        </Typography>
+                      </Box>
+                      <Chip 
+                        label={profileToView?.status} 
+                        color={profileToView?.status === 'Active' ? 'success' : 'error'}
+                        sx={{ fontWeight: 900, borderRadius: 2 }}
+                      />
+                    </Box>
+
+                    <Grid container spacing={3}>
+                      {[
+                        { icon: <User size={18} />, label: "Father Name", value: profileToView?.fatherName },
+                        { icon: <Calendar size={18} />, label: "Date of Birth", value: profileToView?.dob ? format(new Date(profileToView.dob), 'dd MMM yyyy') : 'N/A' },
+                        { icon: <Phone size={18} />, label: "Contact", value: profileToView?.phone },
+                        { icon: <MapPin size={18} />, label: "Address", value: profileToView?.address },
+                        { icon: <Shield size={18} />, label: "Roll No", value: profileToView?.rollNo },
+                        { icon: <BookOpen size={18} />, label: "Admission Date", value: profileToView?.admissionDate ? format(new Date(profileToView.admissionDate), 'dd MMM yyyy') : 'N/A' },
+                      ].map((item, i) => (
+                        <Grid size={{ xs: 12, sm: 6 }} key={i}>
+                          <Box sx={{ display: 'flex', gap: 2, p: 2, borderRadius: 3, bgcolor: alpha(theme.palette.text.primary, 0.03), border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1) }}>
+                            <Box sx={{ color: 'primary.main', display: 'flex', alignItems: 'center' }}>{item.icon}</Box>
+                            <Box>
+                              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                {item.label}
+                              </Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 700 }}>{item.value || 'Not provided'}</Typography>
+                            </Box>
+                          </Box>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </Box>
+                  <Box sx={{ p: 4, bgcolor: alpha(theme.palette.primary.main, 0.05), display: 'flex', justifyContent: 'center' }}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 4, display: 'inline-block', mb: 1, border: '1px solid #eee' }}>
+                        <QRCodeSVG value={`https://sys.waliulaser.com/verify/${profileToView?.uid}`} size={100} />
+                      </Box>
+                      <Typography variant="caption" sx={{ display: 'block', fontWeight: 800, color: 'text.secondary' }}>SCAN QR TO VERIFY IDENTITY</Typography>
+                    </Box>
+                  </Box>
+                </Card>
+              </Box>
+            </motion.div>
+          ) : (
+            <Box id="printable-profile" className="admission-page" sx={{ position: 'relative', color: 'black', bgcolor: 'white', p: { xs: 0, md: 1 }, borderRadius: 0, width: '100%' }}>
+              {/* Existing Admission Form Content */}
+              <Box sx={{ border: '2px solid black', p: { xs: 2, md: 3 }, position: 'relative', width: '100%', boxSizing: 'border-box' }}>
+                 {/* ... existing header and grid ... */}
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, borderBottom: '3px solid black', pb: 2, gap: 4 }}>
                   <Avatar src={instituteSettings.logoUrl} sx={{ width: 100, height: 100, borderRadius: 0, bgcolor: 'grey.200', flexShrink: 0 }}>
                     <GraduationCap size={50} color="black" />
@@ -1822,11 +2466,66 @@ export default function Users() {
                 
                 <Box sx={{ mt: 4, pt: 1, borderTop: '1px dashed #ccc', textAlign: 'center' }}>
                     <Typography variant="caption" sx={{ fontStyle: 'italic', color: 'grey.700', fontSize: '0.65rem' }}>
-                       Printed on {format(new Date(), 'PPpp')} via AIS Management System
+                       Printed on {format(new Date(), 'dd-MM-yyyy hh:mm a')} via AIS Management System
                     </Typography>
+                </Box>
+
+                {/* Internal UI only section - Not for print */}
+                <Box className="no-print" sx={{ mt: 4, borderTop: '2px solid #eee', pt: 3 }}>
+                   <Typography variant="h6" sx={{ fontWeight: 900, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <IndianRupee size={20} className="text-primary-500" />
+                      Payment History
+                   </Typography>
+                   {loadingReceipts ? (
+                     <CircularProgress size={24} />
+                   ) : studentReceipts.length > 0 ? (
+                     <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
+                       <Table size="small">
+                         <TableHead sx={{ bgcolor: 'grey.50' }}>
+                           <TableRow>
+                             <TableCell sx={{ fontWeight: 800 }}>Receipt</TableCell>
+                             <TableCell sx={{ fontWeight: 800 }}>Category</TableCell>
+                             <TableCell sx={{ fontWeight: 800 }}>Amount</TableCell>
+                             <TableCell sx={{ fontWeight: 800 }}>Date</TableCell>
+                             <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
+                           </TableRow>
+                         </TableHead>
+                         <TableBody>
+                           {studentReceipts.map(r => (
+                             <TableRow key={r.id}>
+                               <TableCell sx={{ fontWeight: 700 }}>{r.receiptNo}</TableCell>
+                               <TableCell>{r.feeHead}</TableCell>
+                               <TableCell sx={{ fontWeight: 800 }}>Rs.{r.amount}</TableCell>
+                               <TableCell>
+                                 <Typography variant="body2" sx={{ fontWeight: 800, color: 'primary.main' }}>
+                                   {format(new Date(r.date), 'MMMM yyyy')}
+                                 </Typography>
+                                 <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                                   {format(new Date(r.date), 'dd-MM-yyyy')}
+                                 </Typography>
+                               </TableCell>
+                               <TableCell>
+                                 <Chip 
+                                   label={r.status} 
+                                   size="small" 
+                                   color={r.status === 'approved' ? 'success' : 'warning'} 
+                                   sx={{ fontWeight: 800, height: 20, fontSize: '0.65rem' }}
+                                 />
+                               </TableCell>
+                             </TableRow>
+                           ))}
+                         </TableBody>
+                       </Table>
+                     </TableContainer>
+                   ) : (
+                     <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                       No payment records found for this student.
+                     </Typography>
+                   )}
                 </Box>
              </Box>
           </Box>
+        )}
         </DialogContent>
       </Dialog>
 
@@ -1883,76 +2582,6 @@ export default function Users() {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* System Reset Dialog */}
-      <Dialog 
-        open={resetConfirmOpen} 
-        onClose={() => setResetConfirmOpen(false)}
-        PaperProps={{ sx: { borderRadius: 4, p: 1 } }}
-      >
-        <DialogTitle sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1.5, color: 'error.main' }}>
-          <Database size={24} />
-          {purgeType === 'ALL' ? 'CRITICAL: System Reset' : 'Purge Old Students Data'}
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ mb: 3, mt: 1 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Select Purge Scope:</Typography>
-            <Stack direction="row" spacing={2}>
-              <Button 
-                variant={purgeType === 'STUDENTS' ? 'contained' : 'outlined'} 
-                color="error"
-                size="small"
-                onClick={() => setPurgeType('STUDENTS')}
-                sx={{ borderRadius: 2, flex: 1 }}
-              >
-                Only Students
-              </Button>
-              <Button 
-                variant={purgeType === 'ALL' ? 'contained' : 'outlined'} 
-                color="error"
-                size="small"
-                onClick={() => setPurgeType('ALL')}
-                sx={{ borderRadius: 2, flex: 1 }}
-              >
-                Everything
-              </Button>
-            </Stack>
-          </Box>
-          <Typography variant="body1" sx={{ fontWeight: 600, mb: 1 }}>
-            {purgeType === 'ALL' 
-              ? 'This will delete ALL data including staff, logs, and settings. Except yourself.' 
-              : 'This will delete ALL students and their related records (attendance, exams, etc).'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            To confirm, please type <strong>{purgeType === 'ALL' ? 'RESET ALL USERS' : 'PURGE STUDENTS'}</strong> below:
-          </Typography>
-          <TextField
-            fullWidth
-            size="small"
-            value={resetConfirmText}
-            onChange={(e) => setResetConfirmText(e.target.value)}
-            placeholder="Type confirmation here..."
-            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-          />
-        </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button 
-            onClick={() => { setResetConfirmOpen(false); setResetConfirmText(''); }} 
-            sx={{ fontWeight: 800, color: 'text.secondary', borderRadius: 3 }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={confirmSystemReset} 
-            variant="contained" 
-            color="error"
-            disabled={resetConfirmText !== (purgeType === 'ALL' ? "RESET ALL USERS" : "PURGE STUDENTS")}
-            sx={{ fontWeight: 800, borderRadius: 3, px: 3 }}
-          >
-            {purgeType === 'ALL' ? 'RESET SYSTEM' : 'PURGE STUDENTS NOW'}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }
@@ -1981,17 +2610,18 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, actionMenu }: any) =
   
   return (
     <Card sx={{ 
-      borderRadius: 2, 
+      borderRadius: 4, 
       height: '100%', 
-      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       position: 'relative',
       overflow: 'hidden',
       border: '1px solid',
       borderColor: 'divider',
       bgcolor: 'background.paper',
-      boxShadow: 'none',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
       '&:hover': { 
-        transform: 'translateY(-10px)', 
+        transform: 'translateY(-6px)', 
+        boxShadow: '0 12px 24px rgba(0,0,0,0.06)',
         borderColor: 'primary.main',
         '& .user-actions': { opacity: 1, transform: 'translateY(0)' }
       }
@@ -2084,36 +2714,45 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, actionMenu }: any) =
 
 const SummaryCard = React.memo(({ title, value, icon, color }: any) => {
   const theme = useTheme();
-  const mainColor = theme.palette[color as 'primary' | 'success' | 'warning'].main;
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const paletteColor = color as 'primary' | 'success' | 'warning' | 'secondary' | 'error';
+  const mainColor = theme.palette[paletteColor]?.main || theme.palette.primary.main;
   
   return (
     <Card sx={{ 
       borderRadius: 4, 
       height: '100%', 
-      transition: 'all 0.3s ease',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      position: 'relative',
+      overflow: 'hidden',
       border: '1px solid',
       borderColor: 'divider',
       bgcolor: 'background.paper',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.01)',
       '&:hover': { 
-        transform: 'translateY(-4px)', 
-        boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
-        borderColor: alpha(mainColor, 0.3)
+        transform: 'translateY(-2px)', 
+        boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+        borderColor: alpha(mainColor, 0.2)
       }
     }}>
-      <CardContent sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+      <CardContent sx={{ p: isMobile ? 1.5 : 2.2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
           <Box sx={{ 
-            p: 1.5, 
+            p: 1, 
             borderRadius: 2, 
-            bgcolor: alpha(mainColor, 0.1), 
+            bgcolor: alpha(mainColor, 0.08), 
             color: mainColor,
             display: 'flex'
           }}>
             {icon}
           </Box>
         </Box>
-        <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5, letterSpacing: -0.5 }}>{value}</Typography>
+        <Typography variant="h5" sx={{ 
+          fontWeight: 800, 
+          mb: 0.2, 
+          letterSpacing: -0.5,
+          fontFamily: 'var(--font-heading)'
+        }}>{value}</Typography>
         <Typography 
           variant="caption" 
           color="text.secondary" 
@@ -2121,8 +2760,9 @@ const SummaryCard = React.memo(({ title, value, icon, color }: any) => {
             fontWeight: 800, 
             textTransform: 'uppercase', 
             letterSpacing: 1,
-            fontFamily: 'var(--font-display)',
-            fontSize: '0.65rem'
+            fontSize: '0.6rem',
+            fontFamily: 'var(--font-heading)',
+            opacity: 0.8
           }}
         >
           {title}

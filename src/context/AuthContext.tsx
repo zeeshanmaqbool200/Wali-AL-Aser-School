@@ -6,6 +6,7 @@ interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
   error: string | null;
+  instituteSettings: any;
   manualLogin: (email: string, pass: string) => Promise<void>;
   manualSignUp: (email: string, pass: string, name: string, role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
@@ -19,14 +20,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [instituteSettings, setInstituteSettings] = useState<any>(null);
 
   useEffect(() => {
     let unsubscribeDoc: (() => void) | undefined;
+    let unsubscribeInst: (() => void) | undefined;
+
+    // Fetch Institute Settings once
+    const fetchInst = async () => {
+      const snap = await getDoc(doc(db, 'settings', 'institute'));
+      if (snap.exists()) {
+        setInstituteSettings({ id: snap.id, ...snap.data() });
+        (window as any)._instituteLoaded = true;
+      }
+    };
+    fetchInst();
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
           logger.auth('User Detected', { email: firebaseUser.email, uid: firebaseUser.uid });
+          
+          // Cleanup any existing listener before starting a new one
+          if (unsubscribeDoc) {
+            unsubscribeDoc();
+            unsubscribeDoc = undefined;
+          }
           
           // Use onSnapshot for real-time profile updates
           unsubscribeDoc = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
@@ -183,8 +202,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const contextValue = React.useMemo(() => ({ 
-    user, loading, error, manualLogin, manualSignUp, logout 
-  }), [user, loading, error, manualLogin, manualSignUp, logout]);
+    user, loading, error, manualLogin, manualSignUp, logout, instituteSettings
+  }), [user, loading, error, manualLogin, manualSignUp, logout, instituteSettings]);
 
   return (
     <AuthContext.Provider value={contextValue}>

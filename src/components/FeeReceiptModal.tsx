@@ -262,7 +262,7 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
         </View>
         <View style={[pdfStyles.detailColumn, { textAlign: 'right' }]}>
           <Text style={pdfStyles.label}>Payment Details</Text>
-          <Text style={[pdfStyles.value, { color: '#0d9488' }]}>{receipt.status.toUpperCase()}</Text>
+          <Text style={[pdfStyles.value, { color: '#0d9488' }]}>{(receipt.status || 'approved').toUpperCase()}</Text>
           <Text style={pdfStyles.subValue}>Mode: {receipt.paymentMode}</Text>
           {receipt.transactionId && (
             <Text style={pdfStyles.subValue}>Ref: {receipt.transactionId}</Text>
@@ -280,11 +280,11 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
             <Text style={{ fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }}>{receipt.feeHead}</Text>
             <Text style={{ fontSize: 8, color: '#4b5563', marginTop: 4 }}>{receipt.remarks || 'Standard fee payment for the current academic session.'}</Text>
           </View>
-          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>Rs.{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
         </View>
         <View style={pdfStyles.tableFooter}>
           <Text style={[pdfStyles.colDesc, { textAlign: 'right', fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>TOTAL PAID AMOUNT</Text>
-          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', color: '#0d9488' }]}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', color: '#0d9488' }]}>Rs.{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
         </View>
       </View>
 
@@ -560,7 +560,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             </Box>
             <Box sx={{ textAlign: 'right' }}>
               <Chip 
-                label={receipt.status.toUpperCase()} 
+                label={(receipt.status || 'approved').toUpperCase()} 
                 color={receipt.status === 'approved' ? 'success' : 'warning'} 
                 size="small" 
                 sx={{ fontWeight: 900, borderRadius: 1 }}
@@ -577,7 +577,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             </Grid>
             <Grid size={6} sx={{ textAlign: 'right' }}>
               <Typography variant="caption" sx={{ fontWeight: 800, color: '#9ca3af !important', letterSpacing: 0.5 }}>PAYMENT DETAILS</Typography>
-              <Typography variant="subtitle1" sx={{ fontWeight: 900, mt: 0.5, color: '#0d9488 !important' }}>{receipt.status.toUpperCase()}</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 900, mt: 0.5, color: '#0d9488 !important' }}>{(receipt.status || 'approved').toUpperCase()}</Typography>
               <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>Mode: {receipt.paymentMode}</Typography>
               {receipt.transactionId && (
                 <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>Ref: {receipt.transactionId}</Typography>
@@ -597,11 +597,11 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
                   {receipt.remarks || 'Standard fee payment for the current academic session.'}
                 </Typography>
               </Box>
-              <Typography variant="body2" sx={{ flex: 1, textAlign: 'right', fontWeight: 800 }}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
+              <Typography variant="body2" sx={{ flex: 1, textAlign: 'right', fontWeight: 800 }}>Rs.{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
             </Box>
             <Box sx={{ display: 'flex', bgcolor: '#f0f9f9', p: 1.5, borderTop: '1px solid #e5e7eb' }}>
               <Typography variant="body2" sx={{ flex: 3, textAlign: 'right', fontWeight: 800 }}>TOTAL PAID AMOUNT</Typography>
-              <Typography variant="subtitle2" sx={{ flex: 1, textAlign: 'right', fontWeight: 900, color: '#0d9488 !important' }}>₹{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
+              <Typography variant="subtitle2" sx={{ flex: 1, textAlign: 'right', fontWeight: 900, color: '#0d9488 !important' }}>Rs.{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
             </Box>
           </Box>
           
@@ -670,7 +670,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             size="small"
             className="print-button"
             startIcon={<Printer size={16} />}
-            onClick={() => window.print()}
+            onClick={() => handlePrint()}
             sx={{ borderRadius: 2, fontWeight: 800 }}
           >
             Direct Print

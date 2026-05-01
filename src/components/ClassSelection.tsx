@@ -24,8 +24,8 @@ export default function ClassSelection({ open, userId, onComplete }: ClassSelect
   const [loading, setLoading] = useState(false);
 
   const levels: ClassLevel[] = [
-    'Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 
-    'Level 7', 'Level 8', 'Level 9', 'Level 10', 'Hafiz'
+    'Mubtadi', 'Awal', 'Doum', 'Soum', 'Chaharm', 'Panjum', 'Shasham', 
+    'Haftum', 'Hashtum', 'Nahum', 'Dahum', 'Hafiz'
   ];
 
   const handleSelect = async () => {

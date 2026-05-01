@@ -400,14 +400,15 @@ export default function Courses() {
             <Typography 
               variant="h4" 
               sx={{ 
-                fontFamily: 'var(--font-display)',
+                fontFamily: 'var(--font-heading)',
                 fontWeight: 900, 
-                letterSpacing: -1, 
+                letterSpacing: 2, 
                 mb: 0.5,
-                color: 'primary.main'
+                color: 'primary.main',
+                textTransform: 'uppercase'
               }}
             >
-              Subjects
+              Sabq (Subjects)
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
               Manage Islamic curriculum, Student enrollment, and learning paths
@@ -1856,13 +1857,35 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
         </Box>
       </Box>
 
-      <CardContent sx={{ p: 4.5, flexGrow: 1 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
-          <Typography variant="h5" sx={{ fontWeight: 900, lineHeight: 1.1, letterSpacing: -1.2, color: 'text.primary' }}>{course.name}</Typography>
+      <CardContent sx={{ p: isMobile ? 3 : 4.5, flexGrow: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <Typography variant="h5" sx={{ 
+            fontWeight: 900, 
+            lineHeight: 1.1, 
+            letterSpacing: -1.2, 
+            color: 'text.primary',
+            fontFamily: isRTL(course.name) ? 'var(--font-urdu)' : 'var(--font-heading)',
+            direction: isRTL(course.name) ? 'rtl' : 'ltr',
+            fontSize: isRTL(course.name) ? '1.5rem' : { xs: '1.2rem', md: '1.5rem' }
+          }}>
+            {course.name}
+          </Typography>
           {isTeacher && <ActionMenu items={teacherActions} />}
         </Box>
         
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 4, fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 60, lineHeight: 1.6 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ 
+          mb: 3, 
+          fontWeight: 600, 
+          display: '-webkit-box', 
+          WebkitLineClamp: 3, 
+          WebkitBoxOrient: 'vertical', 
+          overflow: 'hidden', 
+          minHeight: 60, 
+          lineHeight: isRTL(course.description) ? 2.2 : 1.6,
+          fontFamily: isRTL(course.description) ? 'var(--font-urdu)' : 'inherit',
+          direction: isRTL(course.description) ? 'rtl' : 'ltr',
+          textAlign: isRTL(course.description) ? 'right' : 'left'
+        }}>
           {course.description}
         </Typography>
 

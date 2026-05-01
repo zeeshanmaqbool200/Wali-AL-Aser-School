@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   IconButton, Menu, MenuItem, ListItemIcon, 
-  ListItemText, Tooltip 
+  ListItemText, Divider as MuiDivider
 } from '@mui/material';
 import { MoreVertical } from 'lucide-react';
 
@@ -35,7 +35,7 @@ export default function ActionMenu({ items, icon, size = 'small' }: ActionMenuPr
     setAnchorEl(null);
   };
 
-  const activeItems = items.filter(item => !item.disabled);
+  const activeItems = items.filter(item => !item.disabled || item.divider);
 
   if (activeItems.length === 0) return null;
 
@@ -59,25 +59,29 @@ export default function ActionMenu({ items, icon, size = 'small' }: ActionMenuPr
         PaperProps={{
           sx: { 
             borderRadius: 3, 
-            minWidth: 180, 
-            boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
+            minWidth: 200, 
+            boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
             border: '1px solid rgba(0,0,0,0.05)',
-            mt: 0.5
+            mt: 0.5,
+            padding: '4px 0'
           }
         }}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
         {activeItems.map((item, idx) => (
-          <React.Fragment key={idx}>
+          item.divider ? (
+            <MuiDivider key={idx} sx={{ my: 1, opacity: 0.6 }} />
+          ) : (
             <MenuItem 
+              key={idx}
               onClick={(e) => {
                 e.stopPropagation();
                 item.onClick();
                 handleClose();
               }}
               sx={{ 
-                py: 1.2,
+                py: 1,
                 px: 2,
                 '&:hover': { bgcolor: 'action.hover' }
               }}
@@ -89,13 +93,12 @@ export default function ActionMenu({ items, icon, size = 'small' }: ActionMenuPr
                 primary={item.label} 
                 primaryTypographyProps={{ 
                   variant: 'body2', 
-                  fontWeight: 700,
+                  fontWeight: 600,
                   color: item.color || 'text.primary'
                 }} 
               />
             </MenuItem>
-            {item.divider && <hr style={{ border: 'none', borderTop: '1px solid rgba(0,0,0,0.05)', margin: '4px 0' }} />}
-          </React.Fragment>
+          )
         ))}
       </Menu>
     </>

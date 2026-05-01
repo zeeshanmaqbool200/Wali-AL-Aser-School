@@ -55,6 +55,9 @@ export default function AttendancePage() {
   const isStaff = isAdmin || isTeacherRole;
 
   useEffect(() => {
+    let isMounted = true;
+    let unsubscribeAttendance = () => {};
+
     const fetchData = async () => {
       try {
         // Fetch students based on role
@@ -73,17 +76,18 @@ export default function AttendancePage() {
             )
           );
         } else {
-          setLoading(false);
+          if (isMounted) setLoading(false);
           return;
         }
 
         const studentsSnap = await getDocs(studentsQuery);
+        if (!isMounted) return;
+
         const studentsList = studentsSnap.docs.map(doc => {
           const data = doc.data() as any;
           return { 
             uid: doc.id, 
             ...data,
-            // Ensure classLevel is consistent
             classLevel: data.classLevel || 'N/A' 
           };
         }) as UserProfile[];
@@ -91,7 +95,6 @@ export default function AttendancePage() {
         setStudents(studentsList);
         localStorage.setItem('attendance_students', JSON.stringify(studentsList));
 
-        // Extract unique classes
         const uniqueClasses = Array.from(new Set(studentsList.map(s => s.classLevel).filter(Boolean))) as string[];
         setClasses(uniqueClasses);
         localStorage.setItem('attendance_classes', JSON.stringify(uniqueClasses));
@@ -105,14 +108,12 @@ export default function AttendancePage() {
           }
         }
 
-        // Fetch attendance for selected date
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
         let attendanceQuery;
         
         if (isAdmin) {
           attendanceQuery = query(collection(db, 'attendance'), where('date', '==', dateStr));
         } else {
-          // Teacher can only fetch attendance for their assigned classes
           attendanceQuery = query(
             collection(db, 'attendance'), 
             and(
@@ -125,22 +126,27 @@ export default function AttendancePage() {
           );
         }
 
-        const unsubscribe = onSnapshot(attendanceQuery, (snapshot) => {
+        unsubscribeAttendance = onSnapshot(attendanceQuery, (snapshot) => {
+          if (!isMounted) return;
           setAttendanceData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Attendance[]);
           setLoading(false);
           (window as any)._attendanceLoaded = true;
         }, (error) => {
-          handleFirestoreError(error, OperationType.LIST, 'attendance');
+          if (isMounted) handleFirestoreError(error, OperationType.LIST, 'attendance');
         });
-
-        return () => unsubscribe();
       } catch (error) {
-        handleFirestoreError(error, OperationType.LIST, 'attendance_init');
-        setLoading(false);
+        if (isMounted) {
+          handleFirestoreError(error, OperationType.LIST, 'attendance_init');
+          setLoading(false);
+        }
       }
     };
 
     fetchData();
+    return () => {
+      isMounted = false;
+      unsubscribeAttendance();
+    };
   }, [selectedDate]);
 
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
@@ -504,7 +510,7 @@ export default function AttendancePage() {
                           <TableCell align="center">
                             {record ? (
                               <Chip 
-                                label={record.status.toUpperCase()} 
+                                label={(record.status || 'absent').toUpperCase()} 
                                 color={record.status === 'present' ? 'success' : 'error'} 
                                 size="small" 
                                 sx={{ 

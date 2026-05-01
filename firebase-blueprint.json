@@ -51,6 +51,23 @@
         "markedBy": { "type": "string" }
       },
       "required": ["studentId", "date", "status"]
+    },
+    "Expense": {
+      "title": "Institutional Expense",
+      "description": "Record of financial spending by the institute.",
+      "type": "object",
+      "properties": {
+        "itemName": { "type": "string" },
+        "category": { "type": "string", "enum": ["materials", "utilities", "salaries", "maintenance", "other"] },
+        "type": { "type": "string", "enum": ["credit", "debit"] },
+        "amount": { "type": "number" },
+        "spentBy": { "type": "string" },
+        "spentById": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["itemName", "category", "amount", "spentById", "date"]
     }
   },
   "firestore": {
@@ -65,6 +82,10 @@
     "/attendance/{recordId}": {
       "schema": "Attendance",
       "description": "Daily attendance."
+    },
+    "/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Institutional spending records."
     },
     "/courses/{courseId}": {
       "schema": "object",

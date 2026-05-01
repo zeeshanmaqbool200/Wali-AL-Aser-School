@@ -1,6 +1,6 @@
 {
-  "name": "Institute Management System",
-  "description": "Student Fee Management System. Managing Tulab records, fees, attendance, and academic schedules with professional reports and PWA support.",
+  "name": "Wali-ul-Asr Maktab Management",
+  "description": "Comprehensive Shia Maktab Management System for student enrollment, fee collection (Zakat/Khums), attendance, and academic progress with QR verification.",
   "requestFramePermissions": [
     "camera",
     "geolocation"

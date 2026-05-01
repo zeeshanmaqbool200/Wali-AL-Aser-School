@@ -22,6 +22,7 @@ const Schedule = lazy(() => import('./pages/Schedule'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Exams = lazy(() => import('./pages/Exams'));
+const Expenses = lazy(() => import('./pages/Expenses'));
 const Courses = lazy(() => import('./pages/Courses'));
 const PaymentsSummary = lazy(() => import('./pages/PaymentsSummary'));
 const AdminLogs = lazy(() => import('./pages/AdminLogs'));
@@ -31,8 +32,18 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ClassSelection from './components/ClassSelection';
 
 const PageLoading = () => (
-  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', width: '100%' }}>
-    <CircularProgress size={40} thickness={4} />
+  <Box sx={{ p: 4, width: '100%' }}>
+    <Skeleton variant="text" sx={{ fontSize: '3rem', width: '40%', mb: 2, borderRadius: 2 }} />
+    <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+      <Skeleton variant="rectangular" width={200} height={40} sx={{ borderRadius: 2 }} />
+      <Skeleton variant="rectangular" width={200} height={40} sx={{ borderRadius: 2 }} />
+    </Box>
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+      {[1, 2, 3, 4].map((i) => (
+        <Skeleton key={i} variant="rectangular" width={250} height={120} sx={{ borderRadius: 4, flexGrow: 1 }} />
+      ))}
+    </Box>
+    <Skeleton variant="rectangular" width="100%" height={400} sx={{ mt: 4, borderRadius: 4 }} />
   </Box>
 );
 
@@ -203,6 +214,11 @@ function AppContent() {
                     </ProtectedRoute>
                   } />
                   <Route path="/exams" element={<Exams />} />
+                  <Route path="/expenses" element={
+                    <ProtectedRoute user={user} allowedRoles={fullAdminRoles}>
+                      <Expenses />
+                    </ProtectedRoute>
+                  } />
                   <Route path="/schedule" element={<Schedule />} />
                   <Route path="/payments-summary" element={
                     <ProtectedRoute user={user} allowedRoles={reportRoles}>

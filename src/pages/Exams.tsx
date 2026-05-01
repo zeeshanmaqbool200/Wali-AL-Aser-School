@@ -373,7 +373,7 @@ export default function Exams() {
                               </Avatar>
                               <Box>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{exam.title}</Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{exam.type.toUpperCase()}</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{(exam.type || 'Standard').toUpperCase()}</Typography>
                               </Box>
                             </Box>
                           </TableCell>
@@ -567,7 +567,7 @@ export default function Exams() {
               <TextField
                 fullWidth
                 label="Class Level"
-                placeholder="e.g. Level 1"
+                placeholder="e.g. Mubtadi"
                 required
                 value={formData.classLevel}
                 onChange={(e) => setFormData({ ...formData, classLevel: e.target.value })}
@@ -682,7 +682,7 @@ function ExamCard({ exam, isTeacher, onDelete }: any) {
           </Avatar>
           <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
             <Chip 
-              label={exam.type.toUpperCase()} 
+              label={(exam.type || 'test').toUpperCase()} 
               size="small" 
               sx={{ fontWeight: 900, fontSize: '0.7rem', bgcolor: 'background.default', borderRadius: 2.5, border: 'none' }} 
             />

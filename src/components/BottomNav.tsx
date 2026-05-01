@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Paper, BottomNavigation, BottomNavigationAction, Badge, Avatar, Tooltip } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { LayoutDashboard, Users, CreditCard, Bell, Terminal, Settings as SettingsIcon, Calendar, BarChart3, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, Bell, Terminal, Settings as SettingsIcon, Calendar, BarChart3, BookOpen, IndianRupee } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
@@ -29,10 +29,22 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
       }
     };
 
+    // Observer for detecting dialogs (Adding/Editing mode)
+    const observer = new MutationObserver(() => {
+      const isDialogOpen = !!document.querySelector('.MuiDialog-root');
+      setInternalVisible(!isDialogOpen);
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleViewportChange);
-      return () => window.visualViewport?.removeEventListener('resize', handleViewportChange);
+      return () => {
+        window.visualViewport?.removeEventListener('resize', handleViewportChange);
+        observer.disconnect();
+      };
     }
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -73,7 +85,8 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
     { label: 'Home', icon: <LayoutDashboard size={20} />, path: '/', roles: ['student', 'teacher', 'pending_teacher', 'superadmin', 'manager'] },
     { label: 'Courses', icon: <BookOpen size={20} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: 'Students', icon: <Users size={20} />, path: '/users', roles: ['superadmin', 'manager'] },
-    { label: 'Fees', icon: <CreditCard size={20} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Expenses', icon: <CreditCard size={20} />, path: '/expenses', roles: ['superadmin', 'manager'] },
+    { label: 'Fees', icon: <IndianRupee size={20} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['superadmin'] },
     { label: 'Settings', icon: <SettingsIcon size={20} />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'] },
   ];
@@ -99,7 +112,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
             position: 'fixed', 
             bottom: { xs: 16, sm: 32 }, 
             left: '50%', 
-            zIndex: 10000, 
+            zIndex: 5000, 
             width: 'auto',
             pointerEvents: 'none',
           }}

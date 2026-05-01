@@ -18,7 +18,7 @@ import {
   Cloud, Zap, HardDrive, RefreshCw, AlertTriangle, Layout,
   Download, FileJson, Terminal, Mic
 } from 'lucide-react';
-import { doc, getDoc, updateDoc, collection, query, getDocs, deleteDoc, arrayUnion, setDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, getDocs, deleteDoc, arrayUnion, setDoc, where } from 'firebase/firestore';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { UserProfile, InstituteSettings } from '../types';
@@ -83,6 +83,8 @@ export default function Settings() {
   const [showPassword, setShowPassword] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [purgeType, setPurgeType] = useState<'ALL' | 'STUDENTS'>('ALL');
+  const [resetConfirmText, setResetConfirmText] = useState('');
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -205,17 +207,44 @@ export default function Settings() {
   };
 
   const confirmResetData = async () => {
+    if (resetConfirmText !== (purgeType === 'ALL' ? "RESET ALL USERS" : "PURGE STUDENTS")) {
+      setSnackbar({ open: true, message: 'Confirmation text incorrect', severity: 'error' });
+      return;
+    }
+
     try {
       setLoading(true);
-      const collections = ['attendance', 'feeReceipts', 'notifications', 'studyMaterials'];
-      for (const coll of collections) {
+      const collectionsToClear = purgeType === 'ALL' 
+        ? ['attendance', 'receipts', 'expenses', 'notifications', 'studyMaterials', 'quiz_results', 'notes', 'users']
+        : ['attendance', 'receipts', 'expenses', 'quiz_results']; // Purging students data only
+      
+      let totalDeleted = 0;
+      for (const coll of collectionsToClear) {
         const q = query(collection(db, coll));
-        const snapshot = await getDocs(q);
-        const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-        await Promise.all(deletePromises);
+        if (purgeType === 'STUDENTS' && (coll === 'users')) {
+           // For users, only delete students
+           const qStudents = query(collection(db, 'users'), where('role', '==', 'student'));
+           const snap = await getDocs(qStudents);
+           for (const d of snap.docs) {
+             await deleteDoc(d.ref);
+             totalDeleted++;
+           }
+        } else {
+          const snapshot = await getDocs(q);
+          const deletePromises = snapshot.docs.map(doc => {
+            totalDeleted++;
+            return deleteDoc(doc.ref);
+          });
+          await Promise.all(deletePromises);
+        }
       }
-      setSnackbar({ open: true, message: 'Application data reset successfully', severity: 'success' });
+      setSnackbar({ open: true, message: `System ${purgeType === 'ALL' ? 'reset' : 'purged'} successfully. ${totalDeleted} records removed.`, severity: 'success' });
       setResetConfirmOpen(false);
+      setResetConfirmText('');
+      if (purgeType === 'ALL') {
+         logout();
+         navigate('/login');
+      }
     } catch (err) {
       setSnackbar({ open: true, message: 'Failed to reset data', severity: 'error' });
     } finally {
@@ -1384,41 +1413,49 @@ export default function Settings() {
                           </Button>
                         </Box>
                       </Box>
-                      <Box sx={{ 
-                        p: 3, 
-                        borderRadius: 1.5, 
-                        bgcolor: alpha(theme.palette.error.main, 0.03),
-                        boxShadow: theme.palette.mode === 'dark'
-                          ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                          : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-                      }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 2, color: 'error.main' }}>Danger Zone: Reset Application Data</Typography>
-                        <Typography variant="body2" sx={{ mb: 3, fontWeight: 500, color: 'text.secondary' }}>
-                          This will permanently delete all attendance records, fee payments, notifications, and study materials. 
-                          User accounts will remain intact. This action cannot be undone.
-                        </Typography>
-                        <Button 
-                          variant="contained" 
-                          color="error" 
-                          startIcon={<Trash2 size={18} />}
-                          onClick={handleResetData}
-                          disabled={currentUser?.role !== 'superadmin'}
-                          sx={{ 
-                            borderRadius: 3, 
-                            fontWeight: 800, 
-                            px: 4,
-                            boxShadow: currentUser?.role === 'superadmin' ? (theme.palette.mode === 'dark'
-                              ? '6px 6px 12px #060a12, -6px -6px 12px #182442'
-                              : '6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff') : 'none',
-                          }}
-                        >
-                          Reset All Data
-                        </Button>
-                        {currentUser?.role !== 'superadmin' && (
-                          <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1, fontWeight: 600 }}>
-                            Only Administrators can perform this action.
-                          </Typography>
-                        )}
+                      <Box sx={{ p: 3, borderRadius: 1.5, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), bgcolor: alpha(theme.palette.error.main, 0.03) }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 2, color: 'error.main' }}>System Data Management</Typography>
+                        <Stack spacing={2.5}>
+                          <Box>
+                            <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 500, color: 'text.secondary' }}>
+                              <strong>Reset Everything:</strong> Permanently deletes all data (students, teachers, fees, expenses, attendance) and logs you out.
+                            </Typography>
+                            <Button 
+                              variant="contained" 
+                              color="error" 
+                              startIcon={<RefreshCw size={18} />} 
+                              onClick={() => {
+                                setPurgeType('ALL');
+                                setResetConfirmOpen(true);
+                              }}
+                              disabled={currentUser?.role !== 'superadmin'}
+                              sx={{ borderRadius: 2, fontWeight: 800, px: 3 }}
+                            >
+                              Reset System
+                            </Button>
+                          </Box>
+                          
+                          <Divider />
+                          
+                          <Box>
+                            <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 500, color: 'text.secondary' }}>
+                              <strong>Purge Students Only:</strong> Deletes student accounts and related transactional data (fees, attendance) but preserves staff accounts.
+                            </Typography>
+                            <Button 
+                              variant="outlined" 
+                              color="error" 
+                              startIcon={<Trash2 size={18} />} 
+                              onClick={() => {
+                                setPurgeType('STUDENTS');
+                                setResetConfirmOpen(true);
+                              }}
+                              disabled={currentUser?.role !== 'superadmin'}
+                              sx={{ borderRadius: 2, fontWeight: 800, px: 3 }}
+                            >
+                              Purge Students
+                            </Button>
+                          </Box>
+                        </Stack>
                       </Box>
                       
                       <Box sx={{ 
@@ -1507,12 +1544,31 @@ export default function Settings() {
           } 
         }}
       >
-        <DialogTitle sx={{ fontWeight: 900, color: 'error.main', letterSpacing: -0.5 }}>DANGER: Reset All Data</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 900, color: 'error.main', letterSpacing: -0.5 }}>
+          {purgeType === 'ALL' ? 'CRITICAL: System Reset' : 'Purge Students Data'}
+        </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-            Are you sure you want to delete all application data (Attendance, Receipts, Notifications, Notes)? 
-            <Box component="span" sx={{ display: 'block', mt: 1, fontWeight: 800, color: 'error.main' }}>
+            {purgeType === 'ALL' 
+              ? 'Are you sure you want to delete ALL application data? This includes every user (Students & Admins), all fees, expenses, attendance, and settings. You will be logged out.'
+              : 'Are you sure you want to purge all student-related data? This includes all student accounts, their receipts, attendance, and exam results. Admin/Teacher accounts will remain active.'}
+            
+            <Box component="span" sx={{ display: 'block', mt: 2, fontWeight: 800, color: 'error.main' }}>
               This action is permanent and cannot be undone.
+            </Box>
+            
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="caption" sx={{ fontWeight: 900, mb: 1, display: 'block' }}>
+                To confirm, please type <strong>{purgeType === 'ALL' ? "RESET ALL USERS" : "PURGE STUDENTS"}</strong> below:
+              </Typography>
+              <TextField 
+                fullWidth
+                size="small"
+                value={resetConfirmText}
+                onChange={(e) => setResetConfirmText(e.target.value)}
+                placeholder="type confirmation phrase"
+                sx={{ mt: 1 }}
+              />
             </Box>
           </Typography>
         </DialogContent>
@@ -1522,6 +1578,7 @@ export default function Settings() {
             onClick={confirmResetData} 
             color="error" 
             variant="contained" 
+            disabled={resetConfirmText !== (purgeType === 'ALL' ? "RESET ALL USERS" : "PURGE STUDENTS")}
             sx={{ 
               borderRadius: 1, 
               fontWeight: 800,
@@ -1530,7 +1587,7 @@ export default function Settings() {
                 : '6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff',
             }}
           >
-            Yes, Reset Everything
+            {purgeType === 'ALL' ? 'YES, RESET EVERYTHING' : 'YES, PURGE STUDENTS'}
           </Button>
         </DialogActions>
       </Dialog>

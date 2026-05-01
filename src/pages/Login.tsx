@@ -119,7 +119,8 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
               color: 'primary.main', 
               letterSpacing: -2, 
               textTransform: 'uppercase',
-              textShadow: `0 0 30px ${alpha(theme.palette.primary.main, 0.4)}`
+              textShadow: `0 0 30px ${alpha(theme.palette.primary.main, 0.4)}`,
+              fontSize: { xs: '1.75rem', sm: '3rem' }
             }}>
               {institute.instituteName}
             </Typography>
@@ -220,9 +221,9 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
 
                   <TextField
                     fullWidth
-                    label="Secret Code (Password)"
+                    label="Enter Password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
+                    placeholder="Enter Password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}

@@ -537,7 +537,7 @@ export default function Schedule() {
               <TextField
                 fullWidth
                 label="Class Level"
-                placeholder="e.g. Level 1"
+                placeholder="e.g. Mubtadi"
                 value={formData.classLevel}
                 onChange={(e) => setFormData({ ...formData, classLevel: e.target.value })}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}

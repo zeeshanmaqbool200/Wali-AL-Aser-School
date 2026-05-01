@@ -4,14 +4,14 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
   Paper, Chip, TextField, InputAdornment, MenuItem, Select, FormControl, 
   InputLabel, CircularProgress, Avatar, Divider, Tooltip,
-  Stack, Fade, Zoom
+  Stack, Fade, Zoom, Checkbox
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Search, Download, Filter, TrendingUp, Users, CreditCard, 
   CheckCircle, Clock, Calendar, ArrowUpRight, ArrowDownRight,
-  FileText, DollarSign, PieChart as PieChartIcon, Activity,
-  ChevronRight, MoreVertical, Sparkles, Layout, Filter as FilterIcon
+  FileText, IndianRupee, PieChart as PieChartIcon, Activity,
+  ChevronRight, MoreVertical, Sparkles, Layout, Filter as FilterIcon, Printer
 } from 'lucide-react';
 import { collection, query, onSnapshot, orderBy, where, Timestamp } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
@@ -36,7 +36,10 @@ export default function PaymentsSummary() {
   const [filterClass, setFilterClass] = useState('All');
   const [filterFeeHead, setFilterFeeHead] = useState('All');
   const [filterMode, setFilterMode] = useState('All');
-  const [timeRange, setTimeRange] = useState('month'); // today, month, year
+  const [timeRange, setTimeRange] = useState('month'); // today, month, year, custom
+  const [startDate, setStartDate] = useState<string>(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [selectedReceipts, setSelectedReceipts] = useState<string[]>([]);
 
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
   const role = currentUser?.role || 'student';
@@ -89,10 +92,28 @@ export default function PaymentsSummary() {
       matchesTime = isWithinInterval(date, { start: startOfMonth(now), end: endOfMonth(now) });
     } else if (timeRange === 'year') {
       matchesTime = isWithinInterval(date, { start: startOfYear(now), end: endOfYear(now) });
+    } else if (timeRange === 'custom') {
+      const start = startOfDay(new Date(startDate));
+      const end = endOfDay(new Date(endDate));
+      matchesTime = isWithinInterval(date, { start, end });
     }
 
     return matchesSearch && matchesClass && matchesFeeHead && matchesMode && matchesTime;
   });
+
+  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.checked) {
+      setSelectedReceipts(filteredReceipts.map(r => r.id!));
+    } else {
+      setSelectedReceipts([]);
+    }
+  };
+
+  const handleSelectOne = (id: string) => {
+    setSelectedReceipts(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
 
   const totalCollected = filteredReceipts.reduce((sum, r) => sum + (r.status === 'approved' ? r.amount : 0), 0);
   const pendingAmount = filteredReceipts.reduce((sum, r) => sum + (r.status === 'pending' ? r.amount : 0), 0);
@@ -156,44 +177,200 @@ export default function PaymentsSummary() {
               Detailed analysis of fees and collections
             </Typography>
           </Box>
-          <Stack direction="row" spacing={2}>
+          <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', gap: 2 }}>
             <FormControl 
               size="small" 
               sx={{ 
                 minWidth: 150, 
                 '& .MuiOutlinedInput-root': { 
-                  borderRadius: 4, 
+                  borderRadius: 3, 
                   bgcolor: 'background.paper',
-                  '& fieldset': { border: 'none' },
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                    : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
                 } 
               }}
             >
               <Select 
                 value={timeRange} 
                 onChange={(e) => setTimeRange(e.target.value)}
-                sx={{ fontWeight: 800 }}
+                sx={{ fontWeight: 700 }}
               >
                 <MenuItem value="today" sx={{ fontWeight: 700 }}>Today</MenuItem>
                 <MenuItem value="month" sx={{ fontWeight: 700 }}>This Month</MenuItem>
                 <MenuItem value="year" sx={{ fontWeight: 700 }}>This Year</MenuItem>
+                <MenuItem value="custom" sx={{ fontWeight: 700 }}>Custom Range</MenuItem>
               </Select>
             </FormControl>
+
+            {timeRange === 'custom' && (
+              <Stack direction="row" spacing={1} alignItems="center">
+                <TextField
+                  type="date"
+                  size="small"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  sx={{ 
+                    '& .MuiOutlinedInput-root': { borderRadius: 3, border: '1px solid', borderColor: 'divider' }
+                  }}
+                />
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>to</Typography>
+                <TextField
+                  type="date"
+                  size="small"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  sx={{ 
+                    '& .MuiOutlinedInput-root': { borderRadius: 3, border: '1px solid', borderColor: 'divider' }
+                  }}
+                />
+              </Stack>
+            )}
+
+            {selectedReceipts.length > 0 && (
+              <Button 
+                variant="contained" 
+                color="primary"
+                startIcon={<Printer size={18} />} 
+                onClick={() => {
+                  const selectedDocs = receipts.filter(r => selectedReceipts.includes(r.id!));
+                  const printWindow = window.open('', '_blank');
+                  if (printWindow) {
+                    printWindow.document.write(`
+                      <html>
+                        <head>
+                          <title>Bulk Receipts Printing</title>
+                          <style>
+                            @page { size: A4; margin: 0; }
+                            body { margin: 0; padding: 10mm; font-family: 'Inter', sans-serif; overflow: hidden; }
+                            .grid {
+                              display: grid;
+                              grid-template-columns: 1fr 1fr;
+                              grid-template-rows: repeat(6, 43mm);
+                              gap: 4mm;
+                              width: 190mm;
+                              height: 277mm;
+                            }
+                            .receipt {
+                              border: 1px dashed #444;
+                              padding: 4mm;
+                              font-size: 8.5px;
+                              display: flex;
+                              flex-direction: column;
+                              justify-content: space-between;
+                              position: relative;
+                              overflow: hidden;
+                              background: #fff;
+                            }
+                            .receipt:after {
+                              content: 'OFFICIAL COPY';
+                              position: absolute;
+                              top: 50%;
+                              left: 50%;
+                              transform: translate(-50%, -50%) rotate(-45deg);
+                              font-size: 20px;
+                              color: rgba(0,0,0,0.03);
+                              font-weight: 900;
+                              white-space: nowrap;
+                              z-index: 0;
+                            }
+                            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 2px; margin-bottom: 3px; position: relative; z-index: 1; }
+                            .title { font-weight: 900; text-transform: uppercase; font-size: 10px; color: #000; }
+                            .receipt-no { font-weight: 800; font-family: 'Courier New', Courier, monospace; }
+                            .body { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+                            .row { display: flex; justify-content: space-between; margin-bottom: 2px; line-height: 1.2; }
+                            .label { color: #555; font-weight: 700; width: 35mm; }
+                            .value { font-weight: 800; text-align: right; border-bottom: 0.5px solid #eee; flex: 1; }
+                            .amount-box { border: 1.5px solid black; padding: 2px 5px; font-weight: 900; display: inline-block; background-color: #f9f9f9; width: fit-content; align-self: flex-end; font-size: 11px; margin-top: 2px; }
+                            .footer { border-top: 1px solid #000; padding-top: 2px; margin-top: 3px; text-align: center; font-style: italic; font-size: 7px; color: #444; position: relative; z-index: 1; }
+                            @media print {
+                              .no-print { display: none; }
+                              body { -webkit-print-color-adjust: exact; }
+                            }
+                          </style>
+                        </head>
+                        <body>
+                          <div class="grid">
+                            ${selectedDocs.map((r, idx) => `
+                              <div class="receipt">
+                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 2mm; background: #0d9488;"></div>
+                                <div class="header">
+                                  <div style="display: flex; align-items: center; gap: 2mm;">
+                                    <div style="width: 8mm; height: 8mm; background: #0d9488; border-radius: 2px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 6px;">WUA</div>
+                                    <span class="title">Wali Ul Aser Institute</span>
+                                  </div>
+                                  <span class="receipt-no">REF: ${r.receiptNo}</span>
+                                </div>
+                                <div class="body">
+                                  <div style="text-align: center; margin-bottom: 2mm; text-decoration: underline; font-weight: 800; font-size: 9px; letter-spacing: 1px;">OFFICIAL FEE RECEIPT</div>
+                                  <div class="row">
+                                    <span class="label">STUDENT NAME:</span>
+                                    <span class="value">${(r.studentName || 'N/A').toUpperCase()}</span>
+                                  </div>
+                                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4mm;">
+                                    <div class="row">
+                                      <span class="label">CLASS:</span>
+                                      <span class="value">${(r.classLevel || 'N/A').toUpperCase()}</span>
+                                    </div>
+                                    <div class="row">
+                                      <span class="label">DATE:</span>
+                                      <span class="value">${format(new Date(r.date), 'dd/MM/yyyy')}</span>
+                                    </div>
+                                  </div>
+                                  <div class="row">
+                                    <span class="label">CATEGORY:</span>
+                                    <span class="value">${(r.feeHead || 'N/A').toUpperCase()}</span>
+                                  </div>
+                                  <div class="row">
+                                    <span class="label">MODE:</span>
+                                    <span class="value">${(r.paymentMode || 'N/A').toUpperCase()}</span>
+                                  </div>
+                                  <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 1mm;">
+                                     <div style="font-size: 6px; color: #888; font-family: monospace;">AUTH_ID: ${r.id?.slice(0, 10)}</div>
+                                     <div class="amount-box">
+                                       PAID: Rs.${r.amount.toLocaleString()}
+                                     </div>
+                                  </div>
+                                </div>
+                                <div class="footer">
+                                  COMPUTER GENERATED VALID RECEIPT • VALIDATED ON ${format(new Date(), 'dd/mm/yy')}
+                                </div>
+                              </div>
+                            `).join('')}
+                          </div>
+                          <script>
+                            window.onload = () => {
+                              window.print();
+                              // window.close();
+                            };
+                          </script>
+                        </body>
+                      </html>
+                    `);
+                    printWindow.document.close();
+                  }
+                }}
+                sx={{ 
+                  borderRadius: 3, 
+                  fontWeight: 900, 
+                  px: 3,
+                  textTransform: 'none',
+                  boxShadow: 'none'
+                }}
+              >
+                Print (${selectedReceipts.length})
+              </Button>
+            )}
+
             <Button 
-              variant="contained" 
+              variant="outlined" 
               startIcon={<Download size={18} />} 
               onClick={handleExportCSV}
               sx={{ 
-                borderRadius: 4, 
-                fontWeight: 900, 
-                px: 4, 
-                py: 1.5,
-                textTransform: 'none',
-                boxShadow: theme.palette.mode === 'dark'
-                  ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                  : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+                borderRadius: 3, 
+                fontWeight: 800, 
+                px: 3,
+                textTransform: 'none'
               }}
             >
               Export CSV
@@ -206,8 +383,8 @@ export default function PaymentsSummary() {
       {isSuperAdmin && (
         <Grid container spacing={3} sx={{ mb: 4 }}>
         {[
-          { title: 'Total Collected', value: `₹${totalCollected.toLocaleString()}`, trend: '+12.5%', icon: <TrendingUp size={24} />, color: 'success', subtitle: 'Approved payments' },
-          { title: 'Pending Amount', value: `₹${pendingAmount.toLocaleString()}`, trend: 'Awaiting', icon: <Clock size={24} />, color: 'warning', subtitle: 'Requires review' },
+          { title: 'Total Collected', value: `Rs.${totalCollected.toLocaleString()}`, trend: '+12.5%', icon: <TrendingUp size={24} />, color: 'success', subtitle: 'Approved payments' },
+          { title: 'Pending Amount', value: `Rs.${pendingAmount.toLocaleString()}`, trend: 'Awaiting', icon: <Clock size={24} />, color: 'warning', subtitle: 'Requires review' },
           { title: 'Approved Receipts', value: approvedCount, trend: 'Success', icon: <CheckCircle size={24} />, color: 'primary', subtitle: 'Completed' },
           { title: 'Pending Receipts', value: pendingCount, trend: 'Review', icon: <FileText size={24} />, color: 'error', subtitle: 'Teacher review needed' }
         ].map((stat, i) => (
@@ -217,55 +394,7 @@ export default function PaymentsSummary() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
             >
-              <Card sx={{ 
-                borderRadius: 7, 
-                border: 'none',
-                bgcolor: 'background.paper',
-                boxShadow: theme.palette.mode === 'dark'
-                  ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
-                  : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
-                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                '&:hover': { 
-                  transform: 'translateY(-8px)', 
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-                    : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
-                }
-              }}>
-                <CardContent sx={{ p: 3.5 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-                    <Avatar 
-                      sx={{ 
-                        bgcolor: alpha(theme.palette[stat.color as 'primary' | 'success' | 'warning' | 'error'].main, 0.1), 
-                        color: `${stat.color}.main`, 
-                        borderRadius: 4,
-                        width: 56,
-                        height: 56,
-                        boxShadow: theme.palette.mode === 'dark'
-                          ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                          : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-                      }}
-                    >
-                      {stat.icon}
-                    </Avatar>
-                    <Chip 
-                      label={stat.trend} 
-                      size="small" 
-                      sx={{ 
-                        fontWeight: 900, 
-                        borderRadius: 2, 
-                        height: 24, 
-                        bgcolor: alpha(theme.palette[stat.color as 'primary' | 'success' | 'warning' | 'error'].main, 0.1), 
-                        color: `${stat.color}.main`,
-                        border: 'none'
-                      }} 
-                    />
-                  </Box>
-                  <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5, letterSpacing: -1 }}>{stat.value}</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.75rem' }}>{stat.title}</Typography>
-                  <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 1.5, fontWeight: 700 }}>{stat.subtitle}</Typography>
-                </CardContent>
-              </Card>
+              <SummaryCard {...stat} />
             </motion.div>
           </Grid>
         ))}
@@ -277,12 +406,11 @@ export default function PaymentsSummary() {
         <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid size={{ xs: 12, lg: 8 }}>
           <Card sx={{ 
-            borderRadius: 7, 
-            border: 'none',
+            borderRadius: 6, 
+            border: '1px solid',
+            borderColor: 'divider',
             bgcolor: 'background.paper',
-            boxShadow: theme.palette.mode === 'dark'
-              ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-              : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
           }}>
             <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
               <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -0.5 }}>Collection Trend</Typography>
@@ -335,12 +463,11 @@ export default function PaymentsSummary() {
 
         <Grid size={{ xs: 12, lg: 4 }}>
           <Card sx={{ 
-            borderRadius: 7, 
-            border: 'none',
+            borderRadius: 6, 
+            border: '1px solid',
+            borderColor: 'divider',
             bgcolor: 'background.paper',
-            boxShadow: theme.palette.mode === 'dark'
-              ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-              : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
             height: '100%'
           }}>
             <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -377,13 +504,13 @@ export default function PaymentsSummary() {
                   </PieChart>
                 </ResponsiveContainer>
               </Box>
-              <Box sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 4 }}>
+              <Box sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 3 }}>
                 <Stack direction="row" spacing={2} alignItems="center">
                   <Box sx={{ p: 1, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.1) : 'white' }}>
                     <Sparkles size={20} color={theme.palette.primary.main} />
                   </Box>
                   <Typography variant="caption" sx={{ fontWeight: 700, lineHeight: 1.4 }}>
-                    Digital payments (UPI/Card) account for 65% of total collections this month.
+                    Digital payments (UPI/Card) account for significant collections this month.
                   </Typography>
                 </Stack>
               </Box>
@@ -395,12 +522,11 @@ export default function PaymentsSummary() {
 
       {/* Filters & Table */}
       <Card sx={{ 
-        borderRadius: 7, 
-        border: 'none',
+        borderRadius: 6, 
+        border: '1px solid',
+        borderColor: 'divider',
         bgcolor: 'background.paper',
-        boxShadow: theme.palette.mode === 'dark'
-          ? '16px 16px 32px #060a12, -16px -16px 32px #182442'
-          : '16px 16px 32px #d1d9e6, -16px -16px 32px #ffffff',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
       }}>
         <Box sx={{ 
           p: 3, 
@@ -416,16 +542,14 @@ export default function PaymentsSummary() {
                 sx={{ 
                   display: 'flex', 
                   alignItems: 'center', 
-                  px: 2.5, 
-                  borderRadius: 4, 
-                  border: 'none',
+                  px: 2, 
+                  borderRadius: 3, 
+                  border: '1px solid',
+                  borderColor: 'divider',
                   bgcolor: 'background.default',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                    : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
                 }}
               >
-                <Search size={20} style={{ marginRight: 10, color: theme.palette.text.secondary }} />
+                <Search size={18} style={{ marginRight: 10, color: theme.palette.text.secondary }} />
                 <Box 
                   component="input"
                   placeholder="Search student or receipt number..."
@@ -434,12 +558,12 @@ export default function PaymentsSummary() {
                   sx={{ 
                     border: 'none', 
                     outline: 'none', 
-                    py: 1.5, 
+                    py: 1.2, 
                     width: '100%', 
-                    fontWeight: 700,
+                    fontWeight: 600,
                     bgcolor: 'transparent',
                     color: 'text.primary',
-                    fontSize: '0.95rem',
+                    fontSize: '0.9rem',
                     '&::placeholder': { color: 'text.disabled' }
                   }} 
                 />
@@ -453,13 +577,9 @@ export default function PaymentsSummary() {
                   label="Fee Category" 
                   onChange={(e) => setFilterFeeHead(e.target.value)}
                   sx={{ 
-                    borderRadius: 4, 
+                    borderRadius: 3, 
                     bgcolor: 'background.default',
-                    '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                    fontWeight: 800,
-                    boxShadow: theme.palette.mode === 'dark'
-                      ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                      : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                    fontWeight: 700,
                   }}
                 >
                   <MenuItem value="All" sx={{ fontWeight: 700 }}>All Categories</MenuItem>
@@ -478,13 +598,9 @@ export default function PaymentsSummary() {
                   label="Payment Method" 
                   onChange={(e) => setFilterMode(e.target.value)}
                   sx={{ 
-                    borderRadius: 4, 
+                    borderRadius: 3, 
                     bgcolor: 'background.default',
-                    '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                    fontWeight: 800,
-                    boxShadow: theme.palette.mode === 'dark'
-                      ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                      : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                    fontWeight: 700,
                   }}
                 >
                   <MenuItem value="All" sx={{ fontWeight: 700 }}>All Methods</MenuItem>
@@ -504,6 +620,13 @@ export default function PaymentsSummary() {
           <Table>
             <TableHead>
               <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.50' }}>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    indeterminate={selectedReceipts.length > 0 && selectedReceipts.length < filteredReceipts.length}
+                    checked={filteredReceipts.length > 0 && selectedReceipts.length === filteredReceipts.length}
+                    onChange={handleSelectAll}
+                  />
+                </TableCell>
                 <TableCell sx={{ fontWeight: 800, py: 2.5 }}>Receipt Number</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Student</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>Class Level</TableCell>
@@ -516,18 +639,29 @@ export default function PaymentsSummary() {
             </TableHead>
             <TableBody>
               <AnimatePresence mode="popLayout">
-                {filteredReceipts.map((r) => (
-                  <TableRow 
-                    component={motion.tr}
-                    layout
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    key={r.id} 
-                    hover
-                    sx={{ transition: 'all 0.2s' }}
-                  >
-                    <TableCell>
+                {filteredReceipts.map((r) => {
+                  const isItemSelected = selectedReceipts.includes(r.id!);
+                  return (
+                    <TableRow 
+                      component={motion.tr}
+                      layout
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      key={r.id} 
+                      hover
+                      selected={isItemSelected}
+                      onClick={() => handleSelectOne(r.id!)}
+                      sx={{ transition: 'all 0.2s', cursor: 'pointer' }}
+                    >
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          checked={isItemSelected}
+                          onChange={() => handleSelectOne(r.id!)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </TableCell>
+                      <TableCell>
                       <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main' }}>
                         {r.receiptNo}
                       </Typography>
@@ -547,7 +681,7 @@ export default function PaymentsSummary() {
                       <Chip label={r.feeHead} size="small" sx={{ fontWeight: 700, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.100' }} />
                     </TableCell>
                     <TableCell>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>₹{r.amount.toLocaleString()}</Typography>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Rs.{r.amount.toLocaleString()}</Typography>
                     </TableCell>
                     <TableCell>
                       <Chip label={r.paymentMode} size="small" variant="outlined" sx={{ fontWeight: 800, borderRadius: 2 }} />
@@ -559,18 +693,19 @@ export default function PaymentsSummary() {
                     </TableCell>
                     <TableCell align="center">
                       <Chip 
-                        label={r.status.toUpperCase()} 
+                        label={(r.status || 'pending').toUpperCase()} 
                         size="small" 
                         color={r.status === 'approved' ? 'success' : r.status === 'pending' ? 'warning' : 'error'} 
                         sx={{ fontWeight: 900, fontSize: '0.65rem', height: 24, borderRadius: 1.5 }}
                       />
                     </TableCell>
-                  </TableRow>
-                ))}
+                    </TableRow>
+                  );
+                })}
               </AnimatePresence>
               {filteredReceipts.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 10 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 10 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <FileText size={48} color={theme.palette.divider} style={{ marginBottom: 16 }} />
                       <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 700 }}>No records found matching your filters.</Typography>
@@ -592,36 +727,61 @@ function SummaryCard({ title, value, icon, color, subtitle, trend }: any) {
   
   return (
     <Card sx={{ 
-      borderRadius: 5, 
+      borderRadius: 6, 
       border: '1px solid', 
       borderColor: 'divider',
       height: '100%',
       transition: 'all 0.3s ease',
-      '&:hover': { transform: 'translateY(-5px)', boxShadow: '0 12px 30px rgba(0,0,0,0.08)' }
+      boxShadow: '0 1px 4px rgba(0,0,0,0.01)',
+      '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }
     }}>
-      <CardContent sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2.5 }}>
+      <CardContent sx={{ p: 2.2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
           <Avatar 
             sx={{ 
-              bgcolor: alpha(mainColor, 0.1), 
+              bgcolor: alpha(mainColor, 0.08), 
               color: mainColor, 
-              borderRadius: 3,
-              width: 52,
-              height: 52
+              borderRadius: 2.5,
+              width: 44,
+              height: 44
             }}
           >
             {icon}
           </Avatar>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: mainColor }}>
-            <Typography variant="caption" sx={{ fontWeight: 900 }}>{trend}</Typography>
-            <ArrowUpRight size={14} />
-          </Box>
+          <Chip 
+            label={trend} 
+            size="small" 
+            sx={{ 
+              fontWeight: 800, 
+              borderRadius: 1.5, 
+              height: 20, 
+              bgcolor: alpha(mainColor, 0.1), 
+              color: mainColor,
+              border: 'none',
+              fontSize: '0.6rem',
+              fontFamily: 'var(--font-heading)'
+            }} 
+          />
         </Box>
-        <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5 }}>{value}</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{title}</Typography>
-        <Typography variant="caption" color="text.disabled" sx={{ mt: 1, display: 'block', fontWeight: 700 }}>
-          {subtitle}
-        </Typography>
+        <Typography variant="h5" sx={{ 
+          fontWeight: 800, 
+          mb: 0.2, 
+          letterSpacing: -0.5,
+          fontFamily: 'var(--font-heading)'
+        }}>{value}</Typography>
+        <Typography 
+          variant="body2" 
+          color="text.secondary" 
+          sx={{ 
+            fontWeight: 800, 
+            textTransform: 'uppercase', 
+            letterSpacing: 0.8, 
+            fontSize: '0.65rem',
+            fontFamily: 'var(--font-heading)',
+            opacity: 0.8
+          }}
+        >{title}</Typography>
+        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 1, fontWeight: 700, fontSize: '0.6rem' }}>{subtitle}</Typography>
       </CardContent>
     </Card>
   );

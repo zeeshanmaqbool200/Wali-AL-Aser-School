@@ -10,7 +10,7 @@ import {
   Settings, CreditCard, Bell, LogOut, ChevronLeft, 
   ChevronRight, GraduationCap, ClipboardList, MessageSquare,
   Award, BarChart2, FileText, BarChart3, ClipboardCheck,
-  DollarSign, Terminal
+  IndianRupee, Terminal
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserRole } from '../types';
@@ -26,7 +26,7 @@ interface SidebarProps {
   logoUrl?: string;
 }
 
-export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifications = 0, instituteName = 'WALI UL ASER INSTITUTE', logoUrl = 'https://idarahwaliulaser.netlify.app/img/logo.png' }: SidebarProps) {
+export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifications = 0, instituteName = 'WALI UL ASER INSTITUTE', logoUrl = 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png' }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -35,8 +35,9 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
     { label: 'Dashboard', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: 'Students', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'manager'] },
     { label: 'Courses', icon: <BookOpen size={22} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: role === 'student' ? 'My Payments' : 'Fees & Payments', icon: <DollarSign size={22} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: role === 'student' ? 'My Payments' : 'Fees & Payments', icon: <IndianRupee size={22} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: 'Attendance', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['teacher', 'manager', 'superadmin'] },
+    { label: 'Expenses', icon: <CreditCard size={22} />, path: '/expenses', roles: ['superadmin', 'manager'] },
     { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['superadmin'] },
     { label: 'Notifications', icon: <Badge badgeContent={unreadNotifications} color="error"><Bell size={22} /></Badge>, path: '/notifications', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: 'System Logs', icon: <Terminal size={22} />, path: '/admin/logs', roles: ['superadmin'] },

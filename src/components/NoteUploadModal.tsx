@@ -72,9 +72,18 @@ export default function NoteUploadModal({ open, onClose, onSubmit }: NoteUploadM
                   label="Class Level"
                   startAdornment={<Users size={18} style={{ marginRight: 12, color: '#666' }} />}
                 >
-                  <MenuItem value="Level 1">Level 1</MenuItem>
-                  <MenuItem value="Level 2">Level 2</MenuItem>
-                  <MenuItem value="Level 3">Level 3</MenuItem>
+                  <MenuItem value="Mubtadi">Mubtadi</MenuItem>
+                  <MenuItem value="Awal">Awal</MenuItem>
+                  <MenuItem value="Doum">Doum</MenuItem>
+                  <MenuItem value="Soum">Soum</MenuItem>
+                  <MenuItem value="Chaharm">Chaharm</MenuItem>
+                  <MenuItem value="Panjum">Panjum</MenuItem>
+                  <MenuItem value="Shasham">Shasham</MenuItem>
+                  <MenuItem value="Haftum">Haftum</MenuItem>
+                  <MenuItem value="Hashtum">Hashtum</MenuItem>
+                  <MenuItem value="Nahum">Nahum</MenuItem>
+                  <MenuItem value="Dahum">Dahum</MenuItem>
+                  <MenuItem value="Hafiz">Hafiz</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

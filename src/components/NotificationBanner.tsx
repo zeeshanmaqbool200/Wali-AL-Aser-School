@@ -44,7 +44,7 @@ export default function NotificationBanner() {
   };
 
   return (
-    <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 3000, pointerEvents: 'none' }}>
+    <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 20000, pointerEvents: 'none' }}>
       <AnimatePresence>
         {showPrompt && (
           <motion.div

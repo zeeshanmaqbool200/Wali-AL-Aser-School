@@ -1,5 +1,5 @@
 export type UserRole = 'student' | 'superadmin' | 'manager' | 'teacher' | 'pending_teacher';
-export type ClassLevel = 'Level 1' | 'Level 2' | 'Level 3' | 'Level 4' | 'Level 5' | 'Level 6' | 'Level 7' | 'Level 8' | 'Level 9' | 'Level 10' | 'Hafiz' | 'Manager [m]' | 'Manager [f]';
+export type ClassLevel = 'Mubtadi' | 'Awal' | 'Doum' | 'Soum' | 'Chaharm' | 'Panjum' | 'Shasham' | 'Haftum' | 'Hashtum' | 'Nahum' | 'Dahum' | 'Hafiz' | 'Manager [m]' | 'Manager [f]';
 
 export interface UserProfile {
   uid: string;

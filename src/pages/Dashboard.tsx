@@ -13,17 +13,19 @@ import {
   Check, X, Plus, ArrowRight, TrendingUp, Clock, 
   AlertCircle, Send, FileText, ClipboardList, UserCheck,
   MoreVertical, ExternalLink, Phone, MessageCircle, MessageSquare,
-  UserPlus, BarChart3, User, GraduationCap, Award, Book, CheckCircle, XCircle
+  UserPlus, BarChart3, User, GraduationCap, Award, Book, CheckCircle, XCircle,
+  Wallet, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 import { collection, query, onSnapshot, orderBy, where, limit, updateDoc, doc, getDocs, arrayUnion, or, and, getDoc } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { UserProfile, FeeReceipt, Notification as NotificationType, Course, InstituteSettings } from '../types';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 
 import { logger } from '../lib/logger';
+import { useAuth } from '../context/AuthContext';
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 
 interface DashboardProps {
@@ -31,6 +33,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ user }: DashboardProps) {
+  const { instituteSettings } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
@@ -50,14 +53,39 @@ export default function Dashboard({ user }: DashboardProps) {
     };
   });
   const [jafariDate, setJafariDate] = useState<string>('');
+  const [quote, setQuote] = useState('');
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  const quotes = [
+    "Knowledge is a treasure, but practice is the key to it. — Imam Ali (AS)",
+    "The most complete gift of God is a life based on knowledge. — Imam Ali (AS)",
+    "Patience is to victory what the head is to the body. — Imam Ali (AS)",
+    "Be like a flower that gives its fragrance even to the hand that crushes it. — Imam Ali (AS)",
+    "Seek knowledge from the cradle to the grave. — Prophet Muhammad (SAWW)",
+    "A person who knows himself knows his Lord. — Imam Ali (AS)",
+    "Silence is the best reply to a fool. — Imam Ali (AS)",
+    "The best wealth is the abandonment of desires. — Imam Ali (AS)"
+  ];
+
+  useEffect(() => {
+    setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [recentNotifications, setRecentNotifications] = useState<NotificationType[]>([]);
   const [pendingReceipts, setPendingReceipts] = useState<FeeReceipt[]>([]);
   const [pendingStudents, setPendingStudents] = useState<UserProfile[]>([]);
   const [staffMembers, setStaffMembers] = useState<UserProfile[]>([]);
-  const [instituteData, setInstituteData] = useState<Partial<InstituteSettings>>({
+  const [instituteData, setInstituteData] = useState<Partial<InstituteSettings>>(instituteSettings || {
     instituteName: 'Wali Ul Aser Institute',
     tagline: 'Simple Learning for Everyone'
   });
+
+  useEffect(() => {
+    if (instituteSettings) {
+      setInstituteData(instituteSettings);
+    }
+  }, [instituteSettings]);
 
   const isSuperAdmin = user.email?.toLowerCase() === 'zeeshanmaqbool200@gmail.com' || user.uid === 'sZUiAgoSF8MTPBQAOtj6jbFkot93';
   const role = user.role || 'student';
@@ -77,129 +105,127 @@ export default function Dashboard({ user }: DashboardProps) {
   const [selectedTeacher, setSelectedTeacher] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    let unsubscribeNotifs = () => {};
-    let unsubscribeReceipts = () => {};
-    let unsubscribeStudents = () => {};
-    let unsubscribeEvents = () => {};
-    let unsubscribeStudentsCount = () => {};
-    let unsubscribePendingFees = () => {};
-    let unsubscribeApprovedFees = () => {};
-    let unsubscribeAttendance = () => {};
-    let unsubscribeUserAttendance = () => {};
-    let unsubscribeStudentCourses = () => {};
-    let unsubscribeStaff = () => {};
-    let unsubscribeRecentAdmissions = () => {};
+    let isMounted = true;
+    const unsubscribes: (() => void)[] = [];
+
+    // Real-time listener for institute settings to ensure branding photo is always up to date
+    unsubscribes.push(onSnapshot(doc(db, 'settings', 'institute'), (docSnap) => {
+      if (docSnap.exists() && isMounted) {
+        setInstituteData(docSnap.data());
+      }
+    }));
 
     const fetchData = async () => {
       try {
-        // Only show full loading if we haven't loaded before
-        if (!(window as any)._dashboardLoaded) {
-          setLoading(true);
-        }
+        let offset = instituteSettings?.jafariOffset || 0;
 
-        // Fetch Institute Settings for the banner and Jafari offset
-        const instDoc = await getDoc(doc(db, 'settings', 'institute'));
-        let offset = 0;
-          if (instDoc.exists()) {
-            const instData = instDoc.data() as any;
-            setInstituteData({
-              instituteName: instData.instituteName || 'Institute Name',
-              tagline: instData.tagline || 'Education for Excellence',
-              bannerUrl: instData.bannerUrl || ''
-            });
-            offset = instData.jafariOffset || 0;
-          }
-
-        // Fetch Jafari Date with offset adjustment
         try {
           const adjustedDate = new Date();
           if (offset !== 0) {
             adjustedDate.setDate(adjustedDate.getDate() + offset);
-            console.log('Adjusting Jafari date with offset:', offset, 'Resulting Date:', adjustedDate);
           }
           const dateStr = format(adjustedDate, 'dd-MM-yyyy');
-          // Fetch Jafari Date (Method 8 is for Jafari/Ithna Ashari)
           const response = await fetch(`https://api.aladhan.com/v1/gToH/${dateStr}?method=8`); 
           const jDate = await response.json();
-          if (jDate?.data?.hijri) {
+          if (isMounted && jDate?.data?.hijri) {
             const h = jDate.data.hijri;
             setJafariDate(`${h.day} ${h.month.en} ${h.year} AH`);
-            console.log('Fetched Jafari Date:', `${h.day} ${h.month.en} ${h.year} AH`);
           }
         } catch (e) {
           console.error('Failed to fetch Jafari date', e);
         }
 
-        // Sequence listeners with small delays to avoid request bursts
-        const initSequentially = async () => {
-          // 1. Core user stats
-          if (isStaff) {
-            const studentsQuery = isAdmin 
-              ? query(collection(db, 'users'), where('role', '==', 'student'))
-              : query(collection(db, 'users'), and(
-                  where('role', '==', 'student'), 
-                  or(
-                    where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']),
-                    where('classLevel', '==', 'Example'),
-                    where('classLevel', '==', 'Example')
-                  )
-                ));
-              
-            unsubscribeStudentsCount = onSnapshot(studentsQuery, (studentsSnap) => {
-              setStats(prev => {
-                const newState = { ...prev, totalStudents: studentsSnap.size };
-                localStorage.setItem(`dashboard_stats_${user.uid}`, JSON.stringify(newState));
-                return newState;
-              });
-            });
+        if (!isMounted) return;
 
-            if (isAdmin) {
-              unsubscribePendingFees = onSnapshot(query(collection(db, 'receipts'), where('status', '==', 'pending')), (snap) => {
-                setStats(prev => ({ ...prev, pendingFees: snap.size }));
-              });
+        // Sequence listeners
+        if (isStaff) {
+          const studentsQuery = isAdmin 
+            ? query(collection(db, 'users'), where('role', '==', 'student'))
+            : query(collection(db, 'users'), and(
+                where('role', '==', 'student'), 
+                or(
+                  where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']),
+                  where('classLevel', '==', 'Example')
+                )
+              ));
+            
+          unsubscribes.push(onSnapshot(studentsQuery, (studentsSnap) => {
+            if (!isMounted) return;
+            setStats(prev => ({ ...prev, totalStudents: studentsSnap.size }));
+          }));
 
+          if (isAdmin) {
+            unsubscribes.push(onSnapshot(query(collection(db, 'receipts'), where('status', '==', 'pending')), (snap) => {
+              if (!isMounted) return;
+              setStats(prev => ({ ...prev, pendingFees: snap.size }));
+            }));
+
+            unsubscribes.push(onSnapshot(query(collection(db, 'receipts'), where('status', '==', 'approved')), (snap) => {
+              if (!isMounted) return;
               const currentMonthStart = format(new Date(), 'yyyy-MM-01');
-              unsubscribeApprovedFees = onSnapshot(query(
-                collection(db, 'receipts'), 
-                where('status', '==', 'approved'),
-                where('date', '>=', currentMonthStart)
-              ), (snap) => {
-                const amount = snap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
-                setStats(prev => ({ ...prev, totalFeesMonth: amount }));
-              });
-            }
+              const receipts = snap.docs.map(doc => doc.data());
+              const totalAllTime = receipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+              const monthAmount = receipts.filter(r => r.date >= currentMonthStart).reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+              setStats(prev => ({ ...prev, totalFeesMonth: monthAmount, totalFeesAllTime: totalAllTime }));
+            }));
 
-            const todayAttendanceQuery = isAdmin 
-              ? query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present'))
-              : query(
-                  collection(db, 'attendance'), 
-                  where('date', '==', format(new Date(), 'yyyy-MM-dd')), 
-                  where('status', '==', 'present'),
-                  where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__'])
-                );
-                
-            unsubscribeAttendance = onSnapshot(todayAttendanceQuery, (snap) => {
-              setStats(prev => ({ ...prev, todayAttendance: snap.size }));
-            });
-          } else {
-            unsubscribeUserAttendance = onSnapshot(query(collection(db, 'attendance'), where('studentId', '==', user.uid)), (snap) => {
-              const totalAt = snap.docs.length;
-              const presentAt = snap.docs.filter(d => d.data().status === 'present').length;
-              const attendanceRate = totalAt > 0 ? Math.round((presentAt / totalAt) * 100) : 0;
-              setStats(prev => ({ ...prev, attendanceRate }));
-            });
-
-            unsubscribeStudentCourses = onSnapshot(query(collection(db, 'courses'), where('isPublished', '==', true), limit(3)), (snap) => {
-              setStats(prev => ({ ...prev, availableCourses: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
-            });
+            unsubscribes.push(onSnapshot(collection(db, 'expenses'), (snap) => {
+              if (!isMounted) return;
+              const exps = snap.docs.map(doc => doc.data());
+              const totalDebit = exps.filter(e => e.type === 'debit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+              const totalCredit = exps.filter(e => e.type === 'credit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+              setStats(prev => ({ ...prev, totalExpenses: totalDebit, totalCredits: totalCredit }));
+            }));
           }
 
-          // 2. Notifications & Staff
-          let notifQuery;
-          if (isStaff) {
-            notifQuery = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(10));
-          } else {
-            notifQuery = query(
+          unsubscribes.push(onSnapshot(isAdmin 
+            ? query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present'))
+            : query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present'), where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__'])), 
+            (snap) => {
+              if (!isMounted) return;
+              setStats(prev => ({ ...prev, todayAttendance: snap.size }));
+            }
+          ));
+        } else {
+          unsubscribes.push(onSnapshot(query(collection(db, 'attendance'), where('studentId', '==', user.uid)), (snap) => {
+            if (!isMounted) return;
+            const totalAt = snap.docs.length;
+            const presentAt = snap.docs.filter(d => d.data().status === 'present').length;
+            setStats(prev => ({ ...prev, attendanceRate: totalAt > 0 ? Math.round((presentAt / totalAt) * 100) : 0 }));
+          }));
+        }
+
+        // 2. Trend Data for Admin
+        if (isAdmin) {
+          const last7Days = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            return format(d, 'yyyy-MM-dd');
+          }).reverse();
+
+          const qTrend = query(
+            collection(db, 'receipts'), 
+            where('status', '==', 'approved'),
+            where('date', '>=', last7Days[0])
+          );
+
+          unsubscribes.push(onSnapshot(qTrend, (snap) => {
+            if (!isMounted) return;
+            const receipts = snap.docs.map(doc => doc.data());
+            const trend = last7Days.map(day => {
+              const dayAmount = receipts
+                .filter(r => r.date === day)
+                .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+              return { name: format(new Date(day), 'EEE'), value: dayAmount };
+            });
+            setCollectionTrendData(trend);
+          }));
+        }
+
+        // 3. Notifications
+        const notifQuery = isStaff 
+          ? query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(10))
+          : query(
               collection(db, 'notifications'), 
               or(
                 where('targetType', '==', 'all'),
@@ -209,138 +235,77 @@ export default function Dashboard({ user }: DashboardProps) {
               orderBy('createdAt', 'desc'), 
               limit(10)
             );
-          }
-          
-          unsubscribeNotifs = onSnapshot(notifQuery, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
-            setRecentNotifications(data);
-          });
+        
+        unsubscribes.push(onSnapshot(notifQuery, (snapshot) => {
+          if (!isMounted) return;
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
+          setRecentNotifications(data);
+        }));
 
-          // 3. Events & Staff - Hide if expired (more than 1 day old)
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const yesterdayLimit = new Date(today);
-          yesterdayLimit.setDate(yesterdayLimit.getDate() - 1);
-          const yesterdayStr = format(yesterdayLimit, 'yyyy-MM-dd');
+        // 4. Events
+        const todayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+        unsubscribes.push(onSnapshot(query(collection(db, 'events'), where('date', '>=', todayStr), orderBy('date', 'asc'), limit(10)), (snapshot) => {
+          if (!isMounted) return;
+          const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setUpcomingEvents(allEvents);
+        }));
 
-          unsubscribeEvents = onSnapshot(query(collection(db, 'events'), where('date', '>=', yesterdayStr), orderBy('date', 'asc'), limit(10)), (snapshot) => {
-            const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            // Secondary client-side filter to be absolutely sure about "1 day expiry"
-            const filtered = allEvents.filter((e: any) => {
-              const eventDate = new Date(e.date);
-              eventDate.setHours(23, 59, 59, 999); // Allow it to stay for 24 hours of that day
-              return eventDate >= yesterdayLimit;
-            });
-            setUpcomingEvents(filtered);
-          });
+        // 5. Staff & Admissions
+        if (isStaff) {
+          unsubscribes.push(onSnapshot(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(50)), (snap) => {
+            if (!isMounted) return;
+            const allUsers = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+            let admissions = allUsers.filter((u: any) => u.role === 'student');
+            if (!isAdmin) {
+              const classes = user.assignedClasses || [];
+              admissions = admissions.filter((u: any) => classes.includes(u.classLevel) || u.classLevel === 'Example');
+            }
+            setStats(prev => ({ ...prev, recentAdmissions: admissions.slice(0, 5) }));
+          }));
 
-          // Fetch recent admissions for staff - simplified to avoid index requirement
-          if (isStaff) {
-            // Fetch last 50 users (to ensure we find students in staff's classes)
-            const recentQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(50));
-            unsubscribeRecentAdmissions = onSnapshot(recentQuery, (snap) => {
-              const allUsers = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
-              let admissions = allUsers.filter((u: any) => u.role === 'student');
-              
-              if (!isAdmin) {
-                // Filter for Teacher specific classes
-                const classes = user.assignedClasses || [];
-                admissions = admissions.filter((u: any) => 
-                  classes.includes(u.classLevel) || u.classLevel === 'Example'
-                );
-              }
-              
-              const finalAdmissions = admissions.slice(0, 5);
-              setStats(prev => {
-                const newState = { ...prev, recentAdmissions: finalAdmissions };
-                localStorage.setItem(`dashboard_stats_${user.uid}`, JSON.stringify(newState));
-                return newState;
-              });
-            }, (err) => {
-              console.error("Recent admissions snapshot error:", err);
-            });
-          }
-
-    const staffQuery = query(collection(db, 'users'), where('role', 'in', ['teacher', 'manager', 'superadmin']));
-          unsubscribeStaff = onSnapshot(staffQuery, (snap) => {
+          unsubscribes.push(onSnapshot(query(collection(db, 'users'), where('role', 'in', ['teacher', 'manager', 'superadmin'])), (snap) => {
+            if (!isMounted) return;
             setStaffMembers(snap.docs.map(d => ({ uid: d.id, ...d.data() })) as UserProfile[]);
             setLoading(false);
             (window as any)._dashboardLoaded = true;
-          });
+          }));
+        }
 
-          // Fetch recent published lessons (Subjects)
-          const lessonsQuery = query(collection(db, 'courses'), where('isPublished', '==', true), orderBy('createdAt', 'desc'), limit(6));
-          const lessonsSnap = await getDocs(lessonsQuery);
+        // 6. Lessons & Queues
+        const lessonsSnap = await getDocs(query(collection(db, 'courses'), where('isPublished', '==', true), orderBy('createdAt', 'desc'), limit(6)));
+        if (isMounted) {
           setStats(prev => ({ ...prev, availableCourses: lessonsSnap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+        }
 
-          // 4. Background task Queues for Staff
-          if (isStaff) {
-            let receiptsQuery;
-            if (isAdmin) {
-              receiptsQuery = query(collection(db, 'receipts'), where('status', '==', 'pending'), limit(5));
-            } else {
-              receiptsQuery = query(
-                collection(db, 'receipts'), 
-                and(
-                  where('status', '==', 'pending'), 
-                  or(
-                    where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']),
-                    where('classLevel', '==', 'Example')
-                  )
-                ),
-                limit(5)
-              );
-            }
-            
-            unsubscribeReceipts = onSnapshot(receiptsQuery, (snapshot) => {
-              setPendingReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
-            });
+        if (isStaff) {
+          const receiptsQuery = isAdmin 
+            ? query(collection(db, 'receipts'), where('status', '==', 'pending'), limit(5))
+            : query(collection(db, 'receipts'), and(where('status', '==', 'pending'), or(where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']), where('classLevel', '==', 'Example'))), limit(5));
+          
+          unsubscribes.push(onSnapshot(receiptsQuery, (snapshot) => {
+            if (!isMounted) return;
+            setPendingReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
+          }));
 
-            let pendingQuery;
-            if (isAdmin) {
-              pendingQuery = query(collection(db, 'users'), where('pendingClassLevel', '!=', null));
-            } else {
-              pendingQuery = query(
-                collection(db, 'users'), 
-                and(
-                  where('pendingClassLevel', '!=', null),
-                  or(
-                    where('pendingClassLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']),
-                    where('pendingClassLevel', '==', 'Example')
-                  )
-                )
-              );
-            }
-            
-            unsubscribeStudents = onSnapshot(pendingQuery, (snapshot) => {
-              setPendingStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
-            });
-          }
-        };
-
-        initSequentially();
+          const pendingQuery = isAdmin 
+            ? query(collection(db, 'users'), where('pendingClassLevel', '!=', null))
+            : query(collection(db, 'users'), and(where('pendingClassLevel', '!=', null), or(where('pendingClassLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']), where('pendingClassLevel', '==', 'Example'))));
+          
+          unsubscribes.push(onSnapshot(pendingQuery, (snapshot) => {
+            if (!isMounted) return;
+            setPendingStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
+          }));
+        }
       } catch (error) {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    if (user?.uid) {
-      fetchData();
-    }
+    fetchData();
 
     return () => {
-      unsubscribeNotifs();
-      unsubscribeReceipts();
-      unsubscribeStudents();
-      unsubscribeEvents();
-      unsubscribeStudentsCount();
-      unsubscribePendingFees();
-      unsubscribeApprovedFees();
-      unsubscribeAttendance();
-      unsubscribeUserAttendance();
-      unsubscribeStudentCourses();
-      unsubscribeStaff();
-      unsubscribeRecentAdmissions();
+      isMounted = false;
+      unsubscribes.forEach(unsub => unsub());
     };
   }, [user?.uid, isStaff, isAdmin]);
 
@@ -455,192 +420,279 @@ export default function Dashboard({ user }: DashboardProps) {
       <Box 
         sx={{ 
           position: 'relative',
-          borderRadius: { xs: 0, md: 8 },
+          borderRadius: { xs: 8, md: 32 }, // Significantly rounded corners
           overflow: 'hidden',
-          mb: 6,
-          minHeight: { xs: '65vh', md: '550px' },
+          mb: 4,
+          minHeight: { xs: '40vh', md: '440px' }, // Increased height by 100px
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
           textAlign: 'center',
-          p: { xs: 4, md: 10 },
-          bgcolor: 'black',
-          backgroundImage: instituteData.bannerUrl 
-            ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.7)), url(${instituteData.bannerUrl})` 
-            : 'radial-gradient(circle at center, #0f766e 0%, #000 100%)',
+          p: { xs: 3, md: 5 },
+          pt: { xs: 10, md: 5 },
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
-          borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`
+          backgroundRepeat: 'no-repeat',
+          backgroundImage: instituteData.bannerUrl 
+            ? `url(${instituteData.bannerUrl})` 
+            : 'linear-gradient(135deg, #0f172a 0%, #032d29 100%)',
+          backgroundClip: 'padding-box', 
+          boxShadow: theme.palette.mode === 'dark' 
+            ? '0 30px 60px rgba(0,0,0,0.8)' 
+            : '0 20px 50px rgba(13, 148, 136, 0.2)',
+          border: `1px solid ${alpha(theme.palette.primary.main, 0.25)}`,
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            inset: 0, 
+            background: 'linear-gradient(rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.7) 100%)',
+            zIndex: 1,
+            borderRadius: 'inherit'
+          },
+          mx: { xs: 0, md: 0 }
         }}
       >
-        <motion.div
-          initial={{ y: 30, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 1, ease: 'easeOut' }}
-          style={{ width: '100%', maxWidth: '1000px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
-        >
-          {jafariDate && (
-             <Chip 
-              icon={<Clock size={16} />}
-              label={jafariDate} 
+        {/* Institute Logo in Hero - Positioned top-left with better visibility and green mark background */}
+        {instituteData.logoUrl && (
+          <motion.div
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            style={{ 
+              position: 'absolute', 
+              top: isMobile ? '12px' : '40px', 
+              left: isMobile ? '12px' : '40px', 
+              zIndex: 30 
+            }}
+          >
+            {/* Green Mark Ornament */}
+            <Box sx={{
+              position: 'absolute',
+              inset: { xs: -8, md: -12 },
+              borderRadius: '50%',
+              bgcolor: alpha('#0d9488', 0.2),
+              backdropFilter: 'blur(10px)',
+              border: `1px solid ${alpha('#0d9488', 0.3)}`,
+              zIndex: -1,
+              animation: 'pulse 3s infinite'
+            }} />
+
+            <Box 
               sx={{ 
-                mb: 4, 
-                bgcolor: alpha(theme.palette.primary.main, 0.25), 
-                color: 'primary.light', 
-                fontWeight: 950,
-                fontSize: { xs: '0.85rem', md: '1.1rem' },
-                backdropFilter: 'blur(20px)',
-                border: `1.5px solid ${alpha(theme.palette.primary.main, 0.6)}`,
-                px: 2.5,
-                py: 2.8,
-                boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.2)}`,
-                '& .MuiChip-icon': { color: 'inherit' }
-              }} 
-            />
-          )}
-          <Typography 
-            variant={isMobile ? "h3" : "h2"} 
+                width: { xs: 50, md: 90 }, 
+                height: { xs: 50, md: 90 }, 
+                bgcolor: 'white', 
+                borderRadius: { xs: '16px', md: '24px' }, 
+                p: isMobile ? 1 : 1.5,
+                boxShadow: '0 15px 45px rgba(0,0,0,0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '2px solid',
+                borderColor: '#0d9488',
+                position: 'relative'
+              }}
+            >
+              <img 
+                src={instituteData.logoUrl} 
+                alt="Logo" 
+                referrerPolicy="no-referrer"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                onError={(e: any) => {
+                  e.target.style.display = 'none';
+                  e.target.parentElement.innerHTML = '<div style="color:#0f766e"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>';
+                }}
+              />
+            </Box>
+          </motion.div>
+        )}
+
+        {/* Top Info Bar - Islamic Date Priority */}
+        <Box sx={{ 
+          position: 'absolute', 
+          top: { xs: 12, sm: 32 }, 
+          right: { xs: 12, sm: 32 },
+          display: 'flex', 
+          flexDirection: 'column',
+          alignItems: 'flex-end', 
+          gap: 1.2,
+          zIndex: 20,
+          pointerEvents: 'none'
+        }}>
+          <Stack 
+            direction="row" 
+            spacing={1.2} 
+            alignItems="center" 
             sx={{ 
-              fontFamily: 'var(--font-display)', 
+              bgcolor: 'rgba(0,0,0,0.5)', 
+              px: { xs: 1.5, md: 2.2 }, 
+              py: { xs: 0.8, md: 1.2 }, 
+              borderRadius: 100, 
+              backdropFilter: 'blur(20px)', 
+              border: '1px solid rgba(255,255,255,0.15)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+              pointerEvents: 'auto'
+            }}
+          >
+            <Calendar size={isMobile ? 12 : 16} style={{ color: theme.palette.primary.main }} />
+            <Typography variant="caption" sx={{ color: 'white', fontWeight: 900, fontSize: { xs: '0.65rem', md: '0.9rem' }, letterSpacing: 1, fontFamily: 'var(--font-sans)' }}>
+              {jafariDate ? jafariDate.toUpperCase() : 'ISLAMIC DATE'}
+            </Typography>
+          </Stack>
+        </Box>
+
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          style={{ width: '100%', maxWidth: '800px', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 5 }}
+        >
+          <Typography 
+            variant="h2" 
+            sx={{ 
+              fontFamily: 'var(--font-heading)', 
               fontWeight: 950, 
-              mb: 2, 
+              mb: 0.5, 
               color: 'primary.main', 
               textTransform: 'uppercase', 
-              letterSpacing: { xs: 2, md: 4 },
-              textShadow: '0 0 30px rgba(13, 148, 136, 0.4)',
-              lineHeight: 1.1,
-              fontSize: { xs: '2.5rem', md: '4.5rem' }
+              letterSpacing: { xs: 1.5, md: 7 },
+              textShadow: '0 8px 30px rgba(0,0,0,1)',
+              lineHeight: 1,
+              fontSize: { xs: '1.4rem', sm: '2.2rem', md: '3.5rem' }
             }}
           >
-            Greetings, {user.displayName}!
+            {instituteData.instituteName?.toUpperCase() || 'INSTITUTE DASHBOARD'}
           </Typography>
           <Typography 
-            variant={isMobile ? "h5" : "h4"} 
+            variant="h4" 
             sx={{ 
-              fontFamily: 'var(--font-display)',
-              fontWeight: 950, 
+              fontFamily: 'var(--font-serif)',
+              fontWeight: 900, 
               color: 'white', 
-              mb: 4, 
+              mb: { xs: 1.5, md: 3 }, 
+              textShadow: '0 4px 15px rgba(0,0,0,1)',
+              letterSpacing: 1,
               opacity: 1,
-              textShadow: '2px 4px 10px rgba(0,0,0,0.5)',
-              letterSpacing: 0.5
+              fontSize: { xs: '0.9rem', sm: '1.4rem', md: '1.8rem' }
             }}
           >
-            Welcome to {instituteData.instituteName || 'The Institute'}
+            Assalam-o-Alaikum, {user.displayName}
           </Typography>
+          
           <Typography 
             variant="body1" 
             sx={{ 
-              maxWidth: 850, 
+              maxWidth: { xs: '90%', md: 700 }, 
               mx: 'auto', 
-              color: 'rgba(255,255,255,1)', 
-              fontWeight: 800, 
-              mb: 10,
-              fontSize: { xs: '1.1rem', md: '1.4rem' },
-              lineHeight: 1.8,
-              textShadow: '2px 2px 10px rgba(0,0,0,0.9)',
+              color: 'white', 
+              fontWeight: 700, 
+              mb: { xs: 2, md: 4 },
+              fontSize: { xs: '0.75rem', md: '1.1rem' },
+              lineHeight: { xs: 1.5, md: 1.8 },
+              textShadow: '2px 4px 12px rgba(0,0,0,1)',
+              background: 'rgba(0,0,0,0.6)',
+              px: { xs: 2, md: 7 },
+              py: { xs: 1.5, md: 2.2 },
+              borderRadius: { xs: 4, md: 6 },
+              backdropFilter: 'blur(25px)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              fontFamily: 'var(--font-serif)',
               fontStyle: 'italic',
-              background: 'rgba(0,0,0,0.4)',
-              p: 2,
-              borderRadius: 4,
-              backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255,255,255,0.05)'
+              boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
             }}
           >
-            "{instituteData.tagline || 'Your daily guide to religious learning and growth'}"
+            {quote ? `"${quote}"` : `"${instituteData.tagline || 'Religious and Academic Excellence'}"`}
           </Typography>
           
           <Stack 
             direction={isMobile ? "column" : "row"} 
-            spacing={3} 
+            spacing={2} 
             justifyContent="center" 
-            sx={{ width: '100%', maxWidth: '750px', mx: 'auto' }}
+            sx={{ width: '100%', maxWidth: '550px', mx: 'auto' }}
           >
-            {isStaff && (
+            {isStaff ? (
               <>
                 <Button 
                   variant="contained" 
-                  size="large" 
-                  startIcon={<Users size={24} />}
+                  size="medium" 
+                  startIcon={<Users size={18} />}
                   onClick={() => navigate('/users')}
                   fullWidth={isMobile}
                   sx={{ 
-                    borderRadius: 4, 
-                    fontWeight: 950, 
-                    px: 6, 
-                    py: 2.5, 
+                    borderRadius: 2, 
+                    fontWeight: 700, 
+                    px: 4, 
+                    py: 1.2, 
                     bgcolor: 'primary.main', 
-                    fontSize: '1.1rem',
-                    boxShadow: `0 12px 30px ${alpha(theme.palette.primary.main, 0.5)}`,
-                    transition: 'all 0.3s ease',
-                    '&:hover': { bgcolor: 'primary.dark', transform: 'translateY(-4px)' } 
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-heading)',
+                    boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)',
+                    '&:hover': { bgcolor: 'primary.dark', transform: 'translateY(-1px)' } 
                   }}
                 >
-                  Manage Students
+                  Naya Talib-e-Ilm
                 </Button>
                 <Button 
                   variant="outlined" 
-                  size="large" 
-                  startIcon={<BookOpen size={24} />}
+                  size="medium" 
+                  startIcon={<BookOpen size={18} />}
                   onClick={() => navigate('/courses')}
                   fullWidth={isMobile}
                   sx={{ 
-                    borderRadius: 4, 
-                    fontWeight: 950, 
-                    px: 6, 
-                    py: 2.5, 
+                    borderRadius: 2, 
+                    fontWeight: 700, 
+                    px: 4, 
+                    py: 1.2, 
                     color: 'white', 
-                    borderColor: 'rgba(255,255,255,0.6)', 
-                    fontSize: '1.1rem',
-                    borderWidth: 2,
-                    backdropFilter: 'blur(12px)',
-                    transition: 'all 0.3s ease',
-                    '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: 'rgba(255,255,255,0.05)', transform: 'translateY(-4px)' } 
+                    borderColor: 'rgba(255,255,255,0.3)', 
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-heading)',
+                    backdropFilter: 'blur(10px)',
+                    '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: 'rgba(255,255,255,0.05)', transform: 'translateY(-1px)' } 
                   }}
                 >
-                  All Courses
+                  Sabq (Lessons)
                 </Button>
               </>
-            )}
-            {!isStaff && (
+            ) : (
               <>
                 <Button 
                   variant="contained" 
-                  size="large" 
-                  startIcon={<BookOpen size={24} />}
+                  size={isMobile ? "small" : "medium"} 
+                  startIcon={<BookOpen size={isMobile ? 14 : 18} />}
                   onClick={() => navigate('/courses')}
                   fullWidth={isMobile}
                   sx={{ 
-                    borderRadius: 4, 
-                    fontWeight: 950, 
-                    px: 8, 
-                    py: 2.5,
-                    fontSize: '1.1rem',
-                    boxShadow: `0 12px 30px ${alpha(theme.palette.primary.main, 0.4)}`,
-                    '&:hover': { transform: 'translateY(-4px)' }
+                    borderRadius: 2, 
+                    fontWeight: 800, 
+                    px: isMobile ? 3 : 5, 
+                    py: isMobile ? 1 : 1.2,
+                    fontSize: isMobile ? '0.75rem' : '0.9rem',
+                    fontFamily: 'var(--font-heading)',
+                    boxShadow: '0 4px 12px rgba(13, 148, 136, 0.25)',
+                    '&:hover': { transform: 'translateY(-1px)' }
                   }}
                 >
-                  My Lessons
+                  Sabq (Lessons)
                 </Button>
                 <Button 
                   variant="outlined" 
-                  size="large" 
-                  startIcon={<CreditCard size={24} />}
+                  size={isMobile ? "small" : "medium"} 
+                  startIcon={<CreditCard size={isMobile ? 14 : 18} />}
                   onClick={() => navigate('/fees')}
                   fullWidth={isMobile}
                   sx={{ 
-                    borderRadius: 4, 
-                    fontWeight: 950, 
-                    px: 8, 
-                    py: 2.5, 
+                    borderRadius: 2, 
+                    fontWeight: 800, 
+                    px: isMobile ? 3 : 5, 
+                    py: isMobile ? 1 : 1.2, 
                     color: 'white', 
-                    borderColor: 'rgba(255,255,255,0.6)',
-                    fontSize: '1.1rem',
-                    borderWidth: 2,
-                    backdropFilter: 'blur(12px)',
-                    '&:hover': { transform: 'translateY(-4px)', bgcolor: 'rgba(255,255,255,0.1)' }
+                    borderColor: 'rgba(255,255,255,0.3)',
+                    fontSize: isMobile ? '0.75rem' : '0.9rem',
+                    fontFamily: 'var(--font-heading)',
+                    backdropFilter: 'blur(10px)',
+                    '&:hover': { transform: 'translateY(-1px)', bgcolor: 'rgba(255,255,255,0.05)' }
                   }}
                 >
                   Fee Record
@@ -731,16 +783,16 @@ export default function Dashboard({ user }: DashboardProps) {
           {isStaff ? (
             <>
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <StatBox title="Total Students" value={stats.totalStudents} icon={<Users size={32} />} color="#3b82f6" />
+                <StatBox title="Net Balance" value={`Rs.${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0) - (stats.totalExpenses || 0)).toLocaleString()}`} icon={<Wallet size={32} />} color="#8b5cf6" />
               </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <StatBox title="Current Collections" value={`₹${stats.totalFeesMonth.toLocaleString()}`} icon={<TrendingUp size={32} />} color="#10b981" />
+              <Grid size={{ xs: 6, md: 3 }}>
+                <StatBox title="Kul Aamdani" value={`Rs.${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0)).toLocaleString()}`} icon={<ArrowUpRight size={32} />} color="#10b981" />
               </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <StatBox title="Action Required" value={stats.pendingFees} icon={<Clock size={32} />} color="#f59e0b" />
+              <Grid size={{ xs: 6, md: 3 }}>
+                <StatBox title="Expenditure" value={`Rs.${(stats.totalExpenses || 0).toLocaleString()}`} icon={<ArrowDownRight size={32} />} color="#ef4444" />
               </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <StatBox title="Present Today" value={stats.todayAttendance} icon={<UserCheck size={32} />} color="#06b6d4" />
+              <Grid size={{ xs: 6, md: 3 }}>
+                <StatBox title="Haziri Today" value={stats.todayAttendance} icon={<UserCheck size={32} />} color="#06b6d4" />
               </Grid>
             </>
           ) : (
@@ -752,13 +804,76 @@ export default function Dashboard({ user }: DashboardProps) {
                 <StatBox title="Active Lessons" value={user.subjectsEnrolled?.length || 0} icon={<BookOpen size={32} />} color="#3b82f6" subtitle="Current Topics" />
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
-                <StatBox title="My Class Level" value={user.classLevel || 'Level 1'} icon={<Check size={32} />} color="#f59e0b" subtitle="Level of Study" />
+                <StatBox title="My Class Level" value={user.classLevel || 'Mubtadi'} icon={<Check size={32} />} color="#f59e0b" subtitle="Level of Study" />
               </Grid>
             </>
           )}
 
           {/* Detailed Content */}
           <Grid size={{ xs: 12, md: 8 }}>
+            {/* Financial Overview for Admins */}
+            {isAdmin && collectionTrendData.length > 0 && (
+              <Box sx={{ mb: 6 }}>
+                <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <TrendingUp size={28} />
+                  Institutional Financial Health
+                </Typography>
+                <Paper 
+                  sx={{ 
+                    p: 4, 
+                    borderRadius: 6, 
+                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                    bgcolor: 'background.paper',
+                    boxShadow: theme.palette.mode === 'dark' ? '0 20px 40px rgba(0,0,0,0.4)' : '0 10px 30px rgba(0,0,0,0.03)'
+                  }}
+                >
+                  <Box sx={{ height: 300, width: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={collectionTrendData}>
+                        <defs>
+                          <linearGradient id="dashboardColorRev" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.divider, 0.1)} />
+                        <XAxis 
+                          dataKey="name" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fill: theme.palette.text.secondary, fontWeight: 700, fontSize: 11 }} 
+                        />
+                        <YAxis hide />
+                        <RechartsTooltip 
+                          contentStyle={{ 
+                            borderRadius: 12, 
+                            border: 'none', 
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                            fontWeight: 900,
+                            fontSize: '0.8rem'
+                          }} 
+                          formatter={(value: any) => [`${value.toLocaleString()}`, 'Amount']}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="value" 
+                          stroke={theme.palette.primary.main} 
+                          strokeWidth={4} 
+                          fillOpacity={1} 
+                          fill="url(#dashboardColorRev)" 
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </Box>
+                  <Box sx={{ mt: 3, textAlign: 'center' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 1 }}>
+                      Approved funds collected over final 7 business days
+                    </Typography>
+                  </Box>
+                </Paper>
+              </Box>
+            )}
+
              {/* Pending Actions for Staff */}
             {isStaff && (pendingReceipts.length > 0 || pendingStudents.length > 0) && (
               <Box sx={{ mb: 6 }}>
@@ -778,7 +893,7 @@ export default function Dashboard({ user }: DashboardProps) {
                         <ListItem key={receipt.id} divider sx={{ py: 2.5, px: 4 }}>
                           <ListItemText 
                             primary={`${receipt.studentName} - Fee Request`}
-                            secondary={`₹${receipt.amount} • ${format(new Date(receipt.date), 'MMMM yyyy')}`}
+                            secondary={`Rs.${receipt.amount} • ${format(new Date(receipt.date), 'MMMM yyyy')}`}
                             primaryTypographyProps={{ fontWeight: 800, fontSize: '1rem' }}
                             secondaryTypographyProps={{ fontWeight: 600 }}
                           />
@@ -1107,26 +1222,45 @@ function StatCard({ title, value, icon, color }: any) {
 }
 
 function StatBox({ title, value, icon, color, subtitle }: any) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   return (
     <Card 
       elevation={0}
       sx={{ 
-        p: 4, 
-        borderRadius: 6, 
+        p: 2.2, 
+        borderRadius: 3, 
         position: 'relative', 
         overflow: 'hidden', 
-        border: `1px solid ${alpha(color, 0.2)}`,
-        bgcolor: alpha(color, 0.03) 
+        border: `1px solid ${alpha(color, 0.15)}`,
+        bgcolor: alpha(color, 0.02),
+        transition: 'all 0.3s ease',
+        '&:hover': { transform: 'translateY(-2px)', bgcolor: alpha(color, 0.04) }
       }}
     >
       <Box sx={{ position: 'relative', zIndex: 1 }}>
-        <Box sx={{ color: color, mb: 2 }}>{icon}</Box>
-        <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1, mb: 0.5 }}>{value}</Typography>
-        <Typography variant="body2" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1 }}>{title}</Typography>
-        {subtitle && <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.disabled', display: 'block', mt: 0.5 }}>{subtitle}</Typography>}
+        <Box sx={{ color: color, mb: isMobile ? 0.8 : 1.2, display: 'flex' }}>
+          {React.cloneElement(icon, { size: isMobile ? 20 : 24 })}
+        </Box>
+        <Typography variant={isMobile ? "h6" : "h5"} sx={{ 
+          fontWeight: 900, 
+          letterSpacing: -0.5, 
+          mb: 0.1,
+          fontFamily: 'var(--font-heading)'
+        }}>{value}</Typography>
+        <Typography variant="caption" sx={{ 
+          fontWeight: 800, 
+          color: 'text.secondary', 
+          textTransform: 'uppercase', 
+          letterSpacing: 1,
+          fontFamily: 'var(--font-heading)',
+          fontSize: isMobile ? '0.55rem' : '0.6rem',
+          opacity: 0.8
+        }}>{title}</Typography>
+        {subtitle && <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.disabled', display: 'block', mt: 0.2, fontSize: isMobile ? '0.55rem' : '0.6rem' }}>{subtitle}</Typography>}
       </Box>
-      <Box sx={{ position: 'absolute', top: -20, right: -20, color: color, opacity: 0.05 }}>
-        {React.cloneElement(icon, { size: 120 })}
+      <Box sx={{ position: 'absolute', top: -10, right: -10, color: color, opacity: 0.03 }}>
+        {React.cloneElement(icon, { size: isMobile ? 50 : 80 })}
       </Box>
     </Card>
   );

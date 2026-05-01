@@ -6,7 +6,7 @@ import {
   IconButton, Dialog, DialogTitle, DialogContent, 
   DialogActions, CircularProgress, InputAdornment, 
   Tab, Tabs, Badge, Alert, useMediaQuery,
-  Stack, Tooltip, Zoom, Fade, FormControl, InputLabel, Select, MenuItem
+  Stack, Tooltip, Zoom, Fade, FormControl, InputLabel, Select, MenuItem, Menu
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { 
@@ -14,7 +14,7 @@ import {
   CheckCircle, XCircle, Clock, CreditCard, 
   FileText, Share2, MoreVertical, Trash2, Eye,
   ArrowUpRight, ArrowDownRight, Wallet, History,
-  AlertCircle, Check, Edit, Save, X, RotateCcw
+  AlertCircle, Check, Edit, Save, X, RotateCcw, TrendingUp
 } from 'lucide-react';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDoc, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc } from '../firebase';
@@ -45,6 +45,8 @@ export default function Fees() {
   const [searchQuery, setSearchQuery] = useState('');
   const [feeHeadFilter, setFeeHeadFilter] = useState<string>('All');
   const [paymentModeFilter, setPaymentModeFilter] = useState<string>('All');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, id: string }>({ open: false, id: '' });
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
@@ -104,7 +106,10 @@ export default function Fees() {
       );
     }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    let unsubscribeReceipts = () => {};
+    let unsubscribeStudents = () => {};
+
+    unsubscribeReceipts = onSnapshot(q, (snapshot) => {
       setReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
       setLoading(false);
       (window as any)._feesLoaded = true;
@@ -130,14 +135,17 @@ export default function Fees() {
         );
       }
       
-      onSnapshot(studentsQuery, (snapshot) => {
+      unsubscribeStudents = onSnapshot(studentsQuery, (snapshot) => {
         setStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
       }, (error) => {
         handleFirestoreError(error, OperationType.LIST, 'users');
       });
     }
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeReceipts();
+      unsubscribeStudents();
+    };
   }, [currentUser, isStaff, isAdmin, isTeacherRole]);
 
   const handleAddReceipt = async () => {
@@ -154,6 +162,7 @@ export default function Fees() {
         ...formData,
         amount: Number(formData.amount),
         date: formData.date || format(new Date(), 'yyyy-MM-dd'),
+        monthYear: formData.feeHead === 'Monthly Fee' ? format(new Date(formData.date || new Date()), 'MM-yyyy') : null,
         status: isStaff ? 'approved' : 'pending',
         createdAt: Date.now(),
         createdBy: currentUser.uid,
@@ -310,24 +319,53 @@ export default function Fees() {
     }
   };
 
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
   const filteredReceipts = receipts.filter(r => {
-    const matchesSearch = r.studentName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         (r.receiptNo && r.receiptNo.toLowerCase().includes(searchQuery.toLowerCase()));
+    const s = searchQuery.toLowerCase();
+    const matchesSearch = r.studentName.toLowerCase().includes(s) || 
+                         (r.receiptNo && r.receiptNo.toLowerCase().includes(s)) ||
+                         (r.studentId && r.studentId.toLowerCase().includes(s)) ||
+                         (r.transactionId && r.transactionId.toLowerCase().includes(s));
+                         
     const matchesTab = tabValue === 0 || 
                        (tabValue === 1 && r.status === 'pending') || 
                        (tabValue === 2 && r.status === 'approved');
     const matchesFeeHead = feeHeadFilter === 'All' || r.feeHead === feeHeadFilter;
     const matchesPaymentMode = paymentModeFilter === 'All' || r.paymentMode === paymentModeFilter;
+    
+    let matchesDate = true;
+    if (startDate || endDate) {
+      const receiptDate = new Date(r.date);
+      const start = startDate ? new Date(startDate) : new Date(0);
+      const end = endDate ? new Date(endDate) : new Date();
+      end.setHours(23, 59, 59, 999);
+      matchesDate = receiptDate >= start && receiptDate <= end;
+    }
 
-    return matchesSearch && matchesTab && matchesFeeHead && matchesPaymentMode;
+    return matchesSearch && matchesTab && matchesFeeHead && matchesPaymentMode && matchesDate;
   });
 
-  const totalRevenue = receipts.filter(r => r.status === 'approved').reduce((sum, r) => sum + r.amount, 0);
-  const pendingRevenue = receipts.filter(r => r.status === 'pending').reduce((sum, r) => sum + r.amount, 0);
+  const totalRevenue = receipts.filter(r => r.status === 'approved').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+  const totalSacredFunds = receipts.filter(r => r.status === 'approved' && ['Zakat', 'Khums', 'Maal-e-Imam'].includes(r.feeHead)).reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+  const pendingRevenue = receipts.filter(r => r.status === 'pending').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
 
   if (loading) return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-      <CircularProgress size={60} thickness={4} />
+    <Box sx={{ p: 4, width: '100%' }}>
+      <Stack spacing={3}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Skeleton variant="text" width="40%" height={60} />
+          <Skeleton variant="rectangular" width={180} height={50} sx={{ borderRadius: 2 }} />
+        </Box>
+        <Grid container spacing={3}>
+          {[1, 2, 3].map(i => (
+            <Grid size={{ xs: 12, md: 4 }} key={i}>
+              <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 4 }} />
+            </Grid>
+          ))}
+        </Grid>
+        <Skeleton variant="rectangular" width="100%" height={600} sx={{ borderRadius: 4 }} />
+      </Stack>
     </Box>
   );
 
@@ -340,7 +378,8 @@ export default function Fees() {
       'Head': r.feeHead,
       'Status': r.status,
       'Mode': r.paymentMode,
-      'Date': format(new Date(r.date), 'dd MMM yyyy'),
+      'Date': format(new Date(r.date), 'dd-MM-yyyy'),
+      'Period': format(new Date(r.date), 'MMMM yyyy'),
       'Transaction ID': r.transactionId || 'N/A'
     }));
     exportToCSV(dataToExport, 'Institute_Fees_Export');
@@ -452,25 +491,26 @@ export default function Fees() {
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <SummaryCard 
               title="Total Revenue" 
-              value={`₹${totalRevenue.toLocaleString()}`} 
+              value={`Rs.${totalRevenue.toLocaleString()}`} 
               icon={<Wallet size={24} />} 
               color="primary" 
-              trend="+12.5%"
+              trend="General"
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <SummaryCard 
-              title="Pending Approval" 
-              value={`₹${pendingRevenue.toLocaleString()}`} 
-              icon={<Clock size={24} />} 
+              title="Sacred Funds" 
+              value={`Rs.${totalSacredFunds.toLocaleString()}`} 
+              icon={<TrendingUp size={24} />} 
               color="warning" 
-              trend={`${receipts.filter(r => r.status === 'pending').length} items`}
+              trend="Zakat/Khums"
+              sx={{ border: '1px solid #facc15' }}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <SummaryCard 
               title="Approved Today" 
-              value={`₹${receipts.filter(r => r.status === 'approved' && r.approvedAt && r.approvedAt > Date.now() - 86400000).reduce((sum, r) => sum + r.amount, 0).toLocaleString()}`} 
+              value={`Rs.${receipts.filter(r => r.status === 'approved' && r.approvedAt && r.approvedAt > Date.now() - 86400000).reduce((sum, r) => sum + r.amount, 0).toLocaleString()}`} 
               icon={<CheckCircle size={24} />} 
               color="success" 
               trend="Today"
@@ -478,11 +518,11 @@ export default function Fees() {
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <SummaryCard 
-              title="Rejected" 
-              value={receipts.filter(r => r.status === 'rejected').length} 
-              icon={<XCircle size={24} />} 
-              color="error" 
-              trend="Total"
+              title="Pending Items" 
+              value={receipts.filter(r => r.status === 'pending').length} 
+              icon={<Clock size={24} />} 
+              color="warning" 
+              trend="To Review"
             />
           </Grid>
         </Grid>
@@ -494,7 +534,7 @@ export default function Fees() {
           <Grid size={{ xs: 12, sm: 6 }}>
             <SummaryCard 
               title="My Total Paid" 
-              value={`₹${totalRevenue.toLocaleString()}`} 
+              value={`Rs.${totalRevenue.toLocaleString()}`} 
               icon={<Wallet size={24} />} 
               color="primary" 
               trend="Verified"
@@ -503,7 +543,7 @@ export default function Fees() {
           <Grid size={{ xs: 12, sm: 6 }}>
             <SummaryCard 
               title="Pending Approval" 
-              value={`₹${pendingRevenue.toLocaleString()}`} 
+              value={`Rs.${pendingRevenue.toLocaleString()}`} 
               icon={<Clock size={24} />} 
               color="warning" 
               trend="In Process"
@@ -561,23 +601,24 @@ export default function Fees() {
           </Tabs>
           
           <Box sx={{ px: 2, py: 2, flex: { xs: 1, md: 'none' }, minWidth: { xs: '100%', md: 450 } }}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ width: '100%' }}>
+              <Stack direction="row" spacing={2} sx={{ width: '100%' }} alignItems="center">
                 <Paper 
                   elevation={0} 
                   sx={{ 
                     display: 'flex', 
                     alignItems: 'center', 
                     px: 2, 
-                    borderRadius: 1, 
-                    border: `1px solid ${theme.palette.divider}`,
+                    borderRadius: 3, 
+                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                     bgcolor: 'background.default',
-                    flex: 1
+                    flex: 1,
+                    height: 45
                   }}
                 >
                   <Search size={18} color={theme.palette.text.secondary} />
                   <Box 
                     component="input" 
-                    placeholder={isMobile ? "Search..." : "Search receipt or student..."} 
+                    placeholder="Search student or receipt..." 
                     value={searchQuery}
                     onChange={(e: any) => setSearchQuery(e.target.value)}
                     sx={{ 
@@ -594,46 +635,119 @@ export default function Fees() {
                   />
                 </Paper>
 
-                <Stack direction="row" spacing={1}>
-                  <FormControl size="small" sx={{ minWidth: 140 }}>
-                    <InputLabel>Fee Head</InputLabel>
-                    <Select
-                      value={feeHeadFilter}
-                      label="Fee Head"
-                      onChange={(e) => setFeeHeadFilter(e.target.value as any)}
-                      sx={{ borderRadius: 2 }}
-                    >
-                      <MenuItem value="All">All Heads</MenuItem>
-                      {FEE_HEADS.map(head => (
-                        <MenuItem key={head} value={head}>{head}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <InputLabel>Mode</InputLabel>
-                    <Select
-                      value={paymentModeFilter}
-                      label="Mode"
-                      onChange={(e) => setPaymentModeFilter(e.target.value as any)}
-                      sx={{ borderRadius: 2 }}
-                    >
-                      <MenuItem value="All">All Modes</MenuItem>
-                      {PAYMENT_MODES.map(mode => (
-                        <MenuItem key={mode} value={mode}>{mode}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-
-                  {(feeHeadFilter !== 'All' || paymentModeFilter !== 'All') && (
-                    <IconButton 
-                      onClick={() => { setFeeHeadFilter('All'); setPaymentModeFilter('All'); }}
-                      sx={{ bgcolor: 'error.light', color: 'error.main', '&:hover': { bgcolor: 'error.main', color: 'white' } }}
-                    >
-                      <RotateCcw size={18} />
-                    </IconButton>
+                <Button
+                  variant="outlined"
+                  startIcon={<Filter size={18} />}
+                  onClick={(e) => setAnchorEl(e.currentTarget)}
+                  sx={{ borderRadius: 3, px: 3, height: 45, fontWeight: 800, textTransform: 'none', minWidth: 120 }}
+                >
+                  Filters
+                  {(feeHeadFilter !== 'All' || paymentModeFilter !== 'All' || startDate || endDate) && (
+                    <Box sx={{ width: 8, height: 8, bgcolor: 'error.main', borderRadius: '50%', ml: 1 }} />
                   )}
-                </Stack>
+                </Button>
+
+                <Menu
+                  anchorEl={anchorEl}
+                  open={Boolean(anchorEl)}
+                  onClose={() => setAnchorEl(null)}
+                  PaperProps={{ 
+                    sx: { 
+                      p: 2, 
+                      mt: 1.5, 
+                      minWidth: 320, 
+                      borderRadius: 4, 
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
+                      border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                    } 
+                  }}
+                >
+                  <Stack spacing={2.5} sx={{ p: 1 }}>
+                    <Box>
+                      <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.disabled', mb: 1, display: 'block' }}>Refine by Type</Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+                        <FormControl size="small" fullWidth>
+                          <InputLabel>Fee Head</InputLabel>
+                          <Select
+                            value={feeHeadFilter}
+                            label="Fee Head"
+                            onChange={(e) => setFeeHeadFilter(e.target.value as any)}
+                            sx={{ borderRadius: 2 }}
+                          >
+                            <MenuItem value="All">All Heads</MenuItem>
+                            {FEE_HEADS.map(head => (
+                              <MenuItem key={head} value={head}>{head}</MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                        <FormControl size="small" fullWidth sx={{ mt: 1 }}>
+                          <InputLabel>Payment Mode</InputLabel>
+                          <Select
+                            value={paymentModeFilter}
+                            label="Payment Mode"
+                            onChange={(e) => setPaymentModeFilter(e.target.value as any)}
+                            sx={{ borderRadius: 2 }}
+                          >
+                            <MenuItem value="All">All Modes</MenuItem>
+                            {PAYMENT_MODES.map(mode => (
+                              <MenuItem key={mode} value={mode}>{mode}</MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Stack>
+                    </Box>
+                    
+                    <Box>
+                      <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.disabled', mb: 1, display: 'block' }}>Period Range</Typography>
+                      <Stack direction="row" spacing={2}>
+                        <TextField
+                          type="date"
+                          label="From"
+                          fullWidth
+                          size="small"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                        />
+                        <TextField
+                          type="date"
+                          label="To"
+                          fullWidth
+                          size="small"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                        />
+                      </Stack>
+                    </Box>
+
+                    <Button 
+                      fullWidth 
+                      variant="contained" 
+                      onClick={() => setAnchorEl(null)}
+                      sx={{ borderRadius: 2, fontWeight: 900, mt: 1 }}
+                    >
+                      Apply Filters
+                    </Button>
+                    
+                    <Button 
+                      fullWidth 
+                      size="small"
+                      onClick={() => {
+                        setFeeHeadFilter('All');
+                        setPaymentModeFilter('All');
+                        setStartDate('');
+                        setEndDate('');
+                        setAnchorEl(null);
+                      }}
+                      sx={{ fontWeight: 700, color: 'text.disabled' }}
+                    >
+                      Clear All
+                    </Button>
+                  </Stack>
+                </Menu>
               </Stack>
           </Box>
         </Box>
@@ -655,20 +769,25 @@ export default function Fees() {
             <TableBody>
               <AnimatePresence mode="popLayout">
                 {filteredReceipts.map((receipt) => (
-                  <TableRow 
-                    component={motion.tr}
-                    layout
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    key={receipt.id} 
-                    hover
-                    sx={{ 
-                      transition: 'all 0.2s',
-                      '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) },
-                      '& .MuiTableCell-root': { borderBottom: '1px solid', borderColor: 'divider' }
-                    }}
-                  >
+                      <TableRow 
+                        component={motion.tr}
+                        layout
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        key={receipt.id} 
+                        hover
+                        sx={{ 
+                          transition: 'all 0.2s',
+                          '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) },
+                          '& .MuiTableCell-root': { borderBottom: '1px solid', borderColor: 'divider' },
+                          ...( ['Zakat', 'Khums', 'Maal-e-Imam'].includes(receipt.feeHead) && {
+                            bgcolor: theme.palette.mode === 'dark' ? alpha('#facc15', 0.05) : alpha('#fef08a', 0.3),
+                            '&:hover': { bgcolor: theme.palette.mode === 'dark' ? alpha('#facc15', 0.1) : alpha('#fef08a', 0.5) },
+                            borderLeft: `4px solid #facc15`
+                          })
+                        }}
+                      >
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'primary.light', color: 'primary.main' }}>
@@ -700,12 +819,15 @@ export default function Fees() {
                     </TableCell>
                     <TableCell>
                       <Typography variant="subtitle2" sx={{ fontWeight: 900, color: 'text.primary' }}>
-                        ₹{receipt.amount.toLocaleString()}
+                        Rs.{receipt.amount.toLocaleString()}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                        {format(new Date(receipt.date), 'dd MMM yyyy')}
+                      <Typography variant="body2" sx={{ fontWeight: 800, color: 'primary.main' }}>
+                        {format(new Date(receipt.date), 'MMMM yyyy')}
+                      </Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                        {format(new Date(receipt.date), 'dd-MM-yyyy')}
                       </Typography>
                     </TableCell>
                     <TableCell align="center">
@@ -876,7 +998,7 @@ export default function Fees() {
                 type="number"
                 required
                 InputProps={{ 
-                  startAdornment: <InputAdornment position="start">₹</InputAdornment>,
+                  startAdornment: <InputAdornment position="start">Rs.</InputAdornment>,
                   sx: { borderRadius: 4 }
                 }}
                 value={formData.amount}

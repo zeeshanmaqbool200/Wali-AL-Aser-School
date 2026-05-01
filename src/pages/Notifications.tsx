@@ -72,7 +72,8 @@ export default function Notifications() {
       );
     }
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    let unsubscribeStudents = () => {};
+    const unsubscribeNotifications = onSnapshot(q, (snapshot) => {
       const filtered = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Notification[];
       setNotifications(filtered);
       setLoading(false);
@@ -95,7 +96,7 @@ export default function Notifications() {
               )
             )
           );
-      onSnapshot(studentsQuery, (snapshot) => {
+      unsubscribeStudents = onSnapshot(studentsQuery, (snapshot) => {
         setStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
         logger.db('Students List Loaded (Admin)', 'users', { count: snapshot.size });
       }, (error) => {
@@ -103,7 +104,10 @@ export default function Notifications() {
       });
     }
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeNotifications();
+      unsubscribeStudents();
+    };
   }, [currentUser, isStaff, isSuperAdmin]);
 
   const handleMarkAsRead = async (id: string) => {

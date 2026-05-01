@@ -3,7 +3,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChang
 import { 
   initializeFirestore, doc, getDoc, setDoc, collection, query, where, 
   onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, 
-  persistentLocalCache, persistentMultipleTabManager 
+  memoryLocalCache
 } from 'firebase/firestore';
 
 // Import the Firebase configuration
@@ -13,12 +13,10 @@ export { firebaseConfig };
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Use initializeFirestore with persistence and long polling for stability
+// Use initializeFirestore with optimized settings for the specific build environment
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
+  localCache: memoryLocalCache(),
+  ignoreUndefinedProperties: true
 }, firebaseConfig.firestoreDatabaseId);
 
 export const googleProvider = new GoogleAuthProvider();
