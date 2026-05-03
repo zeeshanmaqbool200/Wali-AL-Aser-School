@@ -10,11 +10,12 @@ import {
   Settings, CreditCard, Bell, LogOut, ChevronLeft, 
   ChevronRight, GraduationCap, ClipboardList, MessageSquare,
   Award, BarChart2, FileText, BarChart3, ClipboardCheck,
-  IndianRupee, Terminal
+  IndianRupee, Terminal, Shield
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserRole } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {
   role: UserRole;
@@ -30,21 +31,39 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
+  const { permissions } = useAuth();
+
+  const isSuperAdmin = role === 'superadmin';
 
   const menuItems = [
-    { label: 'Dashboard', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: 'Students', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'manager'] },
+    { label: 'Dashboard', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'view_dashboard' },
+    { label: 'Students', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'manager'], permission: 'manage_students' },
     { label: 'Courses', icon: <BookOpen size={22} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: role === 'student' ? 'My Payments' : 'Fees & Payments', icon: <IndianRupee size={22} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: 'Attendance', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['teacher', 'manager', 'superadmin'] },
-    { label: 'Expenses', icon: <CreditCard size={22} />, path: '/expenses', roles: ['superadmin', 'manager'] },
-    { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['superadmin'] },
+    { label: role === 'student' ? 'My Payments' : 'Fees & Payments', icon: <IndianRupee size={22} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'manage_fees' },
+    { label: 'Attendance', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['teacher', 'manager', 'superadmin'], permission: 'manage_attendance' },
+    { label: 'Expenses', icon: <CreditCard size={22} />, path: '/expenses', roles: ['superadmin', 'manager'], permission: 'manage_expenses' },
+    { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['superadmin'], permission: 'manage_reports' },
     { label: 'Notifications', icon: <Badge badgeContent={unreadNotifications} color="error"><Bell size={22} /></Badge>, path: '/notifications', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: 'System Logs', icon: <Terminal size={22} />, path: '/admin/logs', roles: ['superadmin'] },
-    { label: 'Settings', icon: <Settings size={22} />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Roles', icon: <Shield size={22} />, path: '/roles', roles: ['superadmin'] },
+    { label: 'Settings', icon: <Settings size={22} />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'system_settings' },
   ];
 
-  const filteredMenu = menuItems.filter(item => item.roles.includes(role));
+  const filteredMenu = menuItems.filter(item => {
+    // Basic role check
+    const hasRole = item.roles.includes(role);
+    if (!hasRole) return false;
+
+    // Special case for superadmin (always allow if role matches)
+    if (isSuperAdmin) return true;
+
+    // Permission check
+    if (item.permission) {
+      return (permissions as any)[item.permission] === true;
+    }
+
+    return true;
+  });
 
   return (
     <Drawer
@@ -71,41 +90,43 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: open ? 'space-between' : 'center', mb: 4, height: 64, px: open ? 1 : 0 }}>
-          {open && (
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              style={{ display: 'flex', alignItems: 'center', gap: 12 }}
-            >
-              <Box sx={{ 
-                bgcolor: 'transparent', 
-                p: 0, 
-                display: 'flex',
-                overflow: 'hidden',
-                width: 48,
-                height: 48,
-              }}>
-                <img 
-                  src={logoUrl} 
-                  alt="Logo" 
-                  style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '4px' }}
-                  referrerPolicy="no-referrer"
-                  onError={(e: any) => {
-                    e.target.style.display = 'none';
-                    e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8 7h6"/><path d="M8 11h8"/></svg></div>';
-                  }}
-                />
-              </Box>
+          <motion.div
+            initial={false}
+            animate={{ x: 0 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 12, width: open ? 'auto' : '100%', justifyContent: open ? 'flex-start' : 'center' }}
+          >
+            <Box sx={{ 
+              bgcolor: 'transparent', 
+              p: 0, 
+              display: 'flex',
+              overflow: 'hidden',
+              width: open ? 50 : 40,
+              height: open ? 50 : 40,
+              transition: 'all 0.3s ease',
+              flexShrink: 0
+            }}>
+              <img 
+                src={logoUrl} 
+                alt="Logo" 
+                style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '2px' }}
+                referrerPolicy="no-referrer"
+                onError={(e: any) => {
+                  e.target.style.display = 'none';
+                  e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8 7h6"/><path d="M8 11h8"/></svg></div>';
+                }}
+              />
+            </Box>
+            {open && (
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900, letterSpacing: -0.5, color: 'text.primary', lineHeight: 1.1, fontSize: '1.25rem', fontFamily: 'var(--font-serif)', textTransform: 'uppercase' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900, letterSpacing: -0.5, color: 'text.primary', lineHeight: 1.1, fontSize: '1rem', fontFamily: 'var(--font-serif)', textTransform: 'uppercase' }}>
                   {instituteName}
                 </Typography>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.6rem' }}>
                   Institute
                 </Typography>
               </Box>
-            </motion.div>
-          )}
+            )}
+          </motion.div>
           <IconButton 
             onClick={onToggle} 
             sx={{ 

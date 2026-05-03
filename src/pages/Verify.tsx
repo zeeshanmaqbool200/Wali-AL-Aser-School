@@ -18,28 +18,45 @@ export default function Verify() {
       if (!id || !type) return;
       try {
         const collectionName = type === 'receipt' ? 'receipts' : 'users';
+        console.log(`Verifying ${type} with id: ${id}`);
         
         // 1. Try fetching by document ID
         const docRef = doc(db, collectionName, id);
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
-          setData(docSnap.data());
+          console.log("Found by doc ID");
+          setData({ id: docSnap.id, ...docSnap.data() });
         } else {
-          // 2. If document ID not found, try searching by business ID (receiptNo or uid/admissionNo)
-          const fieldToSearch = type === 'receipt' ? 'receiptNo' : 'uid';
-          const q = query(collection(db, collectionName), where(fieldToSearch, '==', id));
-          const querySnap = await getDocs(q);
+          // 2. Comprehensive search
+          console.log("Searching all matching fields...");
           
-          if (!querySnap.empty) {
-            setData(querySnap.docs[0].data());
-          } else if (type === 'user') {
-             // Try admissionNo for users
-             const q2 = query(collection(db, 'users'), where('admissionNo', '==', id));
-             const querySnap2 = await getDocs(q2);
-             if (!querySnap2.empty) {
-               setData(querySnap2.docs[0].data());
-             }
+          if (type === 'receipt') {
+            const receiptQueries = [
+              query(collection(db, 'receipts'), where('receiptNo', '==', id)),
+              query(collection(db, 'receipts'), where('receiptNumber', '==', id))
+            ];
+            for (const q of receiptQueries) {
+              const snap = await getDocs(q);
+              if (!snap.empty) {
+                setData({ id: snap.docs[0].id, ...snap.docs[0].data() });
+                return;
+              }
+            }
+          } else {
+            const userQueries = [
+              query(collection(db, 'users'), where('uid', '==', id)),
+              query(collection(db, 'users'), where('admissionNo', '==', id)),
+              query(collection(db, 'users'), where('teacherId', '==', id)),
+              query(collection(db, 'users'), where('studentId', '==', id))
+            ];
+            for (const q of userQueries) {
+              const snap = await getDocs(q);
+               if (!snap.empty) {
+                setData({ id: snap.docs[0].id, ...snap.docs[0].data() });
+                return;
+              }
+            }
           }
         }
       } catch (error) {

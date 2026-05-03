@@ -27,6 +27,7 @@ const Courses = lazy(() => import('./pages/Courses'));
 const PaymentsSummary = lazy(() => import('./pages/PaymentsSummary'));
 const AdminLogs = lazy(() => import('./pages/AdminLogs'));
 const Profile = lazy(() => import('./pages/Profile'));
+const Roles = lazy(() => import('./pages/Roles'));
 
 import ErrorBoundary from './components/ErrorBoundary';
 import ClassSelection from './components/ClassSelection';
@@ -228,6 +229,11 @@ function AppContent() {
                   <Route path="/admin/logs" element={
                     <ProtectedRoute user={user} allowedRoles={systemAdminRoles}>
                       <AdminLogs />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/roles" element={
+                    <ProtectedRoute user={user} allowedRoles={systemAdminRoles}>
+                      <Roles />
                     </ProtectedRoute>
                   } />
                   <Route path="/profile" element={

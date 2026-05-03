@@ -1,4 +1,4 @@
-export type UserRole = 'student' | 'superadmin' | 'manager' | 'teacher' | 'pending_teacher';
+export type UserRole = 'student' | 'superadmin' | 'super_admin' | 'manager' | 'teacher' | 'pending_teacher' | 'pending_student';
 export type ClassLevel = 'Mubtadi' | 'Awal' | 'Doum' | 'Soum' | 'Chaharm' | 'Panjum' | 'Shasham' | 'Haftum' | 'Hashtum' | 'Nahum' | 'Dahum' | 'Hafiz' | 'Manager [m]' | 'Manager [f]';
 
 export interface UserProfile {
@@ -6,6 +6,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: UserRole;
+  isVerified?: boolean;
   photoURL?: string;
   dob?: string;
   createdAt: number;

@@ -110,6 +110,8 @@ export default function Schedule() {
         return eventDate >= yesterdayLimit;
       });
       setEvents(filtered);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'events');
     });
 
     const unsubscribe = onSnapshot(q, (snapshot) => {

@@ -17,8 +17,7 @@ import {
   ArrowRight, ExternalLink, Download, Layout,
   Layers, Star, Share2, Bookmark, Save
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, OperationType, handleFirestoreError } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
@@ -90,6 +89,9 @@ export default function Exams() {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setExams(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Exam[]);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'exams');
       setLoading(false);
     });
     return () => unsubscribe();

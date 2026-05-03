@@ -1,9 +1,7 @@
 import localforage from 'localforage';
-import { db } from '../firebase';
 import { 
-  collection, doc, setDoc, updateDoc, deleteDoc, 
-  addDoc as firestoreAddDoc 
-} from 'firebase/firestore';
+  db, collection, doc, setDoc, updateDoc, deleteDoc, addDoc as firestoreAddDoc 
+} from '../firebase';
 import { logger } from './logger';
 
 export enum ActionType {

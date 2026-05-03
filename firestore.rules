@@ -2,204 +2,145 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() { return request.auth != null; }
+    function isEmailVerified() { return request.auth.token.email_verified == true; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
     
-    // 0. Global Safety Net (Deny all by default)
-    match /{document=**} {
-      allow read, write: if false;
-    }
-    
-    // -------------------------------------------------------------------------
-    // GLOBAL HELPERS
-    // -------------------------------------------------------------------------
-    
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    
-    // Strictly mandated by integration instructions
-    // We check if email is verified.
-    function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+    // Get user data
+    function getUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
     }
 
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-    
-    function existing() {
-      return resource.data;
-    }
-
-    // Hardened Identity Checks
+    // Role checks
     function isSuperAdmin() {
       return isSignedIn() && (
         request.auth.uid == 'sZUiAgoSF8MTPBQAOtj6jbFkot93' ||
-        request.auth.token.email == 'zeeshanmaqbool200@gmail.com' ||
+        (isEmailVerified() && request.auth.token.email == 'zeeshanmaqbool200@gmail.com') ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'superadmin')
+         (getUserData(request.auth.uid).role == 'super_admin' || getUserData(request.auth.uid).role == 'superadmin'))
       );
     }
-    
+
     function isManager() {
-      return isSignedIn() && (
-        isSuperAdmin() ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'none') == 'manager')
-      );
+      return isSuperAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData(request.auth.uid).role == 'manager');
     }
-    
+
     function isTeacher() {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'none') == 'teacher';
+      return isManager() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData(request.auth.uid).role == 'teacher');
     }
 
     function isStaff() {
-      return isSuperAdmin() || isManager() || isTeacher();
+      return isTeacher() || isManager() || isSuperAdmin();
     }
 
-    function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
-    }
+    // Validations
+    function isValidId(id) { return id is string && id.size() <= 128; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
 
-    // -------------------------------------------------------------------------
-    // ENTITY VALIDATION HELPERS (Eight Pillars: Anti-Update-Gap)
-    // -------------------------------------------------------------------------
-    
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'role']) &&
-             data.uid is string && data.uid.size() <= 128 &&
-             data.email is string && data.email.size() <= 256 &&
-             data.role in ['student', 'teacher', 'manager', 'superadmin', 'pending_teacher'] &&
-             (!data.keys().contains('displayName') || (data.displayName is string && data.displayName.size() <= 128)) &&
-             (!data.keys().contains('phone') || (data.phone is string && data.phone.size() <= 128)) &&
-             (!data.keys().contains('updatedAt') || data.updatedAt == request.time || data.updatedAt is string || data.updatedAt is number);
+      return data.keys().hasAll(['email', 'role']) &&
+             data.email is string &&
+             data.role in ['student', 'teacher', 'manager', 'super_admin', 'superadmin', 'pending_student', 'pending_teacher'];
     }
 
-    function isValidReceipt(data) {
-      return data.keys().hasAll(['studentId', 'amount', 'status']) &&
-             data.studentId is string && data.studentId.size() <= 128 &&
-             data.amount is number && data.amount >= 0 &&
-             data.status in ['pending', 'approved', 'rejected'] &&
-             (!data.keys().contains('feeHead') || (data.feeHead is string && data.feeHead.size() <= 128));
+    // Default deny with Super Admin escape hatch
+    match /{document=**} {
+      allow read, write: if isSuperAdmin();
     }
 
-    function isValidExpense(data) {
-      return data.keys().hasAll(['itemName', 'category', 'amount', 'spentById', 'date']) &&
-             data.itemName is string && data.itemName.size() <= 200 &&
-             data.category in ['materials', 'utilities', 'salaries', 'maintenance', 'other'] &&
-             data.amount is number && data.amount >= 0 &&
-             data.spentById is string && data.spentById.size() <= 128 &&
-             data.date is string && data.date.size() <= 20;
+    // EVENTS
+    match /events/{eventId} {
+      allow read: if isSignedIn();
+      allow write: if isManager();
     }
 
-    // -------------------------------------------------------------------------
-    // COLLECTIONS
-    // -------------------------------------------------------------------------
+    // SCHEDULES
+    match /schedules/{scheduleId} {
+      allow read: if isSignedIn();
+      allow write: if isStaff();
+    }
+
+    // QUIZZES / RESULTS
+    match /quiz_results/{resultId} {
+      allow read: if isSignedIn() && (isStaff() || resource.data.studentId == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update, delete: if isStaff();
+    }
+
+    // FEE RECEIPTS (Alternative collection name used in some places)
+    match /fee_receipts/{receiptId} {
+      allow get: if isSignedIn();
+      allow list: if isStaff() || (isSignedIn() && (resource.data.studentId == request.auth.uid || resource.data.createdBy == request.auth.uid));
+      allow create: if isStaff();
+      allow update, delete: if isManager();
+    }
 
     // USERS
     match /users/{userId} {
-      allow get: if isSignedIn() && (isOwner(userId) || isStaff());
-      allow list: if isStaff();
+      // Allow anyone signed in to get a profile (for verification/staff list)
+      // But strictly filter what's returned in the app code
+      allow get: if isSignedIn();
       
-      allow create: if isSignedIn() && isValidId(userId) && isValidUser(incoming()) && (
-        isManager() || 
-        (isTeacher() && incoming().role == 'student') ||
-        (isOwner(userId) && incoming().role in ['student', 'pending_teacher'])
+      // Staff can list everyone. 
+      // Students can list users IF they are staff (to see teachers)
+      allow list: if isSignedIn() && (isStaff() || resource.data.role in ['teacher', 'manager', 'super_admin']);
+      
+      allow create: if isSignedIn() && isValidId(userId) && isValidUser(incoming());
+      allow update: if isSignedIn() && (
+        isSuperAdmin() || 
+        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'phone', 'address', 'bio', 'metadata'])) ||
+        (isManager() && incoming().diff(existing()).affectedKeys().hasOnly(['isVerified', 'role', 'status', 'enrollmentStatus', 'admissionNo']))
       );
-      
-      allow update: if isSignedIn() && isValidId(userId) && (
-        isSuperAdmin() ||
-        (isManager() && incoming().role == existing().role) ||
-        (isTeacher() && incoming().role == 'student' && existing().role == 'student') ||
-        (isOwner(userId) && incoming().role == existing().role && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phone', 'whatsapp', 'address', 'photoURL', 'updatedAt', 'notificationPrefs', 'uiPrefs', 'pendingClassLevel', 'classLevel']))
-      );
-      
-      // EXPLICIT BY UID TO OVERRIDE ANY PERMISSION ISSUES
-      allow delete: if isSignedIn() && (request.auth.uid == 'sZUiAgoSF8MTPBQAOtj6jbFkot93' || isSuperAdmin());
+      allow delete: if isSuperAdmin();
+    }
+
+    // COURSES
+    match /courses/{courseId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isManager();
     }
 
     // RECEIPTS
     match /receipts/{receiptId} {
-      allow read: if isManager() || (isSignedIn() && (resource.data.studentId == request.auth.uid || resource.data.createdBy == request.auth.uid));
-      allow create: if isStaff() && isValidReceipt(incoming());
+      allow get: if isSignedIn();
+      allow list: if isStaff() || (isSignedIn() && (resource.data.studentId == request.auth.uid || resource.data.createdBy == request.auth.uid));
+      allow create: if isStaff();
       allow update: if isManager() || (isTeacher() && existing().createdBy == request.auth.uid);
       allow delete: if isSuperAdmin();
     }
 
     // ATTENDANCE
-    match /attendance/{id} {
-      allow read: if isStaff() || (isSignedIn() && resource.data.studentId == request.auth.uid);
-      allow create, update: if isStaff();
-      allow delete: if isSuperAdmin();
+    match /attendance/{attendanceId} {
+      allow read: if isSignedIn() && (isStaff() || resource.data.studentId == request.auth.uid);
+      allow create, update: if isTeacher();
+      allow delete: if isManager();
     }
 
     // EXPENSES
     match /expenses/{expenseId} {
-      allow read, write: if isSuperAdmin() || isManager();
-    }
-
-    // EXAMS
-    match /exams/{id} {
-      allow read: if isSignedIn();
-      allow create, update: if isStaff();
-      allow delete: if isSuperAdmin();
-    }
-
-    // COURSES
-    match /courses/{id} {
-      allow read: if isSignedIn();
-      allow create, update: if isStaff();
-      allow delete: if isSuperAdmin();
-    }
-
-    // SCHEDULES / EVENTS
-    match /schedules/{id} {
-      allow read: if isSignedIn();
-      allow create, update: if isStaff();
-      allow delete: if isSuperAdmin();
-    }
-    
-    match /events/{id} {
-      allow read: if isSignedIn();
-      allow create, update: if isStaff();
-      allow delete: if isSuperAdmin();
-    }
-
-    // NOTES
-    match /notes/{id} {
-      allow read: if isSignedIn();
-      allow create, update: if isStaff();
-      allow delete: if isSuperAdmin();
+      allow read, write: if isManager();
     }
 
     // SETTINGS
-    match /settings/{id} {
-      allow read: if true;
+    match /settings/{docId} {
+      allow read: if isSignedIn();
       allow write: if isSuperAdmin();
     }
 
     // NOTIFICATIONS
-    match /notifications/{id} {
+    match /notifications/{notifId} {
       allow read: if isSignedIn();
       allow create: if isStaff();
-      allow update, delete: if isSuperAdmin();
+      allow delete: if isStaff();
+      allow update: if isStaff();
     }
 
-    // LOGS
-    match /access_logs/{id} {
-      allow read: if isStaff();
-      allow create: if isSignedIn();
-    }
-
-    match /system_logs/{id} {
-      allow read: if isSuperAdmin();
-      allow create: if true;
+    // NOTES / MATERIALS
+    match /notes/{noteId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isTeacher();
     }
   }
 }

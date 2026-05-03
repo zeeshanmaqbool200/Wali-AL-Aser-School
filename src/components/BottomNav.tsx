@@ -48,11 +48,14 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   }, []);
 
   useEffect(() => {
+    let scrollTimeout: any;
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
       
+      if (Math.abs(currentScrollY - lastScrollY) < 5) return; // Ignore micro-scrolls
+
       // If we are at the very top, always show it
-      if (currentScrollY < 50) {
+      if (currentScrollY < 20) {
         setInternalVisible(true);
         setLastScrollY(currentScrollY);
         return;
@@ -61,18 +64,21 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
       // Hide on scroll down, show on scroll up
       if (currentScrollY > lastScrollY && currentScrollY > 100) {
         // Scrolling DOWN
-        setInternalVisible(false);
-      } else if (currentScrollY < lastScrollY || currentScrollY < 50) {
-        // Scrolling UP or at the top
-        setInternalVisible(true);
+        if (internalVisible) setInternalVisible(false);
+      } else if (currentScrollY < lastScrollY) {
+        // Scrolling UP
+        if (!internalVisible) setInternalVisible(true);
       }
       
       setLastScrollY(currentScrollY);
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+    };
+  }, [lastScrollY, internalVisible]);
 
   const role = user.role || 'student';
   const isSuperAdmin = user.email === 'zeeshanmaqbool200@gmail.com';
@@ -100,23 +106,30 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   if (filteredMenu.length === 0) return null;
 
   return (
-    <AnimatePresence>
-      {isActuallyVisible && (
-        <Box 
-          component={motion.div}
-          initial={{ y: 100, x: '-50%', opacity: 0 }}
-          animate={{ y: 0, x: '-50%', opacity: 1 }}
-          exit={{ y: 100, x: '-50%', opacity: 0 }}
-          transition={{ duration: 0.3, ease: 'easeInOut' }}
-          sx={{ 
-            position: 'fixed', 
-            bottom: { xs: 16, sm: 32 }, 
-            left: '50%', 
-            zIndex: 5000, 
-            width: 'auto',
-            pointerEvents: 'none',
-          }}
-        >
+    <Box>
+      <Box 
+        component={motion.div}
+            initial={{ y: 100, x: '-50%', opacity: 0 }}
+            animate={{ 
+              y: isActuallyVisible ? 0 : 100, 
+              x: '-50%', 
+              opacity: isActuallyVisible ? 1 : 0,
+              scale: isActuallyVisible ? 1 : 0.95
+            }}
+            transition={{ 
+              type: 'spring', 
+              stiffness: 260, 
+              damping: 20 
+            }}
+            sx={{ 
+              position: 'fixed', 
+              bottom: { xs: 24, sm: 32 }, 
+              left: '50%', 
+              zIndex: 5000, 
+              width: 'auto',
+              pointerEvents: isActuallyVisible ? 'auto' : 'none',
+            }}
+          >
           <Paper 
             elevation={0}
             sx={{ 
@@ -178,7 +191,6 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
             })}
           </Paper>
         </Box>
-      )}
-    </AnimatePresence>
+    </Box>
   );
 }

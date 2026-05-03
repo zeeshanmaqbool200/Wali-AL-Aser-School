@@ -8,7 +8,8 @@ import {
   TableHead, TableRow, Paper, InputAdornment, Tab, Tabs,
   FormControl, InputLabel, Select, MenuItem,
   useMediaQuery, Stack, Tooltip, Zoom, Fade,
-  LinearProgress, Divider, Snackbar, Alert, Switch, Checkbox
+  LinearProgress, Divider, Snackbar, Alert, Switch, Checkbox, Skeleton,
+  AppBar, Toolbar, Container
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import QRCode from 'qrcode';
@@ -18,14 +19,14 @@ import {
   MoreVertical, User, GraduationCap, UserCheck,
   ArrowRight, ExternalLink, Download, Layout,
   Layers, CheckCircle, XCircle, Clock, Save,
-  Bell, Camera, X, Printer, RotateCcw, ArrowLeft, FileText, Database, IndianRupee
+  Bell, Camera, X, Printer, RotateCcw, ArrowLeft, FileText, Database, IndianRupee, BookOpen
 } from 'lucide-react';
 import { 
+  db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartSetDoc, smartDeleteDoc, firebaseConfig,
   collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, 
   orderBy, where, getDocs, writeBatch, getDoc, or, and, documentId, setDoc,
   serverTimestamp
-} from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartSetDoc, smartDeleteDoc, firebaseConfig } from '../firebase';
+} from '../firebase';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { UserProfile, UserRole, ClassLevel, InstituteSettings, FeeReceipt } from '../types';
@@ -71,6 +72,7 @@ export default function Users() {
   const [openDialog, setOpenDialog] = useState(false);
   const [openPromoteDialog, setOpenPromoteDialog] = useState(false);
   const [openViewProfile, setOpenViewProfile] = useState(false);
+  const [openAdmissionForm, setOpenAdmissionForm] = useState(false);
   const [viewProfileMode, setViewProfileMode] = useState<'digital' | 'print'>('digital');
   const [profileToView, setProfileToView] = useState<UserProfile | null>(null);
   const [instituteSettings, setInstituteSettings] = useState<Partial<InstituteSettings>>({});
@@ -78,8 +80,17 @@ export default function Users() {
   const [newClassLevel, setNewClassLevel] = useState<string | ''>('');
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [availableRoles, setAvailableRoles] = useState<{ id: string, name: string }[]>([]);
   const [studentReceipts, setStudentReceipts] = useState<FeeReceipt[]>([]);
   const [loadingReceipts, setLoadingReceipts] = useState(false);
+
+  useEffect(() => {
+    // Fetch available custom roles
+    const unsubscribe = onSnapshot(collection(db, 'roles'), (snapshot) => {
+      setAvailableRoles(snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'roles'));
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (openViewProfile && profileToView?.uid) {
@@ -92,6 +103,9 @@ export default function Users() {
       const unsubscribe = onSnapshot(q, (snapshot) => {
         setStudentReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
         setLoadingReceipts(false);
+      }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'receipts');
+        setLoadingReceipts(false);
       });
       return () => unsubscribe();
     }
@@ -101,22 +115,67 @@ export default function Users() {
   const [stayOpen, setStayOpen] = useState(false);
   const [userToDeleteRef, setUserToDeleteRef] = useState<{ id: string, profile: UserProfile } | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [longPressTimer, setLongPressTimer] = useState<any>(null);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [purgeType, setPurgeType] = useState<'ALL' | 'STUDENTS'>('STUDENTS');
 
-  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
+  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement> | boolean) => {
+    const shouldSelect = typeof event === 'boolean' ? event : event.target.checked;
+    if (shouldSelect) {
       setSelectedUsers(filteredUsers.map(u => u.uid));
+      setIsSelectionMode(true);
     } else {
       setSelectedUsers([]);
+      setIsSelectionMode(false);
     }
   };
 
   const handleSelectOne = (id: string) => {
-    setSelectedUsers(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
+    setSelectedUsers(prev => {
+      const isSelected = prev.includes(id);
+      const next = isSelected ? prev.filter(item => item !== id) : [...prev, id];
+      if (next.length > 0) setIsSelectionMode(true);
+      else setIsSelectionMode(false);
+      return next;
+    });
+  };
+
+  const handleTouchStart = (uid: string) => {
+    const timer = setTimeout(() => {
+      if (!isSelectionMode) {
+        setIsSelectionMode(true);
+        handleSelectOne(uid);
+        if (window.navigator.vibrate) window.navigator.vibrate(50);
+      }
+    }, 700);
+    setLongPressTimer(timer);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer) clearTimeout(longPressTimer);
+  };
+
+  const handleRowClick = (user: UserProfile) => {
+    if (isSelectionMode) {
+      handleSelectOne(user.uid);
+    } else {
+      setProfileToView(user);
+      setViewProfileMode('digital');
+      setOpenViewProfile(true);
+    }
+  };
+
+  const safeFormatDate = (dateVal: any, formatStr: string = 'dd MMM yyyy') => {
+    if (!dateVal) return 'N/A';
+    try {
+      const d = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
+      if (isNaN(d.getTime())) return 'N/A';
+      return format(d, formatStr);
+    } catch (e) {
+      return 'N/A';
+    }
   };
   
   const [formData, setFormData] = useState({
@@ -572,26 +631,15 @@ export default function Users() {
 
   useEffect(() => {
     let q;
-    if (isSuperAdmin || isManagerRole) {
+    if (isStaff) {
+      // Staff see everyone
       q = query(collection(db, 'users'));
-    } else if (isTeacherRole) {
-      // Teacher can only see students in their assigned classes or Example class
-      // OR students with pending levels that match their assigned classes
-      const classes = (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__'];
-      q = query(
-        collection(db, 'users'), 
-        and(
-          where('role', '==', 'student'),
-          or(
-            where('classLevel', 'in', classes),
-            where('classLevel', '==', 'Example'),
-            where('pendingClassLevel', 'in', classes)
-          )
-        )
-      );
     } else {
-      // Pending teacher see nothing or just themselves
-      q = query(collection(db, 'users'), where(documentId(), '==', currentUser?.uid || 'none'));
+      // Students see only staff members
+      q = query(
+        collection(db, 'users'),
+        where('role', 'in', ['teacher', 'manager', 'super_admin', 'superadmin'])
+      );
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -646,9 +694,9 @@ export default function Users() {
 
     const items: ActionMenuItem[] = [
       { 
-        label: 'View Profile', 
-        icon: <ExternalLink size={16} />, 
-        onClick: () => { setProfileToView(targetUser); setOpenViewProfile(true); } 
+        label: 'Admission Form', 
+        icon: <FileText size={16} />, 
+        onClick: () => { setProfileToView(targetUser); setOpenAdmissionForm(true); } 
       },
       { 
         label: 'Edit Info', 
@@ -771,8 +819,9 @@ export default function Users() {
         if (createAuthAccount) {
           // Create Firebase Auth User for student using a secondary App instance 
           // to avoid signing out the current admin
+          let secondaryApp: any;
           try {
-            const secondaryApp = initializeApp(firebaseConfig, `user-creation-${Date.now()}`);
+            secondaryApp = initializeApp(firebaseConfig, `user-creation-${Date.now()}`);
             const secondaryAuth = getAuth(secondaryApp);
             
             // Generate password in Name@123 format if not explicitly provided
@@ -799,7 +848,6 @@ export default function Users() {
             });
 
             uid = userCredential.user.uid;
-            await deleteApp(secondaryApp);
           } catch (authError: any) {
             console.error('Auth User Creation Error:', authError);
             let errorMessage = authError.message;
@@ -815,6 +863,10 @@ export default function Users() {
             setSnackbar({ open: true, message: errorMessage, severity: 'error' });
             setLoading(false);
             return;
+          } finally {
+            if (secondaryApp) {
+              await deleteApp(secondaryApp).catch(console.error);
+            }
           }
         } else {
           // Just Firestore entry
@@ -1033,11 +1085,20 @@ export default function Users() {
     const matchesLevel = levelFilter === 'All' || u.classLevel === levelFilter;
     const matchesRole = roleFilter === 'All' || u.role === roleFilter;
 
+    if (tabValue === 2) {
+      // Pending tab should ignore other filters to ensure all pending users are visible
+      return (u.pendingClassLevel || !u.isVerified) && matchesSearch;
+    }
+
     if (!matchesStatus || !matchesLevel || !matchesRole) return false;
 
-    if (tabValue === 0) return u.role === 'student' && matchesSearch;
-    if (tabValue === 1) return (u.role === 'teacher' || u.role === 'manager' || u.role === 'superadmin' || u.role === 'pending_teacher') && matchesSearch;
-    if (tabValue === 2) return (u.pendingClassLevel) && matchesSearch;
+    if (!isStaff) {
+      // Student's view: there is only one category available (Staff)
+      return (u.role === 'teacher' || u.role === 'manager' || u.role === 'super_admin' || u.role === 'superadmin') && matchesSearch;
+    }
+
+    if (tabValue === 0) return (u.role === 'student' || u.role === 'pending_student') && matchesSearch;
+    if (tabValue === 1) return (u.role === 'teacher' || u.role === 'manager' || u.role === 'super_admin' || u.role === 'superadmin' || u.role === 'pending_teacher') && matchesSearch;
     return matchesSearch;
   });
 
@@ -1166,36 +1227,37 @@ export default function Users() {
                             <title>Bulk Admission Forms</title>
                             <style>
                               @page { size: A4; margin: 0; }
-                              body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+                              body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact; }
                               .page {
                                 width: 210mm;
                                 height: 297mm;
-                                padding: 15mm;
+                                padding: 12mm;
                                 box-sizing: border-box;
                                 page-break-after: always;
-                                border: 1px solid #eee;
+                                overflow: hidden;
+                                position: relative;
                               }
-                              .header { display: flex; align-items: center; border-bottom: 3px solid black; padding-bottom: 5mm; margin-bottom: 10mm; position: relative; }
-                              .logo-container { width: 35mm; height: 35mm; margin-right: 10mm; flex-shrink: 0; }
+                              .header { display: flex; align-items: center; border-bottom: 2px solid black; padding-bottom: 5mm; margin-bottom: 8mm; position: relative; }
+                              .logo-container { width: 32mm; height: 32mm; margin-right: 8mm; flex-shrink: 0; }
                               .logo { width: 100%; height: 100%; object-fit: contain; }
                               .title-box { flex: 1; }
-                              .inst-name { font-size: 24pt; font-weight: 900; text-transform: uppercase; margin: 0; font-family: 'Cinzel', serif; }
-                              .tagline { font-size: 12pt; font-weight: 700; margin: 2mm 0; }
-                              .form-title { border: 2px solid black; padding: 2mm 5mm; font-weight: 900; display: inline-block; font-size: 14pt; }
-                              .content-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 5mm; }
-                              .field-row { border-bottom: 1px solid black; padding: 3mm 0; display: flex; align-items: baseline; }
-                              .field-label { width: 40mm; font-weight: 800; font-size: 10pt; flex-shrink: 0; }
-                              .field-value { font-size: 11pt; border-bottom: 1px solid transparent; }
-                              .photo-box { width: 35mm; height: 45mm; border: 1px dashed black; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 8pt; margin-left: auto; overflow: hidden; }
+                              .inst-name { font-size: 22pt; font-weight: 950; text-transform: uppercase; margin: 0; font-family: 'Cinzel Decorative', serif; line-height: 1.1; }
+                              .tagline { font-size: 11pt; font-weight: 700; margin: 2mm 0; border-top: 1px solid #ddd; display: inline-block; padding-top: 1mm; }
+                              .form-title { border: 2px solid black; padding: 2mm 4mm; font-weight: 900; display: inline-block; font-size: 13pt; background: #eee; }
+                              .content-grid { display: grid; grid-template-columns: 1fr 40mm; gap: 5mm; }
+                              .field-row { border-bottom: 1px solid #ccc; padding: 2.5mm 0; display: flex; align-items: baseline; }
+                              .field-label { width: 38mm; font-weight: 800; font-size: 9.5pt; flex-shrink: 0; color: #444; }
+                              .field-value { font-size: 10.5pt; font-weight: 600; border-bottom: 1px solid transparent; }
+                              .photo-box { width: 35mm; height: 45mm; border: 1.5px solid black; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 8pt; margin-left: auto; position: relative; }
                               .photo-box img { width: 100%; height: 100%; object-fit: cover; }
-                              .section-title { font-weight: 900; font-size: 12pt; border-bottom: 2px solid black; display: inline-block; margin: 10mm 0 5mm 0; text-transform: uppercase; }
-                              .academic-table { width: 100%; border-collapse: collapse; margin-top: 5mm; }
-                              .academic-table td { border: 1px solid black; padding: 3mm; width: 50%; height: 20mm; vertical-align: top; }
-                              .table-head { background-color: #f0f0f0; font-weight: 900; font-size: 9pt; }
-                              .footer { margin-top: 20mm; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 10mm; }
-                              .sign-box { text-align: center; border-top: 1px solid black; width: 40mm; padding-top: 2mm; font-weight: 800; font-size: 9pt; }
-                              .qr-box { text-align: center; }
-                              .qr-box img { width: 25mm; height: 25mm; }
+                              .section-title { font-weight: 900; font-size: 11pt; border-bottom: 2px solid black; display: inline-block; margin: 8mm 0 4mm 0; text-transform: uppercase; }
+                              .academic-table { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+                              .academic-table td { border: 1px solid black; padding: 3mm; width: 50%; height: 18mm; vertical-align: top; font-size: 9.5pt; }
+                              .table-head { background-color: #f5f5f5; font-weight: 900; font-size: 8.5pt; text-transform: uppercase; }
+                              .footer { position: absolute; bottom: 12mm; left: 12mm; right: 12mm; display: flex; justify-content: space-between; align-items: flex-end; }
+                              .sign-box { text-align: center; border-top: 1px solid black; width: 45mm; padding-top: 2mm; font-weight: 800; font-size: 9pt; }
+                              .qr-box { text-align: center; opacity: 0.8; }
+                              .qr-box img { width: 22mm; height: 22mm; }
                             </style>
                           </head>
                           <body>
@@ -1481,26 +1543,34 @@ export default function Users() {
           <Tabs 
             value={tabValue} 
             onChange={(e, v) => setTabValue(v)} 
+            variant={isMobile ? "scrollable" : "standard"}
+            scrollButtons="auto"
             sx={{ 
-              '& .MuiTab-root': { fontWeight: 900, py: 3, minWidth: 140, textTransform: 'none', fontSize: '1rem' },
+              '& .MuiTab-root': { fontWeight: 900, py: 3, px: 2, minWidth: isMobile ? 100 : 140, textTransform: 'none', fontSize: '1rem' },
               '& .Mui-selected': { color: 'primary.main' },
               '& .MuiTabs-indicator': { height: 4, borderRadius: '4px 4px 0 0' }
             }}
           >
-            <Tab label="Talaba" icon={<GraduationCap size={20} />} iconPosition="start" />
-            <Tab label="Asatiza" icon={<UserCheck size={20} />} iconPosition="start" />
-            <Tab label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                Manzoori (Pending)
-                {users.filter(u => u.pendingClassLevel).length > 0 && (
-                  <Chip 
-                    label={users.filter(u => u.pendingClassLevel).length} 
-                    size="small" 
-                    sx={{ height: 22, fontSize: '0.7rem', fontWeight: 900, bgcolor: 'warning.main', color: 'white' }} 
-                  />
-                )}
-              </Box>
-            } icon={<Clock size={20} />} iconPosition="start" />
+            {isStaff ? (
+              [
+                <Tab key="students" label="Talaba" icon={<GraduationCap size={20} />} iconPosition="start" />,
+                <Tab key="staff" label="Asatiza" icon={<UserCheck size={20} />} iconPosition="start" />,
+                <Tab key="pending" label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    Taza Manzoori
+                    {users.filter(u => u.pendingClassLevel || !u.isVerified).length > 0 && (
+                      <Chip 
+                        label={users.filter(u => u.pendingClassLevel || !u.isVerified).length} 
+                        size="small" 
+                        sx={{ height: 22, fontSize: '0.7rem', fontWeight: 900, bgcolor: 'warning.main', color: 'white' }} 
+                      />
+                    )}
+                  </Box>
+                } icon={<Clock size={20} />} iconPosition="start" />
+              ]
+            ) : (
+              <Tab label="School Staff (Asatiza)" icon={<UserCheck size={20} />} iconPosition="start" />
+            )}
           </Tabs>
           
           <Box sx={{ px: 2, py: 2, flex: { xs: 1, md: 'none' }, minWidth: { xs: '100%', md: 400 } }}>
@@ -1624,53 +1694,55 @@ export default function Users() {
                         key={user.uid} 
                         hover
                         selected={isItemSelected}
+                        onMouseDown={() => isMobile && handleTouchStart(user.uid)}
+                        onMouseUp={handleTouchEnd}
+                        onTouchStart={() => handleTouchStart(user.uid)}
+                        onTouchEnd={handleTouchEnd}
                         onClick={(e) => {
-                          // Prevent click from triggering when clicking on user actions (like buttons inside)
                           if ((e.target as HTMLElement).closest('.action-menu-trigger')) return;
-                          handleSelectOne(user.uid);
+                          handleRowClick(user);
                         }}
-                        sx={{ transition: 'all 0.2s', cursor: 'pointer' }}
+                        sx={{ 
+                          transition: 'all 0.2s', 
+                          cursor: 'pointer',
+                          '&.Mui-selected': {
+                            bgcolor: alpha(theme.palette.primary.main, 0.08),
+                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.12) }
+                          }
+                        }}
                       >
                         <TableCell padding="checkbox">
                           <Checkbox
                             checked={isItemSelected}
-                            onChange={() => handleSelectOne(user.uid)}
+                            onChange={(e) => { e.stopPropagation(); handleSelectOne(user.uid); }}
                             onClick={(e) => e.stopPropagation()}
+                            sx={{ 
+                              opacity: isSelectionMode || isItemSelected ? 1 : 0.4,
+                              '&:hover': { opacity: 1 }
+                            }}
                           />
                         </TableCell>
                         <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Avatar 
-                            src={user.photoURL} 
-                            imgProps={{ referrerPolicy: 'no-referrer' }}
-                            sx={{ 
-                              width: 44, 
-                              height: 44, 
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              border: '2px solid white'
-                            }} 
-                          />
-                          <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{user.displayName}</Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{user.email}</Typography>
-                              {user.hardwareStatus && (
-                                <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                  <Tooltip title={`Notifications: ${user.hardwareStatus.notifications}`}>
-                                    <Box sx={{ color: user.hardwareStatus.notifications === 'granted' ? 'success.main' : 'text.disabled' }}>
-                                      <Bell size={12} />
-                                    </Box>
-                                  </Tooltip>
-                                  <Tooltip title={`Camera: ${user.hardwareStatus.camera}`}>
-                                    <Box sx={{ color: user.hardwareStatus.camera === 'granted' ? 'success.main' : 'text.disabled' }}>
-                                      <Camera size={12} />
-                                    </Box>
-                                  </Tooltip>
-                                </Box>
-                              )}
+                          <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2 }}>
+                            <Avatar 
+                              src={user.photoURL} 
+                              imgProps={{ referrerPolicy: 'no-referrer' }}
+                              sx={{ 
+                                width: 44, 
+                                height: 44, 
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                border: isItemSelected ? `3px solid ${theme.palette.primary.main}` : '2px solid white'
+                              }} 
+                            >
+                              {user.displayName.charAt(0)}
+                            </Avatar>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800, lineHeight: 1.2 }}>{user.displayName}</Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{user.email || user.admissionNo}</Typography>
+                              </Box>
                             </Box>
                           </Box>
-                        </Box>
                       </TableCell>
                       <TableCell>
                         <Chip 
@@ -1735,7 +1807,13 @@ export default function Users() {
                         user={user} 
                         isAdmin={isAdmin} 
                         isSuperAdmin={isSuperAdmin} 
+                        availableRoles={availableRoles}
                         actionMenu={<UserActionMenu user={user} />}
+                        onOpenProfile={(u: UserProfile) => {
+                          setProfileToView(u);
+                          setViewProfileMode('digital');
+                          setOpenViewProfile(true);
+                        }}
                       />
                     </motion.div>
                   </Grid>
@@ -1883,9 +1961,12 @@ export default function Users() {
                     onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                   >
                     <MenuItem value="student">Student</MenuItem>
-                    {canAddTeacher && <MenuItem value="manager">Administrator</MenuItem>}
-                    {canAddTeacher && <MenuItem value="teacher">Teacher</MenuItem>}
-                    {canAddTeacher && <MenuItem value="pending_teacher">Pending Registration</MenuItem>}
+                    <MenuItem value="teacher">Teacher</MenuItem>
+                    <MenuItem value="manager">Manager</MenuItem>
+                    {availableRoles.filter(r => !['student', 'manager', 'teacher'].includes(r.id)).map(role => (
+                      <MenuItem key={role.id} value={role.id}>{role.name}</MenuItem>
+                    ))}
+                    {canAddTeacher && (role === 'superadmin' || isSuperAdmin) && <MenuItem value="pending_teacher">Pending Registration</MenuItem>}
                   </Select>
               </FormControl>
             </Grid>
@@ -2167,365 +2248,259 @@ export default function Users() {
         </DialogActions>
       </Dialog>
 
-      {/* Profile Detail Printable Dialog */}
       <Dialog 
+        fullScreen
         open={openViewProfile} 
         onClose={() => setOpenViewProfile(false)} 
-        maxWidth="md" 
-        fullWidth 
+        TransitionComponent={Fade}
         PaperProps={{ 
           sx: { 
-            borderRadius: 5, 
-            p: 0, 
-            overflow: 'visible',
+            bgcolor: viewProfileMode === 'digital' ? 'background.default' : 'white',
+            backgroundImage: 'none',
             '@media print': {
-              boxShadow: 'none',
-              borderRadius: 0,
-              width: '100%',
-              maxWidth: '100%',
-              margin: 0,
-              p: 0,
-              overflow: 'visible',
-              bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : 'white',
-              color: 'text.primary'
+              bgcolor: 'white',
+              color: 'black'
             }
           } 
         }}
       >
-        <DialogTitle className="no-print" sx={{ p: 0, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.primary.main, 0.05) }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <FileText size={24} className="text-primary-500" />
+        <AppBar sx={{ position: 'relative', bgcolor: 'background.paper', color: 'text.primary', borderBottom: '1px solid', borderColor: 'divider' }} elevation={0} className="no-print">
+          <Toolbar sx={{ justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton edge="start" color="inherit" onClick={() => setOpenViewProfile(false)}>
+                <ArrowLeft />
+              </IconButton>
               <Typography variant="h6" sx={{ fontWeight: 900 }}>
-                {viewProfileMode === 'digital' ? 'Student Profile Card' : 'Admission Form (Preview)'}
+                {viewProfileMode === 'digital' ? 'Student Intelligence Profile' : 'Official Admission Form'}
               </Typography>
             </Box>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Tabs 
-                value={viewProfileMode} 
-                onChange={(_, v) => setViewProfileMode(v)} 
-                sx={{ 
-                  minHeight: 0, 
-                  mr: 2,
-                  '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' }
-                }}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button 
+                variant="outlined" 
+                startIcon={<Printer />} 
+                onClick={handlePrint}
+                sx={{ borderRadius: 2, fontWeight: 800 }}
               >
-                <Tab value="digital" label="Digital View" sx={{ minHeight: 40, fontWeight: 800, textTransform: 'none' }} />
-                <Tab value="print" label="Print Mode" sx={{ minHeight: 40, fontWeight: 800, textTransform: 'none' }} />
-              </Tabs>
-              <IconButton 
-                onClick={handlePrint} 
-                size="small" 
-                className="print-button"
-                sx={{ bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'white', color: 'primary.dark', borderRadius: 2, '&:hover': { bgcolor: 'grey.100' } }}
-              >
-                <Printer size={18} />
-              </IconButton>
-              <IconButton onClick={() => setOpenViewProfile(false)} size="small" sx={{ borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'white' }}>
-                <X size={18} />
-              </IconButton>
+                Print Profile
+              </Button>
             </Box>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ 
-          p: viewProfileMode === 'digital' ? 3 : 0,
-          bgcolor: viewProfileMode === 'digital' ? 'background.default' : 'white',
-          '@media print': {
-            overflow: 'visible',
-            height: 'auto'
-          }
-        }}>
-          {viewProfileMode === 'digital' ? (
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-              <Box sx={{ maxWidth: 800, mx: 'auto' }}>
-                <Card sx={{ 
-                  borderRadius: 6, 
-                  overflow: 'hidden', 
-                  border: 'none',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '20px 20px 60px #060a12, -20px -20px 60px #182442'
-                    : '20px 20px 60px #d1d9e6, -20px -20px 60px #ffffff',
-                }}>
-                  <Box sx={{ 
-                    h: 160, 
-                    bgcolor: 'primary.main', 
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                    position: 'relative',
-                    p: 3,
-                    display: 'flex',
-                    alignItems: 'flex-end'
-                  }}>
-                    <Avatar 
-                      src={profileToView?.photoURL}
-                      sx={{ 
-                        width: 140, 
-                        height: 140, 
-                        border: '6px solid', 
-                        borderColor: 'background.paper', 
-                        mb: -10,
-                        zIndex: 2,
-                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
-                      }}
-                    >
-                      {profileToView?.displayName?.charAt(0)}
-                    </Avatar>
-                  </Box>
-                  <Box sx={{ pt: 12, p: 4 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
-                      <Box>
-                        <Typography variant="h4" sx={{ fontWeight: 900, color: 'text.primary', letterSpacing: -1 }}>
-                          {profileToView?.displayName}
-                        </Typography>
-                        <Typography variant="h6" color="primary" sx={{ fontWeight: 700, mt: 0.5 }}>
-                          {profileToView?.classLevel} • {profileToView?.admissionNo || 'No ID'}
-                        </Typography>
-                      </Box>
-                      <Chip 
-                        label={profileToView?.status} 
-                        color={profileToView?.status === 'Active' ? 'success' : 'error'}
-                        sx={{ fontWeight: 900, borderRadius: 2 }}
-                      />
-                    </Box>
+          </Toolbar>
+        </AppBar>
 
-                    <Grid container spacing={3}>
-                      {[
-                        { icon: <User size={18} />, label: "Father Name", value: profileToView?.fatherName },
-                        { icon: <Calendar size={18} />, label: "Date of Birth", value: profileToView?.dob ? format(new Date(profileToView.dob), 'dd MMM yyyy') : 'N/A' },
-                        { icon: <Phone size={18} />, label: "Contact", value: profileToView?.phone },
-                        { icon: <MapPin size={18} />, label: "Address", value: profileToView?.address },
-                        { icon: <Shield size={18} />, label: "Roll No", value: profileToView?.rollNo },
-                        { icon: <BookOpen size={18} />, label: "Admission Date", value: profileToView?.admissionDate ? format(new Date(profileToView.admissionDate), 'dd MMM yyyy') : 'N/A' },
-                      ].map((item, i) => (
-                        <Grid size={{ xs: 12, sm: 6 }} key={i}>
-                          <Box sx={{ display: 'flex', gap: 2, p: 2, borderRadius: 3, bgcolor: alpha(theme.palette.text.primary, 0.03), border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1) }}>
-                            <Box sx={{ color: 'primary.main', display: 'flex', alignItems: 'center' }}>{item.icon}</Box>
-                            <Box>
-                              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                {item.label}
-                              </Typography>
-                              <Typography variant="body1" sx={{ fontWeight: 700 }}>{item.value || 'Not provided'}</Typography>
-                            </Box>
-                          </Box>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  </Box>
-                  <Box sx={{ p: 4, bgcolor: alpha(theme.palette.primary.main, 0.05), display: 'flex', justifyContent: 'center' }}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 4, display: 'inline-block', mb: 1, border: '1px solid #eee' }}>
-                        <QRCodeSVG value={`https://sys.waliulaser.com/verify/${profileToView?.uid}`} size={100} />
+        <DialogContent sx={{ p: { xs: 2, md: 6 }, bgcolor: 'background.default' }}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+              <Container maxWidth="lg">
+                <Grid container spacing={4}>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <Card sx={{ borderRadius: 6, p: 4, textAlign: 'center', position: 'relative', overflow: 'visible', bgcolor: 'background.paper' }}>
+                      <Box sx={{ position: 'absolute', top: -40, left: '50%', transform: 'translateX(-50%)' }}>
+                        <Avatar 
+                          src={profileToView?.photoURL} 
+                          sx={{ width: 180, height: 180, border: '8px solid', borderColor: 'background.paper', boxShadow: theme.shadows[10], mb: 2 }}
+                        >
+                          {profileToView?.displayName?.charAt(0)}
+                        </Avatar>
                       </Box>
-                      <Typography variant="caption" sx={{ display: 'block', fontWeight: 800, color: 'text.secondary' }}>SCAN QR TO VERIFY IDENTITY</Typography>
-                    </Box>
-                  </Box>
-                </Card>
-              </Box>
-            </motion.div>
-          ) : (
-            <Box id="printable-profile" className="admission-page" sx={{ position: 'relative', color: 'black', bgcolor: 'white', p: { xs: 0, md: 1 }, borderRadius: 0, width: '100%' }}>
-              {/* Existing Admission Form Content */}
-              <Box sx={{ border: '2px solid black', p: { xs: 2, md: 3 }, position: 'relative', width: '100%', boxSizing: 'border-box' }}>
-                 {/* ... existing header and grid ... */}
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, borderBottom: '3px solid black', pb: 2, gap: 4 }}>
-                  <Avatar src={instituteSettings.logoUrl} sx={{ width: 100, height: 100, borderRadius: 0, bgcolor: 'grey.200', flexShrink: 0 }}>
-                    <GraduationCap size={50} color="black" />
-                  </Avatar>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="h3" sx={{ 
-                      fontWeight: 900, 
-                      color: 'black', 
-                      textTransform: 'uppercase', 
-                      fontSize: { xs: '1.5rem', md: '2.2rem' }, 
-                      fontFamily: 'var(--font-serif)', 
-                      lineHeight: 1.1,
-                      wordBreak: 'break-word',
-                      whiteSpace: 'normal',
-                      mb: 0.5
-                    }}>
-                      {instituteSettings.instituteName || instituteSettings.name || 'INSTITUTE NAME'}
-                    </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: 'black', fontSize: '1rem', mt: 1, wordBreak: 'break-word' }}>
-                      {instituteSettings.tagline || 'Education for Excellence'}
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: 'black', display: 'block', fontSize: '0.9rem', mt: 1, wordBreak: 'break-word', maxWidth: '600px' }}>
-                      {instituteSettings.address} | {instituteSettings.phone}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' }, flexShrink: 0, minWidth: 150 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 900, border: '3px solid black', px: 3, py: 1, display: 'inline-block', fontSize: '1.2rem', fontFamily: 'var(--font-serif)' }}>
-                      ADMISSION FORM
-                    </Typography>
-                    <Typography variant="h6" sx={{ mt: 2, fontWeight: 700, fontSize: '1rem' }}>
-                      Session: {format(new Date(), 'yyyy')}-{parseInt(format(new Date(), 'yyyy')) + 1}
-                    </Typography>
-                  </Box>
-                </Box>
+                      <Box sx={{ pt: 18 }}>
+        <Typography variant="h4" sx={{ fontWeight: 950, letterSpacing: -1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>{profileToView?.displayName}</Typography>
+                        <Typography variant="h6" color="primary" sx={{ fontWeight: 800, mb: 1 }}>{profileToView?.classLevel}</Typography>
+                        <Chip label={profileToView?.status} color={profileToView?.status === 'Active' ? 'success' : 'error'} sx={{ fontWeight: 900, mb: 3 }} />
+                        
+                        <Stack spacing={2} sx={{ mb: 4 }}>
+                           <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 3, border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
+                              <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', display: 'block', mb: 0.5 }}>ADMISSION NUMBER</Typography>
+                              <Typography variant="h6" sx={{ fontWeight: 900 }}>{profileToView?.admissionNo || 'N/A'}</Typography>
+                           </Box>
+                           <Box sx={{ p: 2, bgcolor: alpha(theme.palette.success.main, 0.05), borderRadius: 3, border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.1) }}>
+                              <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', display: 'block', mb: 0.5 }}>ROLL NUMBER</Typography>
+                              <Typography variant="h6" sx={{ fontWeight: 900 }}>{profileToView?.rollNo || 'PENDING'}</Typography>
+                           </Box>
+                        </Stack>
 
-                {/* Student Info Grid */}
-                <Grid container spacing={1.5}>
-                  <Grid size={{ xs: 8 }}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
-                       <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.3 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0, fontSize: '0.7rem' }}>Full Name:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.displayName}</Typography>
-                       </Box>
-                       <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.3 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0, fontSize: '0.7rem' }}>Father's Name:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.7rem' }}>{profileToView?.fatherName || '____________________'}</Typography>
-                       </Box>
-                       <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.3 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0, fontSize: '0.7rem' }}>Mother's Name:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.7rem' }}>{profileToView?.motherName || '____________________'}</Typography>
-                       </Box>
-                       <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.3 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 800, width: 120, flexShrink: 0, fontSize: '0.7rem' }}>Date of Birth:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.7rem' }}>{profileToView?.dob ? format(new Date(profileToView.dob), 'dd MMMM yyyy') : '____________________'}</Typography>
-                       </Box>
-                    </Box>
+                        <Box sx={{ p: 2, bgcolor: 'white', borderRadius: 4, display: 'inline-block', mb: 1, border: '1px solid #eee' }}>
+                           <QRCodeSVG value={`https://${window.location.host}/verify/profile/${profileToView?.uid}`} size={120} />
+                           <Typography variant="caption" sx={{ display: 'block', fontWeight: 900, mt: 1, color: 'primary.main' }}>VERIFIED STUDENT</Typography>
+                        </Box>
+                      </Box>
+                    </Card>
                   </Grid>
-                  <Grid size={{ xs: 4 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                     <Box sx={{ width: 120, height: 140, border: '1px dashed black', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', p: 0.5 }}>
-                        {profileToView?.photoURL ? (
-                          <img src={profileToView.photoURL} alt="student" style={{ width: '100%', height: '100%', objectFit: 'cover' }} referrerPolicy="no-referrer" />
-                        ) : (
-                          <Typography variant="caption" sx={{ fontSize: '0.6rem', color: 'grey.600' }}>PASTE RECENT PHOTO HERE</Typography>
+
+                  <Grid size={{ xs: 12, md: 8 }}>
+                    <Stack spacing={4}>
+                      <Card sx={{ borderRadius: 6, p: 4 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 950, mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <User size={24} className="text-primary-500" />
+                          Personal Information
+                        </Typography>
+                        <Grid container spacing={3}>
+                           {[
+                             { icon: <User />, label: "Father Name", value: profileToView?.fatherName },
+                             { icon: <User />, label: "Mother Name", value: profileToView?.motherName },
+                             { icon: <Calendar />, label: "Date of Birth", value: safeFormatDate(profileToView?.dob) },
+                             { icon: <Phone />, label: "Contact Phone", value: profileToView?.phone },
+                             { icon: <MapPin />, label: "Residential Address", value: profileToView?.address },
+                             { icon: <Clock />, label: "Join Date", value: safeFormatDate(profileToView?.admissionDate) },
+                           ].map((item, i) => (
+                             <Grid size={{ xs: 12, sm: 6 }} key={i}>
+                               <Box sx={{ p: 2, borderRadius: 3, bgcolor: alpha(theme.palette.text.primary, 0.02), border: '1px solid', borderColor: 'divider' }}>
+                                 <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1 }}>{item.label}</Typography>
+                                 <Typography variant="body1" sx={{ fontWeight: 800, mt: 0.5 }}>{item.value || 'Not Provided'}</Typography>
+                               </Box>
+                             </Grid>
+                           ))}
+                        </Grid>
+                      </Card>
+
+                      <Card sx={{ borderRadius: 6, p: 4 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 950, mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <IndianRupee size={24} className="text-success-500" />
+                          Financial Ledger (Paid Receipts)
+                        </Typography>
+                        {loadingReceipts ? <LinearProgress sx={{ borderRadius: 5 }} /> : (
+                          <TableContainer>
+                            <Table>
+                              <TableHead>
+                                <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                                  <TableCell sx={{ fontWeight: 900 }}>Receipt #</TableCell>
+                                  <TableCell sx={{ fontWeight: 900 }}>Head</TableCell>
+                                  <TableCell sx={{ fontWeight: 900 }}>Amount</TableCell>
+                                  <TableCell sx={{ fontWeight: 900 }}>Period</TableCell>
+                                  <TableCell sx={{ fontWeight: 900 }}>Actions</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {studentReceipts.map(r => (
+                                  <TableRow key={r.id} hover>
+                                    <TableCell sx={{ fontWeight: 800 }}>{r.receiptNo}</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>{r.feeHead}</TableCell>
+                                    <TableCell sx={{ fontWeight: 900, color: 'success.main' }}>INR {r.amount}</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>{safeFormatDate(r.date, 'MMM yyyy')}</TableCell>
+                                    <TableCell>
+                                      <Button 
+                                        size="small" 
+                                        startIcon={<Printer size={14} />} 
+                                        onClick={() => navigate(`/fees?receipt=${r.receiptNo}`)}
+                                        sx={{ fontWeight: 800 }}
+                                      >
+                                        PRINT
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                                {studentReceipts.length === 0 && (
+                                  <TableRow>
+                                    <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.disabled', fontStyle: 'italic' }}>No payment records found.</TableCell>
+                                  </TableRow>
+                                )}
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
                         )}
-                     </Box>
-                  </Grid>
-
-                  <Grid size={{ xs: 6 }}>
-                     <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, width: 110, flexShrink: 0, fontSize: '0.75rem' }}>Admission No:</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.admissionNo || profileToView?.studentId || 'N/A'}</Typography>
-                     </Box>
-                  </Grid>
-                  <Grid size={{ xs: 6 }}>
-                     <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, width: 110, flexShrink: 0, fontSize: '0.75rem' }}>Class / Level:</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.classLevel || 'N/A'}</Typography>
-                     </Box>
-                  </Grid>
-
-                  <Grid size={{ xs: 6 }}>
-                     <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, width: 110, flexShrink: 0, fontSize: '0.75rem' }}>Email:</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.email}</Typography>
-                     </Box>
-                  </Grid>
-                  <Grid size={{ xs: 6 }}>
-                     <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, width: 110, flexShrink: 0, fontSize: '0.75rem' }}>Phone/Contact:</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.phone || '____________________'}</Typography>
-                     </Box>
-                  </Grid>
-
-                  <Grid size={{ xs: 12 }}>
-                     <Box sx={{ borderBottom: '1px solid #000', display: 'flex', pb: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, width: 110, flexShrink: 0, fontSize: '0.75rem' }}>Address:</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem' }}>{profileToView?.address || '____________________________________________________________'}</Typography>
-                     </Box>
-                  </Grid>
-
-                  <Grid size={{ xs: 12 }} sx={{ mt: 2 }}>
-                     <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1, borderBottom: '2px solid black', display: 'inline-block' }}>ACADEMIC DETAILS</Typography>
-                     <Box sx={{ border: '1px solid black' }}>
-                        <Grid container>
-                           <Grid size={{ xs: 6 }} sx={{ borderRight: '1px solid black', p: 1, bgcolor: '#f5f5f5' }}>
-                              <Typography variant="caption" sx={{ fontWeight: 900 }}>Enrolled Subjects</Typography>
-                           </Grid>
-                           <Grid size={{ xs: 6 }} sx={{ p: 1, bgcolor: '#f5f5f5' }}>
-                              <Typography variant="caption" sx={{ fontWeight: 900 }}>Previous Academic Record</Typography>
-                           </Grid>
-                           <Grid size={{ xs: 6 }} sx={{ borderRight: '1px solid black', p: 1, minHeight: 60 }}>
-                              <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>{profileToView?.subjectsEnrolled?.join(', ') || 'N/A'}</Typography>
-                           </Grid>
-                           <Grid size={{ xs: 6 }} sx={{ p: 1, minHeight: 60 }}>
-                              <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>N/A</Typography>
-                           </Grid>
-                        </Grid>
-                     </Box>
-                  </Grid>
-
-                  <Grid size={{ xs: 12 }} sx={{ mt: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', px: 2, pb: 2 }}>
-                     <Box sx={{ textAlign: 'center' }}>
-                        <Box sx={{ width: 110, borderBottom: '1px solid black', mb: 0.5 }} />
-                        <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Parent's Sign</Typography>
-                     </Box>
-                     
-                     <Box sx={{ textAlign: 'center', bgcolor: '#f9fafb', p: 1, border: '1px solid #eee', borderRadius: 1 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', fontSize: '0.5rem', mb: 0.5 }}>SECURE VALIDATION</Typography>
-                        {profileToView && <VerificationQR profile={profileToView} />}
-                     </Box>
-
-                     <Box sx={{ textAlign: 'center' }}>
-                        <Box sx={{ width: 110, borderBottom: '1px solid black', mb: 0.5 }} />
-                        <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Admin Sign</Typography>
-                     </Box>
+                      </Card>
+                    </Stack>
                   </Grid>
                 </Grid>
-                
-                <Box sx={{ mt: 4, pt: 1, borderTop: '1px dashed #ccc', textAlign: 'center' }}>
-                    <Typography variant="caption" sx={{ fontStyle: 'italic', color: 'grey.700', fontSize: '0.65rem' }}>
-                       Printed on {format(new Date(), 'dd-MM-yyyy hh:mm a')} via AIS Management System
-                    </Typography>
-                </Box>
+              </Container>
+            </motion.div>
+        </DialogContent>
+      </Dialog>
 
-                {/* Internal UI only section - Not for print */}
-                <Box className="no-print" sx={{ mt: 4, borderTop: '2px solid #eee', pt: 3 }}>
-                   <Typography variant="h6" sx={{ fontWeight: 900, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <IndianRupee size={20} className="text-primary-500" />
-                      Payment History
-                   </Typography>
-                   {loadingReceipts ? (
-                     <CircularProgress size={24} />
-                   ) : studentReceipts.length > 0 ? (
-                     <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
-                       <Table size="small">
-                         <TableHead sx={{ bgcolor: 'grey.50' }}>
-                           <TableRow>
-                             <TableCell sx={{ fontWeight: 800 }}>Receipt</TableCell>
-                             <TableCell sx={{ fontWeight: 800 }}>Category</TableCell>
-                             <TableCell sx={{ fontWeight: 800 }}>Amount</TableCell>
-                             <TableCell sx={{ fontWeight: 800 }}>Date</TableCell>
-                             <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                           </TableRow>
-                         </TableHead>
-                         <TableBody>
-                           {studentReceipts.map(r => (
-                             <TableRow key={r.id}>
-                               <TableCell sx={{ fontWeight: 700 }}>{r.receiptNo}</TableCell>
-                               <TableCell>{r.feeHead}</TableCell>
-                               <TableCell sx={{ fontWeight: 800 }}>Rs.{r.amount}</TableCell>
-                               <TableCell>
-                                 <Typography variant="body2" sx={{ fontWeight: 800, color: 'primary.main' }}>
-                                   {format(new Date(r.date), 'MMMM yyyy')}
-                                 </Typography>
-                                 <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                                   {format(new Date(r.date), 'dd-MM-yyyy')}
-                                 </Typography>
-                               </TableCell>
-                               <TableCell>
-                                 <Chip 
-                                   label={r.status} 
-                                   size="small" 
-                                   color={r.status === 'approved' ? 'success' : 'warning'} 
-                                   sx={{ fontWeight: 800, height: 20, fontSize: '0.65rem' }}
-                                 />
-                               </TableCell>
-                             </TableRow>
-                           ))}
-                         </TableBody>
-                       </Table>
-                     </TableContainer>
-                   ) : (
-                     <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                       No payment records found for this student.
-                     </Typography>
-                   )}
+      <Dialog 
+        fullScreen
+        open={openAdmissionForm} 
+        onClose={() => setOpenAdmissionForm(false)}
+        PaperProps={{ sx: { bgcolor: 'white' } }}
+      >
+        <AppBar sx={{ position: 'relative', bgcolor: 'white', color: 'black', borderBottom: '1px solid #eee' }} elevation={0} className="no-print">
+          <Toolbar sx={{ justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton edge="start" color="inherit" onClick={() => setOpenAdmissionForm(false)}>
+                <ArrowLeft />
+              </IconButton>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>Official Admission Form</Typography>
+            </Box>
+            <Button variant="contained" startIcon={<Printer />} onClick={handlePrint} sx={{ borderRadius: 2, fontWeight: 800 }}>Print Form</Button>
+          </Toolbar>
+        </AppBar>
+        <DialogContent sx={{ bgcolor: 'white', p: { xs: 1, md: 4 }, display: 'flex', justifyContent: 'center' }}>
+           <Box className="admission-page" sx={{ width: '210mm', minHeight: '297mm', p: 8, bgcolor: 'white', color: 'black', border: '1px solid #eee' }}>
+             <Box sx={{ border: '4px solid black', p: 4, position: 'relative', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, borderBottom: '4px solid black', pb: 3, gap: 4 }}>
+                    <img src={instituteSettings.logoUrl} style={{ width: 120, height: 120, objectFit: 'contain' }} />
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h3" sx={{ fontWeight: 950, color: 'black', textTransform: 'uppercase', fontFamily: '"Cinzel Decorative", serif', letterSpacing: 1 }}>
+                        {instituteSettings.instituteName || 'INSTITUTE NAME'}
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800, color: 'black', mb: 1, fontFamily: '"Cinzel", serif' }}>{instituteSettings.tagline}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{instituteSettings.address} | {instituteSettings.phone}</Typography>
+                    </Box>
+                    <Box sx={{ textAlign: 'right' }}>
+                      <Box sx={{ border: '4px solid black', px: 3, py: 1, fontWeight: 950, fontSize: '1.5rem', mb: 2, fontFamily: '"Cinzel Decorative", serif' }}>ADMISSION FORM</Box>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>ID: {profileToView?.admissionNo}</Typography>
+                    </Box>
+                  </Box>
+
+                  <Grid container spacing={4} sx={{ mb: 6 }}>
+                    <Grid size={{ xs: 8 }}>
+                       {[
+                         { l: 'Full Name', v: profileToView?.displayName },
+                         { l: "Father's Name", v: profileToView?.fatherName },
+                         { l: "Mother's Name", v: profileToView?.motherName },
+                         { l: 'Date of Birth', v: profileToView?.dob ? format(new Date(profileToView.dob), 'dd MMMM yyyy') : '' },
+                         { l: 'Email Address', v: profileToView?.email },
+                         { l: 'Phone Contact', v: profileToView?.phone },
+                       ].map((f, i) => (
+                         <Box key={i} sx={{ display: 'flex', mb: 2, borderBottom: '1px solid black', pb: 0.5 }}>
+                           <Typography variant="body1" sx={{ fontWeight: 900, width: 200, flexShrink: 0 }}>{f.l}:</Typography>
+                           <Typography variant="body1" sx={{ fontWeight: 600 }}>{f.v || '________________________________'}</Typography>
+                         </Box>
+                       ))}
+                    </Grid>
+                    <Grid size={{ xs: 4 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                       <Box sx={{ width: 160, height: 200, border: '2px dashed black', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 1 }}>
+                          {profileToView?.photoURL ? <img src={profileToView.photoURL} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : 'AFFIX PHOTO'}
+                       </Box>
+                    </Grid>
+                  </Grid>
+
+                  <Box sx={{ mb: 6, flex: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 950, mb: 3, bgcolor: 'black', color: 'white', px: 2, py: 0.5, fontFamily: '"Cinzel Decorative", serif' }}>ACADEMIC & REGISTRATION</Typography>
+                    <Grid container spacing={4}>
+                      <Grid size={{ xs: 6 }}>
+                        <Box sx={{ display: 'flex', mb: 2, borderBottom: '1px solid black' }}>
+                          <Typography variant="body1" sx={{ fontWeight: 900, width: 150 }}>Join Date:</Typography>
+                          <Typography variant="body1">{profileToView?.admissionDate}</Typography>
+                        </Box>
+                      </Grid>
+                      <Grid size={{ xs: 6 }}>
+                        <Box sx={{ display: 'flex', mb: 2, borderBottom: '1px solid black' }}>
+                          <Typography variant="body1" sx={{ fontWeight: 900, width: 150 }}>Class Level:</Typography>
+                          <Typography variant="body1">{profileToView?.classLevel}</Typography>
+                        </Box>
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <Box sx={{ display: 'flex', mb: 2, borderBottom: '1px solid black' }}>
+                          <Typography variant="body1" sx={{ fontWeight: 900, width: 150 }}>Enrolled In:</Typography>
+                          <Typography variant="body1">{profileToView?.subjectsEnrolled?.join(', ') || 'Regular Academic Program'}</Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Box>
+
+                  <Box sx={{ mt: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                     <Box sx={{ textAlign: 'center' }}>
+                       <Box sx={{ width: 200, borderTop: '2px solid black', pt: 1, fontWeight: 900 }}>Parent/Guardian Sign</Box>
+                     </Box>
+                     <Box sx={{ textAlign: 'center' }}>
+                       <VerificationQR profile={profileToView} />
+                       <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', mt: 1 }}>SECURE VERIFICATION</Typography>
+                     </Box>
+                     <Box sx={{ textAlign: 'center' }}>
+                       <Box sx={{ width: 200, borderTop: '2px solid black', pt: 1, fontWeight: 900 }}>Admin/Principal Sign</Box>
+                     </Box>
+                  </Box>
                 </Box>
-             </Box>
-          </Box>
-        )}
+              </Box>
         </DialogContent>
       </Dialog>
 
@@ -2587,45 +2562,63 @@ export default function Users() {
 }
 
 const VerificationQR = ({ profile }: { profile: any }) => {
-  const [url, setUrl] = useState('');
-  useEffect(() => {
-    const verificationLink = `https://${window.location.host}/verify/profile/${profile.id || profile.uid}`;
-    QRCode.toDataURL(verificationLink, {
-      margin: 1,
-      width: 150,
-      color: {
-        dark: '#0d9488',
-        light: '#ffffff',
-      },
-    }).then(setUrl);
-  }, [profile]);
-
-  if (!url) return <CircularProgress size={20} />;
-  return <Box component="img" src={url} sx={{ width: 100, height: 100, borderRadius: 1, border: '1px solid', borderColor: 'divider' }} />;
+  if (!profile) return null;
+  const verificationLink = `${window.location.origin}/verify/profile/${profile.id || profile.uid || profile.admissionNo}`;
+  
+  return (
+    <Box sx={{ 
+      p: 1, 
+      bgcolor: 'white', 
+      borderRadius: 2, 
+      display: 'inline-flex',
+      border: '1px solid',
+      borderColor: 'divider',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+    }}>
+      <QRCodeSVG 
+        value={verificationLink}
+        size={110}
+        level="H"
+      />
+    </Box>
+  );
 };
 
-const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, actionMenu }: any) => {
+const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, actionMenu, availableRoles, onOpenProfile }: any) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   
+  const getRoleName = (roleId: string) => {
+    if (roleId === 'superadmin') return 'Administrator';
+    if (roleId === 'manager') return 'Manager';
+    if (roleId === 'teacher') return 'Teacher';
+    if (roleId === 'pending_teacher') return 'Pending Teacher';
+    if (roleId === 'student') return 'Student';
+    return availableRoles?.find((r: any) => r.id === roleId)?.name || roleId;
+  };
+  
   return (
-    <Card sx={{ 
-      borderRadius: 4, 
-      height: '100%', 
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      position: 'relative',
-      overflow: 'hidden',
-      border: '1px solid',
-      borderColor: 'divider',
-      bgcolor: 'background.paper',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-      '&:hover': { 
-        transform: 'translateY(-6px)', 
-        boxShadow: '0 12px 24px rgba(0,0,0,0.06)',
-        borderColor: 'primary.main',
-        '& .user-actions': { opacity: 1, transform: 'translateY(0)' }
-      }
-    }}>
+    <Card 
+      onClick={() => onOpenProfile(user)}
+      sx={{ 
+        borderRadius: 4, 
+        height: '100%', 
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        position: 'relative',
+        overflow: 'hidden',
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
+        cursor: 'pointer',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+        '&:hover': { 
+          transform: 'translateY(-6px)', 
+          boxShadow: '0 12px 24px rgba(0,0,0,0.06)',
+          borderColor: 'primary.main',
+          '& .user-actions': { opacity: 1, transform: 'translateY(0)' }
+        }
+      }}
+    >
       <Box sx={{ height: 100, bgcolor: 'primary.main', position: 'relative' }}>
         <Box sx={{ position: 'absolute', bottom: -40, left: '50%', transform: 'translateX(-50%)' }}>
           <Avatar 
@@ -2648,15 +2641,14 @@ const UserCard = React.memo(({ user, isAdmin, isSuperAdmin, actionMenu }: any) =
         <Typography variant="h6" sx={{ fontWeight: 900, mb: 0.5, letterSpacing: -1 }}>{user.displayName}</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, display: 'block', mb: 3, textTransform: 'uppercase', letterSpacing: 1.5 }}>
           <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-            {user.role === 'superadmin' ? (
-              <><Shield size={14} className="text-warning-500" /> Administrator</>
-            ) : user.role === 'manager' ? (
-              <><Shield size={14} className="text-primary-500" /> Manager</>
+            {user.role === 'superadmin' || user.role === 'manager' ? (
+              <Shield size={14} className={user.role === 'superadmin' ? "text-warning-500" : "text-primary-500"} />
             ) : user.role === 'teacher' ? (
-              <><UserCheck size={14} className="text-success-500" /> Teacher</>
+              <UserCheck size={14} className="text-success-500" />
             ) : user.role === 'pending_teacher' ? (
-              <><Clock size={14} className="text-warning-500" /> Pending Teacher</>
-            ) : user.role}
+              <Clock size={14} className="text-warning-500" />
+            ) : null}
+            {getRoleName(user.role)}
           </Box>
           {' • '}
           {user.role === 'superadmin' ? 'System' : user.role === 'student' ? user.classLevel : (user.assignedClasses?.join(', ') || user.subject || 'General')}

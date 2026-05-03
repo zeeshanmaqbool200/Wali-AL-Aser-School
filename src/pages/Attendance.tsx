@@ -13,7 +13,7 @@ import {
   Download, Search, UserCheck, UserMinus,
   Clock, Info, MoreVertical, FileText, TrendingUp, ArrowLeft
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, getDocs, where, setDoc, orderBy, or, and } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, getDocs, where, setDoc, orderBy, or, and } from '../firebase';
 import { db, OperationType, handleFirestoreError, smartSetDoc } from '../firebase';
 import { UserProfile, Attendance } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -40,6 +40,8 @@ export default function AttendancePage() {
     return cached ? JSON.parse(cached) : [];
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [markingIds, setMarkingIds] = useState<Set<string>>(new Set());
+  const [bulkMarking, setBulkMarking] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedClass) {
@@ -69,10 +71,7 @@ export default function AttendancePage() {
             collection(db, 'users'),
             and(
               where('role', '==', 'student'), 
-              or(
-                where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
-                where('classLevel', '==', 'Example')
-              )
+              where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__'])
             )
           );
         } else {
@@ -118,10 +117,7 @@ export default function AttendancePage() {
             collection(db, 'attendance'), 
             and(
               where('date', '==', dateStr),
-              or(
-                where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
-                where('classLevel', '==', 'Example')
-              )
+              where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__'])
             )
           );
         }
@@ -154,6 +150,7 @@ export default function AttendancePage() {
   const handleMarkAttendance = async (studentId: string, status: 'present' | 'absent') => {
     if (!isStaff) return;
     
+    setMarkingIds(prev => new Set(prev).add(studentId));
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     const attendanceId = `${dateStr}_${studentId}`;
     const student = students.find(s => s.uid === studentId);
@@ -172,11 +169,18 @@ export default function AttendancePage() {
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `attendance/${attendanceId}`);
       setSnackbar({ open: true, message: 'Failed to mark attendance', severity: 'error' });
+    } finally {
+      setMarkingIds(prev => {
+        const next = new Set(prev);
+        next.delete(studentId);
+        return next;
+      });
     }
   };
 
   const handleBulkMark = async (status: 'present' | 'absent') => {
     if (!isStaff || !currentUser) return;
+    setBulkMarking(status);
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     
     try {
@@ -198,6 +202,8 @@ export default function AttendancePage() {
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'attendance');
       setSnackbar({ open: true, message: 'Failed to bulk mark attendance', severity: 'error' });
+    } finally {
+      setBulkMarking(null);
     }
   };
 
@@ -417,6 +423,7 @@ export default function AttendancePage() {
                       <Tooltip title="Mark All Present">
                         <IconButton 
                           onClick={() => handleBulkMark('present')}
+                          disabled={bulkMarking !== null}
                           sx={{ 
                             bgcolor: 'background.paper', 
                             color: 'success.main', 
@@ -426,12 +433,13 @@ export default function AttendancePage() {
                             '&:hover': { bgcolor: 'success.main', color: 'white' } 
                           }}
                         >
-                          <CheckCircle size={22} />
+                          {bulkMarking === 'present' ? <CircularProgress size={20} color="inherit" /> : <CheckCircle size={22} />}
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Mark All Absent">
                         <IconButton 
                           onClick={() => handleBulkMark('absent')}
+                          disabled={bulkMarking !== null}
                           sx={{ 
                             bgcolor: 'background.paper', 
                             color: 'error.main', 
@@ -441,7 +449,7 @@ export default function AttendancePage() {
                             '&:hover': { bgcolor: 'error.main', color: 'white' } 
                           }}
                         >
-                          <XCircle size={22} />
+                          {bulkMarking === 'absent' ? <CircularProgress size={20} color="inherit" /> : <XCircle size={22} />}
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -536,9 +544,9 @@ export default function AttendancePage() {
                                 size="small" 
                                 variant={record?.status === 'present' ? 'contained' : 'outlined'}
                                 color="success"
-                                startIcon={<CheckCircle size={16} />}
+                                startIcon={markingIds.has(student.uid) ? null : <CheckCircle size={16} />}
                                 onClick={() => handleMarkAttendance(student.uid, 'present')}
-                                disabled={!isStaff}
+                                disabled={!isStaff || markingIds.has(student.uid) || bulkMarking !== null}
                                 sx={{ 
                                   borderRadius: 3, 
                                   minWidth: { xs: 80, sm: 100 }, 
@@ -547,15 +555,15 @@ export default function AttendancePage() {
                                   boxShadow: record?.status === 'present' ? '0 4px 12px rgba(16, 185, 129, 0.3)' : 'none'
                                 }}
                               >
-                                Present
+                                {markingIds.has(student.uid) ? <CircularProgress size={16} color="inherit" /> : 'Present'}
                               </Button>
                               <Button 
                                 size="small" 
                                 variant={record?.status === 'absent' ? 'contained' : 'outlined'}
                                 color="error"
-                                startIcon={<XCircle size={16} />}
+                                startIcon={markingIds.has(student.uid) ? null : <XCircle size={16} />}
                                 onClick={() => handleMarkAttendance(student.uid, 'absent')}
-                                disabled={!isStaff}
+                                disabled={!isStaff || markingIds.has(student.uid) || bulkMarking !== null}
                                 sx={{ 
                                   borderRadius: 3, 
                                   minWidth: { xs: 80, sm: 100 }, 
@@ -564,7 +572,7 @@ export default function AttendancePage() {
                                   boxShadow: record?.status === 'absent' ? '0 4px 12px rgba(239, 68, 68, 0.3)' : 'none'
                                 }}
                               >
-                                Absent
+                                {markingIds.has(student.uid) ? <CircularProgress size={16} color="inherit" /> : 'Absent'}
                               </Button>
                             </Box>
                           </TableCell>

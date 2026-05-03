@@ -162,3 +162,24 @@ export const logger = {
     saveLogToDb('auth', event, user);
   }
 };
+
+// Listen for unhandled rejections to catch Firestore INTERNAL ASSERTION FAILED errors
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    const message = event.reason?.message || '';
+    if (message?.includes('FIRESTORE') || message?.includes('INTERNAL ASSERTION FAILED')) {
+       // Log the error for debugging
+       logger.error('CRITICAL FIRESTORE ERROR INTERCEPTED', {
+         message,
+         stack: event.reason?.stack,
+         ve: message.match(/"ve":(-?\d+)/)?.[1]
+       });
+       
+       // Force a refresh if it's a fatal internal state error that happens repeatedly
+       if (message.includes('ID: ca9')) {
+         console.warn('Recovering from Firestore internal state error...');
+         // Consider debounced reload if it keeps happening
+       }
+    }
+  });
+}

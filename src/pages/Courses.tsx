@@ -15,12 +15,15 @@ import {
   Clock, User, Users, Filter, CheckCircle,
   MoreVertical, Book, GraduationCap, ArrowRight,
   Star, Share2, Bookmark, Layout, Layers, X,
-  Image as ImageIcon, Paperclip, Zap, FileText, Globe,
+  ImageIcon, Paperclip, Zap, FileText, Globe,
   Music, Trophy, HelpCircle, ChevronRight, ChevronLeft,
   RotateCcw, Info, Headphones, ArrowLeft, Save, ExternalLink, ClipboardList, Eye, Award, Calendar
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, or, and, limit, increment } from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError } from '../firebase';
+import { 
+  db, collection, query, onSnapshot, doc, orderBy, where, or, and, limit, increment, OperationType, handleFirestoreError,
+  smartAddDoc, smartUpdateDoc, smartDeleteDoc 
+} from '../firebase';
+import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import { Course, CourseSection, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -69,6 +72,8 @@ export default function Courses() {
     const q = query(collection(db, 'users'), where('role', '==', 'teacher'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setAllTeachers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'users');
     });
     return () => unsubscribe();
   }, []);
@@ -82,7 +87,7 @@ export default function Courses() {
 
     // Increment views in Firestore
     try {
-      await updateDoc(doc(db, 'courses', course.id), {
+      await smartUpdateDoc(doc(db, 'courses', course.id), {
         views: increment(1)
       });
     } catch (e) {
@@ -235,8 +240,11 @@ export default function Courses() {
     return () => unsubscribe();
   }, [currentUser, isStaff, isTeacherRole]);
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSave = async () => {
     if (!currentUser) return;
+    setSubmitting(true);
     try {
       const data = {
         ...formData,
@@ -246,11 +254,11 @@ export default function Courses() {
       };
 
       if (editingCourse) {
-        await updateDoc(doc(db, 'courses', editingCourse.id), data);
-        setSnackbar({ open: true, message: 'Subject updated successfully!', severity: 'success' });
+        await smartUpdateDoc(doc(db, 'courses', editingCourse.id), data);
+        setSnackbar({ open: true, message: 'Subject updated successfully! ✨', severity: 'success' });
       } else {
-        await addDoc(collection(db, 'courses'), { ...data, createdAt: Date.now() });
-        setSnackbar({ open: true, message: 'New Subject added successfully!', severity: 'success' });
+        await smartAddDoc(collection(db, 'courses'), { ...data, createdAt: Date.now() });
+        setSnackbar({ open: true, message: 'New Subject added successfully! 🚀', severity: 'success' });
       }
       
       setOpenDialog(false);
@@ -271,7 +279,11 @@ export default function Courses() {
         targetClassLevels: []
       });
     } catch (error) {
+      console.error("Error saving course:", error);
       handleFirestoreError(error, OperationType.WRITE, 'courses');
+      setSnackbar({ open: true, message: 'Failed to save subject.', severity: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -326,10 +338,13 @@ export default function Courses() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this subject? This action cannot be undone.')) return;
     try {
-      await deleteDoc(doc(db, 'courses', id));
+      await smartDeleteDoc(doc(db, 'courses', id));
+      setSnackbar({ open: true, message: 'Subject deleted successfully.', severity: 'success' });
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `courses/${id}`);
+      setSnackbar({ open: true, message: 'Failed to delete subject.', severity: 'error' });
     }
   };
 
@@ -1603,7 +1618,7 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sec
       if (currentUser) {
         setSubmitting(true);
         try {
-          await addDoc(collection(db, 'quiz_results'), {
+          await smartAddDoc(collection(db, 'quiz_results'), {
             studentId: currentUser.uid,
             studentName: currentUser.displayName,
             courseId,
@@ -1694,11 +1709,12 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sec
   );
 }
 
-import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 
 function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead, viewMode, onShowTeacher, teacherPhoto }: any) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isRTL = (text: string) => /[\u0600-\u06FF]/.test(text);
 
   const teacherActions: ActionMenuItem[] = [
     { label: 'Edit Subject', icon: <Edit2 size={16} />, onClick: onEdit },

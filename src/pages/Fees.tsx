@@ -1,47 +1,87 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Box, Typography, Card, CardContent, Grid, Button, 
-  TextField, Autocomplete, Table, TableBody, TableCell, 
-  TableContainer, TableHead, TableRow, Paper, Chip, 
-  IconButton, Dialog, DialogTitle, DialogContent, 
-  DialogActions, CircularProgress, InputAdornment, 
-  Tab, Tabs, Badge, Alert, useMediaQuery,
-  Stack, Tooltip, Zoom, Fade, FormControl, InputLabel, Select, MenuItem, Menu
+  Box, 
+  Container, 
+  Typography, 
+  Button, 
+  Card, 
+  Grid, 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableContainer, 
+  TableHead, 
+  TableRow, 
+  Paper, 
+  IconButton, 
+  Chip, 
+  Avatar, 
+  Dialog, 
+  DialogTitle, 
+  DialogContent, 
+  DialogActions, 
+  TextField, 
+  MenuItem, 
+  FormControl, 
+  InputLabel, 
+  Select, 
+  Stack, 
+  alpha, 
+  useTheme, 
+  useMediaQuery, 
+  Skeleton, 
+  Alert, 
+  Snackbar, 
+  Checkbox, 
+  Divider,
+  Popover,
+  Tooltip,
+  Menu,
+  Tabs,
+  Tab
 } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
 import { 
-  Plus, Search, Filter, Download, Printer, 
-  CheckCircle, XCircle, Clock, CreditCard, 
-  FileText, Share2, MoreVertical, Trash2, Eye,
-  ArrowUpRight, ArrowDownRight, Wallet, History,
-  AlertCircle, Check, Edit, Save, X, RotateCcw, TrendingUp
+  Plus, 
+  Search, 
+  Filter, 
+  Download, 
+  Printer, 
+  Clock, 
+  CheckCircle, 
+  XCircle, 
+  Trash2, 
+  Edit2, 
+  ChevronRight, 
+  Calendar, 
+  Wallet, 
+  MoreVertical,
+  X,
+  FileText,
+  CreditCard,
+  User,
+  ArrowLeft
 } from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, orderBy, where, getDoc, or, and } from 'firebase/firestore';
+import { format } from 'date-fns';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, deleteDoc, addDoc } from '../firebase';
 import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc } from '../firebase';
 import { UserProfile, FeeReceipt } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { FEE_HEADS, PAYMENT_MODES } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 import FeeReceiptModal from '../components/FeeReceiptModal';
-import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
-import confetti from 'canvas-confetti';
-import { format } from 'date-fns';
 import { logger } from '../lib/logger';
-import { exportToCSV } from '../lib/exportUtils';
+import { QRCodeSVG } from 'qrcode.react';
+import confetti from 'canvas-confetti';
 
 export default function Fees() {
-  const { user: currentUser } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { user } = useAuth();
   const [receipts, setReceipts] = useState<FeeReceipt[]>([]);
   const [students, setStudents] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(!(window as any)._feesLoaded);
+  const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState(0);
-  const [openAddDialog, setOpenAddDialog] = useState(false);
-  const [openEditDialog, setOpenEditDialog] = useState(false);
-  const [selectedReceipt, setSelectedReceipt] = useState<FeeReceipt | null>(null);
-  const [editingReceipt, setEditingReceipt] = useState<FeeReceipt | null>(null);
-  const [openReceiptModal, setOpenReceiptModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [feeHeadFilter, setFeeHeadFilter] = useState<string>('All');
   const [paymentModeFilter, setPaymentModeFilter] = useState<string>('All');
@@ -50,6 +90,14 @@ export default function Fees() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, id: string }>({ open: false, id: '' });
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
+  const [selectedReceiptIds, setSelectedReceiptIds] = useState<string[]>([]);
+  const [isBulkPrinting, setIsBulkPrinting] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [longPressTimer, setLongPressTimer] = useState<any>(null);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [bulkMenuAnchor, setBulkMenuAnchor] = useState<null | HTMLElement>(null);
   
   const [formData, setFormData] = useState({
     studentId: '',
@@ -63,8 +111,8 @@ export default function Fees() {
     date: format(new Date(), 'yyyy-MM-dd')
   });
 
-  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
-  const role = currentUser?.role || 'student';
+  const isSuperAdmin = user?.email === 'zeeshanmaqbool200@gmail.com';
+  const role = user?.role || 'student';
   const isManagerRole = role === 'manager' || (role === 'superadmin' && !isSuperAdmin);
   const isTeacherRole = role === 'teacher';
   const isAdmin = isSuperAdmin || isManagerRole;
@@ -87,69 +135,49 @@ export default function Fees() {
   }, []);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!user) return;
 
     let q = query(collection(db, 'receipts'), orderBy('createdAt', 'desc'));
     
-    // Filtering receipts
-    if (currentUser.role === 'student') {
-      q = query(collection(db, 'receipts'), where('studentId', '==', currentUser.uid), orderBy('createdAt', 'desc'));
-    } else if (isTeacherRole) {
-      // Teacher can only see receipts for their classes
-      q = query(
-        collection(db, 'receipts'), 
-        or(
-          where('classLevel', 'in', (currentUser.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
-          where('classLevel', '==', 'Example')
-        ),
-        orderBy('createdAt', 'desc')
-      );
+    if (!isStaff) {
+      q = query(collection(db, 'receipts'), where('studentId', '==', user.uid), orderBy('createdAt', 'desc'));
     }
 
-    let unsubscribeReceipts = () => {};
-    let unsubscribeStudents = () => {};
-
-    unsubscribeReceipts = onSnapshot(q, (snapshot) => {
+    const unsubscribeReceipts = onSnapshot(q, (snapshot) => {
       setReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
       setLoading(false);
-      (window as any)._feesLoaded = true;
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'receipts');
     });
 
     if (isStaff) {
-      // Fetch students for the autocomplete
-      let studentsQuery;
-      if (isAdmin) {
-        studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
-      } else {
-        studentsQuery = query(
-          collection(db, 'users'), 
-          and(
-            where('role', '==', 'student'),
-            or(
-              where('classLevel', 'in', (currentUser.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__']),
-              where('classLevel', '==', 'Example')
-            )
-          )
-        );
-      }
-      
-      unsubscribeStudents = onSnapshot(studentsQuery, (snapshot) => {
+      const studentQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+      const unsubscribeStudents = onSnapshot(studentQuery, (snapshot) => {
         setStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'users');
-      });
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
+
+      const expensesQuery = query(collection(db, 'expenses'), orderBy('date', 'desc'));
+      const unsubscribeExpenses = onSnapshot(expensesQuery, (snapshot) => {
+        setExpenses(snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((e: any) => ![10000, 20199, 20000, 50000].includes(Number(e.amount)))
+        );
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'expenses'));
+
+      return () => {
+        unsubscribeReceipts();
+        unsubscribeStudents();
+        unsubscribeExpenses();
+      };
     }
 
     return () => {
       unsubscribeReceipts();
-      unsubscribeStudents();
     };
-  }, [currentUser, isStaff, isAdmin, isTeacherRole]);
+  }, [user, isStaff, isAdmin, isTeacherRole]);
 
   const handleAddReceipt = async () => {
-    if (!currentUser) return;
+    if (!user) return;
     setSubmitting(true);
     try {
       let student: any = null;
@@ -165,190 +193,179 @@ export default function Fees() {
         monthYear: formData.feeHead === 'Monthly Fee' ? format(new Date(formData.date || new Date()), 'MM-yyyy') : null,
         status: isStaff ? 'approved' : 'pending',
         createdAt: Date.now(),
-        createdBy: currentUser.uid,
+        createdBy: user.uid,
         receiptNo: receiptId,
         receiptNumber: receiptId,
         studentOfficialId: formData.isNonStudent ? 'NON-STUDENT' : (student?.admissionNo || student?.studentId || ''),
         studentPhotoURL: student?.photoURL || '',
         classLevel: formData.isNonStudent ? 'General' : (student?.classLevel || 'N/A'),
-        studentId: formData.isNonStudent ? `non-${Date.now()}` : formData.studentId
+        studentId: formData.isNonStudent ? `non-${Date.now()}` : formData.studentId,
+        studentName: formData.isNonStudent ? formData.studentName : (student?.displayName || 'Unknown')
       };
       await smartAddDoc(collection(db, 'receipts'), newReceipt);
       
-      // Trigger confetti for a delightful experience
       confetti({
         particleCount: 100,
         spread: 70,
-        origin: { y: 0.6 },
-        colors: [theme.palette.primary.main, theme.palette.secondary.main, '#10b981']
+        origin: { y: 0.6 }
       });
 
       setOpenAddDialog(false);
-      setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '', date: format(new Date(), 'yyyy-MM-dd') });
+      setFormData({
+        studentId: '',
+        isNonStudent: false,
+        studentName: '',
+        amount: '',
+        feeHead: 'Monthly Fee',
+        paymentMode: 'Cash',
+        transactionId: '',
+        remarks: '',
+        date: format(new Date(), 'yyyy-MM-dd')
+      });
+      setSnackbar({ open: true, message: 'Receipt generated successfully!', severity: 'success' });
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'receipts');
+      handleFirestoreError(error, OperationType.CREATE, 'receipts');
+      setSnackbar({ open: true, message: 'Failed to generate receipt.', severity: 'error' });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleApprove = async (receipt: FeeReceipt) => {
-    if (!isStaff) return;
+  const handleUpdateStatus = async (id: string, status: 'approved' | 'rejected') => {
     try {
-      const currentDoc = await getDoc(doc(db, 'receipts', receipt.id));
-      if (currentDoc.exists() && currentDoc.data().approvedAt && currentDoc.data().status === 'approved') {
-        setSnackbar({ open: true, message: "This receipt was already approved by another admin.", severity: 'info' });
-        return;
-      }
-
-      const updates: any = {
-        status: 'approved',
-        approvedBy: currentUser?.uid,
-        approvedByName: currentUser?.displayName,
-        approvedAt: Date.now(),
-        updatedAt: Date.now()
-      };
-
-      await smartUpdateDoc(doc(db, 'receipts', receipt.id), updates);
-
-      if (receipt.feeHead === 'Admission Fee') {
-        const studentDoc = await getDoc(doc(db, 'users', receipt.studentId));
-        if (studentDoc.exists()) {
-          const studentData = studentDoc.data() as UserProfile;
-          if (!studentData.admissionNo) {
-            const admissionNo = `ADM-${format(new Date(), 'yyyy')}-${Math.floor(1000 + Math.random() * 9000)}`;
-            await smartUpdateDoc(doc(db, 'users', receipt.studentId), {
-              admissionNo: admissionNo,
-              status: 'Active'
-            });
-          }
-        }
-      }
-
-      setSnackbar({ open: true, message: "Receipt approved successfully!", severity: 'success' });
-      confetti({
-        particleCount: 150,
-        spread: 100,
-        origin: { y: 0.6 },
-        colors: ['#22c55e', '#10b981', '#3b82f6']
-      });
+      await smartUpdateDoc(doc(db, 'receipts', id), { status });
+      setSnackbar({ open: true, message: `Receipt ${status} successfully!`, severity: 'success' });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `receipts/${receipt.id}`);
+      handleFirestoreError(error, OperationType.UPDATE, 'receipts');
+      setSnackbar({ open: true, message: 'Failed to update receipt status.', severity: 'error' });
     }
-  };
-
-  const handleReject = async (receipt: FeeReceipt) => {
-    if (!isStaff) return;
-    try {
-      await smartUpdateDoc(doc(db, 'receipts', receipt.id), {
-        status: 'rejected',
-        rejectedBy: currentUser?.uid,
-        rejectedAt: Date.now()
-      });
-      setSnackbar({ open: true, message: "Receipt rejected", severity: 'info' });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `receipts/${receipt.id}`);
-    }
-  };
-
-  const handleUpdateReceipt = async () => {
-    if (!editingReceipt) return;
-    setSubmitting(true);
-    try {
-      await updateDoc(doc(db, 'receipts', editingReceipt.id), {
-        ...formData,
-        amount: Number(formData.amount)
-      });
-      setSnackbar({ open: true, message: "Receipt updated successfully!", severity: 'success' });
-      setOpenEditDialog(false);
-      setEditingReceipt(null);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `receipts/${editingReceipt.id}`);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    setDeleteConfirm({ open: true, id });
   };
 
   const confirmDelete = async () => {
     if (!deleteConfirm.id) return;
+    setSubmitting(true);
     try {
       await deleteDoc(doc(db, 'receipts', deleteConfirm.id));
       setDeleteConfirm({ open: false, id: '' });
+      setSnackbar({ open: true, message: 'Receipt deleted successfully!', severity: 'success' });
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `receipts/${deleteConfirm.id}`);
+      handleFirestoreError(error, OperationType.DELETE, 'receipts');
+      setSnackbar({ open: true, message: 'Failed to delete receipt.', severity: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const getStatusChip = (status: FeeReceipt['status']) => {
-    switch (status) {
-      case 'approved': 
-        return (
-          <Chip 
-            label="Approved" 
-            color="success" 
-            size="small" 
-            icon={<CheckCircle size={14} />} 
-            sx={{ fontWeight: 800, borderRadius: 2, height: 24 }}
-          />
-        );
-      case 'pending': 
-        return (
-          <Chip 
-            label="Pending" 
-            color="warning" 
-            size="small" 
-            icon={<Clock size={14} />} 
-            sx={{ fontWeight: 800, borderRadius: 2, height: 24 }}
-          />
-        );
-      case 'rejected': 
-        return (
-          <Chip 
-            label="Rejected" 
-            color="error" 
-            size="small" 
-            icon={<XCircle size={14} />} 
-            sx={{ fontWeight: 800, borderRadius: 2, height: 24 }}
-          />
-        );
-      default: return <Chip label={status} size="small" sx={{ fontWeight: 800, borderRadius: 2 }} />;
-    }
-  };
+  const filteredReceipts = useMemo(() => {
+    return receipts.filter(r => {
+      const matchesSearch = 
+        r.studentName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        r.receiptNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.studentOfficialId?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesHead = feeHeadFilter === 'All' || r.feeHead === feeHeadFilter;
+      const matchesMode = paymentModeFilter === 'All' || r.paymentMode === paymentModeFilter;
+      
+      const receiptDate = new Date(r.date);
+      const matchesStart = !startDate || receiptDate >= new Date(startDate);
+      const matchesEnd = !endDate || receiptDate <= new Date(endDate);
+      
+      const matchesTab = 
+        tabValue === 0 ? true : 
+        tabValue === 1 ? r.status === 'pending' : 
+        r.status === 'approved';
 
+      return matchesSearch && matchesHead && matchesMode && matchesStart && matchesEnd && matchesTab;
+    });
+  }, [receipts, searchQuery, feeHeadFilter, paymentModeFilter, startDate, endDate, tabValue]);
+
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState<FeeReceipt | null>(null);
+  const [openReceiptModal, setOpenReceiptModal] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
-  const filteredReceipts = receipts.filter(r => {
-    const s = searchQuery.toLowerCase();
-    const matchesSearch = r.studentName.toLowerCase().includes(s) || 
-                         (r.receiptNo && r.receiptNo.toLowerCase().includes(s)) ||
-                         (r.studentId && r.studentId.toLowerCase().includes(s)) ||
-                         (r.transactionId && r.transactionId.toLowerCase().includes(s));
-                         
-    const matchesTab = tabValue === 0 || 
-                       (tabValue === 1 && r.status === 'pending') || 
-                       (tabValue === 2 && r.status === 'approved');
-    const matchesFeeHead = feeHeadFilter === 'All' || r.feeHead === feeHeadFilter;
-    const matchesPaymentMode = paymentModeFilter === 'All' || r.paymentMode === paymentModeFilter;
-    
-    let matchesDate = true;
-    if (startDate || endDate) {
-      const receiptDate = new Date(r.date);
-      const start = startDate ? new Date(startDate) : new Date(0);
-      const end = endDate ? new Date(endDate) : new Date();
-      end.setHours(23, 59, 59, 999);
-      matchesDate = receiptDate >= start && receiptDate <= end;
-    }
-
-    return matchesSearch && matchesTab && matchesFeeHead && matchesPaymentMode && matchesDate;
-  });
-
   const totalRevenue = receipts.filter(r => r.status === 'approved').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-  const totalSacredFunds = receipts.filter(r => r.status === 'approved' && ['Zakat', 'Khums', 'Maal-e-Imam'].includes(r.feeHead)).reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
   const pendingRevenue = receipts.filter(r => r.status === 'pending').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+
+  const currentMonthExpenses = expenses
+    .filter(e => {
+      const expDate = new Date(e.date);
+      const now = new Date();
+      return expDate.getMonth() === now.getMonth() && expDate.getFullYear() === now.getFullYear();
+    })
+    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+  const stats = {
+    totalFeesMonth: receipts
+      .filter(r => {
+        const rDate = new Date(r.date);
+        const now = new Date();
+        return r.status === 'approved' && rDate.getMonth() === now.getMonth() && rDate.getFullYear() === now.getFullYear();
+      })
+      .reduce((sum, r) => sum + (Number(r.amount) || 0), 0)
+  };
+
+  useEffect(() => {
+    const receiptNo = searchParams.get('receipt');
+    if (receiptNo && receipts.length > 0) {
+      const receipt = receipts.find(r => r.receiptNo === receiptNo || r.receiptNumber === receiptNo);
+      if (receipt) {
+        setSelectedReceipt(receipt);
+        setOpenReceiptModal(true);
+      }
+    }
+  }, [searchParams, receipts]);
+
+  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement> | boolean) => {
+    const shouldSelect = typeof event === 'boolean' ? event : event.target.checked;
+    if (shouldSelect) {
+      setSelectedReceiptIds(filteredReceipts.map(r => r.id));
+      setIsSelectionMode(true);
+    } else {
+      setSelectedReceiptIds([]);
+      setIsSelectionMode(false);
+    }
+  };
+
+  const toggleSelectReceipt = (id: string) => {
+    setSelectedReceiptIds(prev => {
+      const isSelected = prev.includes(id);
+      const next = isSelected ? prev.filter(i => i !== id) : [...prev, id];
+      if (next.length > 0) setIsSelectionMode(true);
+      else setIsSelectionMode(false);
+      return next;
+    });
+  };
+
+  const handleTouchStart = (id: string) => {
+    const timer = setTimeout(() => {
+      if (!isSelectionMode) {
+        setIsSelectionMode(true);
+        toggleSelectReceipt(id);
+        if (window.navigator.vibrate) window.navigator.vibrate(50);
+      }
+    }, 700);
+    setLongPressTimer(timer);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+
+  const handleBulkPrint = () => {
+    if (selectedReceiptIds.length === 0) {
+      setSnackbar({ open: true, message: 'Please select receipts to print.', severity: 'info' });
+      return;
+    }
+    setIsBulkPrinting(true);
+    setTimeout(() => {
+      window.print();
+      setIsBulkPrinting(false);
+    }, 500);
+  };
 
   if (loading) return (
     <Box sx={{ p: 4, width: '100%' }}>
@@ -360,857 +377,474 @@ export default function Fees() {
         <Grid container spacing={3}>
           {[1, 2, 3].map(i => (
             <Grid size={{ xs: 12, md: 4 }} key={i}>
-              <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 4 }} />
+              <Skeleton variant="rectangular" width="100%" height={150} sx={{ borderRadius: 5 }} />
             </Grid>
           ))}
         </Grid>
-        <Skeleton variant="rectangular" width="100%" height={600} sx={{ borderRadius: 4 }} />
       </Stack>
     </Box>
   );
 
-  const handleExport = () => {
-    const dataToExport = filteredReceipts.map(r => ({
-      'Receipt No': r.receiptNo || r.receiptNumber,
-      'Student Name': r.studentName,
-      'Level': r.classLevel || 'N/A',
-      'Amount': r.amount,
-      'Head': r.feeHead,
-      'Status': r.status,
-      'Mode': r.paymentMode,
-      'Date': format(new Date(r.date), 'dd-MM-yyyy'),
-      'Period': format(new Date(r.date), 'MMMM yyyy'),
-      'Transaction ID': r.transactionId || 'N/A'
-    }));
-    exportToCSV(dataToExport, 'Institute_Fees_Export');
-  };
-
   return (
     <Box sx={{ pb: 8 }}>
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
-          <Box>
-            <Typography 
-              variant={isMobile ? "h5" : "h4"} 
-              sx={{ 
-                fontFamily: 'var(--font-display)',
-                fontWeight: 900, 
-                letterSpacing: -1, 
-                mb: 0.5,
-                color: 'primary.main'
-              }}
-            >
-              Fees & Payments
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-              Manage student payments and official receipts
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={2} sx={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', alignItems: 'center' }}>
-            {isStaff && (
-              <IconButton 
-                onClick={handleExport}
-                sx={{ 
-                  borderRadius: 1, 
-                  bgcolor: 'background.paper',
-                  border: `1px solid ${theme.palette.divider}`,
-                  p: isMobile ? 1 : 1.5,
-                  '&:hover': {
-                    bgcolor: 'action.hover',
-                  }
-                }}
-              >
-                <Download size={isMobile ? 18 : 22} />
-              </IconButton>
-            )}
-            {(!isStaff && currentUser?.role === 'student' && !currentUser?.classLevel) ? (
-              <Tooltip title="Your class selection must be approved by a teacher before you can use this feature.">
-                <span>
-                  <Button 
-                    variant="contained" 
-                    disabled
-                    startIcon={<Plus size={isMobile ? 18 : 24} />} 
-                    sx={{ 
-                      borderRadius: 2, 
-                      fontWeight: 800, 
-                      px: isMobile ? 2 : 3, 
-                      py: isMobile ? 1 : 1.2,
-                      minHeight: isMobile ? 40 : 48,
-                      textTransform: 'none',
-                      fontSize: isMobile ? '0.8rem' : '0.9rem',
-                      opacity: 0.7
-                    }}
-                  >
-                    {isMobile ? "Add" : "Apply for Fee"}
-                  </Button>
-                </span>
-              </Tooltip>
-            ) : (
-              <Button 
-                variant="contained" 
-                startIcon={<Plus size={isMobile ? 18 : 22} />} 
-                onClick={() => {
-                  if (currentUser?.role === 'student') {
-                    setFormData({ ...formData, studentId: currentUser.uid, studentName: currentUser.displayName });
-                  }
-                  setOpenAddDialog(true);
-                }}
-                sx={{ 
-                  borderRadius: 2, 
-                  fontWeight: 800, 
-                  px: isMobile ? 2 : 3, 
-                  py: isMobile ? 1 : 1.2,
-                  minHeight: isMobile ? 40 : 48,
-                  textTransform: 'none',
-                  fontSize: isMobile ? '0.8rem' : '0.9rem',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
-                    : '4px 4px 10px #cbd5e1, -4px -4px 10px #ffffff',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: theme.palette.mode === 'dark'
-                      ? '6px 6px 14px #060a12, -6px -6px 14px #182442'
-                      : '6px 6px 14px #cbd5e1, -6px -6px 14px #ffffff',
-                  }
-                }}
-              >
-                {isMobile ? "Add" : (isStaff ? 'New Payment' : 'Apply for Fee')}
-              </Button>
-            )}
-          </Stack>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }} className="no-print">
+        <Box>
+          <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontWeight: 950, letterSpacing: -1 }}>Maliat & Fees</Typography>
+          <Typography variant={isMobile ? "caption" : "body1"} color="text.secondary" sx={{ fontWeight: 600 }}>Financial Management & Fee Reporting System</Typography>
         </Box>
-      </motion.div>
-
-      {/* Summary Cards - Only for Administrator */}
-      {isSuperAdmin && (
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <SummaryCard 
-              title="Total Revenue" 
-              value={`Rs.${totalRevenue.toLocaleString()}`} 
-              icon={<Wallet size={24} />} 
-              color="primary" 
-              trend="General"
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <SummaryCard 
-              title="Sacred Funds" 
-              value={`Rs.${totalSacredFunds.toLocaleString()}`} 
-              icon={<TrendingUp size={24} />} 
-              color="warning" 
-              trend="Zakat/Khums"
-              sx={{ border: '1px solid #facc15' }}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <SummaryCard 
-              title="Approved Today" 
-              value={`Rs.${receipts.filter(r => r.status === 'approved' && r.approvedAt && r.approvedAt > Date.now() - 86400000).reduce((sum, r) => sum + r.amount, 0).toLocaleString()}`} 
-              icon={<CheckCircle size={24} />} 
-              color="success" 
-              trend="Today"
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <SummaryCard 
-              title="Pending Items" 
-              value={receipts.filter(r => r.status === 'pending').length} 
-              icon={<Clock size={24} />} 
-              color="warning" 
-              trend="To Review"
-            />
-          </Grid>
-        </Grid>
-      )}
-
-      {/* Student Personal Summary */}
-      {!isStaff && currentUser?.role === 'student' && (
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <SummaryCard 
-              title="My Total Paid" 
-              value={`Rs.${totalRevenue.toLocaleString()}`} 
-              icon={<Wallet size={24} />} 
-              color="primary" 
-              trend="Verified"
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <SummaryCard 
-              title="Pending Approval" 
-              value={`Rs.${pendingRevenue.toLocaleString()}`} 
-              icon={<Clock size={24} />} 
-              color="warning" 
-              trend="In Process"
-            />
-          </Grid>
-        </Grid>
-      )}
-
-      <Card sx={{ 
-        borderRadius: 1, 
-        overflow: 'hidden',
-        border: `1px solid ${theme.palette.divider}`,
-        bgcolor: 'background.paper',
-        boxShadow: theme.palette.mode === 'dark'
-          ? '0 4px 12px rgba(0,0,0,0.5)'
-          : '0 4px 12px rgba(0,0,0,0.05)',
-      }}>
-        <Box sx={{ 
-          borderBottom: 1, 
-          borderColor: 'divider', 
-          bgcolor: alpha(theme.palette.background.default, 0.5), 
-          px: 2, 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          flexWrap: 'wrap',
-          backdropFilter: 'blur(10px)'
-        }}>
-          <Tabs 
-            value={tabValue} 
-            onChange={(e, v) => setTabValue(v)} 
-            variant={isMobile ? "scrollable" : "standard"}
-            scrollButtons="auto"
+        {isStaff && (
+          <Button 
+            variant="contained" 
+            startIcon={<Plus />} 
+            onClick={() => setOpenAddDialog(true)}
             sx={{ 
-              flex: 1,
-              '& .MuiTab-root': { fontWeight: 800, py: 2, minWidth: isMobile ? 80 : 120, color: 'text.secondary', textTransform: 'none', fontSize: isMobile ? '0.8rem' : '0.95rem' },
-              '& .Mui-selected': { color: 'primary.main' },
-              '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' }
+              borderRadius: 3, 
+              py: isMobile ? 1 : 1.5, 
+              px: isMobile ? 2 : 3, 
+              fontWeight: 800,
+              fontSize: isMobile ? '0.75rem' : 'inherit'
             }}
           >
-            <Tab label="All Receipts" />
-            <Tab label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                Pending
-                {receipts.filter(r => r.status === 'pending').length > 0 && (
-                  <Chip 
-                    label={receipts.filter(r => r.status === 'pending').length} 
-                    size="small" 
-                    sx={{ height: 22, minWidth: 22, fontSize: '0.7rem', fontWeight: 900, bgcolor: 'warning.main', color: 'white' }} 
-                  />
-                )}
+            {isMobile ? 'New Receipt' : 'Generate New Receipt'}
+          </Button>
+        )}
+      </Box>
+
+      {/* Monthly Expenses Display */}
+      {isStaff && (
+        <Grid container spacing={isMobile ? 1.5 : 3} sx={{ mb: 4 }} className="no-print">
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card sx={{ borderRadius: 5, p: isMobile ? 2 : 3, bgcolor: '#10b981', color: 'white', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <Typography variant="overline" sx={{ fontWeight: 900, opacity: 0.8, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Month Ka Revenue</Typography>
+              <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 950 }}>INR {stats.totalFeesMonth?.toLocaleString() || 0}</Typography>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card sx={{ borderRadius: 5, p: isMobile ? 2 : 3, bgcolor: '#f43f5e', color: 'white', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <Typography variant="overline" sx={{ fontWeight: 900, opacity: 0.8, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Month Ke Expenses</Typography>
+              <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 950 }}>INR {currentMonthExpenses?.toLocaleString() || 0}</Typography>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <Card sx={{ borderRadius: 5, p: isMobile ? 2 : 3, bgcolor: '#3b82f6', color: 'white', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <Typography variant="overline" sx={{ fontWeight: 900, opacity: 0.8, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Net Savings</Typography>
+              <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 950 }}>INR {( (stats.totalFeesMonth || 0) - (currentMonthExpenses || 0) ).toLocaleString()}</Typography>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {isStaff && (
+        <Grid container spacing={isMobile ? 1.5 : 3} sx={{ mb: 4 }} className="no-print">
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Card sx={{ borderRadius: 5, p: isMobile ? 2 : 3, bgcolor: 'primary.main', color: 'white' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="overline" sx={{ fontWeight: 900, opacity: 0.8, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Approved Revenue</Typography>
+                  <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontWeight: 950 }}>INR {totalRevenue.toLocaleString()}</Typography>
+                </Box>
+                <div style={{ padding: isMobile ? 8 : 12, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)' }}>
+                  <Wallet size={isMobile ? 24 : 40} />
+                </div>
               </Box>
-            } />
-            <Tab label="Approved" />
-          </Tabs>
-          
-          <Box sx={{ px: 2, py: 2, flex: { xs: 1, md: 'none' }, minWidth: { xs: '100%', md: 450 } }}>
-              <Stack direction="row" spacing={2} sx={{ width: '100%' }} alignItems="center">
-                <Paper 
-                  elevation={0} 
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    px: 2, 
-                    borderRadius: 3, 
-                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                    bgcolor: 'background.default',
-                    flex: 1,
-                    height: 45
-                  }}
-                >
-                  <Search size={18} color={theme.palette.text.secondary} />
-                  <Box 
-                    component="input" 
-                    placeholder="Search student or receipt..." 
-                    value={searchQuery}
-                    onChange={(e: any) => setSearchQuery(e.target.value)}
-                    sx={{ 
-                      border: 'none', 
-                      outline: 'none', 
-                      p: 1.2, 
-                      width: '100%', 
-                      fontWeight: 600,
-                      bgcolor: 'transparent',
-                      color: 'text.primary',
-                      fontSize: '0.9rem',
-                      '&::placeholder': { color: 'text.disabled' }
-                    }} 
-                  />
-                </Paper>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Card sx={{ borderRadius: 5, p: isMobile ? 2 : 3, bgcolor: 'warning.main', color: 'white' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="overline" sx={{ fontWeight: 900, opacity: 0.8, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Pending Evaluation</Typography>
+                  <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontWeight: 950 }}>INR {pendingRevenue.toLocaleString()}</Typography>
+                </Box>
+                <div style={{ padding: isMobile ? 8 : 12, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)' }}>
+                  <Clock size={isMobile ? 24 : 40} />
+                </div>
+              </Box>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
 
-                <Button
-                  variant="outlined"
-                  startIcon={<Filter size={18} />}
-                  onClick={(e) => setAnchorEl(e.currentTarget)}
-                  sx={{ borderRadius: 3, px: 3, height: 45, fontWeight: 800, textTransform: 'none', minWidth: 120 }}
-                >
-                  Filters
-                  {(feeHeadFilter !== 'All' || paymentModeFilter !== 'All' || startDate || endDate) && (
-                    <Box sx={{ width: 8, height: 8, bgcolor: 'error.main', borderRadius: '50%', ml: 1 }} />
-                  )}
-                </Button>
+      <Card sx={{ borderRadius: 5, overflow: 'hidden', border: '1px solid', borderColor: 'divider', position: 'relative' }}>
+        {/* Top Action Bar */}
+        <Box 
+          sx={{ 
+            p: 2, 
+            display: 'flex', 
+            gap: 2, 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            bgcolor: alpha(theme.palette.background.paper, 0.5)
+          }} 
+          className="no-print"
+        >
+          <Stack direction="row" spacing={1} alignItems="center">
+            {/* 3 Dots Menu - Top Left Section Trigger */}
+            <IconButton 
+              onClick={(e) => setBulkMenuAnchor(e.currentTarget)} 
+              color={isSelectionMode ? "primary" : "default"}
+              sx={{ 
+                bgcolor: isSelectionMode ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.15) }
+              }}
+            >
+              <MoreVertical size={20} />
+            </IconButton>
 
-                <Menu
-                  anchorEl={anchorEl}
-                  open={Boolean(anchorEl)}
-                  onClose={() => setAnchorEl(null)}
-                  PaperProps={{ 
-                    sx: { 
-                      p: 2, 
-                      mt: 1.5, 
-                      minWidth: 320, 
-                      borderRadius: 4, 
-                      boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
-                      border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
-                    } 
-                  }}
-                >
-                  <Stack spacing={2.5} sx={{ p: 1 }}>
-                    <Box>
-                      <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.disabled', mb: 1, display: 'block' }}>Refine by Type</Typography>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
-                        <FormControl size="small" fullWidth>
-                          <InputLabel>Fee Head</InputLabel>
-                          <Select
-                            value={feeHeadFilter}
-                            label="Fee Head"
-                            onChange={(e) => setFeeHeadFilter(e.target.value as any)}
-                            sx={{ borderRadius: 2 }}
-                          >
-                            <MenuItem value="All">All Heads</MenuItem>
-                            {FEE_HEADS.map(head => (
-                              <MenuItem key={head} value={head}>{head}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                        <FormControl size="small" fullWidth sx={{ mt: 1 }}>
-                          <InputLabel>Payment Mode</InputLabel>
-                          <Select
-                            value={paymentModeFilter}
-                            label="Payment Mode"
-                            onChange={(e) => setPaymentModeFilter(e.target.value as any)}
-                            sx={{ borderRadius: 2 }}
-                          >
-                            <MenuItem value="All">All Modes</MenuItem>
-                            {PAYMENT_MODES.map(mode => (
-                              <MenuItem key={mode} value={mode}>{mode}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Stack>
-                    </Box>
-                    
-                    <Box>
-                      <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.disabled', mb: 1, display: 'block' }}>Period Range</Typography>
-                      <Stack direction="row" spacing={2}>
-                        <TextField
-                          type="date"
-                          label="From"
-                          fullWidth
-                          size="small"
-                          value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
-                          InputLabelProps={{ shrink: true }}
-                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                        />
-                        <TextField
-                          type="date"
-                          label="To"
-                          fullWidth
-                          size="small"
-                          value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
-                          InputLabelProps={{ shrink: true }}
-                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                        />
-                      </Stack>
-                    </Box>
+            <Tabs 
+              value={tabValue} 
+              onChange={(e, v) => setTabValue(v)} 
+              sx={{ 
+                minHeight: 40,
+                '& .MuiTab-root': {
+                  minHeight: 40,
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  borderRadius: 2,
+                  px: 2,
+                  minWidth: 'auto'
+                }
+              }}
+            >
+              <Tab label="All" />
+              <Tab label="Pending" />
+              <Tab label="Approved" />
+            </Tabs>
 
-                    <Button 
-                      fullWidth 
-                      variant="contained" 
-                      onClick={() => setAnchorEl(null)}
-                      sx={{ borderRadius: 2, fontWeight: 900, mt: 1 }}
-                    >
-                      Apply Filters
-                    </Button>
-                    
-                    <Button 
-                      fullWidth 
-                      size="small"
-                      onClick={() => {
-                        setFeeHeadFilter('All');
-                        setPaymentModeFilter('All');
-                        setStartDate('');
-                        setEndDate('');
-                        setAnchorEl(null);
-                      }}
-                      sx={{ fontWeight: 700, color: 'text.disabled' }}
-                    >
-                      Clear All
-                    </Button>
-                  </Stack>
-                </Menu>
-              </Stack>
-          </Box>
+            {isSelectionMode && (
+              <Box 
+                sx={{ 
+                  ml: 1, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 1.5, 
+                  bgcolor: alpha(theme.palette.primary.main, 0.9), 
+                  color: 'white',
+                  px: 2, 
+                  py: 0.8, 
+                  borderRadius: 100,
+                  boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)'
+                }}
+              >
+                <Typography variant="caption" sx={{ fontWeight: 950, letterSpacing: 0.5 }}>
+                  {selectedReceiptIds.length} SELECTED
+                </Typography>
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.3)', height: 12 }} />
+                <IconButton 
+                  size="small" 
+                  onClick={() => { setSelectedReceiptIds([]); setIsSelectionMode(false); }} 
+                  sx={{ color: 'white', p: 0.2 }}
+                >
+                  <X size={14} />
+                </IconButton>
+              </Box>
+            )}
+          </Stack>
+
+          <Stack direction="row" spacing={2}>
+            <Box 
+              sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                px: 2, 
+                bgcolor: alpha(theme.palette.divider, 0.05), 
+                borderRadius: 20, 
+                border: '1px solid', 
+                borderColor: 'divider',
+                width: { xs: 150, md: 250 },
+                transition: 'all 0.3s ease',
+                '&:focus-within': {
+                  width: { xs: 180, md: 300 },
+                  bgcolor: 'background.paper',
+                  borderColor: 'primary.main',
+                  boxShadow: '0 0 0 3px rgba(13, 148, 136, 0.1)'
+                }
+              }}
+            >
+              <Search size={16} className="text-gray-400" />
+              <Box 
+                component="input" 
+                placeholder="Search..." 
+                value={searchQuery} 
+                onChange={(e: any) => setSearchQuery(e.target.value)} 
+                sx={{ 
+                  border: 'none', 
+                  outline: 'none', 
+                  p: 1, 
+                  bgcolor: 'transparent', 
+                  fontWeight: 600, 
+                  width: '100%',
+                  fontSize: '0.85rem'
+                }} 
+              />
+            </Box>
+            <IconButton 
+              onClick={(e) => setAnchorEl(e.currentTarget)} 
+              sx={{ 
+                border: '1px solid', 
+                borderColor: 'divider', 
+                borderRadius: 2,
+                bgcolor: Boolean(anchorEl) ? alpha(theme.palette.primary.main, 0.1) : 'transparent'
+              }}
+            >
+              <Filter size={18} />
+            </IconButton>
+          </Stack>
         </Box>
-        
-        <Box sx={{ overflowX: 'auto', width: '100%' }}>
-          <TableContainer component={Box} sx={{ minWidth: { xs: 800, md: '100%' } }}>
-            <Table>
-              <TableHead>
-              <TableRow sx={{ bgcolor: alpha(theme.palette.background.default, 0.3) }}>
-                <TableCell sx={{ fontWeight: 800, py: 2.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Receipt Details</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Student</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Fee Head</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Amount</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }} align="center">Status</TableCell>
-                <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }} align="right">Actions</TableCell>
+
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow sx={{ bgcolor: alpha(theme.palette.divider, 0.02) }}>
+                <TableCell padding="checkbox">
+                  <Checkbox 
+                    checked={filteredReceipts.length > 0 && selectedReceiptIds.length === filteredReceipts.length} 
+                    onChange={handleSelectAll} 
+                  />
+                </TableCell>
+                <TableCell sx={{ fontWeight: 900 }}>Receipt # / Date</TableCell>
+                <TableCell sx={{ fontWeight: 900 }}>Student Particulars</TableCell>
+                <TableCell sx={{ fontWeight: 900 }}>Financial Head</TableCell>
+                <TableCell sx={{ fontWeight: 900 }}>Amount</TableCell>
+                <TableCell sx={{ fontWeight: 900 }}>Status</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 900 }}>Action</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              <AnimatePresence mode="popLayout">
-                {filteredReceipts.map((receipt) => (
-                      <TableRow 
-                        component={motion.tr}
-                        layout
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        key={receipt.id} 
-                        hover
-                        sx={{ 
-                          transition: 'all 0.2s',
-                          '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) },
-                          '& .MuiTableCell-root': { borderBottom: '1px solid', borderColor: 'divider' },
-                          ...( ['Zakat', 'Khums', 'Maal-e-Imam'].includes(receipt.feeHead) && {
-                            bgcolor: theme.palette.mode === 'dark' ? alpha('#facc15', 0.05) : alpha('#fef08a', 0.3),
-                            '&:hover': { bgcolor: theme.palette.mode === 'dark' ? alpha('#facc15', 0.1) : alpha('#fef08a', 0.5) },
-                            borderLeft: `4px solid #facc15`
-                          })
-                        }}
-                      >
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'primary.light', color: 'primary.main' }}>
-                          <FileText size={20} />
-                        </Box>
-                        <Box>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main' }}>
-                            {receipt.receiptNo}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                            {receipt.paymentMode} • {receipt.transactionId || 'No ID'}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{receipt.studentName}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={receipt.feeHead} 
-                        size="small" 
-                        sx={{ 
-                          fontWeight: 700, 
-                          bgcolor: alpha(theme.palette.text.primary, 0.05),
-                          color: 'text.primary'
-                        }} 
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: 'text.primary' }}>
-                        Rs.{receipt.amount.toLocaleString()}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 800, color: 'primary.main' }}>
-                        {format(new Date(receipt.date), 'MMMM yyyy')}
-                      </Typography>
-                      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                        {format(new Date(receipt.date), 'dd-MM-yyyy')}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="center">
-                      {getStatusChip(receipt.status)}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                        <ActionMenu 
-                          items={[
-                            { 
-                              label: 'View Receipt', 
-                              icon: <Eye size={16} />, 
-                              onClick: () => { setSelectedReceipt(receipt); setOpenReceiptModal(true); } 
-                            },
-                            { 
-                              label: 'Approve', 
-                              icon: <Check size={16} />, 
-                              color: 'success.main',
-                              onClick: () => handleApprove(receipt),
-                              disabled: !(isStaff && receipt.status === 'pending')
-                            },
-                            { 
-                              label: 'Reject', 
-                              icon: <XCircle size={16} />, 
-                              color: 'error.main',
-                              onClick: () => handleReject(receipt),
-                              disabled: !(isStaff && receipt.status === 'pending')
-                            },
-                            { divider: true, label: '', icon: null, onClick: () => {} },
-                            { 
-                              label: 'Edit Info', 
-                              icon: <Edit size={16} />, 
-                              onClick: () => {
-                                setEditingReceipt(receipt);
-                                setFormData({
-                                  studentId: receipt.studentId,
-                                  isNonStudent: (receipt as any).isNonStudent || false,
-                                  studentName: receipt.studentName,
-                                  amount: receipt.amount.toString(),
-                                  feeHead: receipt.feeHead,
-                                  paymentMode: receipt.paymentMode,
-                                  transactionId: receipt.transactionId || '',
-                                  remarks: receipt.remarks || '',
-                                  date: receipt.date || format(new Date(), 'yyyy-MM-dd')
-                                });
-                                setOpenEditDialog(true);
-                              },
-                              disabled: !(isStaff && (isSuperAdmin || receipt.createdBy === currentUser?.uid || receipt.uploadedBy === currentUser?.uid))
-                            },
-                            { 
-                              label: 'Delete', 
-                              icon: <Trash2 size={16} />, 
-                              color: 'error.main',
-                              onClick: () => handleDelete(receipt.id),
-                              disabled: !isSuperAdmin
-                            }
-                          ]} 
+                {filteredReceipts.map((receipt) => {
+                  const isItemSelected = selectedReceiptIds.includes(receipt.id);
+                  return (
+                    <TableRow 
+                      component={motion.tr}
+                      layout
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      key={receipt.id}
+                      hover
+                      selected={isItemSelected}
+                      onMouseDown={() => isMobile && handleTouchStart(receipt.id)}
+                      onMouseUp={handleTouchEnd}
+                      onTouchStart={() => handleTouchStart(receipt.id)}
+                      onTouchEnd={handleTouchEnd}
+                      onClick={() => {
+                        if (isSelectionMode) toggleSelectReceipt(receipt.id);
+                        else {
+                          setSelectedReceipt(receipt);
+                          setOpenReceiptModal(true);
+                        }
+                      }}
+                      sx={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      <TableCell padding="checkbox">
+                        <Checkbox 
+                           checked={isItemSelected} 
+                           onChange={(e) => { e.stopPropagation(); toggleSelectReceipt(receipt.id); }} 
                         />
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </AnimatePresence>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 800 }}>{receipt.receiptNo}</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{receipt.date}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Avatar src={receipt.studentPhotoURL} sx={{ width: 32, height: 32 }} />
+                          <Box>
+                            <Typography sx={{ fontWeight: 700 }}>{receipt.studentName}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{receipt.studentOfficialId}</Typography>
+                          </Box>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 800 }}>{receipt.feeHead}</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{receipt.paymentMode}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 950, color: 'primary.main' }}>INR {receipt.amount?.toLocaleString()}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={receipt.status?.toUpperCase()} 
+                          size="small" 
+                          color={receipt.status === 'approved' ? 'success' : receipt.status === 'rejected' ? 'error' : 'warning'}
+                          sx={{ fontWeight: 900, borderRadius: 1.5, fontSize: '0.65rem' }}
+                        />
+                      </TableCell>
+                      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                        {receipt.status === 'pending' && isStaff && (
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Tooltip title="Approve">
+                              <IconButton size="small" color="success" onClick={() => handleUpdateStatus(receipt.id, 'approved')}>
+                                <CheckCircle size={18} />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Reject">
+                              <IconButton size="small" color="error" onClick={() => handleUpdateStatus(receipt.id, 'rejected')}>
+                                <XCircle size={18} />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        )}
+                        <IconButton size="small" onClick={() => setDeleteConfirm({ open: true, id: receipt.id })}>
+                          <Trash2 size={18} />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
             </TableBody>
           </Table>
         </TableContainer>
-      </Box>
-        
-        {filteredReceipts.length === 0 && (
-          <Box sx={{ p: 10, textAlign: 'center' }}>
-            <CreditCard size={64} color={theme.palette.divider} style={{ marginBottom: 16 }} />
-            <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 700 }}>No receipts found</Typography>
-            <Typography variant="body2" color="text.secondary">Try adjusting your filters or search query</Typography>
-          </Box>
-        )}
       </Card>
 
-      {/* Add Payment Dialog */}
-      <Dialog 
-        open={openAddDialog} 
-        onClose={() => setOpenAddDialog(false)} 
-        maxWidth="sm" 
-        fullWidth 
+      {/* Filters Popover */}
+      <Popover anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} PaperProps={{ sx: { p: 3, borderRadius: 4, width: 300, boxShadow: theme.shadows[10] } }}>
+        <Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>Financial Filters</Typography>
+        <Stack spacing={2}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Fee Head</InputLabel>
+            <Select value={feeHeadFilter} label="Fee Head" onChange={(e) => setFeeHeadFilter(e.target.value)}>
+              <MenuItem value="All">All Heads</MenuItem>
+              {FEE_HEADS.map(head => <MenuItem key={head} value={head}>{head}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <FormControl fullWidth size="small">
+            <InputLabel>Payment Mode</InputLabel>
+            <Select value={paymentModeFilter} label="Payment Mode" onChange={(e) => setPaymentModeFilter(e.target.value)}>
+              <MenuItem value="All">All Modes</MenuItem>
+              {PAYMENT_MODES.map(mode => <MenuItem key={mode} value={mode}>{mode}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField type="date" label="From" value={startDate} onChange={(e) => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth size="small" />
+          <TextField type="date" label="To" value={endDate} onChange={(e) => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth size="small" />
+          <Button variant="contained" fullWidth onClick={() => setAnchorEl(null)} sx={{ borderRadius: 2, fontWeight: 800 }}>Apply Filters</Button>
+          <Button variant="text" fullWidth onClick={() => { setFeeHeadFilter('All'); setPaymentModeFilter('All'); setStartDate(''); setEndDate(''); }}>Reset All</Button>
+        </Stack>
+      </Popover>
+
+      {/* Bulk Actions Menu */}
+      <Menu
+        anchorEl={bulkMenuAnchor}
+        open={Boolean(bulkMenuAnchor)}
+        onClose={() => setBulkMenuAnchor(null)}
         PaperProps={{ 
           sx: { 
-            borderRadius: 6, 
-            p: 1,
-            bgcolor: 'background.paper',
-            boxShadow: theme.palette.mode === 'dark'
-              ? '10px 10px 30px #060a12, -10px -10px 30px #182442'
-              : '10px 10px 30px #d1d9e6, -10px -10px 30px #ffffff',
-            border: 'none'
+            borderRadius: 3, 
+            minWidth: 200, 
+            boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+            border: '1px solid rgba(0,0,0,0.05)',
+            p: 1
           } 
         }}
       >
-        <DialogTitle sx={{ fontWeight: 900, fontSize: '1.6rem', pb: 1, letterSpacing: -1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          {isStaff ? 'Record New Payment' : 'Apply for Fee / Submit Payment'}
-          <IconButton onClick={() => setOpenAddDialog(false)} className="close-button">
-            <X size={20} />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 4, fontWeight: 600 }}>
-            {isStaff 
-              ? 'Enter the details of the Student payment below to generate a new receipt.' 
-              : 'Submit your fee payment details for verification and official receipt generation.'}
+        <Box sx={{ px: 2, py: 1, mb: 1 }}>
+          <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 1 }}>
+            Bulk Actions
           </Typography>
-          <Grid container spacing={3}>
-            <Grid size={12}>
-              {isAdmin && (
-                <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
-                  <Button 
-                    variant={formData.isNonStudent ? "contained" : "outlined"}
-                    size="small"
-                    onClick={() => setFormData(prev => ({ ...prev, isNonStudent: !prev.isNonStudent, studentId: '', studentName: '' }))}
-                    sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
-                  >
-                    {formData.isNonStudent ? "Switch to Student List" : "Direct Name / Guest / Old Record"}
-                  </Button>
-                </Box>
-              )}
-
-              {currentUser?.role === 'student' && !isAdmin ? (
-                <TextField
-                  fullWidth
-                  label="Student Name"
-                  value={currentUser.displayName}
-                  disabled
-                  InputProps={{ sx: { borderRadius: 4, bgcolor: 'background.default' } }}
-                />
-              ) : (
-                formData.isNonStudent ? (
-                  <TextField 
-                    fullWidth 
-                    label="Enter Student Name / Payer Name" 
-                    required 
-                    placeholder="Type name for old receipt or guest"
-                    value={formData.studentName}
-                    onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
-                    InputProps={{ sx: { borderRadius: 4 } }}
-                  />
-                ) : (
-                  <Autocomplete
-                    options={students}
-                    getOptionLabel={(option) => `${option.displayName} (${option.admissionNo || option.studentId || 'N/A'})`}
-                    onChange={(e, v) => setFormData({ ...formData, studentId: v?.uid || '', studentName: v?.displayName || '' })}
-                    renderInput={(params) => <TextField {...params} label="Select Student from List" required={!formData.isNonStudent} InputProps={{ ...params.InputProps, sx: { borderRadius: 4 } }} />}
-                  />
-                )
-              )}
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Payment Date / Add Old Receipt"
-                type="date"
-                required
-                InputLabelProps={{ shrink: true }}
-                InputProps={{ sx: { borderRadius: 4 } }}
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Amount"
-                type="number"
-                required
-                InputProps={{ 
-                  startAdornment: <InputAdornment position="start">Rs.</InputAdornment>,
-                  sx: { borderRadius: 4 }
-                }}
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                select
-                label="Fee Head"
-                SelectProps={{ native: true }}
-                value={formData.feeHead}
-                onChange={(e) => setFormData({ ...formData, feeHead: e.target.value })}
-                InputProps={{ sx: { borderRadius: 4 } }}
-              >
-                <option value="Monthly Fee" disabled={formData.isNonStudent}>Monthly Fee</option>
-                <option value="Admission Fee" disabled={formData.isNonStudent}>Admission Fee</option>
-                <option value="Quran / Hifz Fee" disabled={formData.isNonStudent}>Quran / Hifz Fee</option>
-                <option value="Exam / Test Fee" disabled={formData.isNonStudent}>Exam / Test Fee</option>
-                <option value="Book Fee">Book Fee</option>
-                <option value="Activity / Competition Fee (Gez-z & Gen-x)">Activity / Competition Fee (Gez-z & Gen-x)</option>
-                <option value="Sadqa / Donation">Sadqa / Donation</option>
-                <option value="Others">Others</option>
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                select
-                label="Payment Mode"
-                SelectProps={{ native: true }}
-                value={formData.paymentMode}
-                onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value })}
-                InputProps={{ sx: { borderRadius: 4 } }}
-              >
-                <option value="Cash">Cash</option>
-                <option value="UPI">UPI</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-                <option value="Others">Others</option>
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Transaction ID"
-                placeholder="Optional"
-                value={formData.transactionId}
-                onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
-                InputProps={{ sx: { borderRadius: 4 } }}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Remarks"
-                placeholder="Add any additional notes..."
-                multiline
-                rows={2}
-                value={formData.remarks}
-                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                InputProps={{ sx: { borderRadius: 4 } }}
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions sx={{ p: 4, gap: 1.5 }}>
-          <Button 
-            onClick={() => {
-              setOpenAddDialog(false);
-              setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '', date: format(new Date(), 'yyyy-MM-dd') });
-            }}
-            sx={{ fontWeight: 900, color: 'text.secondary', textTransform: 'none' }}
-          >
-            Cancel / Wapis
-          </Button>
-          <Button 
-            onClick={handleAddReceipt} 
-            variant="contained" 
-            startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <Plus size={18} />} 
-            disabled={(!formData.studentId && !formData.isNonStudent) || !formData.studentName || !formData.amount || submitting}
-            sx={{ 
-              borderRadius: 1.5, 
-              fontWeight: 900, 
-              px: 4, 
-              py: 1.2,
-              textTransform: 'none',
-              boxShadow: 'none'
-            }}
-          >
-            {submitting ? 'Processing...' : (isStaff ? 'Record Payment' : 'Submit Application')}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Receipt Dialog */}
-      <Dialog 
-        open={openEditDialog} 
-        onClose={() => setOpenEditDialog(false)} 
-        maxWidth="sm" 
-        fullWidth 
-        PaperProps={{ sx: { borderRadius: 2, p: 1 } }}
-      >
-        <DialogTitle sx={{ fontWeight: 900, fontSize: '1.5rem', pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          Edit Receipt
-          <IconButton onClick={() => setOpenEditDialog(false)} className="close-button">
-            <X size={20} />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 500 }}>
-            Update the receipt details below.
-          </Typography>
-          <Stack spacing={3} sx={{ mt: 1 }}>
-            <TextField
-              fullWidth
-              label="Student Name"
-              value={formData.studentName}
-              disabled
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-            />
-            <TextField
-              fullWidth
-              label="Payment Date"
-              type="date"
-              required
-              InputLabelProps={{ shrink: true }}
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-            />
-            <TextField
-              fullWidth
-              label="Payment Date"
-              type="date"
-              required
-              InputLabelProps={{ shrink: true }}
-              value={formData.date}
-              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-            />
-            <TextField
-              fullWidth
-              label="Amount (INR)"
-              type="number"
-              required
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-            />
-            <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}>
-              <InputLabel>Fee Head</InputLabel>
-              <Select
-                value={formData.feeHead}
-                label="Fee Head"
-                onChange={(e) => setFormData({ ...formData, feeHead: e.target.value })}
-              >
-                {FEE_HEADS.map(head => (
-                  <MenuItem key={head} value={head}>{head}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl fullWidth sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}>
-              <InputLabel>Payment Mode</InputLabel>
-              <Select
-                value={formData.paymentMode}
-                label="Payment Mode"
-                onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value as any })}
-              >
-                {PAYMENT_MODES.map(mode => (
-                  <MenuItem key={mode} value={mode}>{mode}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              fullWidth
-              label="Transaction ID / Ref (Optional)"
-              value={formData.transactionId}
-              onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-            />
-            <TextField
-              fullWidth
-              label="Remarks"
-              multiline
-              rows={2}
-              value={formData.remarks}
-              onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-            />
+        </Box>
+        <MenuItem 
+          onClick={() => { handleBulkPrint(); setBulkMenuAnchor(null); }}
+          disabled={!isSelectionMode || selectedReceiptIds.length === 0}
+          sx={{ borderRadius: 2, mb: 0.5 }}
+        >
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Printer size={18} />
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>Print ({selectedReceiptIds.length}) Receipts</Typography>
           </Stack>
+        </MenuItem>
+        <Divider sx={{ my: 1 }} />
+        <MenuItem 
+          onClick={() => { setIsSelectionMode(!isSelectionMode); setBulkMenuAnchor(null); }}
+          sx={{ borderRadius: 2, mb: 0.5 }}
+        >
+          <Stack direction="row" spacing={2} alignItems="center">
+            <CheckCircle size={18} />
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+              {isSelectionMode ? "Exit Selection Mode" : "Enter Selection Mode"}
+            </Typography>
+          </Stack>
+        </MenuItem>
+        {isSelectionMode && (
+          <MenuItem 
+            onClick={() => { setSelectedReceiptIds([]); setIsSelectionMode(false); setBulkMenuAnchor(null); }} 
+            sx={{ color: 'error.main', borderRadius: 2 }}
+          >
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Trash2 size={18} />
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>Clear Selection</Typography>
+            </Stack>
+          </MenuItem>
+        )}
+      </Menu>
+
+      {/* Add Receipt Dialog */}
+      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 5, p: 1 } }}>
+        <DialogTitle sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 2 }}>
+           <div style={{ backgroundColor: alpha(theme.palette.primary.main, 0.1), padding: 8, borderRadius: 12 }}>
+             <FileText className="text-primary-600" />
+           </div>
+           Generate Financial Receipt
+        </DialogTitle>
+        <DialogContent>
+           <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 600 }}>Create an official institute receipt for student fees or other financial collection.</Typography>
+           <Grid container spacing={2}>
+              <Grid size={12}>
+                 <FormControl fullWidth sx={{ mb: 2 }}>
+                   <InputLabel>Collection Type</InputLabel>
+                   <Select value={formData.isNonStudent ? 'General' : 'Student'} label="Collection Type" onChange={(e) => setFormData({ ...formData, isNonStudent: e.target.value === 'General', studentId: '', studentName: '' })}>
+                     <MenuItem value="Student">Registered Student</MenuItem>
+                     <MenuItem value="General">General / Non-Student</MenuItem>
+                   </Select>
+                 </FormControl>
+              </Grid>
+              {!formData.isNonStudent ? (
+                <Grid size={12}>
+                  <FormControl fullWidth>
+                    <InputLabel>Select Student</InputLabel>
+                    <Select value={formData.studentId} label="Select Student" onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}>
+                      {students.map(s => <MenuItem key={s.uid} value={s.uid}>{s.displayName} ({s.admissionNo})</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              ) : (
+                <Grid size={12}>
+                  <TextField fullWidth label="Full Name" value={formData.studentName} onChange={(e) => setFormData({ ...formData, studentName: e.target.value })} />
+                </Grid>
+              )}
+              <Grid size={6}>
+                 <TextField fullWidth label="Amount (Rs.)" type="number" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} />
+              </Grid>
+              <Grid size={6}>
+                 <FormControl fullWidth>
+                   <InputLabel>Fee Head</InputLabel>
+                   <Select value={formData.feeHead} label="Fee Head" onChange={(e) => setFormData({ ...formData, feeHead: e.target.value })}>
+                     {FEE_HEADS.map(h => <MenuItem key={h} value={h}>{h}</MenuItem>)}
+                   </Select>
+                 </FormControl>
+              </Grid>
+              <Grid size={6}>
+                 <FormControl fullWidth>
+                   <InputLabel>Payment Mode</InputLabel>
+                   <Select value={formData.paymentMode} label="Payment Mode" onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value })}>
+                     {PAYMENT_MODES.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                   </Select>
+                 </FormControl>
+              </Grid>
+              <Grid size={6}>
+                 <TextField fullWidth type="date" label="Date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} InputLabelProps={{ shrink: true }} />
+              </Grid>
+              <Grid size={12}>
+                 <TextField fullWidth label="Transaction ID / Receipt No." value={formData.transactionId} onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })} />
+              </Grid>
+              <Grid size={12}>
+                 <TextField fullWidth multiline rows={2} label="Remarks (Internal)" value={formData.remarks} onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} />
+              </Grid>
+           </Grid>
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button 
-            onClick={() => {
-              setOpenEditDialog(false);
-              setEditingReceipt(null);
-              setFormData({ studentId: '', isNonStudent: false, studentName: '', amount: '', feeHead: 'Monthly Fee', paymentMode: 'Cash', transactionId: '', remarks: '', date: format(new Date(), 'yyyy-MM-dd') });
-            }}
-            sx={{ fontWeight: 800, color: 'text.secondary' }}
-          >
-            Cancel / Wapis
-          </Button>
-          <Button 
-            onClick={handleUpdateReceipt} 
-            variant="contained" 
-            startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : <Save size={18} />} 
-            disabled={submitting || !formData.amount}
-            sx={{ borderRadius: 1.5, fontWeight: 800, px: 3, boxShadow: 'none' }}
-          >
-            {submitting ? 'Updating...' : 'Update Receipt'}
-          </Button>
+        <DialogActions sx={{ p: 4 }}>
+           <Button onClick={() => setOpenAddDialog(false)} sx={{ fontWeight: 700 }}>Cancel</Button>
+           <Button variant="contained" onClick={handleAddReceipt} disabled={submitting || (!formData.studentId && !formData.isNonStudent) || !formData.amount} sx={{ borderRadius: 2.5, fontWeight: 800, px: 4 }}>{submitting ? 'Generating...' : 'Authorize & Generate'}</Button>
         </DialogActions>
       </Dialog>
 
@@ -1218,78 +852,68 @@ export default function Fees() {
       {selectedReceipt && (
         <FeeReceiptModal 
           open={openReceiptModal} 
-          onClose={() => setOpenReceiptModal(false)} 
+          onClose={() => { setOpenReceiptModal(false); navigate('/fees', { replace: true }); }} 
           receipt={selectedReceipt} 
           settings={settings}
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation */}
       <Dialog open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, id: '' })} PaperProps={{ sx: { borderRadius: 5, p: 1 } }}>
         <DialogTitle sx={{ fontWeight: 900 }}>Confirm Deletion</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary">
-            Are you sure you want to delete this receipt? This action cannot be undone.
-          </Typography>
+          <Typography variant="body2" color="text.secondary">Are you sure you want to delete this receipt? This action cannot be undone.</Typography>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setDeleteConfirm({ open: false, id: '' })} sx={{ fontWeight: 800 }}>Cancel</Button>
-          <Button onClick={confirmDelete} color="error" variant="contained" sx={{ borderRadius: 3, fontWeight: 800 }}>
-            Delete Permanently
+          <Button onClick={() => setDeleteConfirm({ open: false, id: '' })} sx={{ fontWeight: 800 }} disabled={submitting}>Cancel</Button>
+          <Button onClick={confirmDelete} color="error" variant="contained" disabled={submitting} sx={{ borderRadius: 3, fontWeight: 800 }}>
+            {submitting ? 'Deleting...' : 'Delete Permanently'}
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity as any} sx={{ width: '100%', borderRadius: 3, fontWeight: 700 }}>{snackbar.message}</Alert>
+      </Snackbar>
+
+      {/* Bulk Print Layout (6x3 on A4) */}
+      {isBulkPrinting && (
+        <Box sx={{ display: 'none', '@media print': { display: 'block', position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', bgcolor: 'white', zIndex: 9999 } }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(6, 1fr)', width: '210mm', height: '297mm', margin: '0 auto', p: '5mm', boxSizing: 'border-box' }}>
+            {receipts.filter(r => selectedReceiptIds.includes(r.id)).map((receipt) => (
+              <Box key={receipt.id} sx={{ width: '100%', height: '48mm', border: '0.1px solid #eee', p: 1.5, overflow: 'hidden', pageBreakInside: 'avoid', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+                <Box sx={{ borderBottom: '1px solid black', pb: 0.5, mb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography sx={{ fontWeight: 950, fontSize: '7px', color: 'black' }}>OFFICIAL RECORD</Typography>
+                    <Typography sx={{ fontWeight: 950, fontSize: '7px', color: 'black' }}>{receipt.receiptNo}</Typography>
+                </Box>
+                <Typography sx={{ fontWeight: 950, fontSize: '10px', color: 'black', textAlign: 'center', mb: 0.5, lineHeight: 1.1 }}>{settings?.instituteName || 'WUA INSTITUTE'}</Typography>
+                <div style={{ flex: 1 }}>
+                   <PrintField label="Student" value={receipt.studentName} />
+                   <PrintField label="Head" value={receipt.feeHead} />
+                   <PrintField label="Amount" value={`INR ${receipt.amount}`} />
+                   <PrintField label="Date" value={receipt.date} />
+                </div>
+                <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', opacity: 0.8 }}>
+                   <Box sx={{ textAlign: 'center' }}>
+                      <Box sx={{ width: 30, borderTop: '0.5px solid black', mb: 0.2 }} />
+                      <Typography sx={{ fontSize: '5px', color: 'black', fontWeight: 700 }}>RECEPTION</Typography>
+                   </Box>
+                   <Typography sx={{ fontSize: '5px', color: 'grey.600', fontWeight: 600 }}>ID: {receipt.id.slice(0, 8)}</Typography>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }
 
-const SummaryCard = React.memo(({ title, value, icon, color, trend }: any) => {
-  const theme = useTheme();
-  const mainColor = theme.palette[color as 'primary' | 'success' | 'warning'].main;
-  
+function PrintField({ label, value }: { label: string, value: string }) {
   return (
-    <Card sx={{ 
-      borderRadius: 4, 
-      height: '100%', 
-      transition: 'all 0.3s ease',
-      border: '1px solid',
-      borderColor: 'divider',
-      bgcolor: 'background.paper',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
-      '&:hover': { 
-        transform: 'translateY(-4px)', 
-        boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
-        borderColor: alpha(mainColor, 0.3)
-      }
-    }}>
-      <CardContent sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Box sx={{ 
-            p: 1.5, 
-            borderRadius: 2, 
-            bgcolor: alpha(mainColor, 0.1), 
-            color: mainColor,
-            display: 'flex'
-          }}>
-            {icon}
-          </Box>
-          <Typography variant="caption" sx={{ fontWeight: 800, color: mainColor, fontSize: '0.65rem', bgcolor: alpha(mainColor, 0.05), px: 1, py: 0.5, borderRadius: 1 }}>{trend}</Typography>
-        </Box>
-        <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5, letterSpacing: -0.5 }}>{value}</Typography>
-        <Typography 
-          variant="caption" 
-          color="text.secondary" 
-          sx={{ 
-            fontWeight: 800, 
-            textTransform: 'uppercase', 
-            letterSpacing: 1,
-            fontFamily: 'var(--font-display)',
-            fontSize: '0.65rem'
-          }}
-        >
-          {title}
-        </Typography>
-      </CardContent>
-    </Card>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '0.1px solid #f0f0f0' }}>
+       <Typography sx={{ fontSize: '7px', fontWeight: 900, color: 'black' }}>{label}:</Typography>
+       <Typography sx={{ fontSize: '7px', fontWeight: 600, color: 'black' }}>{value}</Typography>
+    </Box>
   );
-});
+}

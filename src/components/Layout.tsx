@@ -175,45 +175,66 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
         >
           <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 60, md: 80 }, px: { xs: 2, md: 4 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              {isMobile && (
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10 }}
-                >
-                  <Box sx={{ width: 32, height: 32, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {logoUrl ? (
-                      <img 
-                        src={logoUrl} 
-                        alt="Logo" 
-                        style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-                        referrerPolicy="no-referrer"
-                        onError={(e: any) => {
-                          e.target.style.display = 'none';
-                          e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:teal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8 7h6"/><path d="M8 11h8"/></svg></div>';
-                        }}
-                      />
-                    ) : (
-                      <BookOpen size={24} color={theme.palette.primary.main} />
-                    )}
-                  </Box>
-                  <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: -0.5, fontFamily: 'var(--font-serif)', fontSize: '1.2rem' }}>
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+                onClick={() => navigate('/')}
+              >
+                <Box sx={{ 
+                  width: { xs: 32, md: 45 }, 
+                  height: { xs: 32, md: 45 }, 
+                  overflow: 'hidden', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  bgcolor: 'transparent',
+                  borderRadius: 1.5,
+                  p: 0,
+                  boxShadow: 'none',
+                  border: 'none'
+                }}>
+                  {logoUrl ? (
+                    <img 
+                      src={logoUrl} 
+                      alt="Logo" 
+                      style={{ width: '100%', height: '100%', objectFit: 'contain', filter: theme.palette.mode === 'dark' ? 'brightness(1.2)' : 'none' }} 
+                      referrerPolicy="no-referrer"
+                      onError={(e: any) => {
+                        e.target.style.display = 'none';
+                        e.target.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:teal"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8 7h6"/><path d="M8 11h8"/></svg></div>';
+                      }}
+                    />
+                  ) : (
+                    <img 
+                      src="https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png" 
+                      alt="Logo" 
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                    />
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                  <Typography variant="h5" sx={{ 
+                    fontWeight: 900, 
+                    color: 'primary.main', 
+                    letterSpacing: -0.5, 
+                    fontFamily: 'var(--font-serif)', 
+                    fontSize: { xs: '1rem', md: '1.4rem' },
+                    lineHeight: 1
+                  }}>
                     {instituteName}
                   </Typography>
-                </motion.div>
-              )}
-              {!isMobile && (
-                <Typography variant="h4" sx={{ fontWeight: 900, color: 'text.primary', letterSpacing: -1.5 }}>
-                  {location.pathname === '/' ? 'Dashboard' : 
-                   location.pathname === '/attendance' ? 'Attendance' :
-                   location.pathname === '/fees' ? 'Fees & Payments' :
-                   location.pathname === '/users' ? 'Students' :
-                   location.pathname === '/courses' ? 'Subjects' :
-                   location.pathname === '/reports' ? 'Reports' :
-                   location.pathname === '/admin/logs' ? 'System Logs' :
-                   location.pathname.substring(1).split('/')[0].charAt(0).toUpperCase() + location.pathname.substring(1).split('/')[0].slice(1)}
-                </Typography>
-              )}
+                  <Typography variant="caption" sx={{ 
+                    fontWeight: 700, 
+                    color: 'text.secondary', 
+                    fontSize: '0.65rem', 
+                    letterSpacing: 0.5,
+                    display: { xs: 'none', md: 'block' }
+                  }}>
+                    Religious & Academic Excellence
+                  </Typography>
+                </Box>
+              </motion.div>
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 3 } }}>

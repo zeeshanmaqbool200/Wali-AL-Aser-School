@@ -1,10 +1,12 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { 
-  initializeFirestore, doc, getDoc, setDoc, collection, query, where, 
+  initializeFirestore, getFirestore, doc, getDoc, setDoc, collection, query, where, 
   onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, getDocs, 
-  memoryLocalCache
+  memoryLocalCache, orderBy, limit, or, and, arrayUnion, increment, documentId, writeBatch
 } from 'firebase/firestore';
+import { logger, initLoggerDb } from './lib/logger';
+import { syncQueue, ActionType } from './lib/syncQueue';
 
 // Import the Firebase configuration
 import firebaseConfig from '../firebase-applet-config.json';
@@ -13,16 +15,34 @@ export { firebaseConfig };
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Use initializeFirestore with optimized settings for the specific build environment
-export const db = initializeFirestore(app, {
-  localCache: memoryLocalCache(),
-  ignoreUndefinedProperties: true
-}, firebaseConfig.firestoreDatabaseId);
+// Prevent multiple initializations and handle "Unexpected state" errors
+let firestoreDb: any;
+try {
+  firestoreDb = initializeFirestore(app, {
+    localCache: memoryLocalCache(),
+    ignoreUndefinedProperties: true,
+    // Use long polling to avoid WebSocket issues in some environments which can cause "Unexpected state"
+    experimentalForceLongPolling: true,
+  }, firebaseConfig.firestoreDatabaseId);
+} catch (e: any) {
+  // If already initialized or fails, try to get current instance
+  try {
+    firestoreDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    console.log('Using existing Firestore instance');
+  } catch (err) {
+    console.error('Failed to get Firestore instance:', err);
+    // As a last resort, just try getFirestore without specific database ID if the above fails
+    firestoreDb = getFirestore(app);
+  }
+}
 
+export const db = firestoreDb;
 export const googleProvider = new GoogleAuthProvider();
 
 // Initialize logger with db
-initLoggerDb(db);
+if (db) {
+  initLoggerDb(db);
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -52,10 +72,13 @@ interface FirestoreErrorInfo {
   }
 }
 
-import { logger, initLoggerDb } from './lib/logger';
-
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errorMsg = error instanceof Error ? error.message : String(error);
+  
+  // Log critical errors like "Unexpected state" or assertion failures
+  if (errorMsg.includes('INTERNAL ASSERTION FAILED') || errorMsg.includes('Unexpected state')) {
+    console.error('CRITICAL FIRESTORE ERROR:', errorMsg);
+  }
   
   // Check for rate limit or quota issues
   if (errorMsg.includes('quota') || errorMsg.includes('limit') || errorMsg.includes('resource-exhausted') || errorMsg.includes('Rate exceeded')) {
@@ -90,8 +113,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   
   throw new Error(JSON.stringify(errInfo));
 }
-
-import { syncQueue, ActionType } from './lib/syncQueue';
 
 export async function smartAddDoc(collectionRef: any, data: any) {
   if (navigator.onLine) {
@@ -177,5 +198,13 @@ export {
   updateDoc, 
   deleteDoc, 
   serverTimestamp,
-  getDocs
+  getDocs,
+  orderBy,
+  limit,
+  or,
+  and,
+  arrayUnion,
+  increment,
+  documentId,
+  writeBatch
 };

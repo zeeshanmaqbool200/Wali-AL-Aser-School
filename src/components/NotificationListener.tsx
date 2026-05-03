@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { collection, query, onSnapshot, orderBy, limit, where, or } from 'firebase/firestore';
-import { db } from '../firebase';
+import { 
+  db, collection, query, onSnapshot, orderBy, limit, where, or 
+} from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useNotifications } from '../services/notificationService';
@@ -109,6 +110,8 @@ export default function NotificationListener() {
         isFirstLoad.current = false;
         logger.info('Notification Listener Active');
       }
+    }, (err) => {
+      console.error('Notification Listener Error:', err);
     });
 
     return () => unsubscribe();

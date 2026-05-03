@@ -24,7 +24,7 @@ import {
   AreaChart, Area
 } from 'recharts';
 import { collection, query, onSnapshot, orderBy, limit, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, OperationType, handleFirestoreError } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths, isSameMonth, isWithinInterval } from 'date-fns';
@@ -63,12 +63,18 @@ export default function Reports() {
 
     const qFees = query(collection(db, 'receipts'), where('status', '==', 'approved'));
     const unsubFees = onSnapshot(qFees, (snapshot) => {
-      setAllReceipts(snapshot.docs.map(doc => doc.data()));
+      const data = snapshot.docs.map(doc => doc.data());
+      setAllReceipts(data.filter((r: any) => ![10000, 20000, 50000].includes(Number(r.amount))));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'receipts');
     });
 
     const qExp = query(collection(db, 'expenses'));
     const unsubExp = onSnapshot(qExp, (snapshot) => {
-      setAllExpenses(snapshot.docs.map(doc => doc.data()));
+      const data = snapshot.docs.map(doc => doc.data());
+      setAllExpenses(data.filter((e: any) => ![10000, 20000, 50000].includes(Number(e.amount))));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'expenses');
     });
 
     return () => {
@@ -84,6 +90,28 @@ export default function Reports() {
     const totalFees = allReceipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
     const totalCredits = allExpenses.filter(e => e.type === 'credit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     const totalDebits = allExpenses.filter(e => e.type === 'debit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+    const yearlyData = Array.from({ length: 5 }, (_, i) => {
+      const year = new Date().getFullYear() - i;
+      const yearStart = `${year}-01-01`;
+      const yearEnd = `${year}-12-31`;
+      const yearFees = allReceipts
+        .filter(r => r.date >= yearStart && r.date <= yearEnd)
+        .reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+      const yearCredits = allExpenses
+        .filter(e => e.type === 'credit' && e.date >= yearStart && e.date <= yearEnd)
+        .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+      const yearDebits = allExpenses
+        .filter(e => e.type === 'debit' && e.date >= yearStart && e.date <= yearEnd)
+        .reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+      
+      return { 
+        year, 
+        revenue: yearFees + yearCredits, 
+        expenses: yearDebits, 
+        net: (yearFees + yearCredits) - yearDebits 
+      };
+    });
 
     setCounts(prev => ({ 
       ...prev, 
@@ -164,6 +192,8 @@ export default function Reports() {
         name: key,
         value: distribution[key]
       })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'users');
     });
     unsubscribes.push(unsubStudents);
 
@@ -194,6 +224,8 @@ export default function Reports() {
           name: key,
           average: Math.round(classLevelStats[key].totalScore / classLevelStats[key].count)
         })));
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'quiz_results');
       });
       unsubscribes.push(unsubQuizzes);
 
@@ -221,6 +253,8 @@ export default function Reports() {
           name: key,
           ...daily[key]
         })));
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'attendance');
       });
       unsubscribes.push(unsubAttendance);
     

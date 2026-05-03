@@ -3,7 +3,8 @@ import {
   Box, Typography, TextField, Button, Paper, Grid, MenuItem, 
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Chip, Stack, alpha, useTheme, Card, CardContent,
-  CircularProgress, Alert, Tooltip, InputAdornment, Menu
+  CircularProgress, Alert, Tooltip, InputAdornment, Menu, Skeleton,
+  Dialog
 } from '@mui/material';
 import { 
   Plus, Trash2, Download, FileText, PieChart as PieIcon, 
@@ -16,7 +17,7 @@ import {
   collection, addDoc, query, onSnapshot, orderBy, 
   deleteDoc, doc, serverTimestamp, where 
 } from 'firebase/firestore';
-import { db, auth } from '../firebase';
+import { db, auth, smartDeleteDoc, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -62,20 +63,22 @@ export default function Expenses() {
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'credit' | 'debit'>('all');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'expenses'), orderBy('date', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const expenseData = snapshot.docs.map(doc => ({
+      const expenseDataRaw = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Expense[];
-      setExpenses(expenseData);
+      setExpenses(expenseDataRaw);
       setLoading(false);
     }, (err) => {
-      console.error("Error fetching expenses:", err);
-      setError("Permission denied. Admin access required.");
+      handleFirestoreError(err, OperationType.LIST, 'expenses');
       setLoading(false);
     });
 
@@ -114,13 +117,16 @@ export default function Expenses() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this record?")) {
-      try {
-        await deleteDoc(doc(db, 'expenses', id));
-      } catch (err) {
-        console.error("Error deleting record:", err);
-        setError("Failed to delete record.");
-      }
+    setDeletingId(id);
+    try {
+      await smartDeleteDoc(doc(db, 'expenses', id));
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
+    } catch (err) {
+      // Error handled by smartDeleteDoc/handleFirestoreError
+      setError("Failed to delete record.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -746,8 +752,17 @@ export default function Expenses() {
                           </TableCell>
                           <TableCell align="center">
                             <Tooltip title="Delete Entry">
-                              <IconButton onClick={() => handleDelete(exp.id)} color="error" size="small" sx={{ bgcolor: alpha(theme.palette.error.main, 0.05), '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.1) } }}>
-                                <Trash2 size={16} />
+                              <IconButton 
+                                onClick={() => {
+                                  setItemToDelete(exp.id);
+                                  setDeleteDialogOpen(true);
+                                }} 
+                                color="error" 
+                                size="small" 
+                                disabled={deletingId === exp.id}
+                                sx={{ bgcolor: alpha(theme.palette.error.main, 0.05), '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.1) } }}
+                              >
+                                {deletingId === exp.id ? <CircularProgress size={16} color="inherit" /> : <Trash2 size={16} />}
                               </IconButton>
                             </Tooltip>
                           </TableCell>
@@ -772,6 +787,38 @@ export default function Expenses() {
             </Paper>
           </Grid>
         </Grid>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog 
+          open={deleteDialogOpen} 
+          onClose={() => !deletingId && setDeleteDialogOpen(false)}
+          PaperProps={{ sx: { borderRadius: 4, p: 1 } }}
+        >
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 900, mb: 1 }}>Confirm Deletion</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Are you sure you want to delete this financial record? This action will permanently remove it from the ledger.
+            </Typography>
+            <Stack direction="row" spacing={2} justifyContent="flex-end">
+              <Button 
+                onClick={() => setDeleteDialogOpen(false)} 
+                disabled={deletingId !== null}
+                sx={{ fontWeight: 800 }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="contained" 
+                color="error"
+                onClick={() => itemToDelete && handleDelete(itemToDelete)}
+                disabled={deletingId !== null}
+                sx={{ borderRadius: 2, fontWeight: 800, px: 3 }}
+              >
+                {deletingId ? 'Deleting...' : 'Delete Record'}
+              </Button>
+            </Stack>
+          </Box>
+        </Dialog>
       </Box>
     </motion.div>
   );

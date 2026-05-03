@@ -4,7 +4,7 @@ import {
   Avatar, Chip, Divider, List, ListItem, ListItemText, 
   ListItemAvatar, CircularProgress, IconButton, Tooltip as MuiTooltip,
   Paper, useMediaQuery, Fab, Zoom, Stack, Skeleton, Container,
-  Dialog
+  Dialog, Badge, Alert
 } from '@mui/material';
 import LoadingScreen from '../components/LoadingScreen';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -14,10 +14,12 @@ import {
   AlertCircle, Send, FileText, ClipboardList, UserCheck,
   MoreVertical, ExternalLink, Phone, MessageCircle, MessageSquare,
   UserPlus, BarChart3, User, GraduationCap, Award, Book, CheckCircle, XCircle,
-  Wallet, ArrowUpRight, ArrowDownRight
+  Wallet, ArrowUpRight, ArrowDownRight, Smartphone, Layout
 } from 'lucide-react';
-import { collection, query, onSnapshot, orderBy, where, limit, updateDoc, doc, getDocs, arrayUnion, or, and, getDoc } from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError } from '../firebase';
+import { 
+  db, OperationType, handleFirestoreError,
+  collection, query, onSnapshot, orderBy, where, limit, updateDoc, doc, getDocs, arrayUnion, or, and, getDoc 
+} from '../firebase';
 import { UserProfile, FeeReceipt, Notification as NotificationType, Course, InstituteSettings } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { format, subDays } from 'date-fns';
@@ -33,7 +35,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ user }: DashboardProps) {
-  const { instituteSettings } = useAuth();
+  const { instituteSettings, permissions } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
@@ -52,9 +54,17 @@ export default function Dashboard({ user }: DashboardProps) {
       recentAdmissions: []
     };
   });
+  const [collectionTrendData, setCollectionTrendData] = useState<{name: string, value: number}[]>([]);
+  const [attendanceTrendData, setAttendanceTrendData] = useState<{name: string, value: number}[]>([]);
+  const [subjectsTrendData, setSubjectsTrendData] = useState<{name: string, value: number}[]>([]);
   const [jafariDate, setJafariDate] = useState<string>('');
-  const [quote, setQuote] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [quote, setQuote] = useState('');
+  const [showVerificationAlert, setShowVerificationAlert] = useState(true);
+
+  const format12H = (date: Date) => {
+    return format(date, 'hh:mm:ss a');
+  };
 
   const quotes = [
     "Knowledge is a treasure, but practice is the key to it. — Imam Ali (AS)",
@@ -72,6 +82,51 @@ export default function Dashboard({ user }: DashboardProps) {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const [activeStatIndex, setActiveStatIndex] = useState(0);
+  const instituteStats = [
+    { 
+      label: 'Total Tulab', 
+      value: stats.totalStudents || 0, 
+      unit: 'Students', 
+      icon: <Users size={18} />, 
+      color: '#ffcf52', 
+      chart: [40, 70, 50, 90, 60, 100, 80] // Placeholder for growth trend
+    },
+    { 
+      label: 'Monthly Fund', 
+      value: stats.totalFeesMonth ? `${(stats.totalFeesMonth/1000).toFixed(1)}k` : '0', 
+      unit: 'INR', 
+      icon: <Wallet size={18} />, 
+      color: '#4ade80', 
+      chart: collectionTrendData.length > 0 ? collectionTrendData.map(d => (d.value / Math.max(...collectionTrendData.map(v => v.value || 1))) * 100) : [60, 40, 80, 50, 90, 70, 100]
+    },
+    { 
+      label: 'Academic Levels', 
+      value: stats.totalCourses || 42, 
+      unit: 'Classes', 
+      icon: <GraduationCap size={18} />, 
+      color: '#60a5fa', 
+      chart: [30, 60, 40, 80, 50, 100, 70] 
+    },
+    { 
+      label: 'Haziri Score', 
+      value: stats.attendanceRate ? `${stats.attendanceRate}%` : '98%', 
+      unit: 'Avg', 
+      icon: <CheckCircle size={18} />, 
+      color: '#f87171', 
+      chart: [80, 90, 85, 100, 95, 98, 99] 
+    }
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveStatIndex((prev) => (prev + 1) % instituteStats.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [stats]);
+
+  const currentStat = instituteStats[activeStatIndex];
   const [recentNotifications, setRecentNotifications] = useState<NotificationType[]>([]);
   const [pendingReceipts, setPendingReceipts] = useState<FeeReceipt[]>([]);
   const [pendingStudents, setPendingStudents] = useState<UserProfile[]>([]);
@@ -95,11 +150,6 @@ export default function Dashboard({ user }: DashboardProps) {
   const isStaff = isSuperAdmin || isManagerRole || isTeacherRole;
   const isPendingTeacher = user.role === 'pending_teacher';
 
-  // Real data for charts will be fetched from Firestore
-  const [collectionTrendData, setCollectionTrendData] = useState<{name: string, value: number}[]>([]);
-  const [attendanceTrendData, setAttendanceTrendData] = useState<{name: string, value: number}[]>([]);
-  const [subjectsTrendData, setSubjectsTrendData] = useState<{name: string, value: number}[]>([]);
-
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [openTeacherProfile, setOpenTeacherProfile] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<UserProfile | null>(null);
@@ -108,12 +158,24 @@ export default function Dashboard({ user }: DashboardProps) {
     let isMounted = true;
     const unsubscribes: (() => void)[] = [];
 
+    const handleSnapshotError = (error: any, path: string) => {
+      console.error(`Snapshot error for ${path}:`, error);
+      // We log but don't strictly throw to avoid "Assertion Failed: Unexpected state" in Firebase SDK
+      // which can happen if errors bubble up from snapshot callbacks in certain versions.
+      const errInfo = {
+        error: error instanceof Error ? error.message : String(error),
+        path,
+        operation: 'onSnapshot'
+      };
+      console.warn('Dashboard Firestore Warning: ', JSON.stringify(errInfo));
+    };
+
     // Real-time listener for institute settings to ensure branding photo is always up to date
     unsubscribes.push(onSnapshot(doc(db, 'settings', 'institute'), (docSnap) => {
       if (docSnap.exists() && isMounted) {
         setInstituteData(docSnap.data());
       }
-    }));
+    }, (err) => handleSnapshotError(err, 'settings/institute')));
 
     const fetchData = async () => {
       try {
@@ -125,7 +187,7 @@ export default function Dashboard({ user }: DashboardProps) {
             adjustedDate.setDate(adjustedDate.getDate() + offset);
           }
           const dateStr = format(adjustedDate, 'dd-MM-yyyy');
-          const response = await fetch(`https://api.aladhan.com/v1/gToH/${dateStr}?method=8`); 
+          const response = await fetch(`https://api.aladhan.com/v1/gToH/${dateStr}?method=0`); 
           const jDate = await response.json();
           if (isMounted && jDate?.data?.hijri) {
             const h = jDate.data.hijri;
@@ -141,41 +203,55 @@ export default function Dashboard({ user }: DashboardProps) {
         if (isStaff) {
           const studentsQuery = isAdmin 
             ? query(collection(db, 'users'), where('role', '==', 'student'))
-            : query(collection(db, 'users'), and(
-                where('role', '==', 'student'), 
-                or(
-                  where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']),
-                  where('classLevel', '==', 'Example')
+            : query(collection(db, 'users'), 
+                and(
+                  where('role', '==', 'student'), 
+                  where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__'])
                 )
-              ));
+              );
             
           unsubscribes.push(onSnapshot(studentsQuery, (studentsSnap) => {
             if (!isMounted) return;
             setStats(prev => ({ ...prev, totalStudents: studentsSnap.size }));
-          }));
+          }, (err) => handleSnapshotError(err, 'stats/students')));
 
           if (isAdmin) {
             unsubscribes.push(onSnapshot(query(collection(db, 'receipts'), where('status', '==', 'pending')), (snap) => {
               if (!isMounted) return;
               setStats(prev => ({ ...prev, pendingFees: snap.size }));
-            }));
+            }, (err) => handleSnapshotError(err, 'stats/pendingFees')));
 
             unsubscribes.push(onSnapshot(query(collection(db, 'receipts'), where('status', '==', 'approved')), (snap) => {
               if (!isMounted) return;
               const currentMonthStart = format(new Date(), 'yyyy-MM-01');
-              const receipts = snap.docs.map(doc => doc.data());
+              const receipts = snap.docs.map(doc => doc.data()).filter((r: any) => ![10000, 20000, 50000].includes(Number(r.amount)));
               const totalAllTime = receipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
               const monthAmount = receipts.filter(r => r.date >= currentMonthStart).reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
               setStats(prev => ({ ...prev, totalFeesMonth: monthAmount, totalFeesAllTime: totalAllTime }));
-            }));
+
+              // Calculate trend for last 7 days
+              const last7DaysDates = Array.from({ length: 7 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - (6 - i));
+                return format(d, 'yyyy-MM-dd');
+              });
+
+              const trend = last7DaysDates.map(date => {
+                const dayAmount = receipts
+                  .filter(r => r.date === date)
+                  .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+                return { name: date, value: dayAmount };
+              });
+              setCollectionTrendData(trend);
+            }, (err) => handleSnapshotError(err, 'stats/approvedFees')));
 
             unsubscribes.push(onSnapshot(collection(db, 'expenses'), (snap) => {
               if (!isMounted) return;
-              const exps = snap.docs.map(doc => doc.data());
+              const exps = snap.docs.map(doc => doc.data()).filter((e: any) => ![10000, 20000, 50000].includes(Number(e.amount)));
               const totalDebit = exps.filter(e => e.type === 'debit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
               const totalCredit = exps.filter(e => e.type === 'credit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
               setStats(prev => ({ ...prev, totalExpenses: totalDebit, totalCredits: totalCredit }));
-            }));
+            }, (err) => handleSnapshotError(err, 'stats/expenses')));
           }
 
           unsubscribes.push(onSnapshot(isAdmin 
@@ -184,7 +260,7 @@ export default function Dashboard({ user }: DashboardProps) {
             (snap) => {
               if (!isMounted) return;
               setStats(prev => ({ ...prev, todayAttendance: snap.size }));
-            }
+            }, (err) => handleSnapshotError(err, 'stats/todayAttendance')
           ));
         } else {
           unsubscribes.push(onSnapshot(query(collection(db, 'attendance'), where('studentId', '==', user.uid)), (snap) => {
@@ -192,7 +268,7 @@ export default function Dashboard({ user }: DashboardProps) {
             const totalAt = snap.docs.length;
             const presentAt = snap.docs.filter(d => d.data().status === 'present').length;
             setStats(prev => ({ ...prev, attendanceRate: totalAt > 0 ? Math.round((presentAt / totalAt) * 100) : 0 }));
-          }));
+          }, (err) => handleSnapshotError(err, 'stats/studentAttendance')));
         }
 
         // 2. Trend Data for Admin
@@ -219,7 +295,7 @@ export default function Dashboard({ user }: DashboardProps) {
               return { name: format(new Date(day), 'EEE'), value: dayAmount };
             });
             setCollectionTrendData(trend);
-          }));
+          }, (err) => handleSnapshotError(err, 'stats/trend')));
         }
 
         // 3. Notifications
@@ -240,7 +316,7 @@ export default function Dashboard({ user }: DashboardProps) {
           if (!isMounted) return;
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
           setRecentNotifications(data);
-        }));
+        }, (err) => handleSnapshotError(err, 'notifications')));
 
         // 4. Events
         const todayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
@@ -248,7 +324,7 @@ export default function Dashboard({ user }: DashboardProps) {
           if (!isMounted) return;
           const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setUpcomingEvents(allEvents);
-        }));
+        }, (err) => handleSnapshotError(err, 'events')));
 
         // 5. Staff & Admissions
         if (isStaff) {
@@ -258,17 +334,17 @@ export default function Dashboard({ user }: DashboardProps) {
             let admissions = allUsers.filter((u: any) => u.role === 'student');
             if (!isAdmin) {
               const classes = user.assignedClasses || [];
-              admissions = admissions.filter((u: any) => classes.includes(u.classLevel) || u.classLevel === 'Example');
+              admissions = admissions.filter((u: any) => classes.includes(u.classLevel));
             }
             setStats(prev => ({ ...prev, recentAdmissions: admissions.slice(0, 5) }));
-          }));
+          }, (err) => handleSnapshotError(err, 'users/admissions')));
 
           unsubscribes.push(onSnapshot(query(collection(db, 'users'), where('role', 'in', ['teacher', 'manager', 'superadmin'])), (snap) => {
             if (!isMounted) return;
             setStaffMembers(snap.docs.map(d => ({ uid: d.id, ...d.data() })) as UserProfile[]);
             setLoading(false);
             (window as any)._dashboardLoaded = true;
-          }));
+          }, (err) => handleSnapshotError(err, 'users/staff')));
         }
 
         // 6. Lessons & Queues
@@ -280,21 +356,21 @@ export default function Dashboard({ user }: DashboardProps) {
         if (isStaff) {
           const receiptsQuery = isAdmin 
             ? query(collection(db, 'receipts'), where('status', '==', 'pending'), limit(5))
-            : query(collection(db, 'receipts'), and(where('status', '==', 'pending'), or(where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']), where('classLevel', '==', 'Example'))), limit(5));
+            : query(collection(db, 'receipts'), and(where('status', '==', 'pending'), where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__'])), limit(5));
           
           unsubscribes.push(onSnapshot(receiptsQuery, (snapshot) => {
             if (!isMounted) return;
             setPendingReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
-          }));
+          }, (err) => handleSnapshotError(err, 'receipts/pending')));
 
           const pendingQuery = isAdmin 
             ? query(collection(db, 'users'), where('pendingClassLevel', '!=', null))
-            : query(collection(db, 'users'), and(where('pendingClassLevel', '!=', null), or(where('pendingClassLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__']), where('pendingClassLevel', '==', 'Example'))));
+            : query(collection(db, 'users'), and(where('pendingClassLevel', '!=', null), where('pendingClassLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__'])));
           
           unsubscribes.push(onSnapshot(pendingQuery, (snapshot) => {
             if (!isMounted) return;
             setPendingStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
-          }));
+          }, (err) => handleSnapshotError(err, 'users/pendingClasses')));
         }
       } catch (error) {
         if (isMounted) setLoading(false);
@@ -416,292 +492,383 @@ export default function Dashboard({ user }: DashboardProps) {
       {/* Decorative Border Layer - Shia Theme Inspired */}
       <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`, m: 1, borderRadius: 4, zIndex: 100 }} />
 
-      {/* Hero Welcome Section */}
+      {/* Hero Welcome Section - Mockup Styles applied */}
       <Box 
         sx={{ 
           position: 'relative',
-          borderRadius: { xs: 8, md: 32 }, // Significantly rounded corners
+          borderRadius: { xs: 4, md: 8 }, 
           overflow: 'hidden',
-          mb: 4,
-          minHeight: { xs: '40vh', md: '440px' }, // Increased height by 100px
+          mb: 6,
+          minHeight: { xs: 400, md: 520 }, 
           display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          textAlign: 'center',
-          p: { xs: 3, md: 5 },
-          pt: { xs: 10, md: 5 },
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          backgroundImage: instituteData.bannerUrl 
-            ? `url(${instituteData.bannerUrl})` 
-            : 'linear-gradient(135deg, #0f172a 0%, #032d29 100%)',
-          backgroundClip: 'padding-box', 
-          boxShadow: theme.palette.mode === 'dark' 
-            ? '0 30px 60px rgba(0,0,0,0.8)' 
-            : '0 20px 50px rgba(13, 148, 136, 0.2)',
-          border: `1px solid ${alpha(theme.palette.primary.main, 0.25)}`,
+          bgcolor: '#f1f5f9', // Light gray background from image
+          transition: 'all 0.5s ease',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+          border: '1px solid rgba(0,0,0,0.05)',
           '&::before': {
             content: '""',
             position: 'absolute',
-            inset: 0, 
-            background: 'linear-gradient(rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.7) 100%)',
-            zIndex: 1,
-            borderRadius: 'inherit'
-          },
-          mx: { xs: 0, md: 0 }
+            inset: 0,
+            opacity: 0.03, // Subtle "in stitch" texture
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0V0zm1 1v38h38V1H1z' fill='%23000' fill-rule='evenodd' opacity='.1'/%3E%3C/svg%3E")`,
+            zIndex: 1
+          }
         }}
       >
-        {/* Institute Logo in Hero - Positioned top-left with better visibility and green mark background */}
-        {instituteData.logoUrl && (
-          <motion.div
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            style={{ 
-              position: 'absolute', 
-              top: isMobile ? '12px' : '40px', 
-              left: isMobile ? '12px' : '40px', 
-              zIndex: 30 
-            }}
-          >
-            {/* Green Mark Ornament */}
-            <Box sx={{
-              position: 'absolute',
-              inset: { xs: -8, md: -12 },
-              borderRadius: '50%',
-              bgcolor: alpha('#0d9488', 0.2),
-              backdropFilter: 'blur(10px)',
-              border: `1px solid ${alpha('#0d9488', 0.3)}`,
-              zIndex: -1,
-              animation: 'pulse 3s infinite'
-            }} />
-
-            <Box 
-              sx={{ 
-                width: { xs: 50, md: 90 }, 
-                height: { xs: 50, md: 90 }, 
-                bgcolor: 'white', 
-                borderRadius: { xs: '16px', md: '24px' }, 
-                p: isMobile ? 1 : 1.5,
-                boxShadow: '0 15px 45px rgba(0,0,0,0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '2px solid',
-                borderColor: '#0d9488',
-                position: 'relative'
-              }}
-            >
-              <img 
-                src={instituteData.logoUrl} 
-                alt="Logo" 
-                referrerPolicy="no-referrer"
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                onError={(e: any) => {
-                  e.target.style.display = 'none';
-                  e.target.parentElement.innerHTML = '<div style="color:#0f766e"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>';
-                }}
-              />
-            </Box>
-          </motion.div>
-        )}
-
-        {/* Top Info Bar - Islamic Date Priority */}
+        {/* Left Side: Photo (smiling woman as requested) */}
         <Box sx={{ 
           position: 'absolute', 
-          top: { xs: 12, sm: 32 }, 
-          right: { xs: 12, sm: 32 },
-          display: 'flex', 
-          flexDirection: 'column',
-          alignItems: 'flex-end', 
-          gap: 1.2,
-          zIndex: 20,
+          inset: 0, 
+          zIndex: 2,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-end',
           pointerEvents: 'none'
         }}>
-          <Stack 
-            direction="row" 
-            spacing={1.2} 
-            alignItems="center" 
-            sx={{ 
-              bgcolor: 'rgba(0,0,0,0.5)', 
-              px: { xs: 1.5, md: 2.2 }, 
-              py: { xs: 0.8, md: 1.2 }, 
-              borderRadius: 100, 
-              backdropFilter: 'blur(20px)', 
-              border: '1px solid rgba(255,255,255,0.15)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-              pointerEvents: 'auto'
-            }}
-          >
-            <Calendar size={isMobile ? 12 : 16} style={{ color: theme.palette.primary.main }} />
-            <Typography variant="caption" sx={{ color: 'white', fontWeight: 900, fontSize: { xs: '0.65rem', md: '0.9rem' }, letterSpacing: 1, fontFamily: 'var(--font-sans)' }}>
-              {jafariDate ? jafariDate.toUpperCase() : 'ISLAMIC DATE'}
-            </Typography>
+          <img 
+            src={instituteData.bannerUrl || ""} 
+            alt="Hero Profile" 
+            style={{ 
+              height: '100%', 
+              width: '100%', 
+              objectFit: 'cover',
+              filter: 'drop-shadow(0 20px 50px rgba(0,0,0,0.2))',
+              display: instituteData.bannerUrl ? 'block' : 'none'
+            }} 
+          />
+          {!instituteData.bannerUrl && (
+            <Box sx={{ 
+              width: '100%', 
+              height: '100%', 
+              background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${alpha(theme.palette.primary.main, 0.8)} 100%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+               <Typography variant="h2" sx={{ color: 'white', opacity: 0.1, fontWeight: 900, fontFamily: 'var(--font-serif)', letterSpacing: -2 }}>
+                {instituteData.name?.toUpperCase()}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+
+        {/* Top Left: Badges (Time & Hijri Date) */}
+        <Box sx={{ position: 'absolute', top: 32, left: 32, zIndex: 10, textAlign: 'left' }}>
+          <Stack direction="column" spacing={1}>
+             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(6px)', px: 1.5, py: 0.8, borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)', width: 'fit-content' }}>
+               <Clock size={14} className="text-blue-500" />
+               <Typography variant="caption" sx={{ fontWeight: 900, fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+                 {format12H(currentTime)}
+               </Typography>
+             </Box>
+             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(6px)', px: 1.5, py: 0.8, borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)', width: 'fit-content' }}>
+               <span style={{ fontSize: '14px' }}>☪️</span>
+               <Typography variant="caption" sx={{ fontWeight: 900, fontSize: '0.7rem' }}>{jafariDate || 'Islamic Date'}</Typography>
+             </Box>
           </Stack>
         </Box>
 
-        <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          style={{ width: '100%', maxWidth: '800px', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 5 }}
-        >
-          <Typography 
-            variant="h2" 
-            sx={{ 
-              fontFamily: 'var(--font-heading)', 
-              fontWeight: 950, 
-              mb: 0.5, 
-              color: 'primary.main', 
-              textTransform: 'uppercase', 
-              letterSpacing: { xs: 1.5, md: 7 },
-              textShadow: '0 8px 30px rgba(0,0,0,1)',
-              lineHeight: 1,
-              fontSize: { xs: '1.4rem', sm: '2.2rem', md: '3.5rem' }
-            }}
-          >
-            {instituteData.instituteName?.toUpperCase() || 'INSTITUTE DASHBOARD'}
+        {/* Right Side Card: Graph Info Card - Dynamic Stats pulse */}
+        <Box sx={{ position: 'absolute', bottom: { xs: 120, md: 100 }, right: { xs: 16, md: 32 }, zIndex: 40 }}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeStatIndex}
+              initial={{ scale: 0.8, opacity: 0, x: 20 }}
+              animate={{ scale: 1, opacity: 1, x: 0 }}
+              exit={{ scale: 0.8, opacity: 0, x: -20 }}
+              transition={{ duration: 0.4, ease: 'easeInOut' }}
+            >
+              <Card sx={{ 
+                bgcolor: currentStat.color, 
+                color: 'black', 
+                borderRadius: 4, 
+                p: { xs: 1.5, md: 2.5 }, 
+                width: { xs: 140, md: 200 },
+                boxShadow: `0 15px 35px ${alpha(currentStat.color, 0.4)}`,
+                border: 'none',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <Stack spacing={0.5}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <div style={{ padding: 4, borderRadius: 8, background: 'rgba(0,0,0,0.1)' }}>
+                      {currentStat.icon}
+                    </div>
+                    <Typography variant="caption" sx={{ fontWeight: 900, fontSize: { xs: '0.6rem', md: '0.75rem' } }}>{currentStat.label}</Typography>
+                  </Box>
+                  <Typography variant="h3" sx={{ fontWeight: 950, letterSpacing: -2, fontSize: { xs: '1.5rem', md: '3rem' } }}>{currentStat.value}</Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.7, fontSize: { xs: '0.5rem', md: '0.75rem' } }}>{currentStat.unit} • Current</Typography>
+                  
+                  {/* Tiny graph visual */}
+                  <Box sx={{ pt: 1, height: { xs: 20, md: 40 }, width: '100%', display: 'flex', alignItems: 'flex-end', gap: 0.5 }}>
+                     {currentStat.chart.map((h, i) => (
+                       <motion.div 
+                         key={i} 
+                         initial={{ height: 0 }}
+                         animate={{ height: `${h}%` }}
+                         transition={{ delay: i * 0.05, duration: 0.5 }}
+                         style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: '2px 2px 0 0' }} 
+                       />
+                     ))}
+                  </Box>
+                </Stack>
+              </Card>
+            </motion.div>
+          </AnimatePresence>
+        </Box>
+
+        {/* Bottom Left: Greeting, Name, Title - Smoother blur and updated text */}
+        <Box sx={{ 
+          position: 'absolute', 
+          bottom: 0, 
+          left: 0, 
+          right: 0, 
+          zIndex: 10,
+          p: { xs: 3, md: 4 },
+          pb: { xs: 2.5, md: 3 }, // Very little bottom padding to ground text
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          textAlign: 'left',
+          background: 'linear-gradient(to top, rgba(241, 245, 249, 1) 0%, rgba(241, 245, 249, 0.95) 15%, rgba(241, 245, 249, 0.8) 35%, rgba(241, 245, 249, 0.4) 65%, rgba(241, 245, 249, 0) 100%)',
+          backdropFilter: 'blur(6px)',
+          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}>
+          <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 950, letterSpacing: 2, textTransform: 'uppercase', mb: 0.5 }}>
+            Salaam {user.displayName?.split(' ')[0]}
           </Typography>
-          <Typography 
-            variant="h4" 
-            sx={{ 
-              fontFamily: 'var(--font-serif)',
-              fontWeight: 900, 
-              color: 'white', 
-              mb: { xs: 1.5, md: 3 }, 
-              textShadow: '0 4px 15px rgba(0,0,0,1)',
-              letterSpacing: 1,
-              opacity: 1,
-              fontSize: { xs: '0.9rem', sm: '1.4rem', md: '1.8rem' }
-            }}
-          >
-            Assalam-o-Alaikum, {user.displayName}
+          <Typography variant="h2" sx={{ fontWeight: 950, color: 'text.primary', letterSpacing: -2, mb: 0, fontSize: { xs: '2.2rem', md: '3.8rem' }, lineHeight: 0.9 }}>
+            {user.displayName}
           </Typography>
-          
-          <Typography 
-            variant="body1" 
-            sx={{ 
-              maxWidth: { xs: '90%', md: 700 }, 
-              mx: 'auto', 
-              color: 'white', 
-              fontWeight: 700, 
-              mb: { xs: 2, md: 4 },
-              fontSize: { xs: '0.75rem', md: '1.1rem' },
-              lineHeight: { xs: 1.5, md: 1.8 },
-              textShadow: '2px 4px 12px rgba(0,0,0,1)',
-              background: 'rgba(0,0,0,0.6)',
-              px: { xs: 2, md: 7 },
-              py: { xs: 1.5, md: 2.2 },
-              borderRadius: { xs: 4, md: 6 },
-              backdropFilter: 'blur(25px)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              fontFamily: 'var(--font-serif)',
-              fontStyle: 'italic',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
-            }}
-          >
-            {quote ? `"${quote}"` : `"${instituteData.tagline || 'Religious and Academic Excellence'}"`}
+          <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: 'text.secondary', opacity: 0.9, letterSpacing: 0.5 }}>
+            {(user.role === 'superadmin') ? 'Muntazim-e-Aala (Admin)' : (isTeacherRole ? 'Ustad (Teacher)' : (isManagerRole ? 'Muntazim' : 'Talib-e-Ilm (Student)'))} @ {instituteData.instituteName || 'Wali Ul Aser'} 
           </Typography>
-          
-          <Stack 
-            direction={isMobile ? "column" : "row"} 
-            spacing={2} 
-            justifyContent="center" 
-            sx={{ width: '100%', maxWidth: '550px', mx: 'auto' }}
+        </Box>
+      </Box>
+
+      {/* Verification Warning for Students */}
+      {!user.isVerified && user.role.includes('student') && showVerificationAlert && (
+        <Container maxWidth="lg" sx={{ mt: 2, mb: -4, position: 'relative', zIndex: 30 }}>
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
           >
+            <Alert 
+              severity="warning" 
+              icon={<AlertCircle size={24} />}
+              onClose={() => setShowVerificationAlert(false)}
+              sx={{ 
+                borderRadius: 4, 
+                fontWeight: 700,
+                border: '1px solid',
+                borderColor: 'warning.light',
+                boxShadow: '0 8px 20px rgba(234, 179, 8, 0.1)',
+                '& .MuiAlert-message': { width: '100%' }
+              }}
+            >
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1, justifyContent: 'space-between' }}>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                  Your profile is currently under verification. Some features like Fee Payments and Grade Reports will be available once the administration verifies your account.
+                </Typography>
+                <Button 
+                  size="small" 
+                  color="warning" 
+                  variant="outlined" 
+                  onClick={() => navigate('/settings')}
+                  sx={{ fontWeight: 900, borderRadius: 2, textTransform: 'none', px: 2, whiteSpace: 'nowrap' }}
+                >
+                  Complete Profile
+                </Button>
+              </Box>
+            </Alert>
+          </motion.div>
+        </Container>
+      )}
+
+      {/* Quick Action Section - Adjusted for blur change and responsiveness */}
+      <Box sx={{ mb: 6, mt: { xs: 8, md: 10 }, position: 'relative', zIndex: 25 }}>
+        <Container maxWidth="lg">
+          <Grid container spacing={1.5} justifyContent="center">
             {isStaff ? (
               <>
-                <Button 
-                  variant="contained" 
-                  size="medium" 
-                  startIcon={<Users size={18} />}
-                  onClick={() => navigate('/users')}
-                  fullWidth={isMobile}
-                  sx={{ 
-                    borderRadius: 2, 
-                    fontWeight: 700, 
-                    px: 4, 
-                    py: 1.2, 
-                    bgcolor: 'primary.main', 
-                    fontSize: '0.9rem',
-                    fontFamily: 'var(--font-heading)',
-                    boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)',
-                    '&:hover': { bgcolor: 'primary.dark', transform: 'translateY(-1px)' } 
-                  }}
-                >
-                  Naya Talib-e-Ilm
-                </Button>
-                <Button 
-                  variant="outlined" 
-                  size="medium" 
-                  startIcon={<BookOpen size={18} />}
-                  onClick={() => navigate('/courses')}
-                  fullWidth={isMobile}
-                  sx={{ 
-                    borderRadius: 2, 
-                    fontWeight: 700, 
-                    px: 4, 
-                    py: 1.2, 
-                    color: 'white', 
-                    borderColor: 'rgba(255,255,255,0.3)', 
-                    fontSize: '0.9rem',
-                    fontFamily: 'var(--font-heading)',
-                    backdropFilter: 'blur(10px)',
-                    '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: 'rgba(255,255,255,0.05)', transform: 'translateY(-1px)' } 
-                  }}
-                >
-                  Sabq (Lessons)
-                </Button>
+                <Grid size={{ xs: 4, sm: 2.4 }}>
+                  <Button 
+                    variant="contained" 
+                    fullWidth
+                    startIcon={<UserPlus size={isMobile ? 12 : 20} />}
+                    onClick={() => navigate('/users')}
+                    sx={{ 
+                      borderRadius: 3, 
+                      fontWeight: 900, 
+                      py: { xs: 1, sm: 1.5 }, 
+                      bgcolor: 'primary.main', 
+                      fontSize: { xs: '0.65rem', sm: '0.9rem' },
+                      flexDirection: { xs: 'column', sm: 'row' },
+                      gap: { xs: 0.5, sm: 0 },
+                      boxShadow: '0 10px 25px rgba(13, 148, 136, 0.2)',
+                      '&:hover': { transform: 'translateY(-2px)' } 
+                    }}
+                  >
+                    Naya Tulab
+                  </Button>
+                </Grid>
+                <Grid size={{ xs: 4, sm: 2.4 }}>
+                  <Button 
+                    variant="outlined" 
+                    fullWidth
+                    startIcon={<UserCheck size={isMobile ? 12 : 20} />}
+                    onClick={() => navigate('/attendance')}
+                    sx={{ 
+                      borderRadius: 3, 
+                      fontWeight: 900, 
+                      py: { xs: 1, sm: 1.5 }, 
+                      fontSize: { xs: '0.65rem', sm: '0.9rem' },
+                      flexDirection: { xs: 'column', sm: 'row' },
+                      gap: { xs: 0.5, sm: 0 },
+                      borderWidth: 2,
+                      '&:hover': { borderWidth: 2, transform: 'translateY(-2px)' } 
+                    }}
+                  >
+                    Haziri
+                  </Button>
+                </Grid>
+                <Grid size={{ xs: 4, sm: 2.4 }}>
+                  <Button 
+                    variant="outlined" 
+                    fullWidth
+                    startIcon={<Wallet size={isMobile ? 12 : 20} />}
+                    onClick={() => navigate('/fees')}
+                    sx={{ 
+                      borderRadius: 3, 
+                      fontWeight: 900, 
+                      py: { xs: 1, sm: 1.5 }, 
+                      fontSize: { xs: '0.65rem', sm: '0.9rem' },
+                      flexDirection: { xs: 'column', sm: 'row' },
+                      gap: { xs: 0.5, sm: 0 },
+                      borderWidth: 2,
+                      '&:hover': { borderWidth: 2, transform: 'translateY(-2px)' } 
+                    }}
+                  >
+                    Maliyat
+                  </Button>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 2.4 }}>
+                  <Button 
+                    variant="outlined" 
+                    fullWidth
+                    startIcon={<BookOpen size={isMobile ? 12 : 20} />}
+                    onClick={() => navigate('/courses')}
+                    sx={{ 
+                      borderRadius: 3, 
+                      fontWeight: 900, 
+                      py: { xs: 1, sm: 1.5 }, 
+                      fontSize: { xs: '0.65rem', sm: '0.9rem' },
+                      borderWidth: 2,
+                      '&:hover': { borderWidth: 2, transform: 'translateY(-2px)' } 
+                    }}
+                  >
+                    Nisab
+                  </Button>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 2.4 }}>
+                  <Button 
+                    variant="outlined" 
+                    fullWidth
+                    startIcon={<Bell size={isMobile ? 12 : 20} />}
+                    onClick={() => navigate('/notifications')}
+                    sx={{ 
+                      borderRadius: 3, 
+                      fontWeight: 900, 
+                      py: { xs: 1, sm: 1.5 }, 
+                      fontSize: { xs: '0.65rem', sm: '0.9rem' },
+                      borderWidth: 2,
+                      '&:hover': { borderWidth: 2, transform: 'translateY(-2px)' } 
+                    }}
+                  >
+                    Ittelaát
+                  </Button>
+                </Grid>
               </>
             ) : (
               <>
-                <Button 
-                  variant="contained" 
-                  size={isMobile ? "small" : "medium"} 
-                  startIcon={<BookOpen size={isMobile ? 14 : 18} />}
-                  onClick={() => navigate('/courses')}
-                  fullWidth={isMobile}
-                  sx={{ 
-                    borderRadius: 2, 
-                    fontWeight: 800, 
-                    px: isMobile ? 3 : 5, 
-                    py: isMobile ? 1 : 1.2,
-                    fontSize: isMobile ? '0.75rem' : '0.9rem',
-                    fontFamily: 'var(--font-heading)',
-                    boxShadow: '0 4px 12px rgba(13, 148, 136, 0.25)',
-                    '&:hover': { transform: 'translateY(-1px)' }
-                  }}
-                >
-                  Sabq (Lessons)
-                </Button>
-                <Button 
-                  variant="outlined" 
-                  size={isMobile ? "small" : "medium"} 
-                  startIcon={<CreditCard size={isMobile ? 14 : 18} />}
-                  onClick={() => navigate('/fees')}
-                  fullWidth={isMobile}
-                  sx={{ 
-                    borderRadius: 2, 
-                    fontWeight: 800, 
-                    px: isMobile ? 3 : 5, 
-                    py: isMobile ? 1 : 1.2, 
-                    color: 'white', 
-                    borderColor: 'rgba(255,255,255,0.3)',
-                    fontSize: isMobile ? '0.75rem' : '0.9rem',
-                    fontFamily: 'var(--font-heading)',
-                    backdropFilter: 'blur(10px)',
-                    '&:hover': { transform: 'translateY(-1px)', bgcolor: 'rgba(255,255,255,0.05)' }
-                  }}
-                >
-                  Fee Record
-                </Button>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <Button 
+                    variant="contained" 
+                    fullWidth
+                    startIcon={<Book size={isMobile ? 16 : 20} />}
+                    onClick={() => navigate('/courses')}
+                    sx={{ 
+                      borderRadius: 3, 
+                      fontWeight: 900, 
+                      py: 1.5,
+                      fontSize: { xs: '0.75rem', sm: '0.9rem' },
+                      boxShadow: '0 10px 25px rgba(13, 148, 136, 0.2)',
+                      '&:hover': { transform: 'translateY(-2px)' }
+                    }}
+                  >
+                    Sabq
+                  </Button>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <Button 
+                    variant="outlined" 
+                    fullWidth
+                    startIcon={<CreditCard size={isMobile ? 16 : 20} />}
+                    onClick={() => navigate('/fees')}
+                    sx={{ 
+                      borderRadius: 3, 
+                      fontWeight: 900, 
+                      py: 1.5, 
+                      fontSize: { xs: '0.75rem', sm: '0.9rem' },
+                      borderWidth: 2,
+                      '&:hover': { transform: 'translateY(-2px)' }
+                    }}
+                  >
+                    Fees
+                  </Button>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <Button 
+                    variant="outlined" 
+                    fullWidth
+                    startIcon={<Layout size={isMobile ? 16 : 20} />}
+                    onClick={() => navigate('/dashboard')}
+                    sx={{ 
+                      borderRadius: 3, 
+                      fontWeight: 900, 
+                      py: 1.5, 
+                      fontSize: { xs: '0.75rem', sm: '0.9rem' },
+                      borderWidth: 2,
+                      '&:hover': { transform: 'translateY(-2px)' }
+                    }}
+                  >
+                    Dashboard
+                  </Button>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 3 }}>
+                  <Button 
+                    variant="outlined" 
+                    fullWidth
+                    startIcon={<Calendar size={isMobile ? 16 : 20} />}
+                    onClick={() => navigate('/schedule')}
+                    sx={{ 
+                      borderRadius: 3, 
+                      fontWeight: 900, 
+                      py: 1.5, 
+                      fontSize: { xs: '0.75rem', sm: '0.9rem' },
+                      borderWidth: 2,
+                      '&:hover': { transform: 'translateY(-2px)' }
+                    }}
+                  >
+                    Table
+                  </Button>
+                </Grid>
               </>
             )}
-          </Stack>
-        </motion.div>
+          </Grid>
+        </Container>
       </Box>
+
 
       {/* Side Scrolling Events with Tilted BG */}
       {upcomingEvents.length > 0 && (
@@ -782,18 +949,26 @@ export default function Dashboard({ user }: DashboardProps) {
         <Grid container spacing={4}>
           {isStaff ? (
             <>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <StatBox title="Net Balance" value={`Rs.${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0) - (stats.totalExpenses || 0)).toLocaleString()}`} icon={<Wallet size={32} />} color="#8b5cf6" />
-              </Grid>
-              <Grid size={{ xs: 6, md: 3 }}>
-                <StatBox title="Kul Aamdani" value={`Rs.${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0)).toLocaleString()}`} icon={<ArrowUpRight size={32} />} color="#10b981" />
-              </Grid>
-              <Grid size={{ xs: 6, md: 3 }}>
-                <StatBox title="Expenditure" value={`Rs.${(stats.totalExpenses || 0).toLocaleString()}`} icon={<ArrowDownRight size={32} />} color="#ef4444" />
-              </Grid>
-              <Grid size={{ xs: 6, md: 3 }}>
-                <StatBox title="Haziri Today" value={stats.todayAttendance} icon={<UserCheck size={32} />} color="#06b6d4" />
-              </Grid>
+              {(isAdmin || permissions.manage_fees) && (
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <StatBox title="Revenue" value={`INR ${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0)).toLocaleString()}`} icon={<ArrowUpRight size={32} />} color="#10b981" />
+                </Grid>
+              )}
+              {(isAdmin || permissions.manage_expenses) && (
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <StatBox title="Total Expenses" value={`INR ${(stats.totalExpenses || 0).toLocaleString()}`} icon={<ArrowDownRight size={32} />} color="#ef4444" />
+                </Grid>
+              )}
+              {(isAdmin || permissions.manage_fees) && (
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <StatBox title="Net Balance" value={`INR ${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0) - (stats.totalExpenses || 0)).toLocaleString()}`} icon={<Wallet size={32} />} color="#8b5cf6" />
+                </Grid>
+              )}
+              {(isAdmin || permissions.manage_attendance) && (
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <StatBox title="Haziri Today" value={stats.todayAttendance} icon={<UserCheck size={32} />} color="#06b6d4" />
+                </Grid>
+              )}
             </>
           ) : (
             <>
@@ -811,70 +986,7 @@ export default function Dashboard({ user }: DashboardProps) {
 
           {/* Detailed Content */}
           <Grid size={{ xs: 12, md: 8 }}>
-            {/* Financial Overview for Admins */}
-            {isAdmin && collectionTrendData.length > 0 && (
-              <Box sx={{ mb: 6 }}>
-                <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <TrendingUp size={28} />
-                  Institutional Financial Health
-                </Typography>
-                <Paper 
-                  sx={{ 
-                    p: 4, 
-                    borderRadius: 6, 
-                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                    bgcolor: 'background.paper',
-                    boxShadow: theme.palette.mode === 'dark' ? '0 20px 40px rgba(0,0,0,0.4)' : '0 10px 30px rgba(0,0,0,0.03)'
-                  }}
-                >
-                  <Box sx={{ height: 300, width: '100%' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={collectionTrendData}>
-                        <defs>
-                          <linearGradient id="dashboardColorRev" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.divider, 0.1)} />
-                        <XAxis 
-                          dataKey="name" 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fill: theme.palette.text.secondary, fontWeight: 700, fontSize: 11 }} 
-                        />
-                        <YAxis hide />
-                        <RechartsTooltip 
-                          contentStyle={{ 
-                            borderRadius: 12, 
-                            border: 'none', 
-                            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-                            fontWeight: 900,
-                            fontSize: '0.8rem'
-                          }} 
-                          formatter={(value: any) => [`${value.toLocaleString()}`, 'Amount']}
-                        />
-                        <Area 
-                          type="monotone" 
-                          dataKey="value" 
-                          stroke={theme.palette.primary.main} 
-                          strokeWidth={4} 
-                          fillOpacity={1} 
-                          fill="url(#dashboardColorRev)" 
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </Box>
-                  <Box sx={{ mt: 3, textAlign: 'center' }}>
-                    <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 1 }}>
-                      Approved funds collected over final 7 business days
-                    </Typography>
-                  </Box>
-                </Paper>
-              </Box>
-            )}
-
-             {/* Pending Actions for Staff */}
+            {/* Pending Actions for Staff */}
             {isStaff && (pendingReceipts.length > 0 || pendingStudents.length > 0) && (
               <Box sx={{ mb: 6 }}>
                 <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'warning.main' }}>
@@ -903,15 +1015,15 @@ export default function Dashboard({ user }: DashboardProps) {
                     })}
                     {pendingStudents.map(student => {
                       const actions: ActionMenuItem[] = [
-                        { label: 'Approve Student', icon: <UserCheck size={18} />, color: 'success.main', onClick: () => handleApproveStudent(student) },
-                        { label: 'Reject Student', icon: <XCircle size={18} />, color: 'error.main', onClick: () => handleRejectStudent(student) },
+                        { label: 'Approve Tulab', icon: <UserCheck size={18} />, color: 'success.main', onClick: () => handleApproveStudent(student) },
+                        { label: 'Reject Tulab', icon: <XCircle size={18} />, color: 'error.main', onClick: () => handleRejectStudent(student) },
                         { label: 'View Details', icon: <ExternalLink size={18} />, onClick: () => { setSelectedTeacher(student); setOpenTeacherProfile(true); } }
                       ];
 
                       return (
                         <ListItem key={student.uid} divider sx={{ py: 2.5, px: 4 }}>
                           <ListItemText 
-                            primary={`${student.displayName} - New Admission`}
+                            primary={`${student.displayName} - Naya Tulab`}
                             secondary={`Level: ${student.pendingClassLevel || 'N/A'}`}
                             primaryTypographyProps={{ fontWeight: 800, fontSize: '1rem' }}
                             secondaryTypographyProps={{ fontWeight: 600 }}
@@ -925,12 +1037,12 @@ export default function Dashboard({ user }: DashboardProps) {
               </Box>
             )}
 
-            {/* Recent Admissions (Recent Students) */}
+            {/* Recently Registered Students */}
             {isStaff && stats.recentAdmissions && stats.recentAdmissions.length > 0 && (
               <Box sx={{ mb: 6 }}>
                 <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <Users size={28} />
-                  Recently Registered Students
+                  Recently Registered Tulab
                 </Typography>
                 <Paper 
                   elevation={0}
@@ -1051,12 +1163,16 @@ export default function Dashboard({ user }: DashboardProps) {
           <Grid size={{ xs: 12, md: 4 }}>
             <Box sx={{ mb: 4 }}>
               <Typography variant="h6" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 3, color: 'primary.main' }}>
-                Quick Stats
+                Tasdeeq (Status)
               </Typography>
               <Paper sx={{ p: 3, borderRadius: 4, border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
                 <Stack spacing={2}>
                   <ProfileItem label="My Status" value={user.status || 'Active'} icon={<Check size={16} />} />
-                  <ProfileItem label="Current Level" value={user.classLevel || 'N/A'} icon={<GraduationCap size={16} />} />
+                  {isAdmin ? (
+                    <ProfileItem label="Zimadari (Role)" value={user.role === 'superadmin' ? 'Muntazim-e-Aala' : 'Muntazim'} icon={<Award size={16} />} />
+                  ) : (
+                    <ProfileItem label="Haziri Score" value={`${stats.attendanceRate}%`} icon={<GraduationCap size={16} />} />
+                  )}
                 </Stack>
               </Paper>
             </Box>
@@ -1073,30 +1189,50 @@ export default function Dashboard({ user }: DashboardProps) {
                       divider={idx !== staffMembers.length - 1}
                       onClick={() => showTeacherProfile(staff)}
                       secondaryAction={
-                        staff.phone && (
-                          <IconButton 
-                            size="small" 
-                            color="success"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(`https://wa.me/${staff.phone.replace(/[^0-9]/g, '')}`, '_blank');
-                            }}
-                            sx={{ bgcolor: alpha(theme.palette.success.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.success.main, 0.2) } }}
-                          >
-                            <MessageSquare size={16} />
+                        <Stack direction="row" spacing={0.5}>
+                          {staff.phone && (
+                            <IconButton 
+                              size="small" 
+                              color="success"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(`https://wa.me/${staff.phone.replace(/[^0-9]/g, '')}`, '_blank');
+                              }}
+                              sx={{ bgcolor: alpha(theme.palette.success.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.success.main, 0.2) } }}
+                            >
+                              <MessageSquare size={14} />
+                            </IconButton>
+                          )}
+                          <IconButton size="small" onClick={() => showTeacherProfile(staff)}>
+                            <ExternalLink size={14} />
                           </IconButton>
-                        )
+                        </Stack>
                       }
-                      sx={{ py: 1, px: 2, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } }}
+                      sx={{ py: 1.5, px: 2, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } }}
                     >
                       <ListItemAvatar sx={{ minWidth: 44 }}>
-                        <Avatar src={staff.photoURL} sx={{ width: 32, height: 32, borderRadius: 1 }} imgProps={{ referrerPolicy: 'no-referrer' }}>{staff.displayName?.charAt(0)}</Avatar>
+                        <Badge
+                          overlap="circular"
+                          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                          variant="dot"
+                          color="success"
+                        >
+                          <Avatar src={staff.photoURL} sx={{ width: 36, height: 36, borderRadius: 1.5 }} imgProps={{ referrerPolicy: 'no-referrer' }}>{staff.displayName?.charAt(0)}</Avatar>
+                        </Badge>
                       </ListItemAvatar>
                       <ListItemText 
                         primary={staff.displayName} 
-                        secondary={staff.classLevel || (staff.role === 'superadmin' ? 'Administrator' : staff.role)} 
-                        primaryTypographyProps={{ fontWeight: 800, fontSize: '0.8rem' }}
-                        secondaryTypographyProps={{ fontSize: '0.7rem', fontWeight: 600, color: 'text.secondary' }}
+                        secondary={
+                          <Stack direction="column">
+                            <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 800, color: 'primary.main', textTransform: 'uppercase' }}>
+                              {staff.role === 'superadmin' ? 'Muntazim-e-Aala' : (staff.role === 'teacher' ? 'Ustad' : (staff.role === 'manager' ? 'Muntazim' : 'Zimadar'))}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 600 }}>
+                              {staff.phone || 'No Contact'}
+                            </Typography>
+                          </Stack>
+                        }
+                        primaryTypographyProps={{ fontWeight: 900, fontSize: '0.85rem' }}
                       />
                     </ListItem>
                   ))}
@@ -1105,6 +1241,69 @@ export default function Dashboard({ user }: DashboardProps) {
             </Box>
           </Grid>
         </Grid>
+
+        {/* Bottom Section: Institutional Financial Health (Moved to Bottom) */}
+        {isAdmin && collectionTrendData.length > 0 && (
+          <Box sx={{ mt: 8, mb: 6 }}>
+            <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <TrendingUp size={28} />
+              Institutional Financial Health
+            </Typography>
+            <Paper 
+              sx={{ 
+                p: { xs: 2, md: 4 }, 
+                borderRadius: 6, 
+                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                bgcolor: 'background.paper',
+                boxShadow: theme.palette.mode === 'dark' ? '0 20px 40px rgba(0,0,0,0.4)' : '0 10px 30px rgba(0,0,0,0.03)'
+              }}
+            >
+              <Box sx={{ height: 300, width: '100%' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={collectionTrendData}>
+                    <defs>
+                      <linearGradient id="dashboardColorRev" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.divider, 0.1)} />
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: theme.palette.text.secondary, fontWeight: 700, fontSize: 11 }} 
+                    />
+                    <YAxis hide />
+                    <RechartsTooltip 
+                      contentStyle={{ 
+                        borderRadius: 12, 
+                        border: 'none', 
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                        fontWeight: 900,
+                        fontSize: '0.8rem'
+                      }} 
+                      formatter={(value: any) => [`${value.toLocaleString()}`, 'Amount (INR)']}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke={theme.palette.primary.main} 
+                      strokeWidth={4} 
+                      fillOpacity={1} 
+                      fill="url(#dashboardColorRev)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </Box>
+              <Box sx={{ mt: 3, textAlign: 'center' }}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 1 }}>
+                  Approved funds collected over final 7 business days
+                </Typography>
+              </Box>
+            </Paper>
+          </Box>
+        )}
       </Container>
 
       {/* Teacher Profile Dialog */}
@@ -1152,7 +1351,7 @@ export default function Dashboard({ user }: DashboardProps) {
             <Typography variant="h4" sx={{ fontWeight: 950, mb: 1, letterSpacing: -1.5 }}>{selectedTeacher.displayName}</Typography>
             <Chip 
               icon={<Award size={16} />}
-              label={selectedTeacher.role === 'superadmin' ? 'Administrator' : 'Staff Teacher'} 
+              label={selectedTeacher.role === 'superadmin' ? 'Muntazim-e-Aala' : (selectedTeacher.role === 'teacher' ? 'Ustad' : 'Muntazim')} 
               color="primary"
               variant="outlined"
               sx={{ mb: 4, fontWeight: 900, borderRadius: 2 }}
@@ -1228,39 +1427,78 @@ function StatBox({ title, value, icon, color, subtitle }: any) {
     <Card 
       elevation={0}
       sx={{ 
-        p: 2.2, 
-        borderRadius: 3, 
+        p: { xs: 2.5, md: 3 }, 
+        borderRadius: 4, 
         position: 'relative', 
         overflow: 'hidden', 
-        border: `1px solid ${alpha(color, 0.15)}`,
-        bgcolor: alpha(color, 0.02),
-        transition: 'all 0.3s ease',
-        '&:hover': { transform: 'translateY(-2px)', bgcolor: alpha(color, 0.04) }
+        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+        bgcolor: 'background.paper',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        height: '100%',
+        boxShadow: theme.palette.mode === 'dark' 
+          ? '0 10px 30px rgba(0,0,0,0.5)' 
+          : '0 8px 30px rgba(0,0,0,0.03)',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        '&:hover': { 
+          transform: 'translateY(-5px)', 
+          boxShadow: theme.palette.mode === 'dark' 
+            ? '0 15px 40px rgba(0,0,0,0.6)' 
+            : '0 15px 40px rgba(13, 148, 136, 0.1)',
+          '& .stat-icon-bg': { transform: 'scale(1.1) rotate(10deg)', opacity: 0.08 }
+        },
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '4px',
+          bgcolor: color
+        }
       }}
     >
       <Box sx={{ position: 'relative', zIndex: 1 }}>
-        <Box sx={{ color: color, mb: isMobile ? 0.8 : 1.2, display: 'flex' }}>
+        <Box sx={{ 
+          p: 1.2, 
+          borderRadius: 2.5, 
+          bgcolor: alpha(color, 0.1), 
+          color: color, 
+          mb: 2, 
+          display: 'inline-flex',
+          boxShadow: `0 8px 16px ${alpha(color, 0.2)}`
+        }}>
           {React.cloneElement(icon, { size: isMobile ? 20 : 24 })}
         </Box>
-        <Typography variant={isMobile ? "h6" : "h5"} sx={{ 
-          fontWeight: 900, 
-          letterSpacing: -0.5, 
+        <Typography variant={isMobile ? "h5" : "h4"} sx={{ 
+          fontWeight: 950, 
+          letterSpacing: -1, 
           mb: 0.1,
-          fontFamily: 'var(--font-heading)'
+          fontFamily: 'var(--font-heading)',
+          color: 'text.primary'
         }}>{value}</Typography>
         <Typography variant="caption" sx={{ 
-          fontWeight: 800, 
+          fontWeight: 900, 
           color: 'text.secondary', 
           textTransform: 'uppercase', 
-          letterSpacing: 1,
+          letterSpacing: 1.5,
           fontFamily: 'var(--font-heading)',
-          fontSize: isMobile ? '0.55rem' : '0.6rem',
+          fontSize: isMobile ? '0.6rem' : '0.7rem',
           opacity: 0.8
         }}>{title}</Typography>
-        {subtitle && <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.disabled', display: 'block', mt: 0.2, fontSize: isMobile ? '0.55rem' : '0.6rem' }}>{subtitle}</Typography>}
+        {subtitle && <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.disabled', display: 'block', mt: 0.5, fontSize: isMobile ? '0.6rem' : '0.7rem' }}>{subtitle}</Typography>}
       </Box>
-      <Box sx={{ position: 'absolute', top: -10, right: -10, color: color, opacity: 0.03 }}>
-        {React.cloneElement(icon, { size: isMobile ? 50 : 80 })}
+      <Box className="stat-icon-bg" sx={{ 
+        position: 'absolute', 
+        bottom: -20, 
+        right: -20, 
+        color: color, 
+        opacity: 0.04,
+        transition: 'all 0.5s ease',
+        transformOrigin: 'center'
+      }}>
+        {React.cloneElement(icon, { size: isMobile ? 80 : 120 })}
       </Box>
     </Card>
   );
