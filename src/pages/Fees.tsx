@@ -74,6 +74,8 @@ import { logger } from '../lib/logger';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
 
+import { cache, CACHE_KEYS } from '../lib/cache';
+
 export default function Fees() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -81,12 +83,12 @@ export default function Fees() {
   const [receipts, setReceipts] = useState<FeeReceipt[]>([]);
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tabValue, setTabValue] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [feeHeadFilter, setFeeHeadFilter] = useState<string>('All');
-  const [paymentModeFilter, setPaymentModeFilter] = useState<string>('All');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
+  const [tabValue, setTabValue] = useState(() => Number(sessionStorage.getItem('fees_tab')) || 0);
+  const [searchQuery, setSearchQuery] = useState(() => sessionStorage.getItem('fees_search') || '');
+  const [feeHeadFilter, setFeeHeadFilter] = useState<string>(() => sessionStorage.getItem('fees_head_filter') || 'All');
+  const [paymentModeFilter, setPaymentModeFilter] = useState<string>(() => sessionStorage.getItem('fees_mode_filter') || 'All');
+  const [startDate, setStartDate] = useState<string>(() => sessionStorage.getItem('fees_start_date') || '');
+  const [endDate, setEndDate] = useState<string>(() => sessionStorage.getItem('fees_end_date') || '');
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, id: string }>({ open: false, id: '' });
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
@@ -94,7 +96,6 @@ export default function Fees() {
   const [isBulkPrinting, setIsBulkPrinting] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [longPressTimer, setLongPressTimer] = useState<any>(null);
-  const [expenses, setExpenses] = useState<any[]>([]);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [bulkMenuAnchor, setBulkMenuAnchor] = useState<null | HTMLElement>(null);
@@ -135,7 +136,26 @@ export default function Fees() {
   }, []);
 
   useEffect(() => {
+    sessionStorage.setItem('fees_tab', tabValue.toString());
+    sessionStorage.setItem('fees_search', searchQuery);
+    sessionStorage.setItem('fees_head_filter', feeHeadFilter);
+    sessionStorage.setItem('fees_mode_filter', paymentModeFilter);
+    sessionStorage.setItem('fees_start_date', startDate);
+    sessionStorage.setItem('fees_end_date', endDate);
+  }, [tabValue, searchQuery, feeHeadFilter, paymentModeFilter, startDate, endDate]);
+
+  useEffect(() => {
     if (!user) return;
+
+    // Hydrate from cache
+    const hydrate = async () => {
+      const cached = await cache.get<FeeReceipt[]>(CACHE_KEYS.FEES);
+      if (cached) {
+        setReceipts(cached);
+        setLoading(false);
+      }
+    };
+    hydrate();
 
     let q = query(collection(db, 'receipts'), orderBy('createdAt', 'desc'));
     
@@ -144,7 +164,11 @@ export default function Fees() {
     }
 
     const unsubscribeReceipts = onSnapshot(q, (snapshot) => {
-      setReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
+      const data = snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount))) as FeeReceipt[];
+      setReceipts(data);
+      cache.set(CACHE_KEYS.FEES, data);
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'receipts');
@@ -156,18 +180,9 @@ export default function Fees() {
         setStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
 
-      const expensesQuery = query(collection(db, 'expenses'), orderBy('date', 'desc'));
-      const unsubscribeExpenses = onSnapshot(expensesQuery, (snapshot) => {
-        setExpenses(snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((e: any) => ![10000, 20199, 20000, 50000].includes(Number(e.amount)))
-        );
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'expenses'));
-
       return () => {
         unsubscribeReceipts();
         unsubscribeStudents();
-        unsubscribeExpenses();
       };
     }
 
@@ -202,6 +217,10 @@ export default function Fees() {
         studentId: formData.isNonStudent ? `non-${Date.now()}` : formData.studentId,
         studentName: formData.isNonStudent ? formData.studentName : (student?.displayName || 'Unknown')
       };
+      
+      // Optimistic UI update
+      setReceipts(prev => [newReceipt as any, ...prev]);
+      
       await smartAddDoc(collection(db, 'receipts'), newReceipt);
       
       confetti({
@@ -286,14 +305,6 @@ export default function Fees() {
 
   const totalRevenue = receipts.filter(r => r.status === 'approved').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
   const pendingRevenue = receipts.filter(r => r.status === 'pending').reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-
-  const currentMonthExpenses = expenses
-    .filter(e => {
-      const expDate = new Date(e.date);
-      const now = new Date();
-      return expDate.getMonth() === now.getMonth() && expDate.getFullYear() === now.getFullYear();
-    })
-    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
   const stats = {
     totalFeesMonth: receipts
@@ -387,9 +398,17 @@ export default function Fees() {
 
   return (
     <Box sx={{ pb: 8 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }} className="no-print">
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        mb: 4,
+        pb: 2,
+        borderBottom: '1px solid',
+        borderColor: 'divider'
+      }} className="no-print">
         <Box>
-          <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontWeight: 950, letterSpacing: -1 }}>Maliat & Fees</Typography>
+          <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontWeight: 950, letterSpacing: -1, color: 'primary.main' }}>Maliat & Fees</Typography>
           <Typography variant={isMobile ? "caption" : "body1"} color="text.secondary" sx={{ fontWeight: 600 }}>Financial Management & Fee Reporting System</Typography>
         </Box>
         {isStaff && (
@@ -402,7 +421,8 @@ export default function Fees() {
               py: isMobile ? 1 : 1.5, 
               px: isMobile ? 2 : 3, 
               fontWeight: 800,
-              fontSize: isMobile ? '0.75rem' : 'inherit'
+              fontSize: isMobile ? '0.75rem' : 'inherit',
+              boxShadow: theme.shadows[4]
             }}
           >
             {isMobile ? 'New Receipt' : 'Generate New Receipt'}
@@ -410,62 +430,106 @@ export default function Fees() {
         )}
       </Box>
 
-      {/* Monthly Expenses Display */}
+      {/* Compact Finance Stats */}
       {isStaff && (
-        <Grid container spacing={isMobile ? 1.5 : 3} sx={{ mb: 4 }} className="no-print">
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Card sx={{ borderRadius: 5, p: isMobile ? 2 : 3, bgcolor: '#10b981', color: 'white', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <Typography variant="overline" sx={{ fontWeight: 900, opacity: 0.8, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Month Ka Revenue</Typography>
-              <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 950 }}>INR {stats.totalFeesMonth?.toLocaleString() || 0}</Typography>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Card sx={{ borderRadius: 5, p: isMobile ? 2 : 3, bgcolor: '#f43f5e', color: 'white', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <Typography variant="overline" sx={{ fontWeight: 900, opacity: 0.8, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Month Ke Expenses</Typography>
-              <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 950 }}>INR {currentMonthExpenses?.toLocaleString() || 0}</Typography>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Card sx={{ borderRadius: 5, p: isMobile ? 2 : 3, bgcolor: '#3b82f6', color: 'white', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <Typography variant="overline" sx={{ fontWeight: 900, opacity: 0.8, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Net Savings</Typography>
-              <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 950 }}>INR {( (stats.totalFeesMonth || 0) - (currentMonthExpenses || 0) ).toLocaleString()}</Typography>
-            </Card>
-          </Grid>
-        </Grid>
-      )}
-
-      {isStaff && (
-        <Grid container spacing={isMobile ? 1.5 : 3} sx={{ mb: 4 }} className="no-print">
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Card sx={{ borderRadius: 5, p: isMobile ? 2 : 3, bgcolor: 'primary.main', color: 'white' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box>
-                  <Typography variant="overline" sx={{ fontWeight: 900, opacity: 0.8, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Approved Revenue</Typography>
-                  <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontWeight: 950 }}>INR {totalRevenue.toLocaleString()}</Typography>
+        <Box sx={{ mb: 4 }} className="no-print">
+          <Paper 
+            elevation={0}
+            variant="outlined" 
+            sx={{ 
+              borderRadius: 4, 
+              p: 3, 
+              bgcolor: alpha(theme.palette.primary.main, 0.03),
+              border: '1px solid',
+              borderColor: alpha(theme.palette.primary.main, 0.1),
+              overflow: 'hidden',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.02)'
+            }}
+          >
+            <Grid container spacing={3}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Box sx={{ textAlign: 'center', borderRight: { md: '1px solid' }, borderColor: alpha(theme.palette.divider, 0.1), px: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>Current Month Total Fees</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 950, color: 'success.main', mt: 0.5 }}>₹{(stats.totalFeesMonth || 0).toLocaleString()}</Typography>
                 </Box>
-                <div style={{ padding: isMobile ? 8 : 12, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                  <Wallet size={isMobile ? 24 : 40} />
-                </div>
-              </Box>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Card sx={{ borderRadius: 5, p: isMobile ? 2 : 3, bgcolor: 'warning.main', color: 'white' }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box>
-                  <Typography variant="overline" sx={{ fontWeight: 900, opacity: 0.8, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Pending Evaluation</Typography>
-                  <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontWeight: 950 }}>INR {pendingRevenue.toLocaleString()}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Box sx={{ textAlign: 'center', px: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>Accumulated Revenue</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 950, color: 'primary.main', mt: 0.5 }}>₹{totalRevenue.toLocaleString()}</Typography>
                 </Box>
-                <div style={{ padding: isMobile ? 8 : 12, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                  <Clock size={isMobile ? 24 : 40} />
-                </div>
-              </Box>
-            </Card>
-          </Grid>
-        </Grid>
+              </Grid>
+            </Grid>
+          </Paper>
+        </Box>
       )}
 
       <Card sx={{ borderRadius: 5, overflow: 'hidden', border: '1px solid', borderColor: 'divider', position: 'relative' }}>
+        {/* Bulk Action Bar (Floating) */}
+        <AnimatePresence>
+          {isSelectionMode && (
+            <Box 
+              component={motion.div}
+              initial={{ y: 100, opacity: 0, x: '-50%' }}
+              animate={{ y: 0, opacity: 1, x: '-50%' }}
+              exit={{ y: 100, opacity: 0, x: '-50%' }}
+              sx={{ 
+                position: 'fixed', 
+                bottom: { xs: 80, md: 30 }, 
+                left: '50%', 
+                zIndex: 6000,
+                width: { xs: '90%', md: 'auto' },
+                minWidth: { md: 500 },
+                bgcolor: alpha(theme.palette.background.paper, 0.9),
+                backdropFilter: 'blur(20px)',
+                p: 1.5,
+                borderRadius: 4,
+                boxShadow: '0 20px 40px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                border: '1px solid',
+                borderColor: alpha(theme.palette.primary.main, 0.2)
+              }}
+            >
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Box sx={{ bgcolor: 'primary.main', color: 'white', borderRadius: 2, px: 2, py: 1, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CheckCircle size={18} />
+                  {selectedReceiptIds.length} Selected
+                </Box>
+                <Button 
+                  size="small" 
+                  variant="text" 
+                  onClick={() => handleSelectAll(false)}
+                  sx={{ fontWeight: 800, color: 'text.secondary' }}
+                >
+                  Clear
+                </Button>
+              </Stack>
+              
+              <Stack direction="row" spacing={1}>
+                {isAdmin && (
+                  <Button 
+                    variant="contained" 
+                    color="primary" 
+                    startIcon={<Printer />}
+                    onClick={handleBulkPrint}
+                    sx={{ borderRadius: 2.5, fontWeight: 800, px: 2, textTransform: 'none' }}
+                  >
+                    Bulk Print
+                  </Button>
+                )}
+                <IconButton 
+                  onClick={() => { setSelectedReceiptIds([]); setIsSelectionMode(false); }}
+                  sx={{ bgcolor: alpha(theme.palette.error.main, 0.1), color: 'error.main' }}
+                >
+                  <X size={20} />
+                </IconButton>
+              </Stack>
+            </Box>
+          )}
+        </AnimatePresence>
+
         {/* Top Action Bar */}
         <Box 
           sx={{ 
@@ -481,9 +545,8 @@ export default function Fees() {
           className="no-print"
         >
           <Stack direction="row" spacing={1} alignItems="center">
-            {/* 3 Dots Menu - Top Left Section Trigger */}
             <IconButton 
-              onClick={(e) => setBulkMenuAnchor(e.currentTarget)} 
+              onClick={() => setIsSelectionMode(!isSelectionMode)} 
               color={isSelectionMode ? "primary" : "default"}
               sx={{ 
                 bgcolor: isSelectionMode ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
@@ -512,35 +575,6 @@ export default function Fees() {
               <Tab label="Pending" />
               <Tab label="Approved" />
             </Tabs>
-
-            {isSelectionMode && (
-              <Box 
-                sx={{ 
-                  ml: 1, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 1.5, 
-                  bgcolor: alpha(theme.palette.primary.main, 0.9), 
-                  color: 'white',
-                  px: 2, 
-                  py: 0.8, 
-                  borderRadius: 100,
-                  boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)'
-                }}
-              >
-                <Typography variant="caption" sx={{ fontWeight: 950, letterSpacing: 0.5 }}>
-                  {selectedReceiptIds.length} SELECTED
-                </Typography>
-                <Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.3)', height: 12 }} />
-                <IconButton 
-                  size="small" 
-                  onClick={() => { setSelectedReceiptIds([]); setIsSelectionMode(false); }} 
-                  sx={{ color: 'white', p: 0.2 }}
-                >
-                  <X size={14} />
-                </IconButton>
-              </Box>
-            )}
           </Stack>
 
           <Stack direction="row" spacing={2}>
@@ -594,22 +628,23 @@ export default function Fees() {
           </Stack>
         </Box>
 
-        <TableContainer>
-          <Table>
+        <TableContainer sx={{ overflow: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
+          <Table sx={{ minWidth: 900, borderCollapse: 'separate', borderSpacing: 0 }}>
             <TableHead>
-              <TableRow sx={{ bgcolor: alpha(theme.palette.divider, 0.02) }}>
-                <TableCell padding="checkbox">
+              <TableRow sx={{ bgcolor: alpha(theme.palette.divider, 0.05) }}>
+                <TableCell padding="checkbox" sx={{ borderBottom: '2px solid', borderColor: 'divider' }}>
                   <Checkbox 
                     checked={filteredReceipts.length > 0 && selectedReceiptIds.length === filteredReceipts.length} 
                     onChange={handleSelectAll} 
+                    sx={{ color: theme.palette.primary.main }}
                   />
                 </TableCell>
-                <TableCell sx={{ fontWeight: 900 }}>Receipt # / Date</TableCell>
-                <TableCell sx={{ fontWeight: 900 }}>Student Particulars</TableCell>
-                <TableCell sx={{ fontWeight: 900 }}>Financial Head</TableCell>
-                <TableCell sx={{ fontWeight: 900 }}>Amount</TableCell>
-                <TableCell sx={{ fontWeight: 900 }}>Status</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 900 }}>Action</TableCell>
+                <TableCell sx={{ fontWeight: 800, py: 2, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', borderBottom: '2px solid', borderColor: 'divider' }}>Receipt # / Date</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', borderBottom: '2px solid', borderColor: 'divider' }}>Student Particulars</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', borderBottom: '2px solid', borderColor: 'divider' }}>Financial Head</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', borderBottom: '2px solid', borderColor: 'divider' }}>Amount</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', borderBottom: '2px solid', borderColor: 'divider' }}>Status</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', borderBottom: '2px solid', borderColor: 'divider' }}>Action</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -635,7 +670,7 @@ export default function Fees() {
                           setOpenReceiptModal(true);
                         }
                       }}
-                      sx={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                      sx={{ cursor: 'pointer', transition: 'all 0.2s', '&:selected': { bgcolor: alpha(theme.palette.primary.main, 0.08) } }}
                     >
                       <TableCell padding="checkbox">
                         <Checkbox 
@@ -643,52 +678,90 @@ export default function Fees() {
                            onChange={(e) => { e.stopPropagation(); toggleSelectReceipt(receipt.id); }} 
                         />
                       </TableCell>
-                      <TableCell>
-                        <Typography sx={{ fontWeight: 800 }}>{receipt.receiptNo}</Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{receipt.date}</Typography>
+                      <TableCell sx={{ py: 1.5 }}>
+                        <Typography sx={{ fontWeight: 800, color: 'text.primary', lineHeight: 1 }}>{receipt.receiptNo}</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
+                          {format(new Date(receipt.date), 'dd MM yyyy')}
+                        </Typography>
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Avatar src={receipt.studentPhotoURL} sx={{ width: 32, height: 32 }} />
+                          <Avatar src={receipt.studentPhotoURL} sx={{ width: 34, height: 34, border: '2px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }} />
                           <Box>
-                            <Typography sx={{ fontWeight: 700 }}>{receipt.studentName}</Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{receipt.studentOfficialId}</Typography>
+                            <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>{receipt.studentName}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{receipt.studentOfficialId}</Typography>
                           </Box>
                         </Box>
                       </TableCell>
                       <TableCell>
-                        <Typography sx={{ fontWeight: 800 }}>{receipt.feeHead}</Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{receipt.paymentMode}</Typography>
+                        <Typography sx={{ fontWeight: 800, color: 'text.primary' }}>{receipt.feeHead}</Typography>
+                        <Chip label={receipt.paymentMode} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 800 }} />
                       </TableCell>
                       <TableCell>
-                        <Typography sx={{ fontWeight: 950, color: 'primary.main' }}>INR {receipt.amount?.toLocaleString()}</Typography>
+                        <Typography sx={{ fontWeight: 950, color: 'primary.main', fontSize: '1rem' }}>₹{receipt.amount?.toLocaleString()}</Typography>
                       </TableCell>
                       <TableCell>
                         <Chip 
                           label={receipt.status?.toUpperCase()} 
                           size="small" 
+                          variant={receipt.status === 'approved' ? 'filled' : 'outlined'}
                           color={receipt.status === 'approved' ? 'success' : receipt.status === 'rejected' ? 'error' : 'warning'}
                           sx={{ fontWeight: 900, borderRadius: 1.5, fontSize: '0.65rem' }}
                         />
                       </TableCell>
                       <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                        {receipt.status === 'pending' && isStaff && (
-                          <Stack direction="row" spacing={1} justifyContent="flex-end">
-                            <Tooltip title="Approve">
-                              <IconButton size="small" color="success" onClick={() => handleUpdateStatus(receipt.id, 'approved')}>
-                                <CheckCircle size={18} />
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <Tooltip title="View / Print">
+                            <IconButton 
+                              size="small" 
+                              color="primary" 
+                              sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}
+                              onClick={() => {
+                                setSelectedReceipt(receipt);
+                                setOpenReceiptModal(true);
+                              }}
+                            >
+                              <Printer size={18} />
+                            </IconButton>
+                          </Tooltip>
+
+                          {receipt.status === 'pending' && isStaff && (
+                            <>
+                              <Tooltip title="Approve">
+                                <IconButton 
+                                  size="small" 
+                                  color="success" 
+                                  sx={{ bgcolor: alpha(theme.palette.success.main, 0.05) }}
+                                  onClick={() => handleUpdateStatus(receipt.id, 'approved')}
+                                >
+                                  <CheckCircle size={18} />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Reject">
+                                <IconButton 
+                                  size="small" 
+                                  color="error" 
+                                  sx={{ bgcolor: alpha(theme.palette.error.main, 0.05) }}
+                                  onClick={() => handleUpdateStatus(receipt.id, 'rejected')}
+                                >
+                                  <XCircle size={18} />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          )}
+
+                          {isStaff && (
+                            <Tooltip title="Delete">
+                              <IconButton 
+                                size="small" 
+                                sx={{ bgcolor: alpha(theme.palette.divider, 0.1) }}
+                                onClick={() => setDeleteConfirm({ open: true, id: receipt.id })}
+                              >
+                                <Trash2 size={18} />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Reject">
-                              <IconButton size="small" color="error" onClick={() => handleUpdateStatus(receipt.id, 'rejected')}>
-                                <XCircle size={18} />
-                              </IconButton>
-                            </Tooltip>
-                          </Stack>
-                        )}
-                        <IconButton size="small" onClick={() => setDeleteConfirm({ open: true, id: receipt.id })}>
-                          <Trash2 size={18} />
-                        </IconButton>
+                          )}
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   );
@@ -876,29 +949,67 @@ export default function Fees() {
         <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity as any} sx={{ width: '100%', borderRadius: 3, fontWeight: 700 }}>{snackbar.message}</Alert>
       </Snackbar>
 
-      {/* Bulk Print Layout (6x3 on A4) */}
+      {/* Bulk Print Layout (4x3 on A4 for 12 receipts) */}
       {isBulkPrinting && (
         <Box sx={{ display: 'none', '@media print': { display: 'block', position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', bgcolor: 'white', zIndex: 9999 } }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(6, 1fr)', width: '210mm', height: '297mm', margin: '0 auto', p: '5mm', boxSizing: 'border-box' }}>
+          <Box sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(3, 1fr)', 
+            gridTemplateRows: 'repeat(4, 1fr)', 
+            width: '210mm', 
+            height: '297mm', 
+            margin: '0 auto', 
+            p: '5mm', 
+            boxSizing: 'border-box',
+            gap: '2mm'
+          }}>
             {receipts.filter(r => selectedReceiptIds.includes(r.id)).map((receipt) => (
-              <Box key={receipt.id} sx={{ width: '100%', height: '48mm', border: '0.1px solid #eee', p: 1.5, overflow: 'hidden', pageBreakInside: 'avoid', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
-                <Box sx={{ borderBottom: '1px solid black', pb: 0.5, mb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography sx={{ fontWeight: 950, fontSize: '7px', color: 'black' }}>OFFICIAL RECORD</Typography>
-                    <Typography sx={{ fontWeight: 950, fontSize: '7px', color: 'black' }}>{receipt.receiptNo}</Typography>
+              <Box key={receipt.id} sx={{ 
+                width: '100%', 
+                height: '70mm', 
+                border: '0.1px solid #ddd', 
+                p: 2, 
+                borderRadius: 2,
+                overflow: 'hidden', 
+                pageBreakInside: 'avoid', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                boxSizing: 'border-box',
+                position: 'relative'
+              }}>
+                <Box sx={{ borderBottom: '1.5px solid black', pb: 0.5, mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography sx={{ fontWeight: 950, fontSize: '8px', color: 'black' }}>OFFICIAL RECORD</Typography>
+                    <Typography sx={{ fontWeight: 950, fontSize: '8px', color: 'black' }}>#{receipt.receiptNo}</Typography>
                 </Box>
-                <Typography sx={{ fontWeight: 950, fontSize: '10px', color: 'black', textAlign: 'center', mb: 0.5, lineHeight: 1.1 }}>{settings?.instituteName || 'WUA INSTITUTE'}</Typography>
-                <div style={{ flex: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+                  {settings?.logoUrl && (
+                    <Box 
+                      component="img" 
+                      src={settings.logoUrl} 
+                      sx={{ width: 18, height: 18, objectFit: 'contain', bgcolor: 'transparent' }} 
+                    />
+                  )}
+                  <Typography sx={{ fontWeight: 950, fontSize: '12px', color: 'black', textAlign: 'center', lineHeight: 1.1, textTransform: 'uppercase' }}>
+                    {settings?.instituteName || 'WUA INSTITUTE'}
+                  </Typography>
+                </Box>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3px' }}>
                    <PrintField label="Student" value={receipt.studentName} />
+                   <PrintField label="Admission No" value={receipt.studentOfficialId || 'N/A'} />
                    <PrintField label="Head" value={receipt.feeHead} />
                    <PrintField label="Amount" value={`INR ${receipt.amount}`} />
                    <PrintField label="Date" value={receipt.date} />
+                   <PrintField label="Payment" value={receipt.paymentMode} />
                 </div>
-                <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', opacity: 0.8 }}>
+                <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                    <Box sx={{ textAlign: 'center' }}>
-                      <Box sx={{ width: 30, borderTop: '0.5px solid black', mb: 0.2 }} />
-                      <Typography sx={{ fontSize: '5px', color: 'black', fontWeight: 700 }}>RECEPTION</Typography>
+                      <Box sx={{ width: 40, borderTop: '1px solid black', mb: 0.2 }} />
+                      <Typography sx={{ fontSize: '6px', color: 'black', fontWeight: 800 }}>SIGNATURE</Typography>
                    </Box>
-                   <Typography sx={{ fontSize: '5px', color: 'grey.600', fontWeight: 600 }}>ID: {receipt.id.slice(0, 8)}</Typography>
+                   <Box sx={{ textAlign: 'right' }}>
+                     <Typography sx={{ fontSize: '6px', color: 'grey.600', fontWeight: 600 }}>TID: {receipt.id.slice(0, 10)}</Typography>
+                     <Typography sx={{ fontSize: '5px', color: 'grey.400' }}>{new Date().toLocaleString()}</Typography>
+                   </Box>
                 </Box>
               </Box>
             ))}

@@ -18,8 +18,17 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
-    letter-spacing: 0.02em;
-    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-weight: 800;
+  }
+
+  /* iOS Style Labels */
+  label, .ui-label {
+    font-size: 0.825rem;
+    font-weight: 600;
+    color: #636366;
+    letter-spacing: -0.01em;
+    text-transform: none;
   }
 
   .urdu-text, [dir="rtl"] {
@@ -356,8 +365,14 @@
   scrollbar-width: none;
 }
 
-.glass-card {
-  @apply bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 shadow-2xl;
+.ios-card {
+  @apply bg-white dark:bg-zinc-900 overflow-hidden;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+.ios-blur {
+  @apply backdrop-blur-2xl bg-white/70 dark:bg-zinc-900/70;
 }
 
 .bento-grid {

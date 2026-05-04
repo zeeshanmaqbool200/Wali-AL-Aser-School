@@ -129,7 +129,7 @@ export default function PaymentsSummary() {
   ].filter(d => d.value > 0);
 
   const dailyData = filteredReceipts.reduce((acc: any[], r) => {
-    const day = format(new Date(r.date), 'dd MMM');
+    const day = format(new Date(r.date), 'dd MM');
     const existing = acc.find(d => d.day === day);
     if (existing) {
       existing.amount += r.status === 'approved' ? r.amount : 0;
@@ -688,7 +688,7 @@ export default function PaymentsSummary() {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                        {format(new Date(r.date), 'dd MMM yyyy')}
+                        {format(new Date(r.date), 'dd MM yyyy')}
                       </Typography>
                     </TableCell>
                     <TableCell align="center">

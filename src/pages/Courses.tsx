@@ -348,6 +348,25 @@ export default function Courses() {
     }
   };
 
+  const handleShare = async (course: Course) => {
+    const shareData = {
+      title: course.name,
+      text: course.description,
+      url: window.location.href
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        setSnackbar({ open: true, message: 'Shared successfully! 🌐', severity: 'success' });
+      } else {
+        await navigator.clipboard.writeText(`${course.name}: ${window.location.href}`);
+        setSnackbar({ open: true, message: 'Link copied to clipboard! 📋', severity: 'success' });
+      }
+    } catch (err) {
+      console.error('Error sharing:', err);
+    }
+  };
+
   const handleEdit = (course: Course) => {
     setEditingCourse(course);
     setFormData({
@@ -601,6 +620,7 @@ export default function Courses() {
                   onEdit={() => handleEdit(course)} 
                   onDelete={() => handleDelete(course.id)}
                   onRead={handleReadCourse}
+                  onShare={handleShare}
                   viewMode={viewMode}
                   onShowTeacher={showTeacherProfile}
                   teacherPhoto={allTeachers.find(m => m.uid === course.teacherId)?.photoURL}
@@ -683,7 +703,32 @@ export default function Courses() {
           </Toolbar>
         </AppBar>
 
-        <DialogContent sx={{ p: { xs: 2, md: 6 } }}>
+        <DialogContent sx={{ p: { xs: 2, md: 6 }, position: 'relative' }}>
+          {submitting && (
+            <Box sx={{ 
+              position: 'absolute', 
+              inset: 0, 
+              zIndex: 10, 
+              bgcolor: alpha(theme.palette.background.paper, 0.8),
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 3
+            }}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+              >
+                <Zap size={60} color={theme.palette.primary.main} />
+              </motion.div>
+              <Box sx={{ width: 200 }}>
+                <Typography variant="h6" sx={{ fontWeight: 900, mb: 1, textAlign: 'center' }}>Updating Sabq...</Typography>
+                <LinearProgress sx={{ borderRadius: 2, height: 6 }} />
+              </Box>
+            </Box>
+          )}
           <Grid container spacing={6}>
             {/* Left Column: Basic Info */}
             <Grid size={{ xs: 12, md: 5 }}>
@@ -1710,13 +1755,14 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sec
 }
 
 
-function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead, viewMode, onShowTeacher, teacherPhoto }: any) {
+function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead, onShare, viewMode, onShowTeacher, teacherPhoto }: any) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isRTL = (text: string) => /[\u0600-\u06FF]/.test(text);
 
   const teacherActions: ActionMenuItem[] = [
+    { label: 'Share Subject', icon: <Share2 size={16} />, onClick: () => onShare(course) },
     { label: 'Edit Subject', icon: <Edit2 size={16} />, onClick: onEdit },
     { label: 'Delete Subject', icon: <Trash2 size={16} />, color: 'error.main', onClick: onDelete, disabled: !isSuperAdmin }
   ];

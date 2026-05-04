@@ -223,7 +223,7 @@ export default function AttendancePage() {
       return {
         'Student Name': student.displayName,
         'Class Level': student.classLevel || 'N/A',
-        'Date': format(selectedDate, 'dd MMM yyyy'),
+        'Date': format(selectedDate, 'dd MM yyyy'),
         'Status': attendance ? (attendance.status === 'present' ? 'Present' : 'Absent') : 'Not Marked',
         'Marked By': attendance?.markedByName || 'N/A'
       };
@@ -339,7 +339,7 @@ export default function AttendancePage() {
                   <Box sx={{ flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5 }}>
                     <Calendar size={20} color={theme.palette.primary.main} />
                     <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
-                      {format(selectedDate, 'do MMM, yyyy')}
+                      {format(selectedDate, 'dd MM yyyy')}
                     </Typography>
                   </Box>
                   <IconButton onClick={() => setSelectedDate(addDays(selectedDate, 1))} size="small" sx={{ 

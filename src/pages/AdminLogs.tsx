@@ -436,7 +436,7 @@ export default function AdminLogs() {
                         {log.message}
                       </TableCell>
                       <TableCell sx={{ color: 'text.secondary', fontWeight: 500, fontSize: '0.8rem' }}>
-                        {format(log.timestamp, 'MMM d, HH:mm:ss.SSS')}
+                        {format(log.timestamp, 'dd MM HH:mm:ss')}
                       </TableCell>
                       <TableCell align="right">
                         <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.disabled' }}>
@@ -470,8 +470,14 @@ export default function AdminLogs() {
                               <Grid size={{ xs: 12, md: 3 }}>
                                 <Paper sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5), border: '1px solid', borderColor: 'divider' }}>
                                   <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', mb: 0.5, color: 'text.secondary' }}>BROWSER & OS</Typography>
-                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{log.browser || 'Unknown'} on {log.os || 'Unknown'}</Typography>
-                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Device: {log.device || 'Unknown'}</Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                    {typeof log.browser === 'object' ? (log.browser as any).name || 'Unknown' : (log.browser || 'Unknown')} 
+                                    on 
+                                    {typeof log.os === 'object' ? (log.os as any).name || 'Unknown' : (log.os || 'Unknown')}
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                    Device: {typeof log.device === 'object' ? (log.device as any).model || 'Unknown' : (log.device || 'Unknown')}
+                                  </Typography>
                                 </Paper>
                               </Grid>
                               <Grid size={{ xs: 12, md: 3 }}>

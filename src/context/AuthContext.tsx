@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, onSnapshot, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, getDocs, query, collection, where, deleteDoc, OperationType, handleFirestoreError } from '../firebase';
 import { UserProfile, UserRole } from '../types';
+import { cache, CACHE_KEYS } from '../lib/cache';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -11,15 +12,19 @@ interface AuthContextType {
   manualLogin: (email: string, pass: string) => Promise<void>;
   manualSignUp: (email: string, pass: string, name: string, role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
+  prefetchModule: (module: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 import { logger } from '../lib/logger';
 
+import { saveSessionUser, getSessionUser, clearSession } from '../lib/session';
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(() => getSessionUser());
   const [loading, setLoading] = useState(true);
+  const [brandingReady, setBrandingReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [instituteSettings, setInstituteSettings] = useState<any>(null);
   const [permissions, setPermissions] = useState<{ [key: string]: boolean }>({});
@@ -33,14 +38,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       unsubscribeInst = onSnapshot(doc(db, 'settings', 'institute'), (snap) => {
         if (snap.exists()) {
-          setInstituteSettings({ id: snap.id, ...snap.data() });
-          (window as any)._instituteLoaded = true;
+          const data = snap.data();
+          setInstituteSettings({ id: snap.id, ...data });
+          
+          if (data.logoUrl) {
+            const img = new Image();
+            img.src = data.logoUrl;
+            img.onload = () => setBrandingReady(true);
+            img.onerror = () => setBrandingReady(true);
+          } else {
+            setBrandingReady(true);
+          }
+        } else {
+          setBrandingReady(true);
         }
       }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'settings/institute');
+        console.warn('Institute settings error:', error);
+        setBrandingReady(true);
       });
     } catch (e) {
       console.error('Failed to attach institute settings listener:', e);
+      setBrandingReady(true);
     }
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -48,7 +66,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (firebaseUser) {
           logger.auth('User Detected', { email: firebaseUser.email, uid: firebaseUser.uid });
           
-          // Cleanup any existing listeners before starting new ones to avoid "Unexpected state" errors
+          // Try to load from session first for instant hydration
+          const cachedProfile = await cache.get<UserProfile>(`profile_${firebaseUser.uid}`);
+          if (cachedProfile) {
+            setUser(cachedProfile);
+          }
           if (unsubscribeDoc) {
             unsubscribeDoc();
             unsubscribeDoc = undefined;
@@ -95,9 +117,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
                 
                 setUser(profile);
+                saveSessionUser(profile);
+                cache.set(`profile_${firebaseUser.uid}`, profile);
                 logger.success(`Profile updated for ${profile.displayName}`);
                 
-                // Fetch permissions
+                // Background prefetch for common modules
+                if (['superadmin', 'manager', 'teacher'].includes(profile.role)) {
+                  prefetchModule('users');
+                  prefetchModule('courses');
+                }
+                if (profile.role === 'student' && profile.isVerified) {
+                  prefetchModule('receipts');
+                }
                 if (isSuperAdminEmail) {
                   setPermissions({
                     view_dashboard: true,
@@ -121,7 +152,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const defaults: any = {
                           teacher: { view_dashboard: true, manage_attendance: true, manage_exams: true },
                           manager: { view_dashboard: true, manage_students: true, manage_fees: true, manage_expenses: true },
-                          student: { view_dashboard: true }
+                          student: { 
+                            view_dashboard: true, 
+                            manage_fees: profile.isVerified === true 
+                          }
                         };
                         setPermissions(defaults[profile.role] || {});
                       }
@@ -261,6 +295,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = React.useCallback(async () => {
     try {
       logger.auth('Attempting Logout');
+      clearSession();
+      await cache.clear();
       await signOut(auth);
       logger.success('Logout Successful');
     } catch (err) {
@@ -268,9 +304,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const prefetchModule = React.useCallback(async (module: string) => {
+    if (!auth.currentUser) return;
+    
+    try {
+      if (module === 'users') {
+        const q = query(collection(db, 'users'));
+        const snap = await getDocs(q);
+        const data = snap.docs.map(d => ({ ...(d.data() as any), uid: d.id }));
+        await cache.set(CACHE_KEYS.USERS, data);
+      } else if (module === 'courses') {
+        const q = query(collection(db, 'courses'));
+        const snap = await getDocs(q);
+        const data = snap.docs.map(d => ({ ...(d.data() as any), id: d.id }));
+        await cache.set(CACHE_KEYS.COURSES, data);
+      } else if (module === 'receipts' && user) {
+        let q;
+        if (['superadmin', 'manager', 'teacher'].includes(user.role)) {
+          q = query(collection(db, 'receipts'));
+        } else {
+          q = query(collection(db, 'receipts'), where('studentId', '==', user.uid));
+        }
+        const snap = await getDocs(q);
+        const data = snap.docs.map(d => ({ ...(d.data() as any), id: d.id }));
+        await cache.set(CACHE_KEYS.FEES, data);
+      }
+    } catch (e) {
+      console.warn(`Prefetch failed for ${module}:`, e);
+    }
+  }, [user]);
+
   const contextValue = React.useMemo(() => ({ 
-    user, loading, error, manualLogin, manualSignUp, logout, instituteSettings, permissions
-  }), [user, loading, error, manualLogin, manualSignUp, logout, instituteSettings, permissions]);
+    user, loading: loading || !brandingReady, error, manualLogin, manualSignUp, logout, instituteSettings, permissions, prefetchModule
+  }), [user, loading, brandingReady, error, manualLogin, manualSignUp, logout, instituteSettings, permissions, prefetchModule]);
 
   return (
     <AuthContext.Provider value={contextValue}>

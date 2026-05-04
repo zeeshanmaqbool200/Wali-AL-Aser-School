@@ -22,7 +22,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProviderWrapper({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const [mode, setMode] = useState<ThemeMode>('light');
+  const [mode, setMode] = useState<ThemeMode>('system');
 
   // Initialize theme from storage
   useEffect(() => {
@@ -31,6 +31,8 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
         const saved = await localforage.getItem<ThemeMode>('theme-mode');
         if (saved) {
           setMode(saved);
+        } else {
+          setMode('system'); // Default to system if not saved
         }
       } catch (err) {
         console.error('Failed to load theme from storage', err);
@@ -38,6 +40,19 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
     };
     loadTheme();
   }, []);
+
+  // Listen for system theme changes if mode is 'system'
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+      if (mode === 'system') {
+        // Force refresh by setting mode again
+        setMode('system'); 
+      }
+    };
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [mode]);
 
   const initialUiPrefs = useMemo(() => user?.uiPrefs || {
     highContrast: false,
@@ -124,22 +139,27 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
             styleOverrides: {
               root: {
                 borderRadius: 1,
-                padding: '12px 24px',
+                padding: '10px 20px', // Standardized padding
+                minHeight: 44, // Touch target optimization
                 boxShadow: 'none',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                '@media (min-width: 600px)': {
+                  minHeight: 40, // Scaled for desktop
+                  padding: '8px 20px',
+                },
                 '&:hover': {
                   transform: 'translateY(-1px)',
-                  boxShadow: 'none',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
                   opacity: 0.9,
                 },
                 '&:active': {
-                  transform: 'scale(0.96)',
+                  transform: 'scale(0.98)',
                 },
               },
               containedPrimary: {
                 boxShadow: 'none',
                 '&:hover': {
-                  boxShadow: 'none',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                 },
               },
               outlined: {
@@ -158,12 +178,17 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
               root: {
                 borderRadius: 1,
                 background: isDark ? '#121212' : '#ffffff',
-                boxShadow: 'none',
+                boxShadow: isDark 
+                  ? '0 4px 20px rgba(0,0,0,0.4)' 
+                  : '0 4px 20px rgba(0,0,0,0.03)',
                 border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
                 transition: 'all 0.3s ease',
                 overflow: 'hidden',
                 '&:hover': {
                   borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                  boxShadow: isDark 
+                    ? '0 8px 30px rgba(0,0,0,0.5)' 
+                    : '0 8px 30px rgba(0,0,0,0.05)',
                 },
               },
             },
@@ -172,7 +197,9 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
             styleOverrides: {
               root: {
                 borderRadius: 1,
-                boxShadow: 'none',
+                boxShadow: isDark 
+                  ? '0 2px 10px rgba(0,0,0,0.3)' 
+                  : '0 2px 10px rgba(0,0,0,0.02)',
                 border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
                 backgroundImage: 'none',
               },
@@ -259,16 +286,19 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
       compactLayout, setCompactLayout 
     }}>
       <ThemeProvider theme={theme}>
-        {reduceMotion && (
-          <GlobalStyles
-            styles={{
-              '*': {
-                transition: 'none !important',
-                animation: 'none !important',
-              },
-            }}
-          />
-        )}
+        <GlobalStyles
+          styles={{
+            '@keyframes pulse-green': {
+              '0%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(46, 125, 50, 0.4)' },
+              '70%': { transform: 'scale(1.1)', boxShadow: '0 0 0 10px rgba(46, 125, 50, 0)' },
+              '100%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(46, 125, 50, 0)' },
+            },
+            '*': reduceMotion ? {
+              transition: 'none !important',
+              animation: 'none !important',
+            } : {},
+          }}
+        />
         {children}
       </ThemeProvider>
     </ThemeContext.Provider>

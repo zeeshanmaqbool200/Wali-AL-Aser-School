@@ -388,7 +388,7 @@ export default function Exams() {
                           </TableCell>
                           <TableCell>
                             <Stack spacing={0.5}>
-                              <Typography variant="body2" sx={{ fontWeight: 700 }}>{format(new Date(exam.date), 'MMM d, yyyy')}</Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>{format(new Date(exam.date), 'dd MM yyyy')}</Typography>
                               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>10:00 AM - 12:00 PM</Typography>
                             </Stack>
                           </TableCell>
@@ -707,7 +707,7 @@ function ExamCard({ exam, isTeacher, onDelete }: any) {
         <Stack spacing={2.5} sx={{ mb: 4 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, color: 'text.secondary' }}>
             <Calendar size={18} color={theme.palette.primary.main} />
-            <Typography variant="body2" sx={{ fontWeight: 800 }}>{format(new Date(exam.date), 'MMMM d, yyyy')}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 800 }}>{format(new Date(exam.date), 'dd MM yyyy')}</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, color: 'text.secondary' }}>
             <Clock size={18} color={theme.palette.primary.main} />

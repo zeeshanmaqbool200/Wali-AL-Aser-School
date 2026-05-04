@@ -27,24 +27,26 @@ const Courses = lazy(() => import('./pages/Courses'));
 const PaymentsSummary = lazy(() => import('./pages/PaymentsSummary'));
 const AdminLogs = lazy(() => import('./pages/AdminLogs'));
 const Profile = lazy(() => import('./pages/Profile'));
-const Roles = lazy(() => import('./pages/Roles'));
 
 import ErrorBoundary from './components/ErrorBoundary';
 import ClassSelection from './components/ClassSelection';
 
 const PageLoading = () => (
-  <Box sx={{ p: 4, width: '100%' }}>
-    <Skeleton variant="text" sx={{ fontSize: '3rem', width: '40%', mb: 2, borderRadius: 2 }} />
-    <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
-      <Skeleton variant="rectangular" width={200} height={40} sx={{ borderRadius: 2 }} />
-      <Skeleton variant="rectangular" width={200} height={40} sx={{ borderRadius: 2 }} />
-    </Box>
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-      {[1, 2, 3, 4].map((i) => (
-        <Skeleton key={i} variant="rectangular" width={250} height={120} sx={{ borderRadius: 4, flexGrow: 1 }} />
-      ))}
-    </Box>
-    <Skeleton variant="rectangular" width="100%" height={400} sx={{ mt: 4, borderRadius: 4 }} />
+  <Box sx={{ 
+    width: '100%', 
+    height: '100%', 
+    display: 'flex', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    minHeight: '200px'
+  }}>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      <CircularProgress thickness={5} size={30} sx={{ color: 'primary.main', opacity: 0.5 }} />
+    </motion.div>
   </Box>
 );
 
@@ -96,17 +98,26 @@ import LoadingScreen from './components/LoadingScreen';
 const Verify = React.lazy(() => import('./pages/Verify'));
 
 function AppContent() {
-  const { user, loading, error, manualLogin, manualSignUp, logout } = useAuth();
+  const { user, loading, error, manualLogin, manualSignUp, logout, instituteSettings } = useAuth();
   const location = useLocation();
   const [showClassSelection, setShowClassSelection] = React.useState(false);
   const [hidePendingBanner, setHidePendingBanner] = React.useState(false);
   const [selectionMade, setSelectionMade] = React.useState(false);
+  const [appReady, setAppReady] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!loading && instituteSettings) {
+      // Small artificial delay for smoother entrance after data is ready
+      const timer = setTimeout(() => setAppReady(true), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, instituteSettings]);
 
   React.useEffect(() => {
     setSelectionMade(false); // Reset when user changes
   }, [user?.uid]);
 
-  if (loading) {
+  if (!appReady) {
     return <LoadingScreen />;
   }
 
@@ -166,12 +177,12 @@ function AppContent() {
       <AnimatePresence mode="wait">
         <motion.div
           key={location.pathname}
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 1.02 }}
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 10 }}
           transition={{ 
             duration: 0.3, 
-            ease: [0.4, 0, 0.2, 1] 
+            ease: "easeInOut" 
           }}
           style={{ height: '100%', width: '100%' }}
         >
@@ -231,11 +242,6 @@ function AppContent() {
                       <AdminLogs />
                     </ProtectedRoute>
                   } />
-                  <Route path="/roles" element={
-                    <ProtectedRoute user={user} allowedRoles={systemAdminRoles}>
-                      <Roles />
-                    </ProtectedRoute>
-                  } />
                   <Route path="/profile" element={
                     <ProtectedRoute user={user} allowedRoles={allAuthenticatedRoles}>
                       <Profile />
@@ -252,6 +258,8 @@ function AppContent() {
   );
 }
 
+import { ScrollRestoration } from './components/ScrollRestoration';
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -261,6 +269,7 @@ export default function App() {
           {globalStyles}
           <NotificationProvider>
             <Router>
+              <ScrollRestoration />
               <AppContent />
             </Router>
           </NotificationProvider>

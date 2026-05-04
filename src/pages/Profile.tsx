@@ -54,6 +54,9 @@ export default function Profile() {
         phone: profileData.phone || '',
         whatsapp: profileData.whatsapp || '',
         address: profileData.address || '',
+        fatherName: profileData.fatherName || '',
+        motherName: profileData.motherName || '',
+        dob: profileData.dob || '',
         updatedAt: Date.now()
       };
       
@@ -252,6 +255,35 @@ export default function Profile() {
                     startAdornment: <Phone size={18} style={{ marginRight: 8, opacity: 0.5 }} />,
                     sx: { borderRadius: 1.5 }
                   }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  label="Father's Name"
+                  value={profileData.fatherName || ''}
+                  onChange={(e) => setProfileData({ ...profileData, fatherName: e.target.value })}
+                  InputProps={{ sx: { borderRadius: 1.5 } }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  label="Mother's Name"
+                  value={profileData.motherName || ''}
+                  onChange={(e) => setProfileData({ ...profileData, motherName: e.target.value })}
+                  InputProps={{ sx: { borderRadius: 1.5 } }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  label="Date of Birth"
+                  type="date"
+                  value={profileData.dob || ''}
+                  onChange={(e) => setProfileData({ ...profileData, dob: e.target.value })}
+                  InputProps={{ sx: { borderRadius: 1.5 } }}
+                  InputLabelProps={{ shrink: true }}
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>

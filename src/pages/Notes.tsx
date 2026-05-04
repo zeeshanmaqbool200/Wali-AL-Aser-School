@@ -520,7 +520,7 @@ function NoteCard({ note, isTeacher, onDelete, getFileIcon, getFileColor }: any)
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
           <Clock size={14} />
-          <Typography variant="caption" sx={{ fontWeight: 700 }}>{format(note.uploadedAt, 'MMM d, yyyy')}</Typography>
+          <Typography variant="caption" sx={{ fontWeight: 700 }}>{format(note.uploadedAt, 'dd MM yyyy')}</Typography>
         </Box>
       </Box>
     </Card>
@@ -569,7 +569,7 @@ function NoteListItem({ note, isTeacher, onDelete, getFileIcon, getFileColor }: 
               <Avatar sx={{ width: 24, height: 24, bgcolor: 'primary.main', fontSize: '0.65rem' }}>{note.authorName.charAt(0)}</Avatar>
               <Box>
                 <Typography variant="caption" sx={{ fontWeight: 800, display: 'block' }}>{note.authorName}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{format(note.uploadedAt, 'MMM d, yyyy')}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{format(note.uploadedAt, 'dd MM yyyy')}</Typography>
               </Box>
             </Box>
           </Grid>

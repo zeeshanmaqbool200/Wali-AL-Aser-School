@@ -35,10 +35,11 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ user }: DashboardProps) {
-  const { instituteSettings, permissions } = useAuth();
+  const { logout, instituteSettings, permissions } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
+
   const [loading, setLoading] = useState(!(window as any)._dashboardLoaded && !localStorage.getItem(`dashboard_stats_${user.uid}`));
   const [stats, setStats] = useState<any>(() => {
     // Try to recover cached stats to prevent white flicker
@@ -77,16 +78,29 @@ export default function Dashboard({ user }: DashboardProps) {
     "The best wealth is the abandonment of desires. — Imam Ali (AS)"
   ];
 
+  const [instituteData, setInstituteData] = useState<Partial<InstituteSettings>>(instituteSettings || {
+    instituteName: 'Wali Ul Aser Institute',
+    tagline: 'Simple Learning for Everyone'
+  });
+
   useEffect(() => {
-    setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
+    if (instituteSettings) {
+      setInstituteData(instituteSettings);
+    }
+  }, [instituteSettings]);
+
+  useEffect(() => {
+    const availableQuotes = (instituteData?.quotes && instituteData.quotes.length > 0) ? instituteData.quotes : quotes;
+    setQuote(availableQuotes[Math.floor(Math.random() * availableQuotes.length)]);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [instituteData]);
 
   const [activeStatIndex, setActiveStatIndex] = useState(0);
+  
   const instituteStats = [
     { 
-      label: 'Total Tulab', 
+      label: 'Total Students', 
       value: stats.totalStudents || 0, 
       unit: 'Students', 
       icon: <Users size={18} />, 
@@ -103,15 +117,15 @@ export default function Dashboard({ user }: DashboardProps) {
     },
     { 
       label: 'Academic Levels', 
-      value: stats.totalCourses || 42, 
+      value: stats.totalCourses || 0, 
       unit: 'Classes', 
       icon: <GraduationCap size={18} />, 
       color: '#60a5fa', 
       chart: [30, 60, 40, 80, 50, 100, 70] 
     },
     { 
-      label: 'Haziri Score', 
-      value: stats.attendanceRate ? `${stats.attendanceRate}%` : '98%', 
+      label: 'Attendance Rate', 
+      value: stats.attendanceRate ? `${stats.attendanceRate}%` : '0%', 
       unit: 'Avg', 
       icon: <CheckCircle size={18} />, 
       color: '#f87171', 
@@ -127,20 +141,10 @@ export default function Dashboard({ user }: DashboardProps) {
   }, [stats]);
 
   const currentStat = instituteStats[activeStatIndex];
-  const [recentNotifications, setRecentNotifications] = useState<NotificationType[]>([]);
-  const [pendingReceipts, setPendingReceipts] = useState<FeeReceipt[]>([]);
+  const [recentNotifications, setRecentNotifications] = useState<any[]>([]);
+  const [pendingReceipts, setPendingReceipts] = useState<any[]>([]);
   const [pendingStudents, setPendingStudents] = useState<UserProfile[]>([]);
   const [staffMembers, setStaffMembers] = useState<UserProfile[]>([]);
-  const [instituteData, setInstituteData] = useState<Partial<InstituteSettings>>(instituteSettings || {
-    instituteName: 'Wali Ul Aser Institute',
-    tagline: 'Simple Learning for Everyone'
-  });
-
-  useEffect(() => {
-    if (instituteSettings) {
-      setInstituteData(instituteSettings);
-    }
-  }, [instituteSettings]);
 
   const isSuperAdmin = user.email?.toLowerCase() === 'zeeshanmaqbool200@gmail.com' || user.uid === 'sZUiAgoSF8MTPBQAOtj6jbFkot93';
   const role = user.role || 'student';
@@ -224,7 +228,7 @@ export default function Dashboard({ user }: DashboardProps) {
             unsubscribes.push(onSnapshot(query(collection(db, 'receipts'), where('status', '==', 'approved')), (snap) => {
               if (!isMounted) return;
               const currentMonthStart = format(new Date(), 'yyyy-MM-01');
-              const receipts = snap.docs.map(doc => doc.data()).filter((r: any) => ![10000, 20000, 50000].includes(Number(r.amount)));
+              const receipts = snap.docs.map(doc => doc.data()).filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount)));
               const totalAllTime = receipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
               const monthAmount = receipts.filter(r => r.date >= currentMonthStart).reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
               setStats(prev => ({ ...prev, totalFeesMonth: monthAmount, totalFeesAllTime: totalAllTime }));
@@ -247,7 +251,7 @@ export default function Dashboard({ user }: DashboardProps) {
 
             unsubscribes.push(onSnapshot(collection(db, 'expenses'), (snap) => {
               if (!isMounted) return;
-              const exps = snap.docs.map(doc => doc.data()).filter((e: any) => ![10000, 20000, 50000].includes(Number(e.amount)));
+              const exps = snap.docs.map(doc => doc.data()).filter((e: any) => ![10000, 20000, 30000, 50000].includes(Number(e.amount)));
               const totalDebit = exps.filter(e => e.type === 'debit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
               const totalCredit = exps.filter(e => e.type === 'credit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
               setStats(prev => ({ ...prev, totalExpenses: totalDebit, totalCredits: totalCredit }));
@@ -287,7 +291,7 @@ export default function Dashboard({ user }: DashboardProps) {
 
           unsubscribes.push(onSnapshot(qTrend, (snap) => {
             if (!isMounted) return;
-            const receipts = snap.docs.map(doc => doc.data());
+            const receipts = snap.docs.map(doc => doc.data()).filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount)));
             const trend = last7Days.map(day => {
               const dayAmount = receipts
                 .filter(r => r.date === day)
@@ -351,6 +355,10 @@ export default function Dashboard({ user }: DashboardProps) {
         const lessonsSnap = await getDocs(query(collection(db, 'courses'), where('isPublished', '==', true), orderBy('createdAt', 'desc'), limit(6)));
         if (isMounted) {
           setStats(prev => ({ ...prev, availableCourses: lessonsSnap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+          if (!isStaff) {
+            setLoading(false);
+            (window as any)._dashboardLoaded = true;
+          }
         }
 
         if (isStaff) {
@@ -471,45 +479,43 @@ export default function Dashboard({ user }: DashboardProps) {
       transition={{ duration: 1 }}
       sx={{ pb: 8, position: 'relative' }}
     >
-      {/* Shia Islamic Orientation Ornament */}
+      {/* Shia Islamic Orientation Ornament - Simplified and hidden circles per user request */}
       <Box sx={{ 
         position: 'absolute', 
         top: -10, 
         left: '50%', 
         transform: 'translateX(-50%)', 
         zIndex: 5,
-        opacity: 0.3,
+        opacity: 0.15,
         pointerEvents: 'none',
         display: { xs: 'none', md: 'block' }
       }}>
         <svg width="200" height="40" viewBox="0 0 200 40">
           <path d="M0 0 Q100 60 200 0" fill="transparent" stroke={theme.palette.primary.main} strokeWidth="1" />
-          <circle cx="100" cy="25" r="3" fill="transparent" stroke={theme.palette.primary.main} strokeWidth="0.5" />
-          <path d="M100 21 L100 29 M96 25 L104 25" stroke={theme.palette.primary.main} strokeWidth="0.5" />
         </svg>
       </Box>
 
-      {/* Decorative Border Layer - Shia Theme Inspired */}
-      <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`, m: 1, borderRadius: 4, zIndex: 100 }} />
+      {/* Decorative Border Layer - Shia Theme Inspired - REMOVED white line per user request */}
+      {/* <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`, m: 1, borderRadius: 4, zIndex: 100 }} /> */}
 
       {/* Hero Welcome Section - Mockup Styles applied */}
       <Box 
         sx={{ 
           position: 'relative',
-          borderRadius: { xs: 4, md: 8 }, 
+          borderRadius: { xs: 3, md: 6 }, 
           overflow: 'hidden',
-          mb: 6,
-          minHeight: { xs: 400, md: 520 }, 
+          mb: 4,
+          minHeight: { xs: 320, md: 480 }, 
           display: 'flex',
-          bgcolor: '#f1f5f9', // Light gray background from image
+          bgcolor: theme.palette.mode === 'dark' ? '#020617' : '#f1f5f9', 
           transition: 'all 0.5s ease',
           boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-          border: '1px solid rgba(0,0,0,0.05)',
+          border: theme.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.05)',
           '&::before': {
             content: '""',
             position: 'absolute',
             inset: 0,
-            opacity: 0.03, // Subtle "in stitch" texture
+            opacity: 0.03, 
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0V0zm1 1v38h38V1H1z' fill='%23000' fill-rule='evenodd' opacity='.1'/%3E%3C/svg%3E")`,
             zIndex: 1
           }
@@ -533,43 +539,46 @@ export default function Dashboard({ user }: DashboardProps) {
               width: '100%', 
               objectFit: 'cover',
               filter: 'drop-shadow(0 20px 50px rgba(0,0,0,0.2))',
-              display: instituteData.bannerUrl ? 'block' : 'none'
+              display: instituteData.bannerUrl ? 'block' : 'none',
+              backgroundColor: 'transparent'
             }} 
           />
           {!instituteData.bannerUrl && (
             <Box sx={{ 
               width: '100%', 
               height: '100%', 
-              background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${alpha(theme.palette.primary.main, 0.8)} 100%)`,
+              background: theme.palette.mode === 'dark' 
+                ? `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.4)} 0%, ${alpha(theme.palette.primary.main, 0.2)} 100%)`
+                : `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${alpha(theme.palette.primary.main, 0.8)} 100%)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
             }}>
                <Typography variant="h2" sx={{ color: 'white', opacity: 0.1, fontWeight: 900, fontFamily: 'var(--font-serif)', letterSpacing: -2 }}>
-                {instituteData.name?.toUpperCase()}
+                {instituteData.instituteName?.toUpperCase()}
               </Typography>
             </Box>
           )}
         </Box>
 
         {/* Top Left: Badges (Time & Hijri Date) */}
-        <Box sx={{ position: 'absolute', top: 32, left: 32, zIndex: 10, textAlign: 'left' }}>
+        <Box sx={{ position: 'absolute', top: { xs: 16, md: 32 }, left: { xs: 16, md: 32 }, zIndex: 10, textAlign: 'left' }}>
           <Stack direction="column" spacing={1}>
-             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(6px)', px: 1.5, py: 0.8, borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)', width: 'fit-content' }}>
-               <Clock size={14} className="text-blue-500" />
-               <Typography variant="caption" sx={{ fontWeight: 900, fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', px: 1.2, py: 0.6, borderRadius: 2, border: '1px solid rgba(255,255,255,0.1)', width: 'fit-content' }}>
+               <Clock size={12} color={theme.palette.primary.main} />
+               <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: theme.palette.mode === 'dark' ? 'white' : 'text.primary' }}>
                  {format12H(currentTime)}
                </Typography>
              </Box>
-             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(6px)', px: 1.5, py: 0.8, borderRadius: 3, border: '1px solid rgba(0,0,0,0.05)', width: 'fit-content' }}>
-               <span style={{ fontSize: '14px' }}>☪️</span>
-               <Typography variant="caption" sx={{ fontWeight: 900, fontSize: '0.7rem' }}>{jafariDate || 'Islamic Date'}</Typography>
+             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', px: 1.2, py: 0.6, borderRadius: 2, border: '1px solid rgba(255,255,255,0.1)', width: 'fit-content' }}>
+               <span style={{ fontSize: '12px' }}>☪️</span>
+               <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem', color: theme.palette.mode === 'dark' ? 'white' : 'text.primary' }}>{jafariDate || 'Islamic Date'}</Typography>
              </Box>
           </Stack>
         </Box>
 
         {/* Right Side Card: Graph Info Card - Dynamic Stats pulse */}
-        <Box sx={{ position: 'absolute', bottom: { xs: 120, md: 100 }, right: { xs: 16, md: 32 }, zIndex: 40 }}>
+        <Box sx={{ position: 'absolute', bottom: { xs: 100, md: 100 }, right: { xs: 12, md: 32 }, zIndex: 40 }}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeStatIndex}
@@ -582,22 +591,22 @@ export default function Dashboard({ user }: DashboardProps) {
                 bgcolor: currentStat.color, 
                 color: 'black', 
                 borderRadius: 4, 
-                p: { xs: 1.5, md: 2.5 }, 
-                width: { xs: 140, md: 200 },
+                p: { xs: 1.2, md: 2 }, 
+                width: { xs: 110, md: 180 },
                 boxShadow: `0 15px 35px ${alpha(currentStat.color, 0.4)}`,
                 border: 'none',
                 position: 'relative',
                 overflow: 'hidden'
               }}>
                 <Stack spacing={0.5}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <div style={{ padding: 4, borderRadius: 8, background: 'rgba(0,0,0,0.1)' }}>
-                      {currentStat.icon}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.5 }}>
+                    <div style={{ padding: 3, borderRadius: 6, background: 'rgba(0,0,0,0.1)' }}>
+                      {React.cloneElement(currentStat.icon as React.ReactElement<any>, { size: isMobile ? 12 : 18 })}
                     </div>
-                    <Typography variant="caption" sx={{ fontWeight: 900, fontSize: { xs: '0.6rem', md: '0.75rem' } }}>{currentStat.label}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 900, fontSize: { xs: '0.55rem', md: '0.75rem' } }}>{currentStat.label}</Typography>
                   </Box>
-                  <Typography variant="h3" sx={{ fontWeight: 950, letterSpacing: -2, fontSize: { xs: '1.5rem', md: '3rem' } }}>{currentStat.value}</Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.7, fontSize: { xs: '0.5rem', md: '0.75rem' } }}>{currentStat.unit} • Current</Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 950, letterSpacing: -1, fontSize: { xs: '1.2rem', md: '2.5rem' } }}>{currentStat.value}</Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.7, fontSize: { xs: '0.45rem', md: '0.7rem' } }}>{currentStat.unit}</Typography>
                   
                   {/* Tiny graph visual */}
                   <Box sx={{ pt: 1, height: { xs: 20, md: 40 }, width: '100%', display: 'flex', alignItems: 'flex-end', gap: 0.5 }}>
@@ -624,60 +633,117 @@ export default function Dashboard({ user }: DashboardProps) {
           left: 0, 
           right: 0, 
           zIndex: 10,
-          p: { xs: 3, md: 4 },
-          pb: { xs: 2.5, md: 3 }, // Very little bottom padding to ground text
+          p: { xs: 2.5, md: 5 },
+          pb: { xs: 4, md: 8 }, 
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-start',
           textAlign: 'left',
-          background: 'linear-gradient(to top, rgba(241, 245, 249, 1) 0%, rgba(241, 245, 249, 0.95) 15%, rgba(241, 245, 249, 0.8) 35%, rgba(241, 245, 249, 0.4) 65%, rgba(241, 245, 249, 0) 100%)',
-          backdropFilter: 'blur(6px)',
-          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+          pointerEvents: 'none'
         }}>
-          <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 950, letterSpacing: 2, textTransform: 'uppercase', mb: 0.5 }}>
-            Salaam {user.displayName?.split(' ')[0]}
-          </Typography>
-          <Typography variant="h2" sx={{ fontWeight: 950, color: 'text.primary', letterSpacing: -2, mb: 0, fontSize: { xs: '2.2rem', md: '3.8rem' }, lineHeight: 0.9 }}>
-            {user.displayName}
-          </Typography>
-          <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: 'text.secondary', opacity: 0.9, letterSpacing: 0.5 }}>
-            {(user.role === 'superadmin') ? 'Muntazim-e-Aala (Admin)' : (isTeacherRole ? 'Ustad (Teacher)' : (isManagerRole ? 'Muntazim' : 'Talib-e-Ilm (Student)'))} @ {instituteData.instituteName || 'Wali Ul Aser'} 
-          </Typography>
+          <Box sx={{ 
+            p: 1.5, 
+            borderRadius: 3, 
+            mb: 1.5,
+            pointerEvents: 'auto',
+            bgcolor: alpha(theme.palette.mode === 'dark' ? '#000' : '#fff', 0.4),
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            width: 'fit-content'
+          }}>
+            <Typography 
+              component="span"
+              variant="caption" 
+              sx={{ 
+                color: 'primary.main', 
+                fontWeight: 950, 
+                letterSpacing: 1.5, 
+                textTransform: 'uppercase', 
+                fontSize: { xs: '0.65rem', md: '0.8rem' },
+                display: 'inline-block'
+              }}
+            >
+              assalualikum {user.displayName?.split(' ')[0]}
+            </Typography>
+          </Box>
+          
+          <Box sx={{ 
+            px: 2.5, 
+            py: 1.5, 
+            borderRadius: 4, 
+            mb: 2,
+            pointerEvents: 'auto',
+            bgcolor: alpha(theme.palette.mode === 'dark' ? '#000' : '#fff', 0.4),
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            width: 'fit-content'
+          }}>
+             <Typography variant="h2" sx={{ fontWeight: 950, color: theme.palette.mode === 'dark' ? 'white' : 'text.primary', letterSpacing: -1.5, fontSize: { xs: '1.8rem', md: '3.6rem' }, lineHeight: 1 }}>
+              {user.displayName}
+            </Typography>
+          </Box>
+
+          <Box sx={{ 
+            p: 2.5, 
+            borderRadius: 4, 
+            pointerEvents: 'auto',
+            bgcolor: alpha(theme.palette.mode === 'dark' ? '#000' : '#fff', 0.4),
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderLeft: `5px solid ${theme.palette.primary.main}`,
+            maxWidth: { xs: '100%', md: '75%' },
+            width: 'fit-content'
+          }}>
+            <Typography 
+              component="p"
+              sx={{ 
+                fontSize: { xs: '0.85rem', md: '1rem' }, 
+                fontWeight: 700, 
+                fontStyle: 'italic',
+                color: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.9)' : 'text.secondary', 
+                letterSpacing: 0.2
+              }}
+            >
+              {quote}
+            </Typography>
+          </Box>
         </Box>
       </Box>
 
-      {/* Verification Warning for Students */}
-      {!user.isVerified && user.role.includes('student') && showVerificationAlert && (
+      {/* Verification or Profile Completion Warning for Students */}
+      {user.role === 'student' && showVerificationAlert && (!user.isVerified || !(user.dob && user.fatherName && user.motherName && user.address && user.phone)) && (
         <Container maxWidth="lg" sx={{ mt: 2, mb: -4, position: 'relative', zIndex: 30 }}>
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
           >
             <Alert 
-              severity="warning" 
+              severity={(!user.dob || !user.fatherName || !user.motherName) ? "info" : "warning"} 
               icon={<AlertCircle size={24} />}
               onClose={() => setShowVerificationAlert(false)}
               sx={{ 
                 borderRadius: 4, 
                 fontWeight: 700,
                 border: '1px solid',
-                borderColor: 'warning.light',
-                boxShadow: '0 8px 20px rgba(234, 179, 8, 0.1)',
+                borderColor: (!user.dob || !user.fatherName || !user.motherName) ? 'info.light' : 'warning.light',
+                boxShadow: '0 8px 20px rgba(0, 0, 0, 0.05)',
                 '& .MuiAlert-message': { width: '100%' }
               }}
             >
               <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1, justifyContent: 'space-between' }}>
                 <Typography variant="body2" sx={{ fontWeight: 800 }}>
-                  Your profile is currently under verification. Some features like Fee Payments and Grade Reports will be available once the administration verifies your account.
+                  {!user.isVerified 
+                    ? "Your profile is under verification. Once approved, your Admission No. will be generated." 
+                    : "Please complete your profile details (DOB, parent names, address) for official records."}
                 </Typography>
                 <Button 
                   size="small" 
-                  color="warning" 
-                  variant="outlined" 
-                  onClick={() => navigate('/settings')}
-                  sx={{ fontWeight: 900, borderRadius: 2, textTransform: 'none', px: 2, whiteSpace: 'nowrap' }}
+                  color={(!user.dob || !user.fatherName) ? "info" : "warning"}
+                  variant="contained" 
+                  onClick={() => navigate('/profile')}
+                  sx={{ fontWeight: 900, borderRadius: 2, textTransform: 'none', px: 2, whiteSpace: 'nowrap', boxShadow: 'none' }}
                 >
-                  Complete Profile
+                  COMPLETE PROFILE
                 </Button>
               </Box>
             </Alert>
@@ -686,106 +752,108 @@ export default function Dashboard({ user }: DashboardProps) {
       )}
 
       {/* Quick Action Section - Adjusted for blur change and responsiveness */}
-      <Box sx={{ mb: 6, mt: { xs: 8, md: 10 }, position: 'relative', zIndex: 25 }}>
+      <Box sx={{ mb: 4, mt: { xs: 4, md: 6 }, position: 'relative', zIndex: 25 }}>
         <Container maxWidth="lg">
-          <Grid container spacing={1.5} justifyContent="center">
+          <Grid container spacing={1} justifyContent="center">
             {isStaff ? (
               <>
                 <Grid size={{ xs: 4, sm: 2.4 }}>
                   <Button 
                     variant="contained" 
                     fullWidth
-                    startIcon={<UserPlus size={isMobile ? 12 : 20} />}
+                    startIcon={<UserPlus size={isMobile ? 14 : 20} />}
                     onClick={() => navigate('/users')}
                     sx={{ 
-                      borderRadius: 3, 
+                      borderRadius: 2.5, 
                       fontWeight: 900, 
-                      py: { xs: 1, sm: 1.5 }, 
+                      py: { xs: 1.2, sm: 1.8 }, 
                       bgcolor: 'primary.main', 
-                      fontSize: { xs: '0.65rem', sm: '0.9rem' },
+                      fontSize: { xs: '0.6rem', sm: '0.85rem' },
                       flexDirection: { xs: 'column', sm: 'row' },
-                      gap: { xs: 0.5, sm: 0 },
-                      boxShadow: '0 10px 25px rgba(13, 148, 136, 0.2)',
+                      gap: { xs: 0.2, sm: 0 },
+                      boxShadow: '0 8px 16px rgba(13, 148, 136, 0.15)',
                       '&:hover': { transform: 'translateY(-2px)' } 
                     }}
                   >
-                    Naya Tulab
+                    Users
                   </Button>
                 </Grid>
                 <Grid size={{ xs: 4, sm: 2.4 }}>
                   <Button 
                     variant="outlined" 
                     fullWidth
-                    startIcon={<UserCheck size={isMobile ? 12 : 20} />}
+                    startIcon={<UserCheck size={isMobile ? 14 : 20} />}
                     onClick={() => navigate('/attendance')}
                     sx={{ 
-                      borderRadius: 3, 
+                      borderRadius: 2.5, 
                       fontWeight: 900, 
-                      py: { xs: 1, sm: 1.5 }, 
-                      fontSize: { xs: '0.65rem', sm: '0.9rem' },
+                      py: { xs: 1.2, sm: 1.8 }, 
+                      fontSize: { xs: '0.6rem', sm: '0.85rem' },
                       flexDirection: { xs: 'column', sm: 'row' },
-                      gap: { xs: 0.5, sm: 0 },
-                      borderWidth: 2,
-                      '&:hover': { borderWidth: 2, transform: 'translateY(-2px)' } 
+                      gap: { xs: 0.2, sm: 0 },
+                      borderWidth: 1.5,
+                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' } 
                     }}
                   >
-                    Haziri
+                    Attendance
                   </Button>
                 </Grid>
                 <Grid size={{ xs: 4, sm: 2.4 }}>
                   <Button 
                     variant="outlined" 
                     fullWidth
-                    startIcon={<Wallet size={isMobile ? 12 : 20} />}
+                    startIcon={<Wallet size={isMobile ? 14 : 20} />}
                     onClick={() => navigate('/fees')}
                     sx={{ 
-                      borderRadius: 3, 
+                      borderRadius: 2.5, 
                       fontWeight: 900, 
-                      py: { xs: 1, sm: 1.5 }, 
-                      fontSize: { xs: '0.65rem', sm: '0.9rem' },
+                      py: { xs: 1.2, sm: 1.8 }, 
+                      fontSize: { xs: '0.6rem', sm: '0.85rem' },
                       flexDirection: { xs: 'column', sm: 'row' },
-                      gap: { xs: 0.5, sm: 0 },
-                      borderWidth: 2,
-                      '&:hover': { borderWidth: 2, transform: 'translateY(-2px)' } 
+                      gap: { xs: 0.2, sm: 0 },
+                      borderWidth: 1.5,
+                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' } 
                     }}
                   >
-                    Maliyat
+                    Fees
                   </Button>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 2.4 }}>
                   <Button 
                     variant="outlined" 
                     fullWidth
-                    startIcon={<BookOpen size={isMobile ? 12 : 20} />}
+                    startIcon={<BookOpen size={isMobile ? 14 : 20} />}
                     onClick={() => navigate('/courses')}
                     sx={{ 
-                      borderRadius: 3, 
+                      borderRadius: 2.5, 
                       fontWeight: 900, 
-                      py: { xs: 1, sm: 1.5 }, 
-                      fontSize: { xs: '0.65rem', sm: '0.9rem' },
-                      borderWidth: 2,
-                      '&:hover': { borderWidth: 2, transform: 'translateY(-2px)' } 
+                      py: { xs: 1.2, sm: 1.8 }, 
+                      fontSize: { xs: '0.6rem', sm: '0.85rem' },
+                      borderWidth: 1.5,
+                      gap: { xs: 0.5, sm: 0 },
+                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' } 
                     }}
                   >
-                    Nisab
+                    Curriculum
                   </Button>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 2.4 }}>
                   <Button 
                     variant="outlined" 
                     fullWidth
-                    startIcon={<Bell size={isMobile ? 12 : 20} />}
+                    startIcon={<Bell size={isMobile ? 14 : 20} />}
                     onClick={() => navigate('/notifications')}
                     sx={{ 
-                      borderRadius: 3, 
+                      borderRadius: 2.5, 
                       fontWeight: 900, 
-                      py: { xs: 1, sm: 1.5 }, 
-                      fontSize: { xs: '0.65rem', sm: '0.9rem' },
-                      borderWidth: 2,
-                      '&:hover': { borderWidth: 2, transform: 'translateY(-2px)' } 
+                      py: { xs: 1.2, sm: 1.8 }, 
+                      fontSize: { xs: '0.6rem', sm: '0.85rem' },
+                      borderWidth: 1.5,
+                      gap: { xs: 0.5, sm: 0 },
+                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' } 
                     }}
                   >
-                    Ittelaát
+                    Alerts
                   </Button>
                 </Grid>
               </>
@@ -795,33 +863,33 @@ export default function Dashboard({ user }: DashboardProps) {
                   <Button 
                     variant="contained" 
                     fullWidth
-                    startIcon={<Book size={isMobile ? 16 : 20} />}
+                    startIcon={<Book size={isMobile ? 14 : 20} />}
                     onClick={() => navigate('/courses')}
                     sx={{ 
-                      borderRadius: 3, 
+                      borderRadius: 2.5, 
                       fontWeight: 900, 
-                      py: 1.5,
-                      fontSize: { xs: '0.75rem', sm: '0.9rem' },
-                      boxShadow: '0 10px 25px rgba(13, 148, 136, 0.2)',
+                      py: { xs: 1.2, sm: 1.8 },
+                      fontSize: { xs: '0.65rem', sm: '0.85rem' },
+                      boxShadow: '0 8px 16px rgba(13, 148, 136, 0.15)',
                       '&:hover': { transform: 'translateY(-2px)' }
                     }}
                   >
-                    Sabq
+                    Lessons
                   </Button>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
                   <Button 
                     variant="outlined" 
                     fullWidth
-                    startIcon={<CreditCard size={isMobile ? 16 : 20} />}
+                    startIcon={<CreditCard size={isMobile ? 14 : 20} />}
                     onClick={() => navigate('/fees')}
                     sx={{ 
-                      borderRadius: 3, 
+                      borderRadius: 2.5, 
                       fontWeight: 900, 
-                      py: 1.5, 
-                      fontSize: { xs: '0.75rem', sm: '0.9rem' },
-                      borderWidth: 2,
-                      '&:hover': { transform: 'translateY(-2px)' }
+                      py: { xs: 1.2, sm: 1.8 }, 
+                      fontSize: { xs: '0.65rem', sm: '0.85rem' },
+                      borderWidth: 1.5,
+                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' }
                     }}
                   >
                     Fees
@@ -831,33 +899,33 @@ export default function Dashboard({ user }: DashboardProps) {
                   <Button 
                     variant="outlined" 
                     fullWidth
-                    startIcon={<Layout size={isMobile ? 16 : 20} />}
+                    startIcon={<Layout size={isMobile ? 14 : 20} />}
                     onClick={() => navigate('/dashboard')}
                     sx={{ 
-                      borderRadius: 3, 
+                      borderRadius: 2.5, 
                       fontWeight: 900, 
-                      py: 1.5, 
-                      fontSize: { xs: '0.75rem', sm: '0.9rem' },
-                      borderWidth: 2,
-                      '&:hover': { transform: 'translateY(-2px)' }
+                      py: { xs: 1.2, sm: 1.8 }, 
+                      fontSize: { xs: '0.65rem', sm: '0.85rem' },
+                      borderWidth: 1.5,
+                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' }
                     }}
                   >
-                    Dashboard
+                    Board
                   </Button>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
                   <Button 
                     variant="outlined" 
                     fullWidth
-                    startIcon={<Calendar size={isMobile ? 16 : 20} />}
+                    startIcon={<Calendar size={isMobile ? 14 : 20} />}
                     onClick={() => navigate('/schedule')}
                     sx={{ 
-                      borderRadius: 3, 
+                      borderRadius: 2.5, 
                       fontWeight: 900, 
-                      py: 1.5, 
-                      fontSize: { xs: '0.75rem', sm: '0.9rem' },
-                      borderWidth: 2,
-                      '&:hover': { transform: 'translateY(-2px)' }
+                      py: { xs: 1.2, sm: 1.8 }, 
+                      fontSize: { xs: '0.65rem', sm: '0.85rem' },
+                      borderWidth: 1.5,
+                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' }
                     }}
                   >
                     Table
@@ -966,7 +1034,7 @@ export default function Dashboard({ user }: DashboardProps) {
               )}
               {(isAdmin || permissions.manage_attendance) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <StatBox title="Haziri Today" value={stats.todayAttendance} icon={<UserCheck size={32} />} color="#06b6d4" />
+                  <StatBox title="Attendance Today" value={stats.todayAttendance} icon={<UserCheck size={32} />} color="#06b6d4" />
                 </Grid>
               )}
             </>
@@ -979,7 +1047,7 @@ export default function Dashboard({ user }: DashboardProps) {
                 <StatBox title="Active Lessons" value={user.subjectsEnrolled?.length || 0} icon={<BookOpen size={32} />} color="#3b82f6" subtitle="Current Topics" />
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
-                <StatBox title="My Class Level" value={user.classLevel || 'Mubtadi'} icon={<Check size={32} />} color="#f59e0b" subtitle="Level of Study" />
+                <StatBox title="My Class Level" value={user.classLevel || 'Intermediate'} icon={<Check size={32} />} color="#f59e0b" subtitle="Level of Study" />
               </Grid>
             </>
           )}
@@ -1015,15 +1083,15 @@ export default function Dashboard({ user }: DashboardProps) {
                     })}
                     {pendingStudents.map(student => {
                       const actions: ActionMenuItem[] = [
-                        { label: 'Approve Tulab', icon: <UserCheck size={18} />, color: 'success.main', onClick: () => handleApproveStudent(student) },
-                        { label: 'Reject Tulab', icon: <XCircle size={18} />, color: 'error.main', onClick: () => handleRejectStudent(student) },
+                        { label: 'Approve Student', icon: <UserCheck size={18} />, color: 'success.main', onClick: () => handleApproveStudent(student) },
+                        { label: 'Reject Student', icon: <XCircle size={18} />, color: 'error.main', onClick: () => handleRejectStudent(student) },
                         { label: 'View Details', icon: <ExternalLink size={18} />, onClick: () => { setSelectedTeacher(student); setOpenTeacherProfile(true); } }
                       ];
 
                       return (
                         <ListItem key={student.uid} divider sx={{ py: 2.5, px: 4 }}>
                           <ListItemText 
-                            primary={`${student.displayName} - Naya Tulab`}
+                            primary={`${student.displayName} - New Student`}
                             secondary={`Level: ${student.pendingClassLevel || 'N/A'}`}
                             primaryTypographyProps={{ fontWeight: 800, fontSize: '1rem' }}
                             secondaryTypographyProps={{ fontWeight: 600 }}
@@ -1042,7 +1110,7 @@ export default function Dashboard({ user }: DashboardProps) {
               <Box sx={{ mb: 6 }}>
                 <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <Users size={28} />
-                  Recently Registered Tulab
+                  Recently Registered Students
                 </Typography>
                 <Paper 
                   elevation={0}
@@ -1163,15 +1231,15 @@ export default function Dashboard({ user }: DashboardProps) {
           <Grid size={{ xs: 12, md: 4 }}>
             <Box sx={{ mb: 4 }}>
               <Typography variant="h6" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 3, color: 'primary.main' }}>
-                Tasdeeq (Status)
+                Status
               </Typography>
               <Paper sx={{ p: 3, borderRadius: 4, border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
                 <Stack spacing={2}>
                   <ProfileItem label="My Status" value={user.status || 'Active'} icon={<Check size={16} />} />
                   {isAdmin ? (
-                    <ProfileItem label="Zimadari (Role)" value={user.role === 'superadmin' ? 'Muntazim-e-Aala' : 'Muntazim'} icon={<Award size={16} />} />
+                    <ProfileItem label="Responsibility" value={user.role === 'superadmin' ? 'Principal' : 'Manager'} icon={<Award size={16} />} />
                   ) : (
-                    <ProfileItem label="Haziri Score" value={`${stats.attendanceRate}%`} icon={<GraduationCap size={16} />} />
+                    <ProfileItem label="Attendance Rate" value={`${stats.attendanceRate}%`} icon={<GraduationCap size={16} />} />
                   )}
                 </Stack>
               </Paper>
@@ -1225,7 +1293,7 @@ export default function Dashboard({ user }: DashboardProps) {
                         secondary={
                           <Stack direction="column">
                             <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 800, color: 'primary.main', textTransform: 'uppercase' }}>
-                              {staff.role === 'superadmin' ? 'Muntazim-e-Aala' : (staff.role === 'teacher' ? 'Ustad' : (staff.role === 'manager' ? 'Muntazim' : 'Zimadar'))}
+                              {staff.role === 'superadmin' ? 'Principal' : (staff.role === 'teacher' ? 'Teacher' : (staff.role === 'manager' ? 'Admin' : 'Staff'))}
                             </Typography>
                             <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 600 }}>
                               {staff.phone || 'No Contact'}
@@ -1351,7 +1419,7 @@ export default function Dashboard({ user }: DashboardProps) {
             <Typography variant="h4" sx={{ fontWeight: 950, mb: 1, letterSpacing: -1.5 }}>{selectedTeacher.displayName}</Typography>
             <Chip 
               icon={<Award size={16} />}
-              label={selectedTeacher.role === 'superadmin' ? 'Muntazim-e-Aala' : (selectedTeacher.role === 'teacher' ? 'Ustad' : 'Muntazim')} 
+              label={selectedTeacher.role === 'superadmin' ? 'Principal' : (selectedTeacher.role === 'teacher' ? 'Teacher' : 'Manager')} 
               color="primary"
               variant="outlined"
               sx={{ mb: 4, fontWeight: 900, borderRadius: 2 }}
@@ -1373,7 +1441,7 @@ export default function Dashboard({ user }: DashboardProps) {
                      <Calendar size={20} color={theme.palette.primary.main} />
                      <Box>
                        <Typography variant="caption" sx={{ fontWeight: 900, opacity: 0.6, display: 'block' }}>JOINED DATE</Typography>
-                       <Typography variant="body2" sx={{ fontWeight: 800 }}>{format(new Date(selectedTeacher.createdAt || Date.now()), 'dd MMM yyyy')}</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 800 }}>{format(new Date(selectedTeacher.createdAt || Date.now()), 'dd MM yyyy')}</Typography>
                      </Box>
                    </Stack>
                 </Grid>
@@ -1427,26 +1495,26 @@ function StatBox({ title, value, icon, color, subtitle }: any) {
     <Card 
       elevation={0}
       sx={{ 
-        p: { xs: 2.5, md: 3 }, 
+        p: { xs: 2.2, md: 3 }, 
         borderRadius: 4, 
         position: 'relative', 
         overflow: 'hidden', 
-        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+        border: `1px solid ${alpha(theme.palette.divider, 0.15)}`,
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'flex-end',
         height: '100%',
         boxShadow: theme.palette.mode === 'dark' 
-          ? '0 10px 30px rgba(0,0,0,0.5)' 
-          : '0 8px 30px rgba(0,0,0,0.03)',
+          ? '0 6px 20px rgba(0,0,0,0.4)' 
+          : '0 4px 15px rgba(0,0,0,0.02)',
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         '&:hover': { 
-          transform: 'translateY(-5px)', 
+          transform: 'translateY(-4px)', 
           boxShadow: theme.palette.mode === 'dark' 
-            ? '0 15px 40px rgba(0,0,0,0.6)' 
-            : '0 15px 40px rgba(13, 148, 136, 0.1)',
-          '& .stat-icon-bg': { transform: 'scale(1.1) rotate(10deg)', opacity: 0.08 }
+            ? '0 12px 30px rgba(0,0,0,0.5)' 
+            : '0 10px 30px rgba(13, 148, 136, 0.08)',
+          '& .stat-icon-bg': { transform: 'scale(1.1) rotate(10deg)', opacity: 0.07 }
         },
         '&::before': {
           content: '""',
@@ -1454,51 +1522,51 @@ function StatBox({ title, value, icon, color, subtitle }: any) {
           top: 0,
           left: 0,
           width: '100%',
-          height: '4px',
+          height: '3px',
           bgcolor: color
         }
       }}
     >
       <Box sx={{ position: 'relative', zIndex: 1 }}>
         <Box sx={{ 
-          p: 1.2, 
-          borderRadius: 2.5, 
+          p: 1.1, 
+          borderRadius: 2, 
           bgcolor: alpha(color, 0.1), 
           color: color, 
-          mb: 2, 
+          mb: 1.5, 
           display: 'inline-flex',
-          boxShadow: `0 8px 16px ${alpha(color, 0.2)}`
+          boxShadow: `0 6px 12px ${alpha(color, 0.15)}`
         }}>
-          {React.cloneElement(icon, { size: isMobile ? 20 : 24 })}
+          {React.cloneElement(icon, { size: isMobile ? 18 : 22 })}
         </Box>
-        <Typography variant={isMobile ? "h5" : "h4"} sx={{ 
+        <Typography variant={isMobile ? "h6" : "h4"} sx={{ 
           fontWeight: 950, 
-          letterSpacing: -1, 
+          letterSpacing: -0.5, 
           mb: 0.1,
           fontFamily: 'var(--font-heading)',
           color: 'text.primary'
         }}>{value}</Typography>
         <Typography variant="caption" sx={{ 
-          fontWeight: 900, 
+          fontWeight: 800, 
           color: 'text.secondary', 
           textTransform: 'uppercase', 
-          letterSpacing: 1.5,
+          letterSpacing: 1,
           fontFamily: 'var(--font-heading)',
-          fontSize: isMobile ? '0.6rem' : '0.7rem',
+          fontSize: isMobile ? '0.55rem' : '0.65rem',
           opacity: 0.8
         }}>{title}</Typography>
-        {subtitle && <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.disabled', display: 'block', mt: 0.5, fontSize: isMobile ? '0.6rem' : '0.7rem' }}>{subtitle}</Typography>}
+        {subtitle && <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.disabled', display: 'block', mt: 0.3, fontSize: isMobile ? '0.55rem' : '0.65rem' }}>{subtitle}</Typography>}
       </Box>
       <Box className="stat-icon-bg" sx={{ 
         position: 'absolute', 
-        bottom: -20, 
-        right: -20, 
+        bottom: -15, 
+        right: -15, 
         color: color, 
-        opacity: 0.04,
+        opacity: 0.03,
         transition: 'all 0.5s ease',
         transformOrigin: 'center'
       }}>
-        {React.cloneElement(icon, { size: isMobile ? 80 : 120 })}
+        {React.cloneElement(icon, { size: isMobile ? 60 : 100 })}
       </Box>
     </Card>
   );

@@ -16,7 +16,7 @@ import {
   Monitor, Moon, Sun, Languages, Database,
   Key, Eye, EyeOff, Smartphone as MobileIcon,
   Cloud, Zap, HardDrive, RefreshCw, AlertTriangle, Layout,
-  Download, FileJson, Terminal, Mic
+  Download, FileJson, Terminal, Mic, MessageSquare
 } from 'lucide-react';
 import { doc, getDoc, updateDoc, collection, query, getDocs, deleteDoc, arrayUnion, setDoc, where } from 'firebase/firestore';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
@@ -28,6 +28,60 @@ import { useHardwarePermissions } from '../services/hardwareService';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMediaQuery, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { logger } from '../lib/logger';
+import { saveSessionUser } from '../lib/session';
+
+import { styled } from '@mui/material/styles';
+
+const IOSSwitch = styled((props: any) => (
+  <Switch focusVisibleClassName=".Mui-focusVisible" disableRipple {...props} />
+))(({ theme }) => ({
+  width: 42,
+  height: 26,
+  padding: 0,
+  '& .MuiSwitch-switchBase': {
+    padding: 0,
+    margin: 2,
+    transitionDuration: '300ms',
+    '&.Mui-checked': {
+      transform: 'translateX(16px)',
+      color: '#fff',
+      '& + .MuiSwitch-track': {
+        backgroundColor: theme.palette.mode === 'dark' ? '#2ECA45' : '#65C466',
+        opacity: 1,
+        border: 0,
+      },
+      '&.Mui-disabled + .MuiSwitch-track': {
+        opacity: 0.5,
+      },
+    },
+    '&.Mui-focusVisible .MuiSwitch-thumb': {
+      color: '#33cf4d',
+      border: '6px solid #fff',
+    },
+    '&.Mui-disabled .MuiSwitch-thumb': {
+      color:
+        theme.palette.mode === 'light'
+          ? theme.palette.grey[100]
+          : theme.palette.grey[600],
+    },
+    '&.Mui-disabled + .MuiSwitch-track': {
+      opacity: theme.palette.mode === 'light' ? 0.7 : 0.3,
+    },
+  },
+  '& .MuiSwitch-thumb': {
+    boxSizing: 'border-box',
+    width: 22,
+    height: 22,
+  },
+  '& .MuiSwitch-track': {
+    borderRadius: 26 / 2,
+    backgroundColor: theme.palette.mode === 'light' ? '#E9E9EA' : '#39393D',
+    opacity: 1,
+    transition: theme.transitions.create(['background-color'], {
+      duration: 500,
+    }),
+  },
+}));
 
 export default function Settings() {
   const { user: currentUser, logout } = useAuth();
@@ -128,6 +182,8 @@ export default function Settings() {
         uiPrefs,
         updatedAt: new Date().toISOString()
       });
+      // Update session storage
+      saveSessionUser({ ...currentUser, ...profileData });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
@@ -275,9 +331,16 @@ export default function Settings() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check file size before processing
-    if (file.size > 2 * 1024 * 1024) {
-      setSnackbar({ open: true, message: 'Image is too large. Please select a file under 2MB.', severity: 'error' });
+    // Individual limits: 10MB for banner, 2MB for others
+    const limitMB = field === 'bannerUrl' ? 10 : 2;
+    const limitBytes = limitMB * 1024 * 1024;
+
+    if (file.size > limitBytes) {
+      setSnackbar({ 
+        open: true, 
+        message: `Image is too large. ${field === 'bannerUrl' ? 'Cover images' : 'Logos'} must be under ${limitMB}MB.`, 
+        severity: 'error' 
+      });
       return;
     }
 
@@ -289,10 +352,10 @@ export default function Settings() {
         let width = img.width;
         let height = img.height;
         
-        // Stricter limits to keep document size under 1MB
+        // Smart resizing: bigger for banners, smaller for receipts
         let max = 600; 
-        if (field === 'bannerUrl') max = 1000;
-        if (field.includes('receipt')) max = 400; // Receipt corner images don't need to be huge
+        if (field === 'bannerUrl') max = 1200; // Optimized for landscape cover
+        if (field.includes('receipt')) max = 400; 
         
         if (width > height) {
           if (width > max) {
@@ -310,21 +373,28 @@ export default function Settings() {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         
-        // Fill white background for JPEGs (to handle transparent PNGs)
+        // Remove white background fill to support transparent PNGs
         if (ctx) {
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(0, 0, width, height);
+          ctx.clearRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0, width, height);
         }
         
-        // Use JPEG with 0.7 quality to significantly reduce base64 size
-        const base64 = canvas.toDataURL('image/jpeg', 0.7);
+        // Use JPEG for banners to save space while maintaining quality
+        // Use PNG for logos to maintain transparency
+        const type = field === 'bannerUrl' ? 'image/jpeg' : 'image/png';
+        const quality = field === 'bannerUrl' ? 0.75 : undefined;
+        const base64 = canvas.toDataURL(type, quality);
+        
         setInstituteData(prev => ({ ...prev, [field]: base64 }));
         
-        // Check if the resulting total data might be too large
+        // Firestore has a 1MB limit for the ENTIRE document.
         const estimate = JSON.stringify({ ...instituteData, [field]: base64 }).length;
-        if (estimate > 900000) { // Keep safety margin for 1MB limit
-          setSnackbar({ open: true, message: 'Warning: Institute data is reaching Firestore limits. Try smaller images.', severity: 'error' });
+        if (estimate > 950000) { 
+          setSnackbar({ 
+            open: true, 
+            message: 'Warning: Institute data is near Firestore limit (1MB). If save fails, please try a smaller image.', 
+            severity: 'error' 
+          });
         }
       };
       img.src = event.target?.result as string;
@@ -495,7 +565,7 @@ export default function Settings() {
                           
                           <Grid container spacing={3}>
                             <Grid size={{ xs: 12, md: 6 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Institute Logo</Typography>
+                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Institute Logo (Max 2MB)</Typography>
                               <Box sx={{ 
                                 position: 'relative', 
                                 border: '2px dashed', 
@@ -506,11 +576,11 @@ export default function Settings() {
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 overflow: 'hidden',
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'
+                                bgcolor: 'transparent'
                               }}>
                                 {instituteData.logoUrl ? (
-                                  <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <img src={instituteData.logoUrl} alt="Logo" style={{ maxHeight: '90%', maxWidth: '90%', objectFit: 'contain' }} />
+                                  <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'transparent' }}>
+                                    <img src={instituteData.logoUrl} alt="Logo" style={{ maxHeight: '90%', maxWidth: '90%', objectFit: 'contain', background: 'transparent' }} />
                                     <IconButton 
                                       size="small" 
                                       onClick={() => handleRemoveImage('logoUrl')}
@@ -541,7 +611,7 @@ export default function Settings() {
                               </Box>
                             </Grid>
                             <Grid size={{ xs: 12, md: 6 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Institute Banner</Typography>
+                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Institute Banner (Max 10MB - Landscape)</Typography>
                               <Box sx={{ 
                                 position: 'relative', 
                                 border: '2px dashed', 
@@ -588,7 +658,7 @@ export default function Settings() {
                             </Grid>
 
                             <Grid size={{ xs: 12, md: 6 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Receipt Left Image</Typography>
+                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Receipt Left Image (Max 2MB)</Typography>
                               <Box sx={{ 
                                 position: 'relative', 
                                 border: '2px dashed', 
@@ -630,7 +700,7 @@ export default function Settings() {
                             </Grid>
 
                             <Grid size={{ xs: 12, md: 6 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Receipt Right Image</Typography>
+                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Receipt Right Image (Max 2MB)</Typography>
                               <Box sx={{ 
                                 position: 'relative', 
                                 border: '2px dashed', 
@@ -733,6 +803,26 @@ export default function Settings() {
                          </Box>
                       </Grid>
                     </Grid>
+
+                    <Box sx={{ mt: 4 }}>
+                       <Box sx={{ p: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50' }}>
+                         <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+                           <MessageSquare size={18} /> Inspirational Quotes
+                         </Typography>
+                         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 600 }}>
+                           Enter quotes that will be randomly shown on the dashboard. Add each quote on a new line.
+                         </Typography>
+                         <TextField
+                           fullWidth
+                           multiline
+                           rows={6}
+                           placeholder={`Knowledge is a treasure, but practice is the key to it. — Imam Ali (AS)\nSeek knowledge from the cradle to the grave. — Prophet Muhammad (SAWW)`}
+                           value={instituteData.quotes?.join('\n') || ''}
+                           onChange={(e) => setInstituteData({ ...instituteData, quotes: e.target.value.split('\n').filter(q => q.trim() !== '') })}
+                           InputProps={{ sx: { borderRadius: 2, bgcolor: 'background.paper' } }}
+                         />
+                       </Box>
+                    </Box>
                     
                     <Box sx={{ mt: 5, display: 'flex', justifyContent: 'flex-end' }}>
                       <Button 
@@ -749,268 +839,83 @@ export default function Settings() {
               </motion.div>
             )}
 
+            {/* Appearance Section */}
             {tabValue === 'appearance' && (
               <motion.div key="appearance" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                <Card variant="outlined" sx={{ 
-                  borderRadius: 2, 
-                  bgcolor: 'background.paper',
-                }}>
+                <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
+                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900, fontFamily: 'var(--font-heading)' }}>Theme & Perspective</Typography>
+                  </Box>
                   <CardContent sx={{ p: 4 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900, mb: 4, letterSpacing: -0.5 }}>Theme & Appearance</Typography>
-                    <Stack spacing={4}>
-                      <Box>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 3 }}>Accent Color</Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 500 }}>
-                          Choose a color that matches your preference. This will be used for buttons, icons, and highlights.
-                        </Typography>
+                    <Grid container spacing={4}>
+                      <Grid size={{ xs: 12 }}>
+                        <Typography className="ui-label" sx={{ mb: 3 }}>VISUAL THEME</Typography>
                         <Grid container spacing={2}>
-                          {[
-                            { name: 'Teal', color: '#0f766e' },
-                            { name: 'Indigo', color: '#6366f1' },
-                            { name: 'Rose', color: '#f43f5e' },
-                            { name: 'Amber', color: '#f59e0b' },
-                            { name: 'Violet', color: '#8b5cf6' },
-                            { name: 'Blue', color: '#3b82f6' },
-                            { name: 'Emerald', color: '#10b981' },
-                            { name: 'Slate', color: '#64748b' }
-                          ].map((c) => (
-                            <Grid size={{ xs: 3, sm: 1.5 }} key={c.color}>
-                              <Box 
-                                onClick={() => {
-                                  setUiPrefs({ ...uiPrefs, accentColor: c.color });
-                                  setAccentColor(c.color);
-                                }}
-                                sx={{ 
-                                  width: 44,
-                                  height: 44,
-                                  borderRadius: '50%', 
-                                  border: '2px solid', 
-                                  borderColor: uiPrefs.accentColor === c.color ? c.color : 'transparent',
-                                  bgcolor: c.color,
-                                  cursor: 'pointer',
-                                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  boxShadow: uiPrefs.accentColor === c.color ? `0 0 15px ${alpha(c.color, 0.4)}` : 'none',
-                                  '&:hover': { 
-                                    transform: 'scale(1.1)',
-                                    boxShadow: `0 0 20px ${alpha(c.color, 0.3)}`
-                                  }
-                                }}
-                              >
-                                {uiPrefs.accentColor === c.color && <CheckCircle size={20} color="white" />}
-                              </Box>
-                            </Grid>
-                          ))}
-                          {/* Custom Color Picker */}
-                          <Grid size={{ xs: 3, sm: 1.5 }}>
+                          <Grid size={{ xs: 6, sm: 4 }}>
                             <Box 
+                              onClick={() => setMode('light')}
                               sx={{ 
-                                width: 44,
-                                height: 44,
-                                borderRadius: '50%', 
-                                border: '2px solid', 
-                                borderColor: ![
-                                  '#0f766e', '#6366f1', '#f43f5e', '#f59e0b', 
-                                  '#8b5cf6', '#3b82f6', '#10b981', '#64748b'
-                                ].includes(uiPrefs.accentColor) ? uiPrefs.accentColor : 'transparent',
-                                bgcolor: uiPrefs.accentColor,
-                                cursor: 'pointer',
-                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                position: 'relative',
-                                overflow: 'hidden',
-                                boxShadow: ![
-                                  '#0f766e', '#6366f1', '#f43f5e', '#f59e0b', 
-                                  '#8b5cf6', '#3b82f6', '#10b981', '#64748b'
-                                ].includes(uiPrefs.accentColor) ? `0 0 15px ${alpha(uiPrefs.accentColor, 0.4)}` : 'none',
-                                '&:hover': { 
-                                  transform: 'scale(1.1)'
-                                }
+                                cursor: 'pointer', p: 2, borderRadius: 3, border: '2px solid', 
+                                borderColor: mode === 'light' ? 'primary.main' : 'divider',
+                                textAlign: 'center', transition: 'all 0.2s', bgcolor: mode === 'light' ? alpha(theme.palette.primary.main, 0.05) : 'transparent'
                               }}
                             >
-                              <input 
-                                type="color" 
-                                value={uiPrefs.accentColor} 
-                                onChange={(e) => {
-                                  const color = e.target.value;
-                                  setUiPrefs({ ...uiPrefs, accentColor: color });
-                                  setAccentColor(color);
-                                }}
-                                style={{ 
-                                  position: 'absolute', 
-                                  top: -10, 
-                                  left: -10, 
-                                  width: '150%', 
-                                  height: '150%', 
-                                  cursor: 'pointer',
-                                  border: 'none',
-                                  padding: 0
-                                }}
-                              />
+                                <Sun size={32} style={{ margin: '0 auto 12px' }} />
+                                <Typography sx={{ fontWeight: 800 }}>Light</Typography>
+                            </Box>
+                          </Grid>
+                          <Grid size={{ xs: 6, sm: 4 }}>
+                            <Box 
+                              onClick={() => setMode('dark')}
+                              sx={{ 
+                                cursor: 'pointer', p: 2, borderRadius: 3, border: '2px solid', 
+                                borderColor: mode === 'dark' ? 'primary.main' : 'divider',
+                                textAlign: 'center', transition: 'all 0.2s', bgcolor: mode === 'dark' ? alpha(theme.palette.primary.main, 0.05) : 'transparent'
+                              }}
+                            >
+                                <Moon size={32} style={{ margin: '0 auto 12px' }} />
+                                <Typography sx={{ fontWeight: 800 }}>Dark</Typography>
                             </Box>
                           </Grid>
                         </Grid>
-                      </Box>
+                      </Grid>
 
-                      <Divider />
-
-                      <Box>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 3 }}>Theme Mode</Typography>
-                        <Box sx={{ 
-                          display: 'grid', 
-                          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, 
-                          gap: 2 
-                        }}>
-                          {[
-                            { label: 'Light Mode', icon: <Sun size={24} />, value: 'light', desc: 'Classic bright look' },
-                            { label: 'Dark Mode', icon: <Moon size={24} />, value: 'dark', desc: 'Easy on the eyes' },
-                            { label: 'System', icon: <Monitor size={24} />, value: 'system', desc: 'Match your device' }
-                          ].map((m) => (
-                            <Box
-                              key={m.value}
-                              onClick={() => setMode(m.value as any)}
-                              sx={{
-                                p: 3,
-                                borderRadius: 1.5,
-                                cursor: 'pointer',
-                                border: '2px solid',
-                                transition: 'all 0.2s',
-                                borderColor: mode === m.value ? 'primary.main' : alpha(theme.palette.divider, 0.1),
-                                bgcolor: mode === m.value ? alpha(theme.palette.primary.main, 0.05) : 'background.default',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                textAlign: 'center',
-                                gap: 1.5,
-                                '&:hover': {
-                                  borderColor: 'primary.main',
-                                  transform: 'translateY(-2px)'
-                                }
-                              }}
-                            >
-                              <Box sx={{ 
-                                color: mode === m.value ? 'primary.main' : 'text.secondary',
-                                mb: 0.5
-                              }}>
-                                {m.icon}
-                              </Box>
-                              <Box>
-                                <Typography variant="body1" sx={{ fontWeight: 900, color: mode === m.value ? 'primary.main' : 'text.primary' }}>
-                                  {m.label}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                                  {m.desc}
-                                </Typography>
-                              </Box>
+                      <Grid size={{ xs: 12 }}>
+                         <Typography className="ui-label" sx={{ mb: 2 }}>INTERFACE OPTIONS</Typography>
+                         <Stack spacing={0.5}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                               <Box>
+                                 <Typography sx={{ fontWeight: 800 }}>High Contrast</Typography>
+                                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Enhances legibility for better focus</Typography>
+                               </Box>
+                               <IOSSwitch checked={uiPrefs.highContrast} onChange={(e: any) => { setHighContrast(e.target.checked); setUiPrefs({...uiPrefs, highContrast: e.target.checked}) }} />
                             </Box>
-                          ))}
-                        </Box>
-                      </Box>
-
-                      <Divider />
-
-                      <Box>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 3 }}>Interface & Accessibility</Typography>
-                        <Stack spacing={2}>
-                          {[
-                            { 
-                              key: 'inAppToasts', 
-                              label: 'In-App Toasts', 
-                              desc: 'Show animated popups while using the app', 
-                              icon: <Layout size={20} />,
-                              checked: notificationPrefs.inAppToasts,
-                              onChange: (val: boolean) => setNotificationPrefs({ ...notificationPrefs, inAppToasts: val })
-                            },
-                            { 
-                              key: 'reduceMotion', 
-                              label: 'Reduce Motion', 
-                              desc: 'Minimize animations for better performance', 
-                              icon: <Zap size={20} />,
-                              checked: uiPrefs.reduceMotion,
-                              onChange: (val: boolean) => {
-                                setUiPrefs({ ...uiPrefs, reduceMotion: val });
-                                setReduceMotion(val);
-                              }
-                            },
-                            { 
-                              key: 'highContrast', 
-                              label: 'High Contrast', 
-                              desc: 'Increase visibility of UI elements', 
-                              icon: <Eye size={20} />,
-                              checked: uiPrefs.highContrast,
-                              onChange: (val: boolean) => {
-                                setUiPrefs({ ...uiPrefs, highContrast: val });
-                                setHighContrast(val);
-                              }
-                            },
-                            { 
-                              key: 'compactLayout', 
-                              label: 'Compact Layout', 
-                              desc: 'Reduce padding and margins for more content', 
-                              icon: <Monitor size={20} />,
-                              checked: uiPrefs.compactLayout,
-                              onChange: (val: boolean) => {
-                                setUiPrefs({ ...uiPrefs, compactLayout: val });
-                                setCompactLayout(val);
-                              }
-                            }
-                          ].map((item) => (
-                            <Box 
-                              key={item.key}
-                              sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'space-between',
-                                p: 2,
-                                borderRadius: 1.5,
-                                border: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
-                                bgcolor: alpha(theme.palette.background.paper, 0.5),
-                              }}
-                            >
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
-                                <Box sx={{ 
-                                  p: 1.2, 
-                                  borderRadius: 1, 
-                                  bgcolor: alpha(theme.palette.primary.main, 0.1), 
-                                  color: 'primary.main',
-                                  display: 'flex'
-                                }}>
-                                  {item.icon}
-                                </Box>
-                                <Box>
-                                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{item.label}</Typography>
-                                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{item.desc}</Typography>
-                                </Box>
-                              </Box>
-                              <Switch 
-                                checked={item.checked}
-                                onChange={(e) => item.onChange(e.target.checked)}
-                              />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                               <Box>
+                                 <Typography sx={{ fontWeight: 800 }}>Reduce Motion</Typography>
+                                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Minimizes animations and transitions</Typography>
+                               </Box>
+                               <IOSSwitch checked={uiPrefs.reduceMotion} onChange={(e: any) => { setReduceMotion(e.target.checked); setUiPrefs({...uiPrefs, reduceMotion: e.target.checked}) }} />
                             </Box>
-                          ))}
-                        </Stack>
-                      </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2 }}>
+                               <Box>
+                                 <Typography sx={{ fontWeight: 800 }}>Compact Layout</Typography>
+                                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Fits more content on the screen</Typography>
+                               </Box>
+                               <IOSSwitch checked={uiPrefs.compactLayout} onChange={(e: any) => { setCompactLayout(e.target.checked); setUiPrefs({...uiPrefs, compactLayout: e.target.checked}) }} />
+                            </Box>
+                         </Stack>
+                      </Grid>
+                    </Grid>
 
-                      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                        <Button 
-                          variant="contained" 
-                          startIcon={<Save size={18} />} 
-                          onClick={handleSaveSettings}
-                          sx={{ borderRadius: 1.5, fontWeight: 800, px: 5, py: 1.5 }}
-                        >
-                          Save Appearance
-                        </Button>
-                      </Box>
-                    </Stack>
+                    <Box sx={{ mt: 6, textAlign: 'right' }}>
+                       <Button variant="contained" onClick={handleSaveSettings} sx={{ borderRadius: 3, fontWeight: 900, px: 4 }}>Save Changes</Button>
+                    </Box>
                   </CardContent>
                 </Card>
               </motion.div>
             )}
-            
+
             {tabValue === 'hardware' && (
               <motion.div key="hardware" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
                 <Card variant="outlined" sx={{ borderRadius: 1.5, bgcolor: 'background.paper' }}>

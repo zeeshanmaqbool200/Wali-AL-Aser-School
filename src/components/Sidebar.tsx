@@ -37,7 +37,7 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
 
   const menuItems = [
     { label: 'Dashboard', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'view_dashboard' },
-    { label: 'Students', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'manager'], permission: 'manage_students' },
+    { label: 'Users', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'manager'], permission: 'manage_students' },
     { label: 'Courses', icon: <BookOpen size={22} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: role === 'student' ? 'My Payments' : 'Fees & Payments', icon: <IndianRupee size={22} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'manage_fees' },
     { label: 'Attendance', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['teacher', 'manager', 'superadmin'], permission: 'manage_attendance' },
@@ -45,7 +45,6 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
     { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['superadmin'], permission: 'manage_reports' },
     { label: 'Notifications', icon: <Badge badgeContent={unreadNotifications} color="error"><Bell size={22} /></Badge>, path: '/notifications', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: 'System Logs', icon: <Terminal size={22} />, path: '/admin/logs', roles: ['superadmin'] },
-    { label: 'Roles', icon: <Shield size={22} />, path: '/roles', roles: ['superadmin'] },
     { label: 'Settings', icon: <Settings size={22} />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'system_settings' },
   ];
 
@@ -105,10 +104,17 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
               transition: 'all 0.3s ease',
               flexShrink: 0
             }}>
-              <img 
-                src={logoUrl} 
-                alt="Logo" 
-                style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '2px' }}
+                <img 
+                  src={logoUrl} 
+                  alt="Logo" 
+                  loading="lazy"
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'contain', 
+                    padding: '2px',
+                    background: 'transparent'
+                  }}
                 referrerPolicy="no-referrer"
                 onError={(e: any) => {
                   e.target.style.display = 'none';

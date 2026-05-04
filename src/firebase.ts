@@ -96,9 +96,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
       tenantId: auth.currentUser?.tenantId,
       providerInfo: auth.currentUser?.providerData.map(provider => ({
         providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
+        displayName: provider.displayName || null,
+        email: provider.email || null,
+        photoUrl: provider.photoURL || null
       })) || []
     },
     operationType,
@@ -108,10 +108,22 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   logger.error(`Firestore ${operationType.toUpperCase()} Failed`, {
     path,
     error: errInfo.error,
-    auth: errInfo.authInfo
+    userId: errInfo.authInfo.userId
   });
   
-  throw new Error(JSON.stringify(errInfo));
+  // Safe stringify to avoid circular structures
+  const safeJson = (obj: any) => {
+    const cache = new Set();
+    return JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) return;
+        cache.add(value);
+      }
+      return value;
+    });
+  };
+  
+  throw new Error(safeJson(errInfo));
 }
 
 export async function smartAddDoc(collectionRef: any, data: any) {

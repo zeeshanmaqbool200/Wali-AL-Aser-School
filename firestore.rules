@@ -45,6 +45,18 @@ service cloud.firestore {
              data.role in ['student', 'teacher', 'manager', 'super_admin', 'superadmin', 'pending_student', 'pending_teacher'];
     }
 
+    // ROLES
+    match /roles/{roleId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    // FEEDBACK / INTERACTIVE
+    match /feedback/{feedbackId} {
+      allow create: if isSignedIn();
+      allow read: if isStaff();
+    }
+
     // Default deny with Super Admin escape hatch
     match /{document=**} {
       allow read, write: if isSuperAdmin();
@@ -125,7 +137,7 @@ service cloud.firestore {
 
     // SETTINGS
     match /settings/{docId} {
-      allow read: if isSignedIn();
+      allow read: if docId == 'institute' || isSignedIn();
       allow write: if isSuperAdmin();
     }
 

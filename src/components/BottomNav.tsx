@@ -10,13 +10,15 @@ interface BottomNavProps {
   user: UserProfile;
   unreadNotifications?: number;
   visible?: boolean;
+  logoUrl?: string;
 }
 
-export default function BottomNav({ user, unreadNotifications = 0, visible: controlledVisible = true }: BottomNavProps) {
+export default function BottomNav({ user, unreadNotifications = 0, visible: controlledVisible = true, logoUrl = 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png' }: BottomNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
   const [internalVisible, setInternalVisible] = useState(true);
+  const [isHoveringInteractive, setIsHoveringInteractive] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
 
@@ -29,6 +31,20 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
       }
     };
 
+    const handleMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isInteractive = target.closest('button, a, input, select, textarea, [role="button"], .MuiListItemButton-root');
+      if (isInteractive) {
+        setIsHoveringInteractive(true);
+      } else {
+        setIsHoveringInteractive(false);
+      }
+    };
+
+    const handleMouseOut = () => {
+      setIsHoveringInteractive(false);
+    };
+
     // Observer for detecting dialogs (Adding/Editing mode)
     const observer = new MutationObserver(() => {
       const isDialogOpen = !!document.querySelector('.MuiDialog-root');
@@ -37,14 +53,23 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
 
     observer.observe(document.body, { childList: true, subtree: true });
 
+    document.addEventListener('mouseover', handleMouseOver);
+    document.addEventListener('mouseout', handleMouseOut);
+
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleViewportChange);
       return () => {
         window.visualViewport?.removeEventListener('resize', handleViewportChange);
         observer.disconnect();
+        document.removeEventListener('mouseover', handleMouseOver);
+        document.removeEventListener('mouseout', handleMouseOut);
       };
     }
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('mouseover', handleMouseOver);
+      document.removeEventListener('mouseout', handleMouseOut);
+    };
   }, []);
 
   useEffect(() => {
@@ -101,7 +126,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   
   const activeIndex = filteredMenu.findIndex(item => item.path === location.pathname);
 
-  const isActuallyVisible = controlledVisible && internalVisible && !keyboardOpen;
+  const isActuallyVisible = controlledVisible && internalVisible && !keyboardOpen && !isHoveringInteractive;
 
   if (filteredMenu.length === 0) return null;
 
@@ -136,7 +161,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
               borderRadius: 1,
               p: 0.5,
               bgcolor: theme.palette.mode === 'dark' ? alpha('#1a1a1a', 0.95) : alpha('#ffffff', 0.85),
-              backdropFilter: 'blur(20px)',
+              backdropFilter: 'blur(10px)',
               border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
               boxShadow: theme.palette.mode === 'dark' 
                 ? '0 4px 12px rgba(0,0,0,0.5)' 

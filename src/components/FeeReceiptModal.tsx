@@ -249,7 +249,7 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
         <View style={pdfStyles.receiptMeta}>
           <Text style={pdfStyles.receiptTitle}>RECEIPT</Text>
           <Text style={pdfStyles.receiptNo}>No: {receipt.receiptNo || receipt.receiptNumber}</Text>
-          <Text style={pdfStyles.date}>Date: {format(new Date(receipt.date), 'dd MMM, yyyy')}</Text>
+          <Text style={pdfStyles.date}>Date: {format(new Date(receipt.date), 'dd MM yyyy')}</Text>
         </View>
       </View>
 
@@ -555,7 +555,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
                 No: {receiptNo}
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 700, color: '#6b7280 !important', mt: 0.5 }}>
-                Date: {format(new Date(receipt.date), 'dd MMM, yyyy')}
+                Date: {format(new Date(receipt.date), 'dd MM yyyy')}
               </Typography>
             </Box>
             <Box sx={{ textAlign: 'right' }}>

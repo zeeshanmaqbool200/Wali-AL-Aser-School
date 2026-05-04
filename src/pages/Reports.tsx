@@ -64,7 +64,7 @@ export default function Reports() {
     const qFees = query(collection(db, 'receipts'), where('status', '==', 'approved'));
     const unsubFees = onSnapshot(qFees, (snapshot) => {
       const data = snapshot.docs.map(doc => doc.data());
-      setAllReceipts(data.filter((r: any) => ![10000, 20000, 50000].includes(Number(r.amount))));
+      setAllReceipts(data.filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount))));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'receipts');
     });
@@ -72,7 +72,7 @@ export default function Reports() {
     const qExp = query(collection(db, 'expenses'));
     const unsubExp = onSnapshot(qExp, (snapshot) => {
       const data = snapshot.docs.map(doc => doc.data());
-      setAllExpenses(data.filter((e: any) => ![10000, 20000, 50000].includes(Number(e.amount))));
+      setAllExpenses(data.filter((e: any) => ![10000, 20000, 30000, 50000].includes(Number(e.amount))));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'expenses');
     });
@@ -142,7 +142,7 @@ export default function Reports() {
     });
 
     const financialTrend = last6Months.map(month => {
-      const monthStr = format(month, 'MMM yyyy');
+      const monthStr = format(month, 'MM yyyy');
       const monthFees = allReceipts
           .filter(r => r.date && isSameMonth(new Date(r.date), month))
           .reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
@@ -241,7 +241,7 @@ export default function Reports() {
         last14Days.forEach(day => {
           const dayRecords = records.filter(r => r.date === day);
           if (dayRecords.length > 0) {
-              const label = format(new Date(day), 'dd MMM');
+              const label = format(new Date(day), 'dd MM');
               daily[label] = {
                 present: dayRecords.filter(r => r.status === 'present').length,
                 absent: dayRecords.filter(r => r.status === 'absent').length
@@ -293,8 +293,8 @@ export default function Reports() {
       <Box sx={{ display: 'none', '@media print': { display: 'block', mb: 6, borderBottom: '2pt solid #000', pb: 2 } }}>
         <Typography variant="h3" sx={{ fontWeight: 900, color: '#000', mb: 1 }}>MAKTAB WALI UL ASER</Typography>
         <Typography variant="h5" sx={{ fontWeight: 800, mb: 1 }}>Institutional Financial & Academic Report</Typography>
-        <Typography variant="body1">Period: {format(new Date(startDate), 'dd MMM yyyy')} to {format(new Date(endDate), 'dd MMM yyyy')}</Typography>
-        <Typography variant="body2" sx={{ mt: 1 }}>Generated on: {format(new Date(), 'dd MMM yyyy HH:mm')}</Typography>
+        <Typography variant="body1">Period: {format(new Date(startDate), 'dd MM yyyy')} to {format(new Date(endDate), 'dd MM yyyy')}</Typography>
+        <Typography variant="body2" sx={{ mt: 1 }}>Generated on: {format(new Date(), 'dd MM yyyy HH:mm')}</Typography>
       </Box>
 
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>

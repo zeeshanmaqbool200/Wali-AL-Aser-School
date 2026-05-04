@@ -1,0 +1,155 @@
+src/components/NoteUploadModal.tsx:  const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+src/components/NoteUploadModal.tsx:    const { name, value } = e.target;
+src/components/NoteUploadModal.tsx:    setFormData(prev => ({ ...prev, [name as string]: value }));
+src/components/NoteUploadModal.tsx:            name="title"
+src/components/NoteUploadModal.tsx:                  name="subject"
+src/components/NoteUploadModal.tsx:                  name="classLevel"
+src/components/NoteUploadModal.tsx:            name="description"
+src/components/ScheduleModal.tsx:    const { name, value } = e.target;
+src/components/ScheduleModal.tsx:    if (name === 'teacherId') {
+src/components/ScheduleModal.tsx:      setFormData(prev => ({ ...prev, [name]: value }));
+src/components/ScheduleModal.tsx:            name="subject"
+src/components/ScheduleModal.tsx:              name="teacherId"
+src/components/ScheduleModal.tsx:                  name="dayOfWeek"
+src/components/ScheduleModal.tsx:                name="room"
+src/components/ScheduleModal.tsx:                name="startTime"
+src/components/ScheduleModal.tsx:                name="endTime"
+src/components/Sidebar.tsx:            const active = location.pathname === item.path;
+src/components/UserModal.tsx:  const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+src/components/UserModal.tsx:    const { name, value } = e.target;
+src/components/UserModal.tsx:    setFormData(prev => ({ ...prev, [name as string]: value }));
+src/components/UserModal.tsx:            name="displayName"
+src/components/UserModal.tsx:            name="email"
+src/components/UserModal.tsx:              name="role"
+src/components/UserModal.tsx:              name="classLevel"
+src/components/UserModal.tsx:              name="subject"
+src/components/UserModal.tsx:            name="password"
+src/components/BottomNav.tsx:  const activeIndex = filteredMenu.findIndex(item => item.path === location.pathname);
+src/components/RevenueChart.tsx:  { name: 'Jan', revenue: 4000 },
+src/components/RevenueChart.tsx:  { name: 'Feb', revenue: 3000 },
+src/components/RevenueChart.tsx:  { name: 'Mar', revenue: 2000 },
+src/components/RevenueChart.tsx:  { name: 'Apr', revenue: 2780 },
+src/components/RevenueChart.tsx:  { name: 'May', revenue: 1890 },
+src/components/RevenueChart.tsx:  { name: 'Jun', revenue: 2390 },
+src/components/RevenueChart.tsx:  { name: 'Jul', revenue: 3490 },
+src/components/RevenueChart.tsx:            dataKey="name"
+src/components/FeeReceiptModal.tsx:            <Text style={pdfStyles.instituteName}>{settings.name}</Text>
+src/components/FeeReceiptModal.tsx:        {"\n"}© {new Date().getFullYear()} {settings.name}. All Rights Reserved.
+src/components/FeeReceiptModal.tsx:  name: 'EDUFEE TRACK',
+src/components/FeeReceiptModal.tsx:                {settings.name}
+src/components/FeeReceiptModal.tsx:            &copy; {new Date().getFullYear()} {settings.name}. All Rights Reserved.
+src/components/Layout.tsx:  if (location.pathname.startsWith('/verify')) {
+src/components/Layout.tsx:              {location.pathname !== '/' && location.pathname !== '/dashboard' && (
+src/components/Layout.tsx:                    borderColor: profileAnchorEl ? 'primary.main' : (location.pathname === '/profile' ? 'primary.main' : 'divider'),
+src/pages/Expenses.tsx:    name: cat.label,
+src/pages/Expenses.tsx:      name: monthStr,
+src/pages/Expenses.tsx:                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700 }} />
+src/pages/Expenses.tsx:                  <Bar name="Income" dataKey="credits" fill={theme.palette.success.main} radius={[6, 6, 0, 0]} />
+src/pages/Expenses.tsx:                  <Bar name="Expense" dataKey="debits" fill={theme.palette.error.main} radius={[6, 6, 0, 0]} />
+src/pages/Courses.tsx:    name: '',
+src/pages/Courses.tsx:        name: '', 
+src/pages/Courses.tsx:      name: course.name,
+src/pages/Courses.tsx:    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+src/pages/Courses.tsx:                    name: '',
+src/pages/Courses.tsx:              placeholder="Search subjects by name, code, or teacher..." 
+src/pages/Courses.tsx:                        value={formData.name}
+src/pages/Courses.tsx:                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+src/pages/Courses.tsx:                  <Typography variant="body2" sx={{ fontWeight: 700, opacity: 0.8 }} noWrap>{viewingCourse?.name}</Typography>
+src/pages/Courses.tsx:                      {viewingCourse?.name} • Module {activeSection + 1}
+src/pages/Courses.tsx:              <Typography variant="h5" sx={{ fontWeight: 900, letterSpacing: -1 }}>{course.name}</Typography>
+src/pages/Courses.tsx:          alt={course.name} 
+src/pages/Courses.tsx:            fontFamily: isRTL(course.name) ? 'var(--font-urdu)' : 'var(--font-heading)',
+src/pages/Courses.tsx:            direction: isRTL(course.name) ? 'rtl' : 'ltr',
+src/pages/Courses.tsx:            fontSize: isRTL(course.name) ? '1.5rem' : { xs: '1.2rem', md: '1.5rem' }
+src/pages/Courses.tsx:            {course.name}
+src/pages/Dashboard.tsx:  const [collectionTrendData, setCollectionTrendData] = useState<{name: string, value: number}[]>([]);
+src/pages/Dashboard.tsx:  const [attendanceTrendData, setAttendanceTrendData] = useState<{name: string, value: number}[]>([]);
+src/pages/Dashboard.tsx:  const [subjectsTrendData, setSubjectsTrendData] = useState<{name: string, value: number}[]>([]);
+src/pages/Dashboard.tsx:      // which can happen if errors bubble up from snapshot callbacks in certain versions.
+src/pages/Dashboard.tsx:                return { name: date, value: dayAmount };
+src/pages/Dashboard.tsx:              return { name: format(new Date(day), 'EEE'), value: dayAmount };
+src/pages/Dashboard.tsx:      {/* Shia Islamic Orientation Ornament */}
+src/pages/Dashboard.tsx:                          <Typography variant="h6" sx={{ fontWeight: 900, mb: 1 }}>{course.name}</Typography>
+src/pages/Dashboard.tsx:                      dataKey="name" 
+src/pages/Login.tsx:  onSignUp: (email: string, pass: string, name: string, role: UserRole) => Promise<void>;
+src/pages/Login.tsx:  const [name, setName] = useState('');
+src/pages/Login.tsx:        await onSignUp(email, password, name, role);
+src/pages/Login.tsx:                          placeholder="Your full name"
+src/pages/Login.tsx:                          value={name}
+src/pages/Roles.tsx:  name: string;
+src/pages/Roles.tsx:      name: newName,
+src/pages/Roles.tsx:                    <Typography variant="h6" sx={{ fontWeight: 800 }}>{role.name}</Typography>
+src/pages/Roles.tsx:                       <Typography variant="h5" sx={{ fontWeight: 900 }}>{selectedRole.name} Permissions</Typography>
+src/pages/Profile.tsx:        finalData.photoURL = `https://ui-avatars.com/api/?name=${encodeURIComponent(profileData.displayName)}&background=random&color=fff`;
+src/pages/Profile.tsx:                  src={profileData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileData.displayName || 'User')}&background=random&color=fff`} 
+src/pages/PaymentsSummary.tsx:    { name: 'Cash', value: filteredReceipts.filter(r => r.paymentMode === 'Cash').length },
+src/pages/PaymentsSummary.tsx:    { name: 'UPI', value: filteredReceipts.filter(r => r.paymentMode === 'UPI').length },
+src/pages/PaymentsSummary.tsx:    { name: 'Card', value: filteredReceipts.filter(r => r.paymentMode === 'Card').length },
+src/pages/PaymentsSummary.tsx:    { name: 'Cheque', value: filteredReceipts.filter(r => r.paymentMode === 'Cheque').length },
+src/pages/Users.tsx:  const [availableRoles, setAvailableRoles] = useState<{ id: string, name: string }[]>([]);
+src/pages/Users.tsx:      setAvailableRoles(snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name })));
+src/pages/Users.tsx:              .inst-name { font-size: 26pt; font-weight: 950; color: #0d9488; margin: 0; font-family: 'Cinzel', serif; letter-spacing: 1px; }
+src/pages/Users.tsx:                    <h1 class="inst-name">${instituteSettings.instituteName || 'WALI UL ASER INSTITUTE'}</h1>
+src/pages/Users.tsx:        const nameA = (a.displayName || '').toLowerCase();
+src/pages/Users.tsx:        const nameB = (b.displayName || '').toLowerCase();
+src/pages/Users.tsx:        if (nameA < nameB) return -1;
+src/pages/Users.tsx:        if (nameA > nameB) return 1;
+src/pages/Users.tsx:        const namePart = (formData.displayName || 'USR').slice(0, 3).toUpperCase();
+src/pages/Users.tsx:        finalFormData.admissionNo = `ADM-${year}-${namePart}-${timestamp}`;
+src/pages/Users.tsx:        const namePart = (formData.displayName || 'TCH').slice(0, 3).toUpperCase();
+src/pages/Users.tsx:        finalFormData.teacherId = `TCH-${namePart}-${timestamp}`;
+src/pages/Users.tsx:        const namePart = finalFormData.displayName.split(' ')[0] || 'Student';
+src/pages/Users.tsx:        finalFormData.password = `${namePart}@123`;
+src/pages/Users.tsx:              const namePart = (finalFormData.displayName || 'User').split(' ')[0];
+src/pages/Users.tsx:              const safeName = namePart.length >= 2 ? namePart : `${namePart}User`;
+src/pages/Users.tsx:          photoURL: finalFormData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(finalFormData.displayName)}&background=random&color=fff`,
+src/pages/Users.tsx:        const namePart = (user.displayName || 'STU').slice(0, 3).toUpperCase();
+src/pages/Users.tsx:        updateData.admissionNo = `ADM-${year}-${namePart}-${timestamp}`;
+src/pages/Users.tsx:                              .inst-name { font-size: 22pt; font-weight: 950; text-transform: uppercase; margin: 0; font-family: 'Cinzel Decorative', serif; line-height: 1.1; }
+src/pages/Users.tsx:                  <img class="logo" src="${instituteSettings.logoUrl}" style="position: relative; z-index: 1; background: transparent; border: none;" onerror="this.src='https://ui-avatars.com/api/?name=${u.displayName}&background=0d9488&color=fff'">
+src/pages/Users.tsx:                                    <h1 class="inst-name">${instituteSettings.instituteName || 'INSTITUTE NAME'}</h1>
+src/pages/Users.tsx:                  src={formData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.displayName || 'User')}&background=random&color=fff`} 
+src/pages/Users.tsx:                      <MenuItem key={role.id} value={role.id}>{role.name}</MenuItem>
+src/pages/Users.tsx:    return availableRoles?.find((r: any) => r.id === roleId)?.name || roleId;
+src/pages/Settings.tsx:                            { name: 'Teal', color: '#0f766e' },
+src/pages/Settings.tsx:                            { name: 'Indigo', color: '#6366f1' },
+src/pages/Settings.tsx:                            { name: 'Rose', color: '#f43f5e' },
+src/pages/Settings.tsx:                            { name: 'Amber', color: '#f59e0b' },
+src/pages/Settings.tsx:                            { name: 'Violet', color: '#8b5cf6' },
+src/pages/Settings.tsx:                            { name: 'Blue', color: '#3b82f6' },
+src/pages/Settings.tsx:                            { name: 'Emerald', color: '#10b981' },
+src/pages/Settings.tsx:                            { name: 'Slate', color: '#64748b' }
+src/pages/Settings.tsx:                        .filter(([name]) => name !== 'microphone')
+src/pages/Settings.tsx:                        .map(([name, status]) => (
+src/pages/Settings.tsx:                          key={name}
+src/pages/Settings.tsx:                              {name === 'camera' ? <Camera size={22} /> : <Bell size={22} />}
+src/pages/Settings.tsx:                              <Typography variant="body1" sx={{ fontWeight: 900, textTransform: 'capitalize' }}>{name}</Typography>
+src/pages/Settings.tsx:                          {['Android', 'iOS', 'Desktop'].map((platform) => (
+src/pages/Settings.tsx:                              key={platform}
+src/pages/Settings.tsx:                              variant={(window as any)._notifPreview === platform ? 'contained' : 'text'}
+src/pages/Settings.tsx:                                (window as any)._notifPreview = platform;
+src/pages/Settings.tsx:                                bgcolor: (window as any)._notifPreview === platform ? 'primary.main' : 'transparent',
+src/pages/Settings.tsx:                                color: (window as any)._notifPreview === platform ? 'white' : 'text.secondary'
+src/pages/Settings.tsx:                              {platform}
+src/pages/Reports.tsx:          name: monthStr, 
+src/pages/Reports.tsx:    setExpenseCategories(Object.keys(expByCat).map(key => ({ name: key, value: expByCat[key] })));
+src/pages/Reports.tsx:        name: key,
+src/pages/Reports.tsx:          name: key,
+src/pages/Reports.tsx:          name: key,
+src/pages/Reports.tsx:    const exportData = revenueData.map(d => ({ Month: d.name, Revenue: d.revenue, Expenses: d.expenses }));
+src/pages/Reports.tsx:                          dataKey="name" 
+src/pages/Reports.tsx:                          name="Inflow (Fees+Misc)" 
+src/pages/Reports.tsx:                          name="Outflow (Expenses)" 
+src/pages/Reports.tsx:                                    <YAxis dataKey="name" type="category" width={100} axisLine={false} tickLine={false} tick={{ fontWeight: 800 }} />
+src/pages/Reports.tsx:                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontWeight: 800 }} />
+src/pages/Reports.tsx:                                    <Bar name="Students Present" dataKey="present" fill={theme.palette.success.main} radius={[4, 4, 0, 0]} />
+src/pages/Reports.tsx:                                    <Bar name="Students Absent" dataKey="absent" fill={theme.palette.error.main} radius={[4, 4, 0, 0]} />
+src/App.tsx:          key={location.pathname}
+src/context/AuthContext.tsx:  manualSignUp: (email: string, pass: string, name: string, role: UserRole) => Promise<void>;
+src/context/AuthContext.tsx:                      photoURL: existingData.photoURL || firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(existingData.displayName)}&background=random&color=fff`
+src/context/AuthContext.tsx:  const manualSignUp = React.useCallback(async (email: string, pass: string, name: string, role: UserRole) => {
+src/context/AuthContext.tsx:        displayName: name,
+src/lib/syncQueue.ts:  name: 'InstituteSyncQueue',
+src/types.ts:  name: string;
+src/types.ts:  name: string;
+src/types.ts:  name: string;

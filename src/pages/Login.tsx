@@ -73,76 +73,78 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
   return (
     <Box 
       sx={{ 
-        minHeight: '100vh', 
+        minHeight: '100dvh', 
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center',
-        bgcolor: '#0a0a0a',
-        backgroundImage: `
-          radial-gradient(circle at 10% 20%, rgba(15, 118, 110, 0.05) 0%, transparent 40%),
-          radial-gradient(circle at 90% 80%, rgba(15, 118, 110, 0.05) 0%, transparent 40%)
-        `,
+        bgcolor: '#020617',
+        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(13, 148, 136, 0.05) 0%, transparent 80%)',
         position: 'relative',
-        overflow: 'hidden',
-        py: 4
+        py: { xs: 4, md: 6 },
+        px: 2
       }}
     >
-      {/* Abstract Background Element */}
+      {/* Subtle Grid Background */}
       <Box sx={{ 
         position: 'absolute', 
-        top: '50%', 
-        left: '50%', 
-        transform: 'translate(-50%, -50%)',
-        width: '120vw',
-        height: '120vh',
-        opacity: 0.03,
-        pointerEvents: 'none',
-        background: 'repeating-linear-gradient(45deg, #0f766e 0px, #0f766e 1px, transparent 1px, transparent 40px)'
+        inset: 0,
+        opacity: 0.1,
+        backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+        maskImage: 'radial-gradient(ellipse at center, black, transparent 80%)'
       }} />
 
-      <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
+      <Container maxWidth="xs" sx={{ position: 'relative', zIndex: 1 }}>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
         >
-          <Box sx={{ textAlign: 'center', mb: 8 }}>
-            <Box 
-              sx={{ 
-                display: 'inline-flex', 
-                p: 0, 
-                borderRadius: 4, 
-                bgcolor: 'transparent',
-                mb: 4,
-                width: 80,
-                height: 80,
-                alignItems: 'center',
-                justifyContent: 'center',
-                filter: 'drop-shadow(0 0 15px rgba(15, 118, 110, 0.3))'
-              }}
+          <Box sx={{ textAlign: 'center', mb: 5 }}>
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
             >
-              {institute.logoUrl ? (
-                <Box component="img" src={institute.logoUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              ) : (
-                <School size={60} color="#0f766e" strokeWidth={1} />
-              )}
-            </Box>
-            <Typography variant="h4" sx={{ 
-              fontWeight: 900, mb: 1.5, 
+              <Box 
+                sx={{ 
+                  display: 'inline-flex', 
+                  p: 0, 
+                  borderRadius: 4, 
+                  bgcolor: 'transparent',
+                  mb: 3,
+                  width: { xs: 64, md: 80 },
+                  height: { xs: 64, md: 80 },
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  filter: 'drop-shadow(0 0 20px rgba(13, 148, 136, 0.4))'
+                }}
+              >
+                {institute.logoUrl ? (
+                  <Box component="img" src={institute.logoUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <School size={isSignUp ? 40 : 50} color="#0d9488" strokeWidth={1.5} />
+                )}
+              </Box>
+            </motion.div>
+            <Typography variant="h3" sx={{ 
+              fontWeight: 950, 
+              mb: 1.5, 
               color: 'white', 
               letterSpacing: -1.5, 
-              fontSize: { xs: '1.75rem', sm: '2.5rem' }
+              fontSize: { xs: '1.75rem', sm: '2.5rem' },
+              fontFamily: 'var(--font-heading)'
             }}>
               {institute.instituteName}
             </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 500, color: 'rgba(255,255,255,0.5)', maxWidth: 400, mx: 'auto' }}>
+            <Typography variant="body1" sx={{ fontWeight: 600, color: 'rgba(255,255,255,0.4)', letterSpacing: 0.5 }}>
               {institute.tagline}
             </Typography>
           </Box>
 
           <Box
             sx={{ 
-              maxWidth: 400,
+              maxWidth: 380,
               mx: 'auto',
               bgcolor: 'transparent',
             }}
@@ -291,7 +293,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
               </Typography>
             </Box>
           </Box>
-          <Box sx={{ mt: 8, textAlign: 'center' }}>
+          <Box sx={{ mt: 5, textAlign: 'center' }}>
             <Typography variant="caption" sx={{ fontWeight: 500, color: 'rgba(255,255,255,0.2)', letterSpacing: 1 }}>
               © {new Date().getFullYear()} {institute.instituteName?.toUpperCase()}
             </Typography>

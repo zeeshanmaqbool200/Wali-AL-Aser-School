@@ -8,6 +8,7 @@ export interface UserProfile {
   role: UserRole;
   isVerified?: boolean;
   photoURL?: string;
+  gender?: 'male' | 'female' | 'other';
   dob?: string;
   createdAt: number;
   phone?: string;
@@ -23,7 +24,9 @@ export interface UserProfile {
   rollNo?: string;
   contactNumber?: string;
   admissionDate?: string;
-  status?: 'Active' | 'Inactive';
+  status?: 'Active' | 'Inactive' | 'Archived' | 'Pending' | 'Deleted';
+  removedAt?: any;
+  removedBy?: string;
   subjectsEnrolled?: string[];
   attendanceStatus?: string; // Summary
   enrolledCourses?: string[];
@@ -228,4 +231,5 @@ export interface InstituteSettings {
   primaryColor: string;
   secondaryColor: string;
   jafariOffset?: number;
+  quotes?: string[];
 }
