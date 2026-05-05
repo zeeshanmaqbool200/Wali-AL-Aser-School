@@ -137,7 +137,7 @@ export default function Settings() {
   const [showPassword, setShowPassword] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-  const [purgeType, setPurgeType] = useState<'ALL' | 'STUDENTS'>('ALL');
+  const [purgeType, setPurgeType] = useState<'ALL' | 'STUDENTS' | 'ARCHIVED'>('ALL');
   const [resetConfirmText, setResetConfirmText] = useState('');
 
   useEffect(() => {
@@ -263,38 +263,53 @@ export default function Settings() {
   };
 
   const confirmResetData = async () => {
-    if (resetConfirmText !== (purgeType === 'ALL' ? "RESET ALL USERS" : "PURGE STUDENTS")) {
+    const expectedText = 
+      purgeType === 'ALL' ? "RESET ALL USERS" : 
+      purgeType === 'STUDENTS' ? "PURGE STUDENTS" : 
+      "PURGE ARCHIVED";
+
+    if (resetConfirmText !== expectedText) {
       setSnackbar({ open: true, message: 'Confirmation text incorrect', severity: 'error' });
       return;
     }
 
     try {
       setLoading(true);
-      const collectionsToClear = purgeType === 'ALL' 
-        ? ['attendance', 'receipts', 'expenses', 'notifications', 'studyMaterials', 'quiz_results', 'notes', 'users']
-        : ['attendance', 'receipts', 'expenses', 'quiz_results']; // Purging students data only
-      
-      let totalDeleted = 0;
-      for (const coll of collectionsToClear) {
-        const q = query(collection(db, coll));
-        if (purgeType === 'STUDENTS' && (coll === 'users')) {
-           // For users, only delete students
-           const qStudents = query(collection(db, 'users'), where('role', '==', 'student'));
-           const snap = await getDocs(qStudents);
-           for (const d of snap.docs) {
-             await deleteDoc(d.ref);
-             totalDeleted++;
-           }
-        } else {
-          const snapshot = await getDocs(q);
-          const deletePromises = snapshot.docs.map(doc => {
-            totalDeleted++;
-            return deleteDoc(doc.ref);
-          });
-          await Promise.all(deletePromises);
+      if (purgeType === 'ARCHIVED') {
+        const q = query(collection(db, 'users'), where('status', '==', 'Archived'));
+        const snap = await getDocs(q);
+        let count = 0;
+        for (const d of snap.docs) {
+          await deleteDoc(d.ref);
+          count++;
         }
+        setSnackbar({ open: true, message: `${count} archived records purged forever.`, severity: 'success' });
+      } else {
+        const collectionsToClear = purgeType === 'ALL' 
+          ? ['attendance', 'receipts', 'expenses', 'notifications', 'studyMaterials', 'quiz_results', 'notes', 'users']
+          : ['attendance', 'receipts', 'expenses', 'quiz_results']; // Purging students data only
+        
+        let totalDeleted = 0;
+        for (const coll of collectionsToClear) {
+          const q = query(collection(db, coll));
+          if (purgeType === 'STUDENTS' && (coll === 'users')) {
+             const qStudents = query(collection(db, 'users'), where('role', '==', 'student'));
+             const snap = await getDocs(qStudents);
+             for (const d of snap.docs) {
+               await deleteDoc(d.ref);
+               totalDeleted++;
+             }
+          } else {
+            const snapshot = await getDocs(q);
+            const deletePromises = snapshot.docs.map(doc => {
+              totalDeleted++;
+              return deleteDoc(doc.ref);
+            });
+            await Promise.all(deletePromises);
+          }
+        }
+        setSnackbar({ open: true, message: `System ${purgeType === 'ALL' ? 'reset' : 'purged'} successfully. ${totalDeleted} records removed.`, severity: 'success' });
       }
-      setSnackbar({ open: true, message: `System ${purgeType === 'ALL' ? 'reset' : 'purged'} successfully. ${totalDeleted} records removed.`, severity: 'success' });
       setResetConfirmOpen(false);
       setResetConfirmText('');
       if (purgeType === 'ALL') {
@@ -1342,6 +1357,27 @@ export default function Settings() {
                           
                           <Divider />
                           
+                          <Box>
+                            <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 500, color: 'text.secondary' }}>
+                              <strong>Purge Archived Members:</strong> Permanently delete all users with "Archived" status from the database. This action is irreversible.
+                            </Typography>
+                            <Button 
+                              variant="outlined" 
+                              color="warning" 
+                              startIcon={<Trash2 size={18} />} 
+                              onClick={() => {
+                                setPurgeType('ARCHIVED');
+                                setResetConfirmOpen(true);
+                              }}
+                              disabled={currentUser?.role !== 'superadmin'}
+                              sx={{ borderRadius: 2, fontWeight: 800, px: 3, mb: 3 }}
+                            >
+                              Purge Archived Members
+                            </Button>
+                          </Box>
+
+                          <Divider />
+
                           <Box>
                             <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 500, color: 'text.secondary' }}>
                               <strong>Purge Students Only:</strong> Deletes student accounts and related transactional data (fees, attendance) but preserves staff accounts.

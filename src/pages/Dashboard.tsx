@@ -14,7 +14,7 @@ import {
   AlertCircle, Send, FileText, ClipboardList, UserCheck,
   MoreVertical, ExternalLink, Phone, MessageCircle, MessageSquare,
   UserPlus, BarChart3, User, GraduationCap, Award, Book, CheckCircle, XCircle,
-  Wallet, ArrowUpRight, ArrowDownRight, Smartphone, Layout
+  Wallet, ArrowUpRight, ArrowDownRight, Smartphone, Layout, IndianRupee, RefreshCw
 } from 'lucide-react';
 import { 
   db, OperationType, handleFirestoreError,
@@ -502,33 +502,25 @@ export default function Dashboard({ user }: DashboardProps) {
       <Box 
         sx={{ 
           position: 'relative',
-          borderRadius: { xs: 3, md: 6 }, 
+          borderRadius: { xs: 4, md: 8 }, 
           overflow: 'hidden',
           mb: 4,
-          minHeight: { xs: 320, md: 480 }, 
+          minHeight: { xs: 340, md: 500 }, 
           display: 'flex',
-          bgcolor: theme.palette.mode === 'dark' ? '#020617' : '#f1f5f9', 
+          bgcolor: theme.palette.mode === 'dark' ? '#0a0a0a' : '#fcfcfc', 
           transition: 'all 0.5s ease',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-          border: theme.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.05)',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            inset: 0,
-            opacity: 0.03, 
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0V0zm1 1v38h38V1H1z' fill='%23000' fill-rule='evenodd' opacity='.1'/%3E%3C/svg%3E")`,
-            zIndex: 1
-          }
+          boxShadow: '0 30px 60px rgba(0,0,0,0.06)',
+          border: theme.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(0,0,0,0.03)',
         }}
       >
-        {/* Left Side: Photo (smiling woman as requested) */}
+        {/* Left Side: Photo */}
         <Box sx={{ 
           position: 'absolute', 
           inset: 0, 
           zIndex: 2,
           display: 'flex',
           justifyContent: 'center',
-          alignItems: 'flex-end',
+          alignItems: 'center',
           pointerEvents: 'none'
         }}>
           <img 
@@ -538,11 +530,23 @@ export default function Dashboard({ user }: DashboardProps) {
               height: '100%', 
               width: '100%', 
               objectFit: 'cover',
-              filter: 'drop-shadow(0 20px 50px rgba(0,0,0,0.2))',
+              opacity: theme.palette.mode === 'dark' ? 0.6 : 0.8,
+              transition: 'opacity 0.5s ease',
               display: instituteData.bannerUrl ? 'block' : 'none',
               backgroundColor: 'transparent'
             }} 
           />
+          
+          {/* Subtle Overlay Gradient for better text readability */}
+          <Box sx={{ 
+            position: 'absolute', 
+            inset: 0, 
+            background: theme.palette.mode === 'dark' 
+              ? `linear-gradient(to right, rgba(0,0,0,0.95), rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.1) 100%)`
+              : `linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.4) 40%, rgba(255,255,255,0.1) 100%)`,
+            zIndex: 3 
+          }} />
+          
           {!instituteData.bannerUrl && (
             <Box sx={{ 
               width: '100%', 
@@ -554,7 +558,7 @@ export default function Dashboard({ user }: DashboardProps) {
               alignItems: 'center',
               justifyContent: 'center'
             }}>
-               <Typography variant="h2" sx={{ color: 'white', opacity: 0.1, fontWeight: 900, fontFamily: 'var(--font-serif)', letterSpacing: -2 }}>
+               <Typography variant="h2" sx={{ color: 'white', opacity: 0.1, fontWeight: 900, fontFamily: 'var(--font-heading)', letterSpacing: -2 }}>
                 {instituteData.instituteName?.toUpperCase()}
               </Typography>
             </Box>
@@ -588,35 +592,48 @@ export default function Dashboard({ user }: DashboardProps) {
               transition={{ duration: 0.4, ease: 'easeInOut' }}
             >
               <Card sx={{ 
-                bgcolor: currentStat.color, 
-                color: 'black', 
+                bgcolor: alpha(theme.palette.mode === 'dark' ? '#000' : '#fff', 0.8), 
+                color: theme.palette.mode === 'dark' ? 'white' : 'text.primary', 
                 borderRadius: 4, 
-                p: { xs: 1.2, md: 2 }, 
-                width: { xs: 110, md: 180 },
-                boxShadow: `0 15px 35px ${alpha(currentStat.color, 0.4)}`,
-                border: 'none',
+                p: { xs: 1.5, md: 2.5 }, 
+                width: { xs: 120, md: 200 },
+                boxShadow: '0 20px 50px rgba(0,0,0,0.1)',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255,255,255,0.05)',
                 position: 'relative',
                 overflow: 'hidden'
               }}>
-                <Stack spacing={0.5}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.5 }}>
-                    <div style={{ padding: 3, borderRadius: 6, background: 'rgba(0,0,0,0.1)' }}>
-                      {React.cloneElement(currentStat.icon as React.ReactElement<any>, { size: isMobile ? 12 : 18 })}
-                    </div>
-                    <Typography variant="caption" sx={{ fontWeight: 900, fontSize: { xs: '0.55rem', md: '0.75rem' } }}>{currentStat.label}</Typography>
+                <Stack spacing={1}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                    <Box sx={{ 
+                      p: 0.8, 
+                      borderRadius: 1.5, 
+                      background: alpha(currentStat.color, 0.1),
+                      color: currentStat.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      {React.cloneElement(currentStat.icon as React.ReactElement<any>, { size: isMobile ? 14 : 20 })}
+                    </Box>
+                    <Typography variant="caption" sx={{ fontWeight: 800, fontSize: { xs: '0.6rem', md: '0.8rem' }, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1 }}>{currentStat.label}</Typography>
                   </Box>
-                  <Typography variant="h3" sx={{ fontWeight: 950, letterSpacing: -1, fontSize: { xs: '1.2rem', md: '2.5rem' } }}>{currentStat.value}</Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.7, fontSize: { xs: '0.45rem', md: '0.7rem' } }}>{currentStat.unit}</Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 950, letterSpacing: -1.5, fontSize: { xs: '1.4rem', md: '2.8rem' }, fontFamily: 'var(--font-heading)' }}>{currentStat.value}</Typography>
                   
-                  {/* Tiny graph visual */}
-                  <Box sx={{ pt: 1, height: { xs: 20, md: 40 }, width: '100%', display: 'flex', alignItems: 'flex-end', gap: 0.5 }}>
+                  {/* Subtle graph visual */}
+                  <Box sx={{ pt: 1, height: { xs: 24, md: 40 }, width: '100%', display: 'flex', alignItems: 'flex-end', gap: 0.5 }}>
                      {currentStat.chart.map((h, i) => (
                        <motion.div 
                          key={i} 
                          initial={{ height: 0 }}
                          animate={{ height: `${h}%` }}
                          transition={{ delay: i * 0.05, duration: 0.5 }}
-                         style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: '2px 2px 0 0' }} 
+                         style={{ 
+                           flex: 1, 
+                           backgroundColor: currentStat.color, 
+                           opacity: 0.2,
+                           borderRadius: '4px 4px 0 0' 
+                         }} 
                        />
                      ))}
                   </Box>
@@ -633,75 +650,81 @@ export default function Dashboard({ user }: DashboardProps) {
           left: 0, 
           right: 0, 
           zIndex: 10,
-          p: { xs: 2.5, md: 5 },
-          pb: { xs: 4, md: 8 }, 
+          p: { xs: 3, md: 6 },
+          pb: { xs: 5, md: 10 }, 
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-start',
           textAlign: 'left',
-          pointerEvents: 'none'
+          pointerEvents: 'none',
+          gap: 0.5
         }}>
-          <Box sx={{ 
-            p: 1.5, 
-            borderRadius: 3, 
-            mb: 1.5,
-            pointerEvents: 'auto',
-            bgcolor: alpha(theme.palette.mode === 'dark' ? '#000' : '#fff', 0.4),
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            width: 'fit-content'
-          }}>
+          <Stack direction="row" spacing={1} alignItems="center">
             <Typography 
               component="span"
               variant="caption" 
               sx={{ 
                 color: 'primary.main', 
-                fontWeight: 950, 
-                letterSpacing: 1.5, 
+                fontWeight: 900, 
+                letterSpacing: 3, 
                 textTransform: 'uppercase', 
-                fontSize: { xs: '0.65rem', md: '0.8rem' },
-                display: 'inline-block'
+                fontSize: { xs: '0.55rem', md: '0.7rem' },
+                display: 'inline-block',
+                mb: 1
               }}
             >
-              assalualikum {user.displayName?.split(' ')[0]}
+              assalamu alaikum {user.displayName?.split(' ')[0]}
             </Typography>
-          </Box>
+            <IconButton 
+              size="small" 
+              onClick={() => {
+                setLoading(true);
+                setTimeout(() => setLoading(false), 900);
+              }}
+              sx={{ 
+                p: 0.2, 
+                mt: -1,
+                color: alpha(theme.palette.primary.main, 0.3),
+                '&:hover': { color: 'primary.main', transform: 'rotate(180deg)' },
+                transition: 'all 0.6s ease'
+              }}
+            >
+              <RefreshCw size={12} />
+            </IconButton>
+          </Stack>
           
           <Box sx={{ 
-            px: 2.5, 
-            py: 1.5, 
-            borderRadius: 4, 
-            mb: 2,
             pointerEvents: 'auto',
-            bgcolor: alpha(theme.palette.mode === 'dark' ? '#000' : '#fff', 0.4),
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255,255,255,0.1)',
             width: 'fit-content'
           }}>
-             <Typography variant="h2" sx={{ fontWeight: 950, color: theme.palette.mode === 'dark' ? 'white' : 'text.primary', letterSpacing: -1.5, fontSize: { xs: '1.8rem', md: '3.6rem' }, lineHeight: 1 }}>
+             <Typography variant="h2" sx={{ 
+               fontWeight: 950, 
+               color: theme.palette.mode === 'dark' ? 'white' : 'text.primary', 
+               letterSpacing: -3, 
+               fontSize: { xs: '2.8rem', md: '5.5rem' }, 
+               lineHeight: 0.85,
+               fontFamily: 'var(--font-heading)'
+             }}>
               {user.displayName}
             </Typography>
           </Box>
 
           <Box sx={{ 
-            p: 2.5, 
-            borderRadius: 4, 
+            mt: 2,
             pointerEvents: 'auto',
-            bgcolor: alpha(theme.palette.mode === 'dark' ? '#000' : '#fff', 0.4),
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderLeft: `5px solid ${theme.palette.primary.main}`,
-            maxWidth: { xs: '100%', md: '75%' },
-            width: 'fit-content'
+            maxWidth: { xs: '100%', md: '65%' },
+            width: 'fit-content',
+            borderLeft: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+            pl: 2
           }}>
             <Typography 
               component="p"
               sx={{ 
-                fontSize: { xs: '0.85rem', md: '1rem' }, 
-                fontWeight: 700, 
-                fontStyle: 'italic',
-                color: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.9)' : 'text.secondary', 
-                letterSpacing: 0.2
+                fontSize: { xs: '0.75rem', md: '1.05rem' }, 
+                fontWeight: 500, 
+                color: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.5)' : 'text.secondary', 
+                lineHeight: 1.6,
+                letterSpacing: 0
               }}
             >
               {quote}
@@ -754,189 +777,105 @@ export default function Dashboard({ user }: DashboardProps) {
       {/* Quick Action Section - Adjusted for blur change and responsiveness */}
       <Box sx={{ mb: 4, mt: { xs: 4, md: 6 }, position: 'relative', zIndex: 25 }}>
         <Container maxWidth="lg">
-          <Grid container spacing={1} justifyContent="center">
+          <Grid container spacing={2} justifyContent="center">
             {isStaff ? (
               <>
-                <Grid size={{ xs: 4, sm: 2.4 }}>
-                  <Button 
-                    variant="contained" 
-                    fullWidth
-                    startIcon={<UserPlus size={isMobile ? 14 : 20} />}
-                    onClick={() => navigate('/users')}
-                    sx={{ 
-                      borderRadius: 2.5, 
-                      fontWeight: 900, 
-                      py: { xs: 1.2, sm: 1.8 }, 
-                      bgcolor: 'primary.main', 
-                      fontSize: { xs: '0.6rem', sm: '0.85rem' },
-                      flexDirection: { xs: 'column', sm: 'row' },
-                      gap: { xs: 0.2, sm: 0 },
-                      boxShadow: '0 8px 16px rgba(13, 148, 136, 0.15)',
-                      '&:hover': { transform: 'translateY(-2px)' } 
-                    }}
-                  >
-                    Users
-                  </Button>
-                </Grid>
-                <Grid size={{ xs: 4, sm: 2.4 }}>
-                  <Button 
-                    variant="outlined" 
-                    fullWidth
-                    startIcon={<UserCheck size={isMobile ? 14 : 20} />}
-                    onClick={() => navigate('/attendance')}
-                    sx={{ 
-                      borderRadius: 2.5, 
-                      fontWeight: 900, 
-                      py: { xs: 1.2, sm: 1.8 }, 
-                      fontSize: { xs: '0.6rem', sm: '0.85rem' },
-                      flexDirection: { xs: 'column', sm: 'row' },
-                      gap: { xs: 0.2, sm: 0 },
-                      borderWidth: 1.5,
-                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' } 
-                    }}
-                  >
-                    Attendance
-                  </Button>
-                </Grid>
-                <Grid size={{ xs: 4, sm: 2.4 }}>
-                  <Button 
-                    variant="outlined" 
-                    fullWidth
-                    startIcon={<Wallet size={isMobile ? 14 : 20} />}
-                    onClick={() => navigate('/fees')}
-                    sx={{ 
-                      borderRadius: 2.5, 
-                      fontWeight: 900, 
-                      py: { xs: 1.2, sm: 1.8 }, 
-                      fontSize: { xs: '0.6rem', sm: '0.85rem' },
-                      flexDirection: { xs: 'column', sm: 'row' },
-                      gap: { xs: 0.2, sm: 0 },
-                      borderWidth: 1.5,
-                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' } 
-                    }}
-                  >
-                    Fees
-                  </Button>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 2.4 }}>
-                  <Button 
-                    variant="outlined" 
-                    fullWidth
-                    startIcon={<BookOpen size={isMobile ? 14 : 20} />}
-                    onClick={() => navigate('/courses')}
-                    sx={{ 
-                      borderRadius: 2.5, 
-                      fontWeight: 900, 
-                      py: { xs: 1.2, sm: 1.8 }, 
-                      fontSize: { xs: '0.6rem', sm: '0.85rem' },
-                      borderWidth: 1.5,
-                      gap: { xs: 0.5, sm: 0 },
-                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' } 
-                    }}
-                  >
-                    Curriculum
-                  </Button>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 2.4 }}>
-                  <Button 
-                    variant="outlined" 
-                    fullWidth
-                    startIcon={<Bell size={isMobile ? 14 : 20} />}
-                    onClick={() => navigate('/notifications')}
-                    sx={{ 
-                      borderRadius: 2.5, 
-                      fontWeight: 900, 
-                      py: { xs: 1.2, sm: 1.8 }, 
-                      fontSize: { xs: '0.6rem', sm: '0.85rem' },
-                      borderWidth: 1.5,
-                      gap: { xs: 0.5, sm: 0 },
-                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' } 
-                    }}
-                  >
-                    Alerts
-                  </Button>
-                </Grid>
+                {[
+                  { label: 'Users', path: '/users', icon: <UserPlus size={18} /> },
+                  { label: 'Attendance', path: '/attendance', icon: <UserCheck size={18} /> },
+                  { label: 'Fees', path: '/fees', icon: <IndianRupee size={18} /> },
+                  { label: 'Courses', path: '/courses', icon: <BookOpen size={18} /> },
+                  { label: 'Exps', path: '/expenses', icon: <CreditCard size={18} /> },
+                ].map((action, i) => (
+                  <Grid key={i} size={{ xs: 4, sm: 2 }}>
+                    <Button 
+                      variant="text"
+                      fullWidth
+                      onClick={() => navigate(action.path)}
+                      sx={{ 
+                        borderRadius: 3, 
+                        fontWeight: 800, 
+                        py: { xs: 1.5, sm: 2 }, 
+                        flexDirection: 'column',
+                        gap: 1,
+                        color: 'text.primary',
+                        bgcolor: alpha(theme.palette.mode === 'dark' ? '#fff' : '#000', 0.03),
+                        border: '1px solid transparent',
+                        fontSize: { xs: '0.65rem', sm: '0.8rem' },
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        '&:hover': { 
+                          bgcolor: alpha(theme.palette.primary.main, 0.08),
+                          color: 'primary.main',
+                          border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                          transform: 'translateY(-4px)' 
+                        } 
+                      }}
+                    >
+                      <Box sx={{ 
+                        p: 1.2, 
+                        borderRadius: 2, 
+                        bgcolor: alpha(theme.palette.mode === 'dark' ? '#fff' : '#000', 0.05),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                       }}>
+                         {action.icon}
+                      </Box>
+                      {action.label}
+                    </Button>
+                  </Grid>
+                ))}
               </>
             ) : (
+              // Student Actions
               <>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <Button 
-                    variant="contained" 
-                    fullWidth
-                    startIcon={<Book size={isMobile ? 14 : 20} />}
-                    onClick={() => navigate('/courses')}
-                    sx={{ 
-                      borderRadius: 2.5, 
-                      fontWeight: 900, 
-                      py: { xs: 1.2, sm: 1.8 },
-                      fontSize: { xs: '0.65rem', sm: '0.85rem' },
-                      boxShadow: '0 8px 16px rgba(13, 148, 136, 0.15)',
-                      '&:hover': { transform: 'translateY(-2px)' }
-                    }}
-                  >
-                    Lessons
-                  </Button>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <Button 
-                    variant="outlined" 
-                    fullWidth
-                    startIcon={<CreditCard size={isMobile ? 14 : 20} />}
-                    onClick={() => navigate('/fees')}
-                    sx={{ 
-                      borderRadius: 2.5, 
-                      fontWeight: 900, 
-                      py: { xs: 1.2, sm: 1.8 }, 
-                      fontSize: { xs: '0.65rem', sm: '0.85rem' },
-                      borderWidth: 1.5,
-                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' }
-                    }}
-                  >
-                    Fees
-                  </Button>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <Button 
-                    variant="outlined" 
-                    fullWidth
-                    startIcon={<Layout size={isMobile ? 14 : 20} />}
-                    onClick={() => navigate('/dashboard')}
-                    sx={{ 
-                      borderRadius: 2.5, 
-                      fontWeight: 900, 
-                      py: { xs: 1.2, sm: 1.8 }, 
-                      fontSize: { xs: '0.65rem', sm: '0.85rem' },
-                      borderWidth: 1.5,
-                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' }
-                    }}
-                  >
-                    Board
-                  </Button>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
-                  <Button 
-                    variant="outlined" 
-                    fullWidth
-                    startIcon={<Calendar size={isMobile ? 14 : 20} />}
-                    onClick={() => navigate('/schedule')}
-                    sx={{ 
-                      borderRadius: 2.5, 
-                      fontWeight: 900, 
-                      py: { xs: 1.2, sm: 1.8 }, 
-                      fontSize: { xs: '0.65rem', sm: '0.85rem' },
-                      borderWidth: 1.5,
-                      '&:hover': { borderWidth: 1.5, transform: 'translateY(-2px)' }
-                    }}
-                  >
-                    Table
-                  </Button>
-                </Grid>
+                {[
+                  { label: 'My Profile', path: '/profile', icon: <User size={18} /> },
+                  { label: 'Courses', path: '/courses', icon: <BookOpen size={18} /> },
+                  { label: 'Pay Fees', path: '/fees', icon: <CreditCard size={18} /> },
+                  { label: 'Attendance', path: '/attendance', icon: <UserCheck size={18} /> },
+                ].map((action, i) => (
+                  <Grid key={i} size={{ xs: 3, sm: 2 }}>
+                    <Button 
+                      variant="text"
+                      fullWidth
+                      onClick={() => navigate(action.path)}
+                      sx={{ 
+                        borderRadius: 3, 
+                        fontWeight: 800, 
+                        py: { xs: 1.5, sm: 2 }, 
+                        flexDirection: 'column',
+                        gap: 1,
+                        color: 'text.primary',
+                        bgcolor: alpha(theme.palette.mode === 'dark' ? '#fff' : '#000', 0.03),
+                        fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        '&:hover': { 
+                          bgcolor: alpha(theme.palette.primary.main, 0.08),
+                          color: 'primary.main',
+                          transform: 'translateY(-4px)' 
+                        } 
+                      }}
+                    >
+                      <Box sx={{ 
+                        p: 1.2, 
+                        borderRadius: 2, 
+                        bgcolor: alpha(theme.palette.mode === 'dark' ? '#fff' : '#000', 0.05),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                       }}>
+                         {action.icon}
+                      </Box>
+                      {action.label}
+                    </Button>
+                  </Grid>
+                ))}
               </>
             )}
           </Grid>
         </Container>
       </Box>
-
 
       {/* Side Scrolling Events with Tilted BG */}
       {upcomingEvents.length > 0 && (

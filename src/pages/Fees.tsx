@@ -59,7 +59,9 @@ import {
   FileText,
   CreditCard,
   User,
-  ArrowLeft
+  ArrowLeft,
+  IndianRupee,
+  RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, deleteDoc, addDoc } from '../firebase';
@@ -398,37 +400,60 @@ export default function Fees() {
 
   return (
     <Box sx={{ pb: 8 }}>
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        mb: 4,
-        pb: 2,
-        borderBottom: '1px solid',
-        borderColor: 'divider'
-      }} className="no-print">
-        <Box>
-          <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontWeight: 950, letterSpacing: -1, color: 'primary.main' }}>Maliat & Fees</Typography>
-          <Typography variant={isMobile ? "caption" : "body1"} color="text.secondary" sx={{ fontWeight: 600 }}>Financial Management & Fee Reporting System</Typography>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'stretch', sm: 'center' }, 
+          mb: 4,
+          pb: 2,
+          gap: 2,
+          borderBottom: '1px solid',
+          borderColor: 'divider'
+        }} className="no-print">
+          <Box>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: isMobile ? 0.5 : 0, flexWrap: 'wrap' }}>
+              <Typography variant={isMobile ? "h5" : "h3"} sx={{ fontWeight: 950, letterSpacing: -1, color: 'primary.main', textTransform: 'uppercase' }}>Maliat & Fees</Typography>
+              <IconButton 
+                size="small" 
+                onClick={() => {
+                  setLoading(true);
+                  setTimeout(() => setLoading(false), 800);
+                  setSnackbar({ open: true, message: 'Syncing financial records...', severity: 'info' });
+                }}
+                sx={{ 
+                  color: alpha(theme.palette.primary.main, 0.4),
+                  '&:hover': { color: 'primary.main', transform: 'rotate(180deg)' },
+                  transition: 'all 0.5s ease',
+                  mt: isMobile ? -0.2 : 0
+                }}
+              >
+                <RefreshCw size={isMobile ? 14 : 20} />
+              </IconButton>
+            </Stack>
+            <Typography variant={isMobile ? "caption" : "body1"} color="text.secondary" sx={{ fontWeight: 600, display: 'block', opacity: 0.8, lineHeight: 1.1, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Financial Management & Receipts</Typography>
+          </Box>
+          {isStaff && (
+            <Button 
+              variant="contained" 
+              fullWidth={isMobile}
+              startIcon={<Plus />} 
+              onClick={() => setOpenAddDialog(true)}
+              sx={{ 
+                borderRadius: 2.5, 
+                py: isMobile ? 1.2 : 1.5, 
+                px: isMobile ? 2 : 4, 
+                fontWeight: 900,
+                fontSize: isMobile ? '0.75rem' : '0.85rem',
+                boxShadow: theme.shadows[4],
+                textTransform: 'none',
+                minWidth: { xs: '100%', sm: 160 }
+              }}
+            >
+              New Receipt
+            </Button>
+          )}
         </Box>
-        {isStaff && (
-          <Button 
-            variant="contained" 
-            startIcon={<Plus />} 
-            onClick={() => setOpenAddDialog(true)}
-            sx={{ 
-              borderRadius: 3, 
-              py: isMobile ? 1 : 1.5, 
-              px: isMobile ? 2 : 3, 
-              fontWeight: 800,
-              fontSize: isMobile ? '0.75rem' : 'inherit',
-              boxShadow: theme.shadows[4]
-            }}
-          >
-            {isMobile ? 'New Receipt' : 'Generate New Receipt'}
-          </Button>
-        )}
-      </Box>
 
       {/* Compact Finance Stats */}
       {isStaff && (
@@ -438,7 +463,7 @@ export default function Fees() {
             variant="outlined" 
             sx={{ 
               borderRadius: 4, 
-              p: 3, 
+              p: { xs: 2, md: 3 }, 
               bgcolor: alpha(theme.palette.primary.main, 0.03),
               border: '1px solid',
               borderColor: alpha(theme.palette.primary.main, 0.1),
@@ -446,17 +471,17 @@ export default function Fees() {
               boxShadow: '0 10px 30px rgba(0,0,0,0.02)'
             }}
           >
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Box sx={{ textAlign: 'center', borderRight: { md: '1px solid' }, borderColor: alpha(theme.palette.divider, 0.1), px: 1 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>Current Month Total Fees</Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 950, color: 'success.main', mt: 0.5 }}>₹{(stats.totalFeesMonth || 0).toLocaleString()}</Typography>
+            <Grid container spacing={1}>
+              <Grid size={{ xs: 6, md: 6 }}>
+                <Box sx={{ textAlign: 'center', borderRight: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), px: 0.5 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: { xs: '0.55rem', md: '0.7rem' } }}>Month Fees</Typography>
+                  <Typography variant={isMobile ? "subtitle1" : "h4"} sx={{ fontWeight: 950, color: 'success.main', mt: 0.1, lineHeight: 1 }}>₹{(stats.totalFeesMonth || 0).toLocaleString()}</Typography>
                 </Box>
               </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Box sx={{ textAlign: 'center', px: 1 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>Accumulated Revenue</Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 950, color: 'primary.main', mt: 0.5 }}>₹{totalRevenue.toLocaleString()}</Typography>
+              <Grid size={{ xs: 6, md: 6 }}>
+                <Box sx={{ textAlign: 'center', px: 0.5 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: { xs: '0.55rem', md: '0.7rem' } }}>Tot Revenue</Typography>
+                  <Typography variant={isMobile ? "subtitle1" : "h4"} sx={{ fontWeight: 950, color: 'primary.main', mt: 0.1, lineHeight: 1 }}>₹{totalRevenue.toLocaleString()}</Typography>
                 </Box>
               </Grid>
             </Grid>
@@ -535,8 +560,9 @@ export default function Fees() {
           sx={{ 
             p: 2, 
             display: 'flex', 
+            flexDirection: { xs: 'column', md: 'row' },
             gap: 2, 
-            alignItems: 'center', 
+            alignItems: { xs: 'stretch', md: 'center' }, 
             justifyContent: 'space-between',
             borderBottom: '1px solid',
             borderColor: 'divider',
@@ -544,8 +570,9 @@ export default function Fees() {
           }} 
           className="no-print"
         >
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ overflowX: 'auto', pb: { xs: 1, md: 0 } }}>
             <IconButton 
+              size="small"
               onClick={() => setIsSelectionMode(!isSelectionMode)} 
               color={isSelectionMode ? "primary" : "default"}
               sx={{ 
@@ -553,21 +580,24 @@ export default function Fees() {
                 '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.15) }
               }}
             >
-              <MoreVertical size={20} />
+              <MoreVertical size={isMobile ? 16 : 20} />
             </IconButton>
 
             <Tabs 
               value={tabValue} 
               onChange={(e, v) => setTabValue(v)} 
+              variant="scrollable"
+              scrollButtons="auto"
               sx={{ 
-                minHeight: 40,
+                minHeight: 32,
                 '& .MuiTab-root': {
-                  minHeight: 40,
+                  minHeight: 32,
                   fontWeight: 800,
-                  fontSize: '0.8rem',
+                  fontSize: { xs: '0.65rem', md: '0.8rem' },
                   borderRadius: 2,
-                  px: 2,
-                  minWidth: 'auto'
+                  px: 1.5,
+                  minWidth: 'auto',
+                  background: 'transparent'
                 }
               }}
             >
@@ -577,27 +607,26 @@ export default function Fees() {
             </Tabs>
           </Stack>
 
-          <Stack direction="row" spacing={2}>
+          <Stack direction="row" spacing={1} sx={{ width: '100%', maxWidth: { md: 400 } }}>
             <Box 
               sx={{ 
                 display: 'flex', 
                 alignItems: 'center', 
-                px: 2, 
+                px: 1.5, 
                 bgcolor: alpha(theme.palette.divider, 0.05), 
-                borderRadius: 20, 
+                borderRadius: 2, 
                 border: '1px solid', 
-                borderColor: 'divider',
-                width: { xs: 150, md: 250 },
+                borderColor: alpha(theme.palette.divider, 0.1),
+                flex: 1,
                 transition: 'all 0.3s ease',
                 '&:focus-within': {
-                  width: { xs: 180, md: 300 },
                   bgcolor: 'background.paper',
                   borderColor: 'primary.main',
-                  boxShadow: '0 0 0 3px rgba(13, 148, 136, 0.1)'
+                  boxShadow: `0 0 0 4px ${alpha(theme.palette.primary.main, 0.1)}`
                 }
               }}
             >
-              <Search size={16} className="text-gray-400" />
+              <Search size={14} color={theme.palette.text.secondary} />
               <Box 
                 component="input" 
                 placeholder="Search..." 
@@ -606,24 +635,44 @@ export default function Fees() {
                 sx={{ 
                   border: 'none', 
                   outline: 'none', 
-                  p: 1, 
+                  py: 1, 
+                  px: 1,
                   bgcolor: 'transparent', 
-                  fontWeight: 600, 
+                  fontWeight: 700, 
                   width: '100%',
-                  fontSize: '0.85rem'
+                  fontSize: '0.75rem',
+                  color: 'text.primary'
                 }} 
               />
             </Box>
-            <IconButton 
+            <Button 
+              size="small"
+              variant="outlined" 
               onClick={(e) => setAnchorEl(e.currentTarget)} 
+              startIcon={<Filter size={14} />}
               sx={{ 
-                border: '1px solid', 
-                borderColor: 'divider', 
-                borderRadius: 2,
-                bgcolor: Boolean(anchorEl) ? alpha(theme.palette.primary.main, 0.1) : 'transparent'
+                borderRadius: 2, 
+                fontWeight: 800,
+                color: 'text.primary',
+                borderColor: alpha(theme.palette.divider, 0.1),
+                px: 1.5,
+                fontSize: '0.75rem',
+                display: { xs: 'none', sm: 'flex' }
               }}
             >
-              <Filter size={18} />
+              Filter
+            </Button>
+            <IconButton 
+              size="small"
+              onClick={(e) => setAnchorEl(e.currentTarget)} 
+              sx={{ 
+                display: { xs: 'flex', sm: 'none' },
+                border: '1px solid', 
+                borderColor: alpha(theme.palette.divider, 0.1), 
+                borderRadius: 2,
+              }}
+            >
+              <Filter size={14} />
             </IconButton>
           </Stack>
         </Box>

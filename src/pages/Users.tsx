@@ -47,7 +47,8 @@ import {
   Snackbar,
   useTheme,
   useMediaQuery,
-  alpha
+  alpha,
+  Container
 } from '@mui/material';
 import { 
   Search, 
@@ -74,7 +75,10 @@ import {
   FileText, 
   History,
   ArrowRight,
-  RotateCcw
+  RotateCcw,
+  User,
+  IndianRupee,
+  Users as UsersIcon
 } from 'lucide-react';
 import { 
   collection, 
@@ -566,32 +570,12 @@ export default function Users() {
         icon: <ArrowRight size={16} />, 
         onClick: () => { setPromotingUser(targetUser); setOpenPromoteDialog(true); },
         disabled: !(canManageUser && targetUser.role === 'student' && targetUser.classLevel)
-      },
-      { 
-        label: 'Delete Permanently', 
-        icon: <Trash2 size={16} />, 
-        color: 'error.main', 
-        onClick: () => { setUserToDeleteRef({ id: targetUser.uid, profile: targetUser }); setDeleteConfirmOpen(true); },
-        disabled: !(isSuperAdmin && (targetUser.status === 'Archived' || tabValue === 3))
-      },
-      { 
-        label: 'Restore Member', 
-        icon: <RotateCcw size={16} />, 
-        color: 'success.main', 
-        onClick: () => handleRestore(targetUser),
-        disabled: !(canManageUser && targetUser.status === 'Archived')
-      },
-      { 
-        label: 'Approve Teacher', 
-        icon: <UserCheck size={16} />, 
-        color: 'success.main', 
-        onClick: async () => {
-          try { await smartUpdateDoc(doc(db, 'users', targetUser.uid), { role: 'teacher', status: 'Active' }); }
-          catch (e) { handleFirestoreError(e, OperationType.UPDATE, `users/${targetUser.uid}`); }
-        },
-        disabled: !(isSuperAdmin && targetUser.role === 'pending_teacher')
-      },
-      { 
+      }
+    ];
+
+    // Conditionally add actions based on tab/status
+    if (tabValue === 2) {
+      items.push({ 
         label: 'Verify Member', 
         icon: <UserCheck size={16} />, 
         color: 'primary.main', 
@@ -603,23 +587,55 @@ export default function Users() {
                updateData.admissionNo = `ADM-${year}-${(targetUser.displayName||'STU').slice(0,3).toUpperCase()}-${Date.now().toString().slice(-6)}`;
              }
              await smartUpdateDoc(doc(db, 'users', targetUser.uid), updateData);
+             setSnackbar({ open: true, message: `${targetUser.displayName} verified successfully`, severity: 'success' });
            } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `users/${targetUser.uid}`); }
         },
-        disabled: !(canManageUser && !targetUser.isVerified)
-      },
-      { divider: true, label: '', icon: null, onClick: () => {} }
-    ];
+        disabled: !canManageUser
+      });
+    }
 
-    if (tabValue === 3 && isSuperAdmin) {
+    if (tabValue === 3) {
       items.push({ 
-        label: 'Delete Permanently', 
+        label: 'Restore Member', 
+        icon: <RotateCcw size={16} />, 
+        color: 'success.main', 
+        onClick: () => handleRestore(targetUser),
+        disabled: !canManageUser
+      });
+      if (isSuperAdmin) {
+        items.push({ 
+          label: 'Delete Permanently', 
+          icon: <Trash2 size={16} />, 
+          color: 'error.main', 
+          onClick: () => handleDelete(targetUser.uid, targetUser),
+          disabled: !isSuperAdmin
+        });
+      }
+    } else {
+      items.push({ 
+        label: 'Archive Member', 
         icon: <Trash2 size={16} />, 
         color: 'error.main', 
-        onClick: () => handleDelete(targetUser.uid, targetUser),
+        onClick: () => handleArchive(targetUser),
+        disabled: !canManageUser
+      });
+    }
+
+    if (targetUser.role === 'pending_teacher' && isSuperAdmin) {
+      items.push({ 
+        label: 'Approve Teacher', 
+        icon: <UserCheck size={16} />, 
+        color: 'success.main', 
+        onClick: async () => {
+          try { await smartUpdateDoc(doc(db, 'users', targetUser.uid), { role: 'teacher', status: 'Active' }); }
+          catch (e) { handleFirestoreError(e, OperationType.UPDATE, `users/${targetUser.uid}`); }
+        },
         disabled: !isSuperAdmin
       });
     }
 
+    items.push({ divider: true, label: '', icon: null, onClick: () => {} });
+    
     return <ActionMenu items={items} />;
   };
 
@@ -704,28 +720,18 @@ export default function Users() {
     setDeleteConfirmOpen(false);
     setLoading(true);
     try {
-      if (userToDelete.status === 'Archived' || userToDelete.status === 'Deleted') {
-        // PERMANENT PURGE
-        await smartDeleteDoc(doc(db, 'users', id));
-        setSnackbar({ open: true, message: `${userToDelete.displayName} data has been purged permanently`, severity: 'success' });
+      if (userToDelete.status === 'Archived' || tabValue === 3) {
+        // PERMANENT PURGE FROM DATABASE
+        await deleteDoc(doc(db, 'users', id));
+        setSnackbar({ open: true, message: `${userToDelete.displayName} has been vanished from database`, severity: 'success' });
       } else {
         // MOVE TO ARCHIVE
-        const batch = writeBatch(db);
-        const archiveRef = doc(db, 'archives', id);
-        batch.set(archiveRef, {
-          ...userToDelete,
-          archivedAt: serverTimestamp(),
-          reason: 'Administrative Removal'
-        });
-
-        const userRef = doc(db, 'users', id);
-        batch.update(userRef, { 
+        await smartUpdateDoc(doc(db, 'users', id), { 
           status: 'Archived',
           isVerified: false,
+          archivedAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
-
-        await batch.commit();
         setSnackbar({ open: true, message: `${userToDelete.displayName} moved to archive`, severity: 'success' });
       }
     } catch (error) {
@@ -786,8 +792,8 @@ export default function Users() {
         <Box sx={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
-          alignItems: 'center', 
-          flexWrap: 'wrap', 
+          alignItems: { xs: 'flex-start', sm: 'center' }, 
+          flexDirection: { xs: 'column', sm: 'row' },
           gap: 2,
           mb: 4,
           pb: 2,
@@ -795,27 +801,59 @@ export default function Users() {
           borderColor: 'divider'
         }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, color: 'primary.main', mb: 0.5 }}>Users Directory</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>Manage students, staff and administrators</Typography>
+            <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, color: 'primary.main', mb: 0.5 }}>Users Directory</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block' }}>Manage students, staff and administrators</Typography>
           </Box>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-            <IconButton 
-              color={viewMode === 'grid' ? 'primary' : 'inherit'} 
-              onClick={() => setViewMode('grid')}
-              sx={{ bgcolor: viewMode === 'grid' ? alpha(theme.palette.primary.main, 0.1) : 'background.paper', borderRadius: 2 }}
-            >
-              <GridIcon size={20} />
-            </IconButton>
-            <IconButton 
-              color={viewMode === 'list' ? 'primary' : 'inherit'} 
-              onClick={() => setViewMode('list')}
-              sx={{ bgcolor: viewMode === 'list' ? alpha(theme.palette.primary.main, 0.1) : 'background.paper', borderRadius: 2 }}
-            >
-              <ListIcon size={20} />
-            </IconButton>
-            <Button variant="contained" startIcon={<Plus />} onClick={() => { setEditingUser(null); setOpenDialog(true); }} sx={{ borderRadius: 2 }}>Add Student</Button>
-            <Button variant="outlined" startIcon={<Download />} onClick={() => exportToCSV(filteredUsers, 'Users')} sx={{ borderRadius: 2 }}>Export</Button>
-            {selectedUsers.length > 0 && <Button variant="contained" color="primary" onClick={() => handleBulkAction('print')} sx={{ borderRadius: 2 }}>Print Forms ({selectedUsers.length})</Button>}
+          <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}>
+            <Stack direction="row" spacing={1}>
+              <IconButton 
+                size="small"
+                color={viewMode === 'grid' ? 'primary' : 'inherit'} 
+                onClick={() => setViewMode('grid')}
+                sx={{ bgcolor: viewMode === 'grid' ? alpha(theme.palette.primary.main, 0.1) : 'background.paper', borderRadius: 2 }}
+              >
+                <GridIcon size={isMobile ? 18 : 20} />
+              </IconButton>
+              <IconButton 
+                size="small"
+                color={viewMode === 'list' ? 'primary' : 'inherit'} 
+                onClick={() => setViewMode('list')}
+                sx={{ bgcolor: viewMode === 'list' ? alpha(theme.palette.primary.main, 0.1) : 'background.paper', borderRadius: 2 }}
+              >
+                <ListIcon size={isMobile ? 18 : 20} />
+              </IconButton>
+            </Stack>
+            <Stack direction="row" spacing={1} sx={{ flex: { xs: 1, sm: 'none' }, justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
+              {selectedUsers.length > 0 && (
+                <Button 
+                  variant="contained" 
+                  color="info"
+                  size={isMobile ? "small" : "medium"}
+                  onClick={() => handleBulkAction('print')} 
+                  sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
+                >
+                  Print ({selectedUsers.length})
+                </Button>
+              )}
+              <Button 
+                variant="outlined" 
+                size={isMobile ? "small" : "medium"}
+                startIcon={<Download size={16} />} 
+                onClick={() => exportToCSV(filteredUsers, 'Users')} 
+                sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
+              >
+                Export
+              </Button>
+              <Button 
+                variant="contained" 
+                size={isMobile ? "small" : "medium"}
+                startIcon={<Plus size={16} />} 
+                onClick={() => { setEditingUser(null); setOpenDialog(true); }} 
+                sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
+              >
+                {tabValue === 1 ? 'Add Staff' : 'Add Student'}
+              </Button>
+            </Stack>
           </Stack>
         </Box>
 
@@ -1031,7 +1069,7 @@ export default function Users() {
                   <TableRow>
                     <TableCell colSpan={7} align="center" sx={{ py: 10 }}>
                       <Box sx={{ opacity: 0.5 }}>
-                        <Users size={48} style={{ marginBottom: 16 }} />
+                        <UsersIcon size={48} style={{ marginBottom: 16 }} />
                         <Typography variant="h6" sx={{ fontWeight: 800 }}>No users found matching your search</Typography>
                       </Box>
                     </TableCell>
@@ -1048,7 +1086,6 @@ export default function Users() {
         fullScreen 
         open={openProfileDialog} 
         onClose={() => setOpenProfileDialog(false)}
-        TransitionComponent={motion.div}
       >
         <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'white', color: 'black', borderBottom: '1px solid', borderColor: 'divider' }}>
           <Toolbar>
@@ -1267,7 +1304,7 @@ export default function Users() {
           open={openReceiptModal}
           onClose={() => setOpenReceiptModal(false)}
           receipt={selectedReceipt}
-          instituteSettings={instituteSettings}
+          settings={instituteSettings}
         />
       )}
 

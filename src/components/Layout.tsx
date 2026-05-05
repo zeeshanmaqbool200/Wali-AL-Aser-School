@@ -283,8 +283,8 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 3 } }}>
-              {/* Global Search - Disabled on Dashboard per user request */}
-              {location.pathname !== '/' && location.pathname !== '/dashboard' && (
+              {/* Global Search - Disabled on search-heavy pages to avoid redundancy */}
+              {!['/', '/dashboard', '/users', '/fees', '/expenses', '/reports'].includes(location.pathname) && (
                 <Box sx={{ position: 'relative', display: { xs: 'none', sm: 'block' } }}>
                   <Paper
                     elevation={0}
@@ -325,16 +325,15 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                   onClick={() => navigate('/notifications')} 
                   size="large"
                   sx={{ 
-                    bgcolor: 'background.default',
+                    bgcolor: 'transparent',
                     color: unreadCount > 0 ? 'primary.main' : 'text.secondary',
                     width: isMobile ? 36 : 48,
                     height: isMobile ? 36 : 48,
-                    boxShadow: theme.palette.mode === 'dark'
-                      ? '1px 1px 3px #060a12, -1px -1px 3px #182442'
-                      : '1px 1px 3px rgba(0,0,0,0.05)',
+                    border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
                     '&:hover': { 
-                      transform: 'scale(1.05)',
-                      color: 'primary.main' 
+                      transform: 'translateY(-2px)',
+                      color: 'primary.main',
+                      bgcolor: alpha(theme.palette.primary.main, 0.04)
                     }
                   }}
                 >
@@ -362,16 +361,15 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                   onClick={() => setMode(mode === 'dark' ? 'light' : 'dark')} 
                   size="large"
                   sx={{ 
-                    bgcolor: 'background.default',
+                    bgcolor: 'transparent',
                     color: 'text.secondary',
                     width: isMobile ? 36 : 48,
                     height: isMobile ? 36 : 48,
-                    boxShadow: theme.palette.mode === 'dark'
-                      ? '1px 1px 3px #060a12, -1px -1px 3px #182442'
-                      : '1px 1px 3px rgba(0,0,0,0.05)',
+                    border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
                     '&:hover': { 
-                      transform: 'scale(1.05)',
-                      color: 'primary.main' 
+                      transform: 'translateY(-2px)',
+                      color: 'primary.main',
+                      bgcolor: alpha(theme.palette.primary.main, 0.04)
                     }
                   }}
                 >
@@ -386,9 +384,9 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                   sx={{ 
                     p: 0.5, 
                     border: '1.5px solid', 
-                    borderColor: profileAnchorEl ? 'primary.main' : (location.pathname === '/profile' ? 'primary.main' : 'divider'),
+                    borderColor: profileAnchorEl ? 'primary.main' : (location.pathname === '/profile' ? 'primary.main' : alpha(theme.palette.divider, 0.1)),
                     transition: 'all 0.2s',
-                    '&:hover': { borderColor: 'primary.main' }
+                    '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' }
                   }}
                 >
                   <Avatar 
@@ -460,8 +458,9 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           sx={{ 
             flexGrow: 1,
             p: { xs: 2, sm: 3, md: 4 },
-            pb: { xs: 16, md: 4 }, // Increased padding for mobile to avoid bottom nav overlap
-            overflowY: 'visible', // Changed from auto to let window scroll
+            pb: { xs: 16, md: 4 }, 
+            pt: { xs: 9, sm: 10, md: 4 }, // Added top padding for fixed AppBar
+            overflowY: 'visible',
             overflowX: 'hidden',
             WebkitOverflowScrolling: 'touch',
             position: 'relative',

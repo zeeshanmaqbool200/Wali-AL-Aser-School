@@ -18,7 +18,6 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   const location = useLocation();
   const theme = useTheme();
   const [internalVisible, setInternalVisible] = useState(true);
-  const [isHoveringInteractive, setIsHoveringInteractive] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
 
@@ -31,20 +30,6 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
       }
     };
 
-    const handleMouseOver = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const isInteractive = target.closest('button, a, input, select, textarea, [role="button"], .MuiListItemButton-root');
-      if (isInteractive) {
-        setIsHoveringInteractive(true);
-      } else {
-        setIsHoveringInteractive(false);
-      }
-    };
-
-    const handleMouseOut = () => {
-      setIsHoveringInteractive(false);
-    };
-
     // Observer for detecting dialogs (Adding/Editing mode)
     const observer = new MutationObserver(() => {
       const isDialogOpen = !!document.querySelector('.MuiDialog-root');
@@ -53,55 +38,61 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
 
     observer.observe(document.body, { childList: true, subtree: true });
 
-    document.addEventListener('mouseover', handleMouseOver);
-    document.addEventListener('mouseout', handleMouseOut);
-
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleViewportChange);
       return () => {
         window.visualViewport?.removeEventListener('resize', handleViewportChange);
         observer.disconnect();
-        document.removeEventListener('mouseover', handleMouseOver);
-        document.removeEventListener('mouseout', handleMouseOut);
       };
     }
     return () => {
       observer.disconnect();
-      document.removeEventListener('mouseover', handleMouseOver);
-      document.removeEventListener('mouseout', handleMouseOut);
     };
   }, []);
 
   useEffect(() => {
-    let scrollTimeout: any;
+    let clickTimeout: any;
+    let isRecentlyClicked = false;
+
     const handleScroll = () => {
+      if (isRecentlyClicked) return;
       const currentScrollY = window.scrollY;
       
-      if (Math.abs(currentScrollY - lastScrollY) < 5) return; // Ignore micro-scrolls
+      const scrollDiff = currentScrollY - lastScrollY;
+      if (Math.abs(scrollDiff) < 15) return; 
 
-      // If we are at the very top, always show it
-      if (currentScrollY < 20) {
+      if (currentScrollY < 100) {
         setInternalVisible(true);
         setLastScrollY(currentScrollY);
         return;
       }
 
-      // Hide on scroll down, show on scroll up
-      if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        // Scrolling DOWN
+      if (scrollDiff > 0 && currentScrollY > 200) {
         if (internalVisible) setInternalVisible(false);
-      } else if (currentScrollY < lastScrollY) {
-        // Scrolling UP
+      } else if (scrollDiff < 0) {
         if (!internalVisible) setInternalVisible(true);
       }
       
       setLastScrollY(currentScrollY);
     };
 
+    const handleClick = () => {
+      isRecentlyClicked = true;
+      if (clickTimeout) clearTimeout(clickTimeout);
+      clickTimeout = setTimeout(() => {
+        isRecentlyClicked = false;
+      }, 1500); 
+    };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('mousedown', handleClick, { passive: true });
+    window.addEventListener('touchstart', handleClick, { passive: true });
+
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      if (scrollTimeout) clearTimeout(scrollTimeout);
+      window.removeEventListener('mousedown', handleClick);
+      window.removeEventListener('touchstart', handleClick);
+      if (clickTimeout) clearTimeout(clickTimeout);
     };
   }, [lastScrollY, internalVisible]);
 
@@ -126,7 +117,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   
   const activeIndex = filteredMenu.findIndex(item => item.path === location.pathname);
 
-  const isActuallyVisible = controlledVisible && internalVisible && !keyboardOpen && !isHoveringInteractive;
+  const isActuallyVisible = controlledVisible && internalVisible && !keyboardOpen;
 
   if (filteredMenu.length === 0) return null;
 
@@ -158,18 +149,18 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
           <Paper 
             elevation={0}
             sx={{ 
-              borderRadius: 1,
-              p: 0.5,
-              bgcolor: theme.palette.mode === 'dark' ? alpha('#1a1a1a', 0.95) : alpha('#ffffff', 0.85),
-              backdropFilter: 'blur(10px)',
-              border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+              borderRadius: '999px',
+              p: 0.75,
+              bgcolor: theme.palette.mode === 'dark' ? alpha('#111111', 0.9) : alpha('#ffffff', 0.9),
+              backdropFilter: 'blur(20px)',
+              border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
               boxShadow: theme.palette.mode === 'dark' 
-                ? '0 4px 12px rgba(0,0,0,0.5)' 
-                : '0 4px 12px rgba(0,0,0,0.08)',
+                ? '0 10px 40px rgba(0,0,0,0.6)' 
+                : '0 10px 40px rgba(0,0,0,0.1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 0.25,
+              gap: 0.5,
               pointerEvents: 'auto',
             }} 
           >
@@ -184,10 +175,10 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: 44,
-                    height: 44,
+                    width: 48,
+                    height: 48,
                     cursor: 'pointer',
-                    borderRadius: 1,
+                    borderRadius: '999px',
                     color: isActive ? 'primary.main' : 'text.secondary',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:hover': {
@@ -201,16 +192,16 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                       layoutId="nav-pill"
                       style={{
                         position: 'absolute',
-                        inset: 4,
-                        borderRadius: 1,
-                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                        border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                        inset: 0,
+                        borderRadius: '999px',
+                        backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                        border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
                         zIndex: -1
                       }}
                       transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                     />
                   )}
-                  {item.icon}
+                  {React.cloneElement(item.icon as React.ReactElement<any>, { size: 22 })}
                 </Box>
               );
             })}
