@@ -4,9 +4,10 @@ import { ThemeProvider, createTheme, CssBaseline, Box, CircularProgress, GlobalS
 import { alpha } from '@mui/material/styles';
 import { ThemeProviderWrapper } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { DataProvider } from './context/DataContext';
 import { NotificationProvider } from './context/NotificationContext';
 import NotificationListener from './components/NotificationListener';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Clock, X, BookOpen } from 'lucide-react';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -27,6 +28,10 @@ const Courses = lazy(() => import('./pages/Courses'));
 const PaymentsSummary = lazy(() => import('./pages/PaymentsSummary'));
 const AdminLogs = lazy(() => import('./pages/AdminLogs'));
 const Profile = lazy(() => import('./pages/Profile'));
+const FormManager = lazy(() => import('./pages/Forms/FormManager'));
+const FormBuilder = lazy(() => import('./pages/Forms/FormBuilder'));
+const FormView = lazy(() => import('./pages/Forms/FormView'));
+const FormResults = lazy(() => import('./pages/Forms/FormResults'));
 
 import ErrorBoundary from './components/ErrorBoundary';
 import ClassSelection from './components/ClassSelection';
@@ -128,6 +133,112 @@ function AppContent() {
   const reportRoles = ['superadmin'];
   const brandingSettingsRoles = ['superadmin'];
 
+  const isFormView = location.pathname.startsWith('/forms/view/');
+
+  const routes = (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 10 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+        style={{ height: '100%', width: '100%' }}
+      >
+        <Suspense fallback={<PageLoading />}>
+          <Routes location={location}>
+            <Route path="/verify/:type/:id" element={<Verify />} />
+            {/* Public Form View - Accessible outside login if form allows */}
+            <Route path="/forms/view/:id" element={<FormView />} />
+            
+            {!user ? (
+              <>
+                <Route path="/login" element={<Login onLogin={manualLogin} onSignUp={manualSignUp} error={error} />} />
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </>
+            ) : (
+              <>
+                <Route path="/" element={<Dashboard user={user} />} />
+                <Route path="/courses" element={<Courses />} />
+                <Route path="/attendance" element={
+                  <ProtectedRoute user={user} allowedRoles={staffRoles}>
+                    <Attendance />
+                  </ProtectedRoute>
+                } />
+                <Route path="/fees" element={
+                  <ProtectedRoute user={user} allowedRoles={allAuthenticatedRoles}>
+                    <Fees />
+                  </ProtectedRoute>
+                } />
+                <Route path="/notes" element={<Notes />} />
+                <Route path="/users" element={
+                  <ProtectedRoute user={user} allowedRoles={staffRoles}>
+                    <Users />
+                  </ProtectedRoute>
+                } />
+                <Route path="/settings" element={
+                  <ProtectedRoute user={user} allowedRoles={allAuthenticatedRoles}>
+                    <Settings />
+                  </ProtectedRoute>
+                } />
+                <Route path="/notifications" element={<Notifications />} />
+                <Route path="/reports" element={
+                  <ProtectedRoute user={user} allowedRoles={reportRoles}>
+                    <Reports />
+                  </ProtectedRoute>
+                } />
+                <Route path="/exams" element={<Exams />} />
+                <Route path="/forms" element={<FormManager />} />
+                <Route path="/forms/build" element={
+                  <ProtectedRoute user={user} allowedRoles={staffRoles}>
+                    <FormBuilder />
+                  </ProtectedRoute>
+                } />
+                {/* redundant but kept for consistency inside login too */}
+                <Route path="/forms/view/:id" element={<FormView />} /> 
+                <Route path="/forms/results/:id" element={
+                  <ProtectedRoute user={user} allowedRoles={staffRoles}>
+                    <FormResults />
+                  </ProtectedRoute>
+                } />
+                <Route path="/expenses" element={
+                  <ProtectedRoute user={user} allowedRoles={fullAdminRoles}>
+                    <Expenses />
+                  </ProtectedRoute>
+                } />
+                <Route path="/schedule" element={<Schedule />} />
+                <Route path="/payments-summary" element={
+                  <ProtectedRoute user={user} allowedRoles={reportRoles}>
+                    <PaymentsSummary />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/logs" element={
+                  <ProtectedRoute user={user} allowedRoles={systemAdminRoles}>
+                    <AdminLogs />
+                  </ProtectedRoute>
+                } />
+                <Route path="/profile" element={
+                  <ProtectedRoute user={user} allowedRoles={allAuthenticatedRoles}>
+                    <Profile />
+                  </ProtectedRoute>
+                } />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </>
+            )}
+          </Routes>
+        </Suspense>
+      </motion.div>
+    </AnimatePresence>
+  );
+
+  if (isFormView) {
+    return (
+      <Box sx={{ minHeight: '100vh', width: '100vw' }}>
+        {routes}
+      </Box>
+    );
+  }
+
   return (
     <Layout user={user} onLogout={logout}>
       <NotificationListener />
@@ -174,86 +285,7 @@ function AppContent() {
           setShowClassSelection(false);
         }} 
       />
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={location.pathname}
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 10 }}
-          transition={{ 
-            duration: 0.3, 
-            ease: "easeInOut" 
-          }}
-          style={{ height: '100%', width: '100%' }}
-        >
-          <Suspense fallback={<PageLoading />}>
-            <Routes location={location}>
-              <Route path="/verify/:type/:id" element={<Verify />} />
-              {!user ? (
-                <>
-                  <Route path="/login" element={<Login onLogin={manualLogin} onSignUp={manualSignUp} error={error} />} />
-                  <Route path="*" element={<Navigate to="/login" replace />} />
-                </>
-              ) : (
-                <>
-                  <Route path="/" element={<Dashboard user={user} />} />
-                  <Route path="/courses" element={<Courses />} />
-                  <Route path="/attendance" element={
-                    <ProtectedRoute user={user} allowedRoles={staffRoles}>
-                      <Attendance />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/fees" element={
-                    <ProtectedRoute user={user} allowedRoles={allAuthenticatedRoles}>
-                      <Fees />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/notes" element={<Notes />} />
-                  <Route path="/users" element={
-                    <ProtectedRoute user={user} allowedRoles={staffRoles}>
-                      <Users />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/settings" element={
-                    <ProtectedRoute user={user} allowedRoles={allAuthenticatedRoles}>
-                      <Settings />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/notifications" element={<Notifications />} />
-                  <Route path="/reports" element={
-                    <ProtectedRoute user={user} allowedRoles={reportRoles}>
-                      <Reports />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/exams" element={<Exams />} />
-                  <Route path="/expenses" element={
-                    <ProtectedRoute user={user} allowedRoles={fullAdminRoles}>
-                      <Expenses />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/schedule" element={<Schedule />} />
-                  <Route path="/payments-summary" element={
-                    <ProtectedRoute user={user} allowedRoles={reportRoles}>
-                      <PaymentsSummary />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin/logs" element={
-                    <ProtectedRoute user={user} allowedRoles={systemAdminRoles}>
-                      <AdminLogs />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/profile" element={
-                    <ProtectedRoute user={user} allowedRoles={allAuthenticatedRoles}>
-                      <Profile />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </>
-              )}
-            </Routes>
-          </Suspense>
-        </motion.div>
-      </AnimatePresence>
+      {routes}
     </Layout>
   );
 }
@@ -264,16 +296,18 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <ThemeProviderWrapper>
-          <CssBaseline />
-          {globalStyles}
-          <NotificationProvider>
-            <Router>
-              <ScrollRestoration />
-              <AppContent />
-            </Router>
-          </NotificationProvider>
-        </ThemeProviderWrapper>
+        <DataProvider>
+          <ThemeProviderWrapper>
+            <CssBaseline />
+            {globalStyles}
+            <NotificationProvider>
+              <Router>
+                <ScrollRestoration />
+                <AppContent />
+              </Router>
+            </NotificationProvider>
+          </ThemeProviderWrapper>
+        </DataProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

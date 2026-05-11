@@ -80,7 +80,7 @@ export default function NotificationListener() {
 
         // Don't show if the user is the sender
         if (isTargeted && latestNotif.senderId !== user.uid) {
-          if (!latestNotif.readBy.includes(user.uid)) {
+          if (!latestNotif.readBy?.includes(user.uid)) {
             logger.db('New Notification Received', `notifications/${latestNotif.id}`, latestNotif);
             const prefs = user.notificationPrefs || { inAppToasts: true, push: true };
 

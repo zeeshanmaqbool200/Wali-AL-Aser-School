@@ -26,7 +26,7 @@ import {
 import { collection, query, onSnapshot, orderBy, limit, where, getDocs } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths, isSameMonth, isWithinInterval } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { exportToCSV } from '../lib/exportUtils';
@@ -341,7 +341,21 @@ export default function Reports() {
               variant="contained" 
               startIcon={<Printer size={18} />} 
               onClick={() => window.print()}
-              sx={{ borderRadius: 2, fontWeight: 900, px: 3, textTransform: 'none' }}
+              sx={{ 
+                borderRadius: 3, 
+                fontWeight: 900, 
+                px: 3, 
+                py: 1.2,
+                textTransform: 'none',
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+                boxShadow: theme.palette.mode === 'dark'
+                  ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+                  : `0 8px 20px ${alpha(theme.palette.primary.main, 0.2)}`,
+                '&:hover': {
+                  background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                  transform: 'translateY(-1px)'
+                }
+              }}
             >
               Print
             </Button>

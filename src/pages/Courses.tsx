@@ -29,7 +29,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { CLASS_LEVELS } from '../constants';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { logger } from '../lib/logger';
 import SimpleMDE from 'react-simplemde-editor';
@@ -388,8 +388,8 @@ export default function Courses() {
   };
 
   const filteredCourses = courses.filter(c => {
-    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         c.code.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (c.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
+                         (c.code?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     const matchesClassLevel = classLevelFilter === 'all' || c.classLevelId === classLevelFilter;
     return matchesSearch && matchesClassLevel;
   });
@@ -409,21 +409,12 @@ export default function Courses() {
   return (
     <Box sx={{ 
       pb: 8,
+      pt: 2,
       minHeight: '100vh',
       background: theme.palette.mode === 'dark' 
         ? `linear-gradient(135deg, ${theme.palette.background.default} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`
         : `linear-gradient(135deg, ${theme.palette.background.default} 0%, #f0f7f7 100%)`
     }}>
-      <Box sx={{ p: 2 }}>
-        <Button 
-          variant="text" 
-          startIcon={<ArrowLeft size={20} />} 
-          onClick={() => navigate(-1)}
-          sx={{ fontWeight: 800, color: 'text.secondary' }}
-        >
-          Back
-        </Button>
-      </Box>
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -522,14 +513,16 @@ export default function Courses() {
                   minHeight: isMobile ? 40 : 48,
                   textTransform: 'none',
                   fontSize: isMobile ? '0.8rem' : '0.9rem',
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
                   boxShadow: theme.palette.mode === 'dark'
                     ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
-                    : '4px 4px 10px #cbd5e1, -4px -4px 10px #ffffff',
+                    : `0 8px 16px ${alpha(theme.palette.primary.main, 0.25)}`,
                   '&:hover': {
                     transform: 'translateY(-2px)',
+                    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
                     boxShadow: theme.palette.mode === 'dark'
                       ? '6px 6px 14px #060a12, -6px -6px 14px #182442'
-                      : '6px 6px 14px #cbd5e1, -6px -6px 14px #ffffff',
+                      : `0 12px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
                   }
                 }}
               >
@@ -540,65 +533,86 @@ export default function Courses() {
         </Box>
       </motion.div>
 
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 6 }}>
         <Paper 
           elevation={0} 
           sx={{ 
             display: 'flex', 
             alignItems: 'center', 
-            px: 2, 
-            borderRadius: 3, 
-            border: 'none',
-            bgcolor: 'background.default',
-            boxShadow: theme.palette.mode === 'dark'
-              ? 'inset 3px 3px 6px #060a12, inset -3px -3px 6px #182442'
-              : 'inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff',
-            gap: 2
+            px: { xs: 2, md: 3 }, 
+            py: 1,
+            borderRadius: 4, 
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.4) : 'white',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.04)',
+            gap: 2,
+            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            '&:focus-within': {
+              borderColor: 'primary.main',
+              boxShadow: `0 15px 40px ${alpha(theme.palette.primary.main, 0.1)}`,
+              transform: 'translateY(-2px)'
+            }
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, px: 1 }}>
-            <Search size={22} color={theme.palette.text.secondary} />
+          <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, gap: 2 }}>
+            <Box sx={{ 
+              p: 1.5, 
+              borderRadius: 2.5, 
+              bgcolor: alpha(theme.palette.primary.main, 0.1), 
+              color: 'primary.main',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Search size={22} />
+            </Box>
             <Box 
               component="input" 
-              placeholder="Search subjects by name, code, or teacher..." 
+              placeholder="Search subjects, codes, or teachers..." 
               value={searchQuery}
               onChange={(e: any) => setSearchQuery(e.target.value)}
               sx={{ 
                 border: 'none', 
                 outline: 'none', 
-                p: 2.5, 
+                py: 2, 
                 width: '100%', 
                 fontWeight: 800,
-                fontSize: '1rem',
+                fontSize: '1.1rem',
                 bgcolor: 'transparent',
                 color: 'text.primary',
-                '&::placeholder': { color: 'text.disabled' }
+                '&::placeholder': { 
+                  color: 'text.disabled',
+                  fontWeight: 600,
+                  fontSize: '0.95rem'
+                }
               }} 
             />
           </Box>
           
-          <FormControl size="small" sx={{ minWidth: 200, mr: 2 }}>
-            <InputLabel sx={{ fontWeight: 800 }}>Class Level</InputLabel>
-            <Select
-              value={classLevelFilter}
-              label="Class Level"
-              onChange={(e) => setClassLevelFilter(e.target.value)}
-              sx={{ 
-                borderRadius: 2,
-                fontWeight: 800,
-                bgcolor: alpha(theme.palette.background.default, 0.5),
-                '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                boxShadow: theme.palette.mode === 'dark'
-                  ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                  : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-              }}
-            >
-              <MenuItem value="all" sx={{ fontWeight: 700 }}>All Levels</MenuItem>
-              {CLASS_LEVELS.filter(level => !level.includes('manager') && !level.includes('superadmin')).map(g => (
-                <MenuItem key={g} value={g} sx={{ fontWeight: 700 }}>{g}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          {!isMobile && (
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Divider orientation="vertical" flexItem sx={{ height: 32, my: 'auto' }} />
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <Select
+                  value={classLevelFilter}
+                  onChange={(e) => setClassLevelFilter(e.target.value)}
+                  sx={{ 
+                    borderRadius: 2,
+                    fontWeight: 800,
+                    fontSize: '0.9rem',
+                    '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                  }}
+                  displayEmpty
+                >
+                  <MenuItem value="all" sx={{ fontWeight: 700 }}>📚 All Levels</MenuItem>
+                  {CLASS_LEVELS.filter(level => !level.includes('manager') && !level.includes('superadmin')).map(g => (
+                    <MenuItem key={g} value={g} sx={{ fontWeight: 700 }}>{g}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Stack>
+          )}
         </Paper>
       </Box>
 
@@ -695,7 +709,16 @@ export default function Courses() {
                 variant="contained" 
                 onClick={handleSave}
                 startIcon={<Save size={18} />}
-                sx={{ borderRadius: 2, fontWeight: 900, px: 4 }}
+                sx={{ 
+                  borderRadius: 2, 
+                  fontWeight: 900, 
+                  px: 4,
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+                  boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                  '&:hover': {
+                    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                  }
+                }}
               >
                 {editingCourse ? 'Update Subject' : 'Create Subject'}
               </Button>
@@ -1089,8 +1112,12 @@ export default function Courses() {
                           borderRadius: 4, fontWeight: 950, py: 2, 
                           fontSize: '1rem',
                           textTransform: 'none',
-                          boxShadow: `0 12px 30px ${alpha(theme.palette.primary.main, 0.3)}`,
-                          background: `linear-gradient(to right, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`
+                          boxShadow: `0 12px 30px ${alpha(theme.palette.primary.main, 0.35)}`,
+                          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.7)} 100%)`,
+                          '&:hover': {
+                            background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                            boxShadow: `0 15px 40px ${alpha(theme.palette.primary.main, 0.4)}`,
+                          }
                         }}
                       >
                         {editingSectionIdx !== null ? 'Hifz Sabaq Update' : 'Publish as Section'}
@@ -1311,8 +1338,8 @@ export default function Courses() {
           <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider', color: 'text.primary' }}>
             <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 4 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconButton onClick={() => setOpenReader(false)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) } }}>
-                  <ArrowLeft size={20} />
+                <IconButton onClick={() => setOpenReader(false)} sx={{ bgcolor: alpha(theme.palette.error.main, 0.05), color: 'error.main', '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.1) } }}>
+                  <X size={20} />
                 </IconButton>
                 <Box>
                   <Typography variant="subtitle2" sx={{ fontWeight: 900, lineHeight: 1, color: 'primary.main', mb: 0.5 }}>LEARNING HUB</Typography>
@@ -1491,7 +1518,22 @@ export default function Courses() {
                              <Typography variant="h6" sx={{ fontWeight: 900 }}>Resource Pack Attached</Typography>
                              <Typography variant="body2" sx={{ opacity: 0.7, fontWeight: 600 }}>Download the supplementary material for this lesson.</Typography>
                            </Box>
-                           <Button variant="contained" href={viewingCourse.sections[activeSection].mediaUrl} target="_blank" sx={{ borderRadius: 3, fontWeight: 900 }}>Download</Button>
+                           <Button 
+                            variant="contained" 
+                            href={viewingCourse.sections[activeSection].mediaUrl} 
+                            target="_blank" 
+                            sx={{ 
+                              borderRadius: 3, 
+                              fontWeight: 950,
+                              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+                              boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.25)}`,
+                              '&:hover': {
+                                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                              }
+                            }}
+                          >
+                            Download
+                          </Button>
                         </Paper>
                       )}
 
@@ -1561,7 +1603,15 @@ export default function Courses() {
                             variant="outlined" 
                             size="small" 
                             onClick={() => showTeacherProfile(ReaderTeacher.uid)}
-                            sx={{ borderRadius: 3, fontWeight: 900 }}
+                            sx={{ 
+                              borderRadius: 3, 
+                              fontWeight: 900,
+                              borderColor: alpha(theme.palette.primary.main, 0.5),
+                              '&:hover': {
+                                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                borderColor: theme.palette.primary.main
+                              }
+                            }}
                           >
                             View Bio
                           </Button>
@@ -1599,9 +1649,13 @@ export default function Courses() {
                             sx={{ 
                               borderRadius: 5, fontWeight: 950, px: 6, py: 2,
                               fontSize: '1.2rem',
-                              bgcolor: 'primary.main',
-                              boxShadow: `0 10px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
-                              '&:hover': { bgcolor: 'primary.dark', transform: 'translateY(-3px)' }
+                              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.7)} 100%)`,
+                              boxShadow: `0 10px 25px ${alpha(theme.palette.primary.main, 0.35)}`,
+                              '&:hover': { 
+                                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                                transform: 'translateY(-3px)',
+                                boxShadow: `0 15px 30px ${alpha(theme.palette.primary.main, 0.45)}`,
+                              }
                             }}
                           >
                             Next Lesson
@@ -1634,6 +1688,7 @@ export default function Courses() {
 }
 
 function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sectionId: string, courseId: string, currentUser: any }) {
+  const theme = useTheme();
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [showResults, setShowResults] = useState(false);
@@ -1706,7 +1761,19 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sec
              </Box>
            ))}
         </Box>
-        <Button variant="contained" sx={{ mt: 4, borderRadius: 3 }} onClick={() => { setShowResults(false); setCurrentStep(0); setSelectedAnswers([]); }}>Retry Quiz</Button>
+        <Button 
+          variant="contained" 
+          sx={{ 
+            mt: 4, 
+            borderRadius: 3, 
+            fontWeight: 950,
+            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+            boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.25)}`,
+          }} 
+          onClick={() => { setShowResults(false); setCurrentStep(0); setSelectedAnswers([]); }}
+        >
+          Retry Quiz
+        </Button>
       </Box>
     );
   }
@@ -1746,7 +1813,21 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sec
       </Stack>
       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
         <Button disabled={currentStep === 0} onClick={() => setCurrentStep(prev => prev - 1)} sx={{ color: 'rgba(255,255,255,0.6)' }}>Back</Button>
-        <Button variant="contained" onClick={handleNext} disabled={selectedAnswers[currentStep] === undefined || submitting}>
+        <Button 
+          variant="contained" 
+          onClick={handleNext} 
+          disabled={selectedAnswers[currentStep] === undefined || submitting}
+          sx={{
+            borderRadius: 3,
+            fontWeight: 950,
+            px: 4,
+            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+            boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.25)}`,
+            '&:disabled': {
+              background: alpha(theme.palette.action.disabledBackground, 0.12)
+            }
+          }}
+        >
           {submitting ? <CircularProgress size={20} color="inherit" /> : (currentStep === quiz.questions.length - 1 ? "Submit Quiz" : "Next Question")}
         </Button>
       </Box>
@@ -2002,13 +2083,17 @@ function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead,
         sx={{ 
           borderRadius: 0, 
           py: 3, 
-          fontWeight: 900, 
-          bgcolor: isDark ? 'background.default' : 'grey.900', 
+          fontWeight: 950, 
+          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.8)} 100%)`, 
           color: 'white',
           textTransform: 'none',
-          fontSize: '1.05rem',
+          fontSize: '1.1rem',
           letterSpacing: 0.5,
-          '&:hover': { bgcolor: 'primary.main', color: 'white' } 
+          '&:hover': { 
+            background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+            transform: 'translateY(-2px)',
+            transition: '0.3s'
+          } 
         }}
       >
         Read Subject

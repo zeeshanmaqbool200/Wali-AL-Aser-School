@@ -260,15 +260,23 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                   size="large"
                   disabled={loading}
                   sx={{ 
-                    py: 1.8, 
-                    borderRadius: 3, 
-                    fontSize: '1rem', 
-                    fontWeight: 800,
-                    bgcolor: 'primary.main',
+                    py: 2, 
+                    borderRadius: 4, 
+                    fontSize: '1.05rem', 
+                    fontWeight: 950,
+                    textTransform: 'none',
+                    letterSpacing: 0.5,
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
                     color: 'white',
                     mt: 2,
-                    boxShadow: 'none',
-                    '&:hover': { bgcolor: 'primary.dark', boxShadow: 'none' }
+                    boxShadow: `0 12px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': { 
+                      background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                      transform: 'translateY(-2px)',
+                      boxShadow: `0 15px 30px ${alpha(theme.palette.primary.main, 0.45)}`,
+                    },
+                    '&:active': { transform: 'scale(0.98)' }
                   }}
                 >
                   {loading ? (

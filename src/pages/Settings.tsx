@@ -16,7 +16,7 @@ import {
   Monitor, Moon, Sun, Languages, Database,
   Key, Eye, EyeOff, Smartphone as MobileIcon,
   Cloud, Zap, HardDrive, RefreshCw, AlertTriangle, Layout,
-  Download, FileJson, Terminal, Mic, MessageSquare
+  Download, FileJson, Terminal, Mic, MessageSquare, Image as ImageIcon
 } from 'lucide-react';
 import { doc, getDoc, updateDoc, collection, query, getDocs, deleteDoc, arrayUnion, setDoc, where } from 'firebase/firestore';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
@@ -25,7 +25,7 @@ import { UserProfile, InstituteSettings } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useHardwarePermissions } from '../services/hardwareService';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaQuery, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { logger } from '../lib/logger';
 import { saveSessionUser } from '../lib/session';
@@ -83,6 +83,58 @@ const IOSSwitch = styled((props: any) => (
   },
 }));
 
+const BrandingImageItem = ({ label, value, onUpload, onRemove, icon, isBanner }: any) => {
+  const theme = useTheme();
+  return (
+    <Box>
+      <Typography variant="caption" sx={{ fontWeight: 800, mb: 1, display: 'block', opacity: 0.7 }}>{label}</Typography>
+      <Box sx={{ 
+        position: 'relative', border: '1px solid', borderColor: 'divider', borderRadius: 3, height: isBanner ? 80 : 100, 
+        display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+        bgcolor: alpha(theme.palette.background.default, 0.4),
+        transition: '0.2s',
+        '&:hover': { borderColor: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.02) }
+      }}>
+        {value ? (
+          <Box sx={{ position: 'relative', width: '100%', height: '100%', p: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={value} alt={label} style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
+            <IconButton 
+              size="small" 
+              onClick={onRemove} 
+              sx={{ 
+                position: 'absolute', top: 4, right: 4, 
+                bgcolor: alpha(theme.palette.error.main, 0.8), 
+                color: 'white', 
+                '&:hover': { bgcolor: 'error.main' },
+                backdropFilter: 'blur(4px)',
+                width: 24, height: 24
+              }}
+            >
+              <X size={14} />
+            </IconButton>
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'text.disabled' }}>
+            {icon}
+          </Box>
+        )}
+        <Box 
+          sx={{ 
+            position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.4)', 
+            opacity: 0, '&:hover': { opacity: 1 }, transition: '0.2s', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            cursor: 'pointer', backdropFilter: 'blur(2px)' 
+          }} 
+          component="label"
+        >
+          <input type="file" hidden accept="image/*" onChange={onUpload} />
+          <Typography variant="caption" sx={{ color: 'white', fontWeight: 900, letterSpacing: 1 }}>{value ? 'REPLACE' : 'UPLOAD'}</Typography>
+        </Box>
+      </Box>
+    </Box>
+  );
+};
+
 export default function Settings() {
   const { user: currentUser, logout } = useAuth();
   const navigate = useNavigate();
@@ -91,10 +143,10 @@ export default function Settings() {
   const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { 
     mode, setMode, 
-    setAccentColor,
-    setHighContrast,
-    setReduceMotion,
-    setCompactLayout
+    highContrast, setHighContrast, 
+    reduceMotion, setReduceMotion, 
+    compactLayout, setCompactLayout,
+    setInstituteColors
   } = useThemeContext()!;
   const { permissions } = useHardwarePermissions();
   const [searchParams] = useSearchParams();
@@ -106,7 +158,7 @@ export default function Settings() {
   const isStaff = isAdmin || isTeacherRole;
 
   const [loading, setLoading] = useState(true);
-  const [tabValue, setTabValue] = useState(searchParams.get('tab') || 'appearance');
+  const [tabValue, setTabValue] = useState(searchParams.get('tab') || 'general');
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -117,14 +169,12 @@ export default function Settings() {
     push: true,
     feeReminders: true,
     attendance: false,
-    announcements: true,
     inAppToasts: true
   });
   const [uiPrefs, setUiPrefs] = useState({
     highContrast: false,
     reduceMotion: false,
     compactLayout: false,
-    accentColor: '#0f766e'
   });
 
   const [passwordDialog, setPasswordDialog] = useState({
@@ -422,12 +472,11 @@ export default function Settings() {
   };
 
   const menuItems = [
-    { id: 'appearance', label: 'Theme & Appearance', icon: <Palette size={20} />, role: 'all' },
-    { id: 'notifications', label: 'Notifications', icon: <Bell size={20} />, role: 'all' },
-    { id: 'security', label: 'Security & Privacy', icon: <Shield size={20} />, role: 'all' },
-    { id: 'hardware', label: 'Device & Permissions', icon: <Camera size={20} />, role: 'all' },
-    { id: 'branding', label: 'Institute Branding', icon: <Globe size={20} />, role: 'superadmin' },
-    { id: 'system', label: 'System & Data', icon: <Database size={20} />, role: 'superadmin' },
+    { id: 'general', label: 'General', icon: <Layout size={20} />, role: 'all' },
+    { id: 'account', label: 'Account', icon: <User size={20} />, role: 'all' },
+    { id: 'branding', label: 'Branding', icon: <Palette size={20} />, role: 'admin' },
+    { id: 'system', label: 'System', icon: <Terminal size={20} />, role: 'superadmin' },
+    { id: 'logs', label: 'Audit Logs', icon: <Database size={20} />, role: 'admin' },
   ].filter(item => {
     if (item.role === 'all') return true;
     if (item.role === 'admin') return isAdmin;
@@ -562,291 +611,191 @@ export default function Settings() {
 
         <Grid size={{ xs: 12, md: 8, lg: 9 }}>
           <AnimatePresence mode="wait">
-            {tabValue === 'branding' && isSuperAdmin && (
-              <motion.div key="branding" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                <Card variant="outlined" sx={{ borderRadius: 2, bgcolor: 'background.paper' }}>
+            {/* General Section */}
+            {tabValue === 'general' && (
+              <motion.div key="general" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                 <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
+                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>General Settings</Typography>
+                  </Box>
                   <CardContent sx={{ p: 4 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900, mb: 4, letterSpacing: -0.5 }}>Institute Branding</Typography>
-                    <Grid container spacing={4}>
-                      <Grid size={{ xs: 12 }}>
-                        <Stack spacing={3}>
-                          <TextField
-                            fullWidth
-                            label="Institute Name"
-                            value={instituteData.instituteName || ''}
-                            onChange={(e) => setInstituteData({ ...instituteData, instituteName: e.target.value })}
-                            InputProps={{ sx: { borderRadius: 1 } }}
-                          />
-                          
-                          <Grid container spacing={3}>
-                            <Grid size={{ xs: 12, md: 6 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Institute Logo (Max 2MB)</Typography>
-                              <Box sx={{ 
-                                position: 'relative', 
-                                border: '2px dashed', 
-                                borderColor: 'divider',
-                                borderRadius: 1.5,
-                                height: 160,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                overflow: 'hidden',
-                                bgcolor: 'transparent'
-                              }}>
-                                {instituteData.logoUrl ? (
-                                  <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'transparent' }}>
-                                    <img src={instituteData.logoUrl} alt="Logo" style={{ maxHeight: '90%', maxWidth: '90%', objectFit: 'contain', background: 'transparent' }} />
-                                    <IconButton 
-                                      size="small" 
-                                      onClick={() => handleRemoveImage('logoUrl')}
-                                      sx={{ 
-                                        position: 'absolute', 
-                                        top: 8, 
-                                        right: 8, 
-                                        bgcolor: 'error.main', 
-                                        color: 'white',
-                                        '&:hover': { bgcolor: 'error.dark' },
-                                        zIndex: 10
-                                      }}
+                    <Stack spacing={4}>
+                      <Box>
+                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>APPEARANCE</Typography>
+                        <Grid container spacing={3}>
+                          <Grid size={{ xs: 12, md: 6 }}>
+                             <Box sx={{ p: 2, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.4), border: '1px solid', borderColor: 'divider' }}>
+                               <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Theme Mode</Typography>
+                               <Stack direction="row" spacing={1}>
+                                  {[
+                                    { id: 'light', label: 'Light', icon: <Sun size={18} /> },
+                                    { id: 'dark', label: 'Dark', icon: <Moon size={18} /> },
+                                    { id: 'system', label: 'System', icon: <Monitor size={18} /> }
+                                  ].map((m) => (
+                                    <Button
+                                      key={m.id}
+                                      onClick={() => setMode(m.id as any)}
+                                      variant={mode === m.id ? 'contained' : 'outlined'}
+                                      startIcon={m.icon}
+                                      size="small"
+                                      sx={{ borderRadius: 2, fontWeight: 800, flex: 1 }}
                                     >
-                                      <X size={14} />
-                                    </IconButton>
-                                  </Box>
-                                ) : (
-                                  <Camera size={32} color={theme.palette.text.disabled} />
-                                )}
-                                <Box sx={{ 
-                                  position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.6)', opacity: 0, 
-                                  transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  '&:hover': { opacity: 1 }, cursor: 'pointer'
-                                }} component="label">
-                                  <input type="file" hidden accept="image/*" onChange={handleImageUpload('logoUrl')} />
-                                  <Typography variant="caption" sx={{ color: 'white', fontWeight: 900 }}>CHANGE LOGO</Typography>
-                                </Box>
-                              </Box>
-                            </Grid>
-                            <Grid size={{ xs: 12, md: 6 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Institute Banner (Max 10MB - Landscape)</Typography>
-                              <Box sx={{ 
-                                position: 'relative', 
-                                border: '2px dashed', 
-                                borderColor: 'divider',
-                                borderRadius: 1.5,
-                                height: 160,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                overflow: 'hidden',
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'
-                              }}>
-                                {instituteData.bannerUrl ? (
-                                  <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
-                                    <img src={instituteData.bannerUrl} alt="Banner" style={{ height: '100%', width: '100%', objectFit: 'cover' }} />
-                                    <IconButton 
-                                      size="small" 
-                                      onClick={() => handleRemoveImage('bannerUrl')}
-                                      sx={{ 
-                                        position: 'absolute', 
-                                        top: 8, 
-                                        right: 8, 
-                                        bgcolor: 'error.main', 
-                                        color: 'white',
-                                        '&:hover': { bgcolor: 'error.dark' },
-                                        zIndex: 10
-                                      }}
-                                    >
-                                      <X size={14} />
-                                    </IconButton>
-                                  </Box>
-                                ) : (
-                                  <Layout size={32} color={theme.palette.text.disabled} />
-                                )}
-                                <Box sx={{ 
-                                  position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.6)', opacity: 0, 
-                                  transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  '&:hover': { opacity: 1 }, cursor: 'pointer'
-                                }} component="label">
-                                  <input type="file" hidden accept="image/*" onChange={handleImageUpload('bannerUrl')} />
-                                  <Typography variant="caption" sx={{ color: 'white', fontWeight: 900 }}>CHANGE BANNER</Typography>
-                                </Box>
-                              </Box>
-                            </Grid>
-
-                            <Grid size={{ xs: 12, md: 6 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Receipt Left Image (Max 2MB)</Typography>
-                              <Box sx={{ 
-                                position: 'relative', 
-                                border: '2px dashed', 
-                                borderColor: 'divider',
-                                borderRadius: 1.5,
-                                height: 160,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                overflow: 'hidden',
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'
-                              }}>
-                                {instituteData.receiptLeftImageUrl ? (
-                                  <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <img src={instituteData.receiptLeftImageUrl} alt="Left" style={{ maxHeight: '90%', maxWidth: '90%', objectFit: 'contain' }} />
-                                    <IconButton 
-                                      size="small" 
-                                      onClick={() => handleRemoveImage('receiptLeftImageUrl')}
-                                      sx={{ 
-                                        position: 'absolute', top: 8, right: 8, bgcolor: 'error.main', color: 'white',
-                                        '&:hover': { bgcolor: 'error.dark' }, zIndex: 10
-                                      }}
-                                    >
-                                      <X size={14} />
-                                    </IconButton>
-                                  </Box>
-                                ) : (
-                                  <Monitor size={32} color={theme.palette.text.disabled} />
-                                )}
-                                <Box sx={{ 
-                                  position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.6)', opacity: 0, 
-                                  transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  '&:hover': { opacity: 1 }, cursor: 'pointer'
-                                }} component="label">
-                                  <input type="file" hidden accept="image/*" onChange={handleImageUpload('receiptLeftImageUrl')} />
-                                  <Typography variant="caption" sx={{ color: 'white', fontWeight: 900 }}>UPLOAD LEFT</Typography>
-                                </Box>
-                              </Box>
-                            </Grid>
-
-                            <Grid size={{ xs: 12, md: 6 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>Receipt Right Image (Max 2MB)</Typography>
-                              <Box sx={{ 
-                                position: 'relative', 
-                                border: '2px dashed', 
-                                borderColor: 'divider',
-                                borderRadius: 1.5,
-                                height: 160,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                overflow: 'hidden',
-                                bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'
-                              }}>
-                                {instituteData.receiptRightImageUrl ? (
-                                  <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <img src={instituteData.receiptRightImageUrl} alt="Right" style={{ maxHeight: '90%', maxWidth: '90%', objectFit: 'contain' }} />
-                                    <IconButton 
-                                      size="small" 
-                                      onClick={() => handleRemoveImage('receiptRightImageUrl')}
-                                      sx={{ 
-                                        position: 'absolute', top: 8, right: 8, bgcolor: 'error.main', color: 'white',
-                                        '&:hover': { bgcolor: 'error.dark' }, zIndex: 10
-                                      }}
-                                    >
-                                      <X size={14} />
-                                    </IconButton>
-                                  </Box>
-                                ) : (
-                                  <Monitor size={32} color={theme.palette.text.disabled} />
-                                )}
-                                <Box sx={{ 
-                                  position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.6)', opacity: 0, 
-                                  transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  '&:hover': { opacity: 1 }, cursor: 'pointer'
-                                }} component="label">
-                                  <input type="file" hidden accept="image/*" onChange={handleImageUpload('receiptRightImageUrl')} />
-                                  <Typography variant="caption" sx={{ color: 'white', fontWeight: 900 }}>UPLOAD RIGHT</Typography>
-                                </Box>
-                              </Box>
-                            </Grid>
+                                      {m.label}
+                                    </Button>
+                                  ))}
+                               </Stack>
+                             </Box>
                           </Grid>
+                          <Grid size={{ xs: 12, md: 6 }}>
+                             <Stack spacing={2}>
+                               {[
+                                 { label: 'High Contrast', desc: 'Enhanced legibility', value: highContrast, onChange: (v: boolean) => setHighContrast(v), icon: <Zap size={20} /> },
+                                 { label: 'Compact Layout', desc: 'Information density', value: compactLayout, onChange: (v: boolean) => setCompactLayout(v), icon: <Layout size={20} /> }
+                               ].map((item, idx) => (
+                                 <Box key={idx} sx={{ p: 2, px: 3, borderRadius: 3, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.05), bgcolor: 'background.default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                     <Box sx={{ color: 'primary.main', display: 'flex' }}>{item.icon}</Box>
+                                     <Box>
+                                       <Typography variant="body2" sx={{ fontWeight: 800 }}>{item.label}</Typography>
+                                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{item.desc}</Typography>
+                                     </Box>
+                                   </Box>
+                                   <IOSSwitch checked={item.value} onChange={(e: any) => item.onChange(e.target.checked)} />
+                                 </Box>
+                               ))}
+                             </Stack>
+                          </Grid>
+                        </Grid>
+                      </Box>
+                      <Divider />
+                      <Box>
+                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>ALERTS & NOTIFICATIONS</Typography>
+                        <Grid container spacing={2}>
+                          {[
+                            { key: 'email', label: 'Email Reports', desc: 'Performance summaries', icon: <Mail size={18} /> },
+                            { key: 'push', label: 'Push Alerts', desc: 'Critical notifications', icon: <Bell size={18} /> },
+                            { key: 'feeReminders', label: 'Fee Alerts', desc: 'Due date reminders', icon: <CreditCard size={18} /> }
+                          ].map((item, i) => (
+                            <Grid size={{ xs: 12, md: 4 }} key={i}>
+                              <Box sx={{ p: 2, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), borderRadius: 3, bgcolor: alpha(theme.palette.background.default, 0.4) }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                   <Box sx={{ color: 'primary.main', p: 1, bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 1.5, display: 'flex' }}>
+                                      {item.icon}
+                                   </Box>
+                                   <Switch size="small" checked={(notificationPrefs as any)[item.key]} onChange={(e) => setNotificationPrefs({ ...notificationPrefs, [item.key]: e.target.checked })} />
+                                </Box>
+                                <Typography variant="body2" sx={{ fontWeight: 800 }}>{item.label}</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', lineHeight: 1.2 }}>{item.desc}</Typography>
+                              </Box>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      </Box>
+                    </Stack>
+                    <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveSettings} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Save General Settings</Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+            {/* Account Section */}
+            {tabValue === 'account' && (
+              <motion.div key="account" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', mb: 4 }}>
+                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Account Profile</Typography>
+                  </Box>
+                  <CardContent sx={{ p: 4 }}>
+                    <Grid container spacing={4}>
+                      <Grid size={{ xs: 12, md: 4 }} sx={{ textAlign: 'center' }}>
+                        <Box sx={{ position: 'relative', display: 'inline-block' }}>
+                          <Avatar src={profileData.photoURL} sx={{ width: 120, height: 120, mb: 2, border: '4px solid', borderColor: 'primary.main' }}>{profileData.displayName?.charAt(0)}</Avatar>
+                          <IconButton size="small" sx={{ position: 'absolute', bottom: 15, right: 0, bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}><Camera size={16} /></IconButton>
+                        </Box>
+                        <Typography variant="h6" sx={{ fontWeight: 800 }}>{profileData.displayName}</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{profileData.role?.toUpperCase()}</Typography>
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 8 }}>
+                        <Stack spacing={2}>
+                          <TextField fullWidth label="Display Name" value={profileData.displayName || ''} onChange={(e) => setProfileData({ ...profileData, displayName: e.target.value })} />
+                          <TextField fullWidth label="Primary Email" value={profileData.email || ''} disabled />
+                          <TextField fullWidth label="Phone" value={profileData.phone || ''} onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })} />
                         </Stack>
                       </Grid>
+                    </Grid>
+                    <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveSettings} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Update Profile</Button>
+                    </Box>
+                  </CardContent>
+                </Card>
 
-                      <Grid size={{ xs: 12, md: 6 }}>
-                         <Box sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50' }}>
-                           <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 800 }}>Primary Brand Color</Typography>
-                           <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                             <Box 
-                               sx={{ 
-                                 width: 60, height: 60, borderRadius: 1.5, 
-                                 bgcolor: instituteData.primaryColor || '#1976d2',
-                                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                 position: 'relative',
-                                 cursor: 'pointer',
-                                 '& input': { position: 'absolute', opacity: 0, inset: 0, cursor: 'pointer' }
-                               }}
-                             >
-                               <input 
-                                 type="color" 
-                                 value={instituteData.primaryColor || '#1976d2'} 
-                                 onChange={(e) => setInstituteData({ ...instituteData, primaryColor: e.target.value })}
-                               />
-                             </Box>
-                             <Box>
-                               <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.1rem' }}>
-                                 {instituteData.primaryColor?.toUpperCase() || '#1976D2'}
-                               </Typography>
-                               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Click to change</Typography>
-                             </Box>
-                           </Box>
-                         </Box>
+                <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper' }}>
+                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Security Center</Typography>
+                  </Box>
+                  <CardContent sx={{ p: 4 }}>
+                    <Typography variant="body2" sx={{ mb: 3, fontWeight: 500, color: 'text.secondary' }}>Update your password periodically to maintain account security.</Typography>
+                    <Grid container spacing={3}>
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Current Password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={passwordDialog.current}
+                          onChange={(e) => setPasswordDialog({ ...passwordDialog, current: e.target.value })}
+                          InputProps={{
+                            endAdornment: (
+                              <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
+                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                              </IconButton>
+                            ),
+                            sx: { borderRadius: 1 }
+                          }}
+                        />
                       </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                         <Box sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50' }}>
-                           <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 800 }}>Secondary Brand Color</Typography>
-                           <Box sx={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                             <Box 
-                               sx={{ 
-                                 width: 60, height: 60, borderRadius: 1.5, 
-                                 bgcolor: instituteData.secondaryColor || '#9c27b0',
-                                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                 position: 'relative',
-                                 cursor: 'pointer',
-                                 '& input': { position: 'absolute', opacity: 0, inset: 0, cursor: 'pointer' }
-                               }}
-                             >
-                               <input 
-                                 type="color" 
-                                 value={instituteData.secondaryColor || '#9c27b0'} 
-                                 onChange={(e) => setInstituteData({ ...instituteData, secondaryColor: e.target.value })}
-                               />
-                             </Box>
-                             <Box>
-                               <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1.1rem' }}>
-                                 {instituteData.secondaryColor?.toUpperCase() || '#9C27B0'}
-                               </Typography>
-                               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Click to change</Typography>
-                             </Box>
-                           </Box>
-                         </Box>
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="New Password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={passwordDialog.new}
+                          onChange={(e) => setPasswordDialog({ ...passwordDialog, new: e.target.value })}
+                          InputProps={{ sx: { borderRadius: 1 } }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Confirm Password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={passwordDialog.confirm}
+                          onChange={(e) => setPasswordDialog({ ...passwordDialog, confirm: e.target.value })}
+                          InputProps={{ sx: { borderRadius: 1 } }}
+                        />
                       </Grid>
                     </Grid>
-
-                    <Box sx={{ mt: 4 }}>
-                       <Box sx={{ p: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50' }}>
-                         <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
-                           <MessageSquare size={18} /> Inspirational Quotes
-                         </Typography>
-                         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 600 }}>
-                           Enter quotes that will be randomly shown on the dashboard. Add each quote on a new line.
-                         </Typography>
-                         <TextField
-                           fullWidth
-                           multiline
-                           rows={6}
-                           placeholder={`Knowledge is a treasure, but practice is the key to it. — Imam Ali (AS)\nSeek knowledge from the cradle to the grave. — Prophet Muhammad (SAWW)`}
-                           value={instituteData.quotes?.join('\n') || ''}
-                           onChange={(e) => setInstituteData({ ...instituteData, quotes: e.target.value.split('\n').filter(q => q.trim() !== '') })}
-                           InputProps={{ sx: { borderRadius: 2, bgcolor: 'background.paper' } }}
-                         />
-                       </Box>
-                    </Box>
-                    
-                    <Box sx={{ mt: 5, display: 'flex', justifyContent: 'flex-end' }}>
+                    <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
                       <Button 
                         variant="contained" 
-                        startIcon={<Save size={18} />} 
-                        onClick={handleSaveInstitute} 
-                        sx={{ borderRadius: 2, fontWeight: 800, px: 5, py: 1.5 }}
+                        startIcon={passwordDialog.loading ? <CircularProgress size={16} color="inherit" /> : <Lock size={18} />}
+                        onClick={handleUpdatePassword}
+                        disabled={passwordDialog.loading || !passwordDialog.current || !passwordDialog.new}
+                        sx={{ 
+                          borderRadius: 2, 
+                          fontWeight: 950, 
+                          px: 4,
+                          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+                          boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.25)}`,
+                          '&:hover': {
+                            background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                          }
+                        }}
                       >
-                        Save Branding
+                        Update Password
                       </Button>
                     </Box>
                   </CardContent>
@@ -854,613 +803,138 @@ export default function Settings() {
               </motion.div>
             )}
 
-            {/* Appearance Section */}
-            {tabValue === 'appearance' && (
-              <motion.div key="appearance" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+            {/* Branding Section */}
+            {tabValue === 'branding' && isAdmin && (
+              <motion.div key="branding" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
                 <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
                   <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900, fontFamily: 'var(--font-heading)' }}>Theme & Perspective</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Institute Branding</Typography>
                   </Box>
                   <CardContent sx={{ p: 4 }}>
-                    <Grid container spacing={4}>
-                      <Grid size={{ xs: 12 }}>
-                        <Typography className="ui-label" sx={{ mb: 3 }}>VISUAL THEME</Typography>
-                        <Grid container spacing={2}>
-                          <Grid size={{ xs: 6, sm: 4 }}>
-                            <Box 
-                              onClick={() => setMode('light')}
-                              sx={{ 
-                                cursor: 'pointer', p: 2, borderRadius: 3, border: '2px solid', 
-                                borderColor: mode === 'light' ? 'primary.main' : 'divider',
-                                textAlign: 'center', transition: 'all 0.2s', bgcolor: mode === 'light' ? alpha(theme.palette.primary.main, 0.05) : 'transparent'
-                              }}
-                            >
-                                <Sun size={32} style={{ margin: '0 auto 12px' }} />
-                                <Typography sx={{ fontWeight: 800 }}>Light</Typography>
-                            </Box>
-                          </Grid>
-                          <Grid size={{ xs: 6, sm: 4 }}>
-                            <Box 
-                              onClick={() => setMode('dark')}
-                              sx={{ 
-                                cursor: 'pointer', p: 2, borderRadius: 3, border: '2px solid', 
-                                borderColor: mode === 'dark' ? 'primary.main' : 'divider',
-                                textAlign: 'center', transition: 'all 0.2s', bgcolor: mode === 'dark' ? alpha(theme.palette.primary.main, 0.05) : 'transparent'
-                              }}
-                            >
-                                <Moon size={32} style={{ margin: '0 auto 12px' }} />
-                                <Typography sx={{ fontWeight: 800 }}>Dark</Typography>
-                            </Box>
-                          </Grid>
-                        </Grid>
-                      </Grid>
-
-                      <Grid size={{ xs: 12 }}>
-                         <Typography className="ui-label" sx={{ mb: 2 }}>INTERFACE OPTIONS</Typography>
-                         <Stack spacing={0.5}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                               <Box>
-                                 <Typography sx={{ fontWeight: 800 }}>High Contrast</Typography>
-                                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Enhances legibility for better focus</Typography>
-                               </Box>
-                               <IOSSwitch checked={uiPrefs.highContrast} onChange={(e: any) => { setHighContrast(e.target.checked); setUiPrefs({...uiPrefs, highContrast: e.target.checked}) }} />
-                            </Box>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                               <Box>
-                                 <Typography sx={{ fontWeight: 800 }}>Reduce Motion</Typography>
-                                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Minimizes animations and transitions</Typography>
-                               </Box>
-                               <IOSSwitch checked={uiPrefs.reduceMotion} onChange={(e: any) => { setReduceMotion(e.target.checked); setUiPrefs({...uiPrefs, reduceMotion: e.target.checked}) }} />
-                            </Box>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 2 }}>
-                               <Box>
-                                 <Typography sx={{ fontWeight: 800 }}>Compact Layout</Typography>
-                                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Fits more content on the screen</Typography>
-                               </Box>
-                               <IOSSwitch checked={uiPrefs.compactLayout} onChange={(e: any) => { setCompactLayout(e.target.checked); setUiPrefs({...uiPrefs, compactLayout: e.target.checked}) }} />
-                            </Box>
-                         </Stack>
-                      </Grid>
-                    </Grid>
-
-                    <Box sx={{ mt: 6, textAlign: 'right' }}>
-                       <Button variant="contained" onClick={handleSaveSettings} sx={{ borderRadius: 3, fontWeight: 900, px: 4 }}>Save Changes</Button>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
-
-            {tabValue === 'hardware' && (
-              <motion.div key="hardware" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                <Card variant="outlined" sx={{ borderRadius: 1.5, bgcolor: 'background.paper' }}>
-                  <CardContent sx={{ p: 4 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900, mb: 4, letterSpacing: -0.5 }}>Device & Permissions</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 4, fontWeight: 500 }}>
-                      The following hardware permissions are required for certain features like scanning QR codes or taking student photographs.
-                    </Typography>
-                    <Stack spacing={3}>
-                      {Object.entries(permissions)
-                        .filter(([name]) => name !== 'microphone')
-                        .map(([name, status]) => (
-                        <Box 
-                          key={name}
-                          sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'space-between',
-                            p: 3,
-                            borderRadius: 1.5,
-                            bgcolor: 'background.default',
-                            border: `1px solid ${alpha(theme.palette.divider, 0.05)}`
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex' }}>
-                              {name === 'camera' ? <Camera size={22} /> : <Bell size={22} />}
-                            </Box>
-                            <Box>
-                              <Typography variant="body1" sx={{ fontWeight: 900, textTransform: 'capitalize' }}>{name}</Typography>
-                              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Status: {status}</Typography>
-                            </Box>
-                          </Box>
-                          <Chip 
-                            label={status === 'granted' ? 'Allowed' : status === 'denied' ? 'Blocked' : 'Unknown'} 
-                            color={status === 'granted' ? 'success' : 'error'}
-                            variant={status === 'granted' ? 'filled' : 'outlined'}
-                            sx={{ fontWeight: 800, borderRadius: 2 }}
-                          />
-                        </Box>
-                      ))}
-                    </Stack>
-                    <Box sx={{ mt: 5, p: 3, borderRadius: 1.5, bgcolor: alpha(theme.palette.info.main, 0.03), border: '1px solid', borderColor: alpha(theme.palette.info.main, 0.1) }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1, color: 'info.dark' }}>Need to change permissions?</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
-                        If a permission is blocked, you can usually change it in your browser settings or by clicking the lock icon in the address bar.
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
-
-            {tabValue === 'notifications' && (
-              <motion.div key="notifications" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                <Grid container spacing={4}>
-                  <Grid size={{ xs: 12, lg: 7 }}>
-                    <Card sx={{ borderRadius: 4, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
-                      <CardContent sx={{ p: 4 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-                          <Typography variant="h6" sx={{ fontWeight: 900 }}>Notification Preferences</Typography>
-                          <Button 
-                            variant="outlined" 
-                            size="small" 
-                            startIcon={<Bell size={16} />}
-                            onClick={() => {
-                              if ('Notification' in window) {
-                                Notification.requestPermission().then(permission => {
-                                  setSnackbar({ open: true, message: `Notification permission: ${permission}`, severity: permission === 'granted' ? 'success' : 'error' });
-                                });
-                              }
-                            }}
-                            sx={{ borderRadius: 1.5, fontWeight: 800 }}
-                          >
-                            Request Permission
-                          </Button>
-                        </Box>
-
-                        <Stack spacing={2}>
-                          {[
-                            { key: 'email', label: 'Email Notifications', desc: 'Receive updates via your registered email', icon: <Mail size={20} /> },
-                            { key: 'push', label: 'Push Notifications', desc: 'Get real-time alerts on your mobile/laptop', icon: <Zap size={20} /> },
-                            { key: 'feeReminders', label: 'Fee Reminders', desc: 'Get notified about upcoming fee deadlines', icon: <CreditCard size={20} /> },
-                            { key: 'attendance', label: 'Attendance Alerts', desc: 'Notifications about daily attendance status', icon: <CheckCircle size={20} /> },
-                            { key: 'announcements', label: 'Institute Announcements', desc: 'Important news from the administration', icon: <Bell size={20} /> }
-                          ].map((item, i) => (
-                            <Box 
-                              key={i} 
-                              sx={{ 
-                                p: 2.5, 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'space-between',
-                                border: '1px solid', 
-                                borderColor: alpha(theme.palette.divider, 0.08), 
-                                borderRadius: 2.5,
-                                bgcolor: alpha(theme.palette.background.default, 0.4),
-                                transition: '0.2s',
-                                '&:hover': { bgcolor: alpha(theme.palette.background.default, 0.8), transform: 'translateY(-2px)' }
-                              }}
-                            >
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
-                                <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex' }}>
-                                  {item.icon}
-                                </Box>
-                                <Box>
-                                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{item.label}</Typography>
-                                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{item.desc}</Typography>
-                                </Box>
-                              </Box>
-                              <Switch 
-                                color="primary" 
-                                checked={(notificationPrefs as any)[item.key]} 
-                                onChange={(e) => setNotificationPrefs({ ...notificationPrefs, [item.key]: e.target.checked })}
-                                sx={{ 
-                                  '& .MuiSwitch-switchBase.Mui-checked': { color: 'primary.main' },
-                                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: 'primary.main' }
-                                }}
-                              />
-                            </Box>
-                          ))}
-                        </Stack>
-                        <Box sx={{ mt: 5, display: 'flex', justifyContent: 'flex-end' }}>
-                          <Button 
-                            variant="contained" 
-                            startIcon={<Save size={18} />} 
-                            onClick={handleSaveNotifications}
-                            sx={{ borderRadius: 2, fontWeight: 800, px: 5, py: 1.5 }}
-                          >
-                            Save Preferences
-                          </Button>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-
-                  <Grid size={{ xs: 12, lg: 5 }}>
-                    <Card sx={{ borderRadius: 4, height: '100%', bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'grey.50', border: 'none' }}>
-                      <CardContent sx={{ p: 4 }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 3 }}>Platform Previews</Typography>
-                        
-                        <Box sx={{ mb: 4, bgcolor: 'background.paper', p: 0.5, borderRadius: 3, display: 'flex', gap: 0.5 }}>
-                          {['Android', 'iOS', 'Desktop'].map((platform) => (
-                            <Button
-                              key={platform}
-                              fullWidth
-                              size="small"
-                              variant={(window as any)._notifPreview === platform ? 'contained' : 'text'}
-                              onClick={() => {
-                                (window as any)._notifPreview = platform;
-                                setTabValue('notifications'); // force re-render
-                              }}
-                              sx={{ 
-                                borderRadius: 2.5, 
-                                fontWeight: 800, 
-                                py: 1,
-                                bgcolor: (window as any)._notifPreview === platform ? 'primary.main' : 'transparent',
-                                color: (window as any)._notifPreview === platform ? 'white' : 'text.secondary'
-                              }}
-                            >
-                              {platform}
-                            </Button>
-                          ))}
-                        </Box>
-
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
-                          {((window as any)._notifPreview || 'Android') === 'Android' && (
-                            <Box sx={{ 
-                              width: '100%', 
-                              maxWidth: 300, 
-                              p: 2, 
-                              bgcolor: '#1a1a1a', 
-                              borderRadius: 4, 
-                              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-                              color: 'white',
-                              fontFamily: 'sans-serif'
-                            }}>
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, opacity: 0.8 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 600 }}>10:45</Typography>
-                                <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                  <div style={{ width: 12, height: 12, borderRadius: '2px', border: '1px solid white' }} />
-                                  <div style={{ width: 12, height: 12, borderRadius: '2px', border: '1px solid white' }} />
-                                </Box>
-                              </Box>
-                              <Box sx={{ bgcolor: '#333', p: 1.5, borderRadius: 2, display: 'flex', gap: 1.5, alignItems: 'center' }}>
-                                <Avatar sx={{ width: 32, height: 32, bgcolor: theme.palette.primary.main, fontSize: '0.8rem' }}>M</Avatar>
-                                <Box sx={{ flex: 1 }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', lineHeight: 1 }}>Institute LMS</Typography>
-                                  <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mt: 0.5 }}>Fee Reminder</Typography>
-                                  <Typography variant="caption" sx={{ fontSize: '0.65rem', opacity: 0.7 }}>Please submit your monthly fees by tomorrow...</Typography>
-                                </Box>
-                              </Box>
-                            </Box>
-                          )}
-
-                          {((window as any)._notifPreview || 'Android') === 'iOS' && (
-                            <Box sx={{ 
-                              width: '100%', 
-                              maxWidth: 300, 
-                              p: 2.5, 
-                              bgcolor: 'rgba(255,255,255,0.8)', 
-                              backdropFilter: 'blur(10px)',
-                              borderRadius: 5, 
-                              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-                              color: '#000',
-                              border: '1px solid rgba(255,255,255,0.5)'
-                            }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-                                <Avatar sx={{ width: 24, height: 24, bgcolor: theme.palette.primary.main, fontSize: '0.6rem' }}>M</Avatar>
-                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, flex: 1, opacity: 0.6 }}>INSTITUTE LMS</Typography>
-                                <Typography sx={{ fontSize: '0.7rem', opacity: 0.5 }}>now</Typography>
-                              </Box>
-                              <Typography sx={{ fontSize: '0.9rem', fontWeight: 700, mb: 0.3 }}>Class Timing Updated</Typography>
-                              <Typography sx={{ fontSize: '0.85rem', fontWeight: 400, opacity: 0.8, lineHeight: 1.3 }}>Your Farsi class has been moved to 5:00 PM today.</Typography>
-                            </Box>
-                          )}
-
-                          {((window as any)._notifPreview || 'Android') === 'Desktop' && (
-                            <Box sx={{ 
-                              width: '100%', 
-                              maxWidth: 320, 
-                              p: 2, 
-                              bgcolor: theme.palette.mode === 'dark' ? '#2d2d2d' : 'white', 
-                              borderRadius: 1.5, 
-                              boxShadow: '0 15px 35px rgba(0,0,0,0.15)',
-                              border: `1px solid ${theme.palette.divider}`,
-                              display: 'flex',
-                              gap: 2
-                            }}>
-                              <Avatar sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: theme.palette.primary.main }}>M</Avatar>
-                              <Box sx={{ flex: 1 }}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 0.5 }}>
-                                  <Typography variant="body2" sx={{ fontWeight: 800 }}>Important Announcement</Typography>
-                                  <X size={14} style={{ opacity: 0.4 }} />
-                                </Box>
-                                <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.4, mb: 2 }}>The exam schedule for term 2 has been published.</Typography>
-                                <Box sx={{ display: 'flex', gap: 1 }}>
-                                  <Button size="small" variant="contained" sx={{ px: 2, height: 24, fontSize: '0.65rem', borderRadius: 1 }}>View</Button>
-                                  <Button size="small" variant="outlined" sx={{ px: 2, height: 24, fontSize: '0.65rem', borderRadius: 1 }}>Dismiss</Button>
-                                </Box>
-                              </Box>
-                            </Box>
-                          )}
-                        </Box>
-
-                        <Box sx={{ mt: 6, p: 3, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.03), border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
-                          <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', mb: 1, color: 'primary.main', textTransform: 'uppercase' }}>Pro Tip</Typography>
-                          <Typography variant="caption" sx={{ fontWeight: 500, color: 'text.secondary', display: 'block', lineHeight: 1.5 }}>
-                            Real-time notifications help ensure you never miss an updated class time or a payment deadline. Keep them enabled for the best experience.
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
-              </motion.div>
-            )}
-            
-            {tabValue === 'security' && (
-              <motion.div key="security" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                <Card sx={{ 
-                  borderRadius: 1.5, 
-                  border: 'none',
-                  bgcolor: 'background.paper',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
-                    : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
-                }}>
-                  <CardContent sx={{ p: 4 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900, mb: 4, letterSpacing: -0.5 }}>Security & Authentication</Typography>
-                    <Stack spacing={3}>
-                      <Box sx={{ 
-                        p: 3, 
-                        borderRadius: 1.5, 
-                        bgcolor: 'background.default',
-                        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
-                      }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1 }}>Account Password</Typography>
-                        <Typography variant="body2" sx={{ mb: 3, fontWeight: 500, color: 'text.secondary' }}>
-                          Update your password periodically to maintain account security.
-                        </Typography>
-                        
+                    <Stack spacing={4}>
+                      <Box>
+                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>IDENTITY & COLORS</Typography>
                         <Grid container spacing={3}>
-                          <Grid size={{ xs: 12, md: 4 }}>
-                            <TextField
-                              fullWidth
-                              size="small"
-                              label="Current Password"
-                              type={showPassword ? 'text' : 'password'}
-                              value={passwordDialog.current}
-                              onChange={(e) => setPasswordDialog({ ...passwordDialog, current: e.target.value })}
-                              InputProps={{
-                                endAdornment: (
-                                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
-                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                  </IconButton>
-                                ),
-                                sx: { borderRadius: 1 }
-                              }}
-                            />
+                          <Grid size={{ xs: 12, md: 8 }}>
+                            <TextField fullWidth label="Institute Name" variant="filled" value={instituteData.instituteName || ''} onChange={(e) => setInstituteData({ ...instituteData, instituteName: e.target.value })} sx={{ mb: 2 }} InputProps={{ disableUnderline: true, sx: { borderRadius: 2, fontWeight: 900, fontSize: '1.2rem', bgcolor: alpha(theme.palette.primary.main, 0.05) } }} />
+                            <TextField fullWidth label="Tagline" variant="filled" value={instituteData.tagline || ''} onChange={(e) => setInstituteData({ ...instituteData, tagline: e.target.value })} InputProps={{ disableUnderline: true, sx: { borderRadius: 2, fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.03) } }} />
                           </Grid>
                           <Grid size={{ xs: 12, md: 4 }}>
-                            <TextField
-                              fullWidth
-                              size="small"
-                              label="New Password"
-                              type={showPassword ? 'text' : 'password'}
-                              value={passwordDialog.new}
-                              onChange={(e) => setPasswordDialog({ ...passwordDialog, new: e.target.value })}
-                              InputProps={{ sx: { borderRadius: 1 } }}
-                            />
-                          </Grid>
-                          <Grid size={{ xs: 12, md: 4 }}>
-                            <TextField
-                              fullWidth
-                              size="small"
-                              label="Confirm New Password"
-                              type={showPassword ? 'text' : 'password'}
-                              value={passwordDialog.confirm}
-                              onChange={(e) => setPasswordDialog({ ...passwordDialog, confirm: e.target.value })}
-                              InputProps={{ sx: { borderRadius: 1 } }}
-                            />
+                            <Typography variant="caption" sx={{ fontWeight: 800, mb: 1, display: 'block', opacity: 0.7 }}>BRAND COLOR</Typography>
+                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                              {['#0f172a', '#064e3b', '#450a0a', '#18181b'].map(c => (
+                                <Box key={c} onClick={() => { setInstituteData({ ...instituteData, primaryColor: c }); setInstituteColors({ primary: c, secondary: c }); }} sx={{ width: 44, height: 44, borderRadius: '50%', bgcolor: c, cursor: 'pointer', border: instituteData.primaryColor === c ? '3px solid white' : 'none', boxShadow: 2, transition: '0.2s', '&:hover': { transform: 'scale(1.1)' } }} />
+                              ))}
+                              <Box component="label" sx={{ width: 44, height: 44, borderRadius: '50%', border: '2px dashed gray', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><input type="color" hidden onChange={(e) => { setInstituteColors({ primary: e.target.value, secondary: e.target.value }); setInstituteData({ ...instituteData, primaryColor: e.target.value }); }} /><Plus size={20} /></Box>
+                            </Box>
                           </Grid>
                         </Grid>
-
-                        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-                          <Button 
-                            variant="contained" 
-                            startIcon={passwordDialog.loading ? <CircularProgress size={16} color="inherit" /> : <Lock size={18} />}
-                            onClick={handleUpdatePassword}
-                            disabled={passwordDialog.loading || !passwordDialog.current || !passwordDialog.new}
-                            sx={{ 
-                              borderRadius: 1, 
-                              fontWeight: 800, 
-                              px: 4,
-                            }}
-                          >
-                            Update Password
-                          </Button>
-                        </Box>
+                      </Box>
+                      <Divider />
+                      <Box>
+                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>VISUAL ASSETS</Typography>
+                        <Grid container spacing={2}>
+                          <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Logo" value={instituteData.logoUrl} onUpload={handleImageUpload('logoUrl')} onRemove={() => handleRemoveImage('logoUrl')} icon={<Globe />} /></Grid>
+                          <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Banner" value={instituteData.bannerUrl} onUpload={handleImageUpload('bannerUrl')} onRemove={() => handleRemoveImage('bannerUrl')} icon={<Layout />} isBanner /></Grid>
+                          <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Receipt Left" value={instituteData.receiptLeftImageUrl} onUpload={handleImageUpload('receiptLeftImageUrl')} onRemove={() => handleRemoveImage('receiptLeftImageUrl')} icon={<ImageIcon />} /></Grid>
+                          <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Receipt Right" value={instituteData.receiptRightImageUrl} onUpload={handleImageUpload('receiptRightImageUrl')} onRemove={() => handleRemoveImage('receiptRightImageUrl')} icon={<ImageIcon />} /></Grid>
+                        </Grid>
+                      </Box>
+                      <Divider />
+                      <Box>
+                         <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>DASHBOARD QUOTES</Typography>
+                         <TextField
+                            fullWidth
+                            multiline
+                            rows={4}
+                            placeholder={`Success is not final.\n\nKnowledge is light.`}
+                            value={instituteData.quotes?.join('\n\n') || ''}
+                            onChange={(e) => setInstituteData({ ...instituteData, quotes: e.target.value.split(/\n\n+/) })}
+                            InputProps={{ sx: { borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.02), fontWeight: 600, p: 2 } }}
+                          />
                       </Box>
                     </Stack>
+                    <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveInstitute} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Save Branding</Button>
+                    </Box>
                   </CardContent>
                 </Card>
               </motion.div>
             )}
+
+            {/* System Section */}
             {tabValue === 'system' && isSuperAdmin && (
               <motion.div key="system" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                <Card sx={{ 
-                  borderRadius: 1.5, 
-                  border: 'none',
-                  bgcolor: 'background.paper',
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
-                    : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
-                }}>
+                <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
+                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>System Administration</Typography>
+                  </Box>
                   <CardContent sx={{ p: 4 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900, mb: 4, letterSpacing: -0.5 }}>System & Data Management</Typography>
-                    <Stack spacing={3}>
-                      {/* Jafari Hijri Date Adjustment moved here */}
-                      <Box sx={{ p: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'grey.50', mb: 3 }}>
-                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Languages size={18} /> Jafari Hijri Date Adjustment
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 600 }}>
-                          Set an offset to manually adjust the Islamic date (e.g. for regional moon sighting).
-                        </Typography>
-                        <Box sx={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                          <Box sx={{ flex: 1 }}>
-                            <input 
-                              type="range" 
-                              min="-3" 
-                              max="3" 
-                              step="1"
-                              value={instituteData.jafariOffset || 0}
-                              onChange={(e) => setInstituteData({ ...instituteData, jafariOffset: parseInt(e.target.value) })}
-                              style={{ width: '100%', accentColor: theme.palette.primary.main, cursor: 'pointer' }}
-                            />
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-                              {[-3, -2, -1, 0, 1, 2, 3].map(v => (
-                                <Typography key={v} variant="caption" sx={{ fontWeight: 900, color: 'text.secondary' }}>{v}</Typography>
-                              ))}
+                    <Stack spacing={4}>
+                      <Box sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                         <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}><Languages size={18} /> Jafari Hijri Offset</Typography>
+                         <Box sx={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                            <Box sx={{ flex: 1 }}>
+                              <input type="range" min="-3" max="3" step="1" value={instituteData.jafariOffset || 0} onChange={(e) => setInstituteData({ ...instituteData, jafariOffset: parseInt(e.target.value) })} style={{ width: '100%', accentColor: theme.palette.primary.main }} />
                             </Box>
-                          </Box>
-                          <Chip 
-                            label={`${instituteData.jafariOffset > 0 ? '+' : ''}${instituteData.jafariOffset || 0} DAYS`}
-                            color="primary"
-                            sx={{ fontWeight: 900, borderRadius: 2, px: 2, height: 40, fontSize: '1rem' }}
-                          />
-                        </Box>
-                        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-                          <Button 
-                            variant="contained" 
-                            size="small"
-                            startIcon={<Save size={16} />} 
-                            onClick={handleSaveInstitute} 
-                            sx={{ borderRadius: 1, fontWeight: 800 }}
-                          >
-                            Save Offset
-                          </Button>
-                        </Box>
+                            <Chip label={`${instituteData.jafariOffset || 0} DAYS`} color="primary" sx={{ fontWeight: 900, borderRadius: 2 }} />
+                         </Box>
                       </Box>
-                      <Box sx={{ p: 3, borderRadius: 1.5, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), bgcolor: alpha(theme.palette.error.main, 0.03) }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 2, color: 'error.main' }}>System Data Management</Typography>
-                        <Stack spacing={2.5}>
-                          <Box>
-                            <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 500, color: 'text.secondary' }}>
-                              <strong>Reset Everything:</strong> Permanently deletes all data (students, teachers, fees, expenses, attendance) and logs you out.
-                            </Typography>
-                            <Button 
-                              variant="contained" 
-                              color="error" 
-                              startIcon={<RefreshCw size={18} />} 
-                              onClick={() => {
-                                setPurgeType('ALL');
-                                setResetConfirmOpen(true);
-                              }}
-                              disabled={currentUser?.role !== 'superadmin'}
-                              sx={{ borderRadius: 2, fontWeight: 800, px: 3 }}
-                            >
-                              Reset System
-                            </Button>
-                          </Box>
-                          
-                          <Divider />
-                          
-                          <Box>
-                            <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 500, color: 'text.secondary' }}>
-                              <strong>Purge Archived Members:</strong> Permanently delete all users with "Archived" status from the database. This action is irreversible.
-                            </Typography>
-                            <Button 
-                              variant="outlined" 
-                              color="warning" 
-                              startIcon={<Trash2 size={18} />} 
-                              onClick={() => {
-                                setPurgeType('ARCHIVED');
-                                setResetConfirmOpen(true);
-                              }}
-                              disabled={currentUser?.role !== 'superadmin'}
-                              sx={{ borderRadius: 2, fontWeight: 800, px: 3, mb: 3 }}
-                            >
-                              Purge Archived Members
-                            </Button>
-                          </Box>
 
-                          <Divider />
+                      <Box sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2 }}>Data Backup</Typography>
+                        <Button variant="outlined" startIcon={<Download size={18} />} onClick={handleGenerateBackup} sx={{ fontWeight: 800, borderRadius: 2 }}>Generate Database JSON Backup</Button>
+                      </Box>
 
-                          <Box>
-                            <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 500, color: 'text.secondary' }}>
-                              <strong>Purge Students Only:</strong> Deletes student accounts and related transactional data (fees, attendance) but preserves staff accounts.
-                            </Typography>
-                            <Button 
-                              variant="outlined" 
-                              color="error" 
-                              startIcon={<Trash2 size={18} />} 
-                              onClick={() => {
-                                setPurgeType('STUDENTS');
-                                setResetConfirmOpen(true);
-                              }}
-                              disabled={currentUser?.role !== 'superadmin'}
-                              sx={{ borderRadius: 2, fontWeight: 800, px: 3 }}
-                            >
-                              Purge Students
-                            </Button>
-                          </Box>
+                      <Box sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: alpha(theme.palette.error.main, 0.2), bgcolor: alpha(theme.palette.error.main, 0.02) }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, color: 'error.main' }}>System Data Management</Typography>
+                        <Stack spacing={2}>
+                           <Button variant="contained" color="error" startIcon={<RefreshCw size={18} />} onClick={() => { setPurgeType('ALL'); setResetConfirmOpen(true); }} sx={{ fontWeight: 900 }}>Full System Reset (Caution!)</Button>
+                           <Button variant="outlined" color="error" startIcon={<Trash2 size={18} />} onClick={() => { setPurgeType('STUDENTS'); setResetConfirmOpen(true); }} sx={{ fontWeight: 800 }}>Purge Student Records</Button>
                         </Stack>
                       </Box>
-                      
-                      <Box sx={{ 
-                        p: 3, 
-                        borderRadius: 1.5, 
-                        bgcolor: 'background.default',
-                        boxShadow: theme.palette.mode === 'dark'
-                          ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                          : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-                      }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 2 }}>Database Backup</Typography>
-                        <Typography variant="body2" sx={{ mb: 3, fontWeight: 500, color: 'text.secondary' }}>
-                          Download a JSON backup of your current database state.
-                        </Typography>
-                        <Button 
-                          variant="outlined" 
-                          startIcon={<Download size={18} />} 
-                          onClick={handleGenerateBackup}
-                          sx={{ 
-                            borderRadius: 3, 
-                            fontWeight: 800,
-                            boxShadow: theme.palette.mode === 'dark'
-                              ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
-                              : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
-                          }}
-                        >
-                          Generate Backup
-                        </Button>
-                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
 
-                      <Box sx={{ p: 3, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.info.main, 0.03) }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 2, color: 'info.dark' }}>System Activity Logs</Typography>
-                        <Typography variant="body2" sx={{ mb: 3, fontWeight: 500 }}>
-                          Review detailed system events, database operations, and authentication logs.
-                        </Typography>
-                        <Button 
-                          variant="contained" 
-                          color="info"
-                          startIcon={<Terminal size={18} />} 
-                          onClick={() => navigate('/admin/logs')}
-                          sx={{ borderRadius: 1, fontWeight: 800, px: 4 }}
-                        >
-                          View System Logs
-                        </Button>
-                      </Box>
-
-                      <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+            {/* Logs Section */}
+            {tabValue === 'logs' && (
+              <motion.div key="logs" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
+                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Audit Logs</Typography>
+                    <Button variant="outlined" size="small" startIcon={<Terminal size={16} />} onClick={() => navigate('/admin-logs')}>Detailed Dashboard</Button>
+                  </Box>
+                  <CardContent sx={{ p: 4, textAlign: 'center' }}>
+                    <Typography variant="body1" color="text.secondary" sx={{ mb: 3, fontWeight: 600 }}>Track system access, form views, and critical entity changes.</Typography>
+                    <Grid container spacing={2}>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <Paper sx={{ p: 3, textAlign: 'left', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}><Eye size={18} /> Access Monitoring</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>Logs every time a sensitive form or student record is accessed.</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <Paper sx={{ p: 3, textAlign: 'left', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'secondary.main', display: 'flex', alignItems: 'center', gap: 1 }}><Database size={18} /> Data Integrity</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>Tracks creation and modification of records with creator attribution.</Typography>
+                        </Paper>
+                      </Grid>
+                    </Grid>
+                    <Box sx={{ mt: 4, pt: 4, borderTop: '1px solid', borderColor: 'divider' }}>
                         <Button
                           fullWidth
                           variant="contained"
                           color="error"
                           startIcon={<LogOut size={20} />}
                           onClick={logout}
-                          sx={{ 
-                            borderRadius: 1.5, 
-                            py: 2, 
-                            fontWeight: 900,
-                            boxShadow: '0 8px 24px rgba(239, 68, 68, 0.2)'
-                          }}
+                          sx={{ borderRadius: 1.5, py: 2, fontWeight: 900 }}
                         >
                           Sign Out of Account
                         </Button>
-                      </Box>
-                    </Stack>
+                    </Box>
                   </CardContent>
                 </Card>
               </motion.div>

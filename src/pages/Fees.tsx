@@ -64,10 +64,12 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { safelyFormatDate } from '../lib/dateUtils';
 import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, deleteDoc, addDoc } from '../firebase';
-import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc } from '../firebase';
+import { db, OperationType, handleFirestoreError, smartAddDoc, smartUpdateDoc, smartSetDoc } from '../firebase';
 import { UserProfile, FeeReceipt } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { FEE_HEADS, PAYMENT_MODES } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
@@ -78,10 +80,13 @@ import confetti from 'canvas-confetti';
 
 import { cache, CACHE_KEYS } from '../lib/cache';
 
+// Utility
+
 export default function Fees() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { user } = useAuth();
+  const { receipts: allReceipts, users: allStudents, loading: globalLoading, isSyncing, setIsSaving } = useData();
   const [receipts, setReceipts] = useState<FeeReceipt[]>([]);
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,55 +152,66 @@ export default function Fees() {
   }, [tabValue, searchQuery, feeHeadFilter, paymentModeFilter, startDate, endDate]);
 
   useEffect(() => {
+    if (allReceipts.length > 0) {
+      setReceipts(allReceipts.filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount))));
+      setLoading(false);
+    }
+    if (allStudents.length > 0) {
+      setStudents(allStudents.filter(u => u.role === 'student'));
+    }
+  }, [allReceipts, allStudents]);
+
+  useEffect(() => {
     if (!user) return;
 
-    // Hydrate from cache
-    const hydrate = async () => {
-      const cached = await cache.get<FeeReceipt[]>(CACHE_KEYS.FEES);
-      if (cached) {
-        setReceipts(cached);
-        setLoading(false);
-      }
-    };
-    hydrate();
-
-    let q = query(collection(db, 'receipts'), orderBy('createdAt', 'desc'));
-    
-    if (!isStaff) {
-      q = query(collection(db, 'receipts'), where('studentId', '==', user.uid), orderBy('createdAt', 'desc'));
-    }
-
-    const unsubscribeReceipts = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount))) as FeeReceipt[];
-      setReceipts(data);
-      cache.set(CACHE_KEYS.FEES, data);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'receipts');
-    });
-
-    if (isStaff) {
-      const studentQuery = query(collection(db, 'users'), where('role', '==', 'student'));
-      const unsubscribeStudents = onSnapshot(studentQuery, (snapshot) => {
-        setStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
-
-      return () => {
-        unsubscribeReceipts();
-        unsubscribeStudents();
+    if (allReceipts.length === 0) {
+      // Hydrate from cache
+      const hydrate = async () => {
+        const cached = await cache.get<FeeReceipt[]>(CACHE_KEYS.FEES);
+        if (cached) {
+          setReceipts(cached);
+          setLoading(false);
+        }
       };
-    }
+      hydrate();
 
-    return () => {
-      unsubscribeReceipts();
-    };
-  }, [user, isStaff, isAdmin, isTeacherRole]);
+      let q = query(collection(db, 'receipts'), orderBy('createdAt', 'desc'));
+      
+      if (!isStaff) {
+        q = query(collection(db, 'receipts'), where('studentId', '==', user.uid), orderBy('createdAt', 'desc'));
+      }
+
+      const unsubscribeReceipts = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount))) as FeeReceipt[];
+        setReceipts(data);
+        cache.set(CACHE_KEYS.FEES, data);
+        setLoading(false);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'receipts');
+      });
+
+      if (isStaff) {
+        const studentQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+        const unsubscribeStudents = onSnapshot(studentQuery, (snapshot) => {
+          setStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
+
+        return () => {
+          unsubscribeReceipts();
+          unsubscribeStudents();
+        };
+      }
+
+      return () => unsubscribeReceipts();
+    }
+  }, [user, isStaff, allReceipts.length]);
 
   const handleAddReceipt = async () => {
     if (!user) return;
     setSubmitting(true);
+    setIsSaving(true);
     try {
       let student: any = null;
       if (!formData.isNonStudent) {
@@ -211,6 +227,7 @@ export default function Fees() {
         status: isStaff ? 'approved' : 'pending',
         createdAt: Date.now(),
         createdBy: user.uid,
+        createdByName: user.displayName,
         receiptNo: receiptId,
         receiptNumber: receiptId,
         studentOfficialId: formData.isNonStudent ? 'NON-STUDENT' : (student?.admissionNo || student?.studentId || ''),
@@ -223,7 +240,8 @@ export default function Fees() {
       // Optimistic UI update
       setReceipts(prev => [newReceipt as any, ...prev]);
       
-      await smartAddDoc(collection(db, 'receipts'), newReceipt);
+      // Use receiptId as the Firestore Document ID for direct access during verification
+      await smartSetDoc(doc(db, 'receipts', receiptId), newReceipt);
       
       confetti({
         particleCount: 100,
@@ -249,22 +267,27 @@ export default function Fees() {
       setSnackbar({ open: true, message: 'Failed to generate receipt.', severity: 'error' });
     } finally {
       setSubmitting(false);
+      setIsSaving(false);
     }
   };
 
   const handleUpdateStatus = async (id: string, status: 'approved' | 'rejected') => {
+    setIsSaving(true);
     try {
       await smartUpdateDoc(doc(db, 'receipts', id), { status });
       setSnackbar({ open: true, message: `Receipt ${status} successfully!`, severity: 'success' });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'receipts');
       setSnackbar({ open: true, message: 'Failed to update receipt status.', severity: 'error' });
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const confirmDelete = async () => {
     if (!deleteConfirm.id) return;
     setSubmitting(true);
+    setIsSaving(true);
     try {
       await deleteDoc(doc(db, 'receipts', deleteConfirm.id));
       setDeleteConfirm({ open: false, id: '' });
@@ -274,6 +297,7 @@ export default function Fees() {
       setSnackbar({ open: true, message: 'Failed to delete receipt.', severity: 'error' });
     } finally {
       setSubmitting(false);
+      setIsSaving(false);
     }
   };
 
@@ -399,7 +423,8 @@ export default function Fees() {
   );
 
   return (
-    <Box sx={{ pb: 8 }}>
+    <Box sx={{ pb: 8, pt: 2 }}>
+
         <Box sx={{ 
           display: 'flex', 
           flexDirection: { xs: 'column', sm: 'row' },
@@ -440,14 +465,21 @@ export default function Fees() {
               startIcon={<Plus />} 
               onClick={() => setOpenAddDialog(true)}
               sx={{ 
-                borderRadius: 2.5, 
+                borderRadius: 3, 
                 py: isMobile ? 1.2 : 1.5, 
                 px: isMobile ? 2 : 4, 
                 fontWeight: 900,
                 fontSize: isMobile ? '0.75rem' : '0.85rem',
-                boxShadow: theme.shadows[4],
                 textTransform: 'none',
-                minWidth: { xs: '100%', sm: 160 }
+                minWidth: { xs: '100%', sm: 160 },
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+                boxShadow: theme.palette.mode === 'dark'
+                  ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+                  : `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
+                '&:hover': {
+                  background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                  transform: 'translateY(-1px)'
+                }
               }}
             >
               New Receipt
@@ -729,9 +761,14 @@ export default function Fees() {
                       </TableCell>
                       <TableCell sx={{ py: 1.5 }}>
                         <Typography sx={{ fontWeight: 800, color: 'text.primary', lineHeight: 1 }}>{receipt.receiptNo}</Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontFamily: 'JetBrains Mono, monospace' }}>
-                          {format(new Date(receipt.date), 'dd MM yyyy')}
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', display: 'block' }}>
+                          {safelyFormatDate(receipt.date)}
                         </Typography>
+                        {receipt.createdByName && (
+                          <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '0.6rem' }}>
+                            Added by: {receipt.createdByName}
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -966,7 +1003,24 @@ export default function Fees() {
         </DialogContent>
         <DialogActions sx={{ p: 4 }}>
            <Button onClick={() => setOpenAddDialog(false)} sx={{ fontWeight: 700 }}>Cancel</Button>
-           <Button variant="contained" onClick={handleAddReceipt} disabled={submitting || (!formData.studentId && !formData.isNonStudent) || !formData.amount} sx={{ borderRadius: 2.5, fontWeight: 800, px: 4 }}>{submitting ? 'Generating...' : 'Authorize & Generate'}</Button>
+          <Button 
+            variant="contained" 
+            onClick={handleAddReceipt} 
+            disabled={submitting || (!formData.studentId && !formData.isNonStudent) || !formData.amount} 
+            sx={{ 
+              borderRadius: 3, 
+              fontWeight: 900, 
+              px: 4,
+              py: 1.2,
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.35)}`,
+              '&:hover': {
+                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+              }
+            }}
+          >
+            {submitting ? 'Generating...' : 'Authorize & Generate'}
+          </Button>
         </DialogActions>
       </Dialog>
 

@@ -41,6 +41,7 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
     { label: 'Courses', icon: <BookOpen size={22} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: role === 'student' ? 'My Payments' : 'Fees & Payments', icon: <IndianRupee size={22} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'manage_fees' },
     { label: 'Attendance', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['teacher', 'manager', 'superadmin'], permission: 'manage_attendance' },
+    { label: 'Forms & Exams', icon: <FileText size={22} />, path: '/forms', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: 'Expenses', icon: <CreditCard size={22} />, path: '/expenses', roles: ['superadmin', 'manager'], permission: 'manage_expenses' },
     { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['superadmin'], permission: 'manage_reports' },
     { label: 'Notifications', icon: <Badge badgeContent={unreadNotifications} color="error"><Bell size={22} /></Badge>, path: '/notifications', roles: ['student', 'teacher', 'superadmin', 'manager'] },
@@ -124,11 +125,11 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
             </Box>
             {open && (
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 900, letterSpacing: -0.5, color: 'text.primary', lineHeight: 1.1, fontSize: '1rem', fontFamily: 'var(--font-serif)', textTransform: 'uppercase' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 950, letterSpacing: 1, color: 'primary.main', lineHeight: 1.1, fontSize: '0.9rem', fontFamily: '"Cinzel Decorative", serif', textTransform: 'uppercase' }}>
                   {instituteName}
                 </Typography>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.6rem' }}>
-                  Institute
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 2, fontSize: '0.6rem' }}>
+                  Islamic Academy
                 </Typography>
               </Box>
             )}

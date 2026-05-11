@@ -106,7 +106,9 @@ import {
 } from 'firebase/app';
 import { db, auth, firebaseConfig, handleFirestoreError, OperationType, smartUpdateDoc, smartDeleteDoc } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 import { format } from 'date-fns';
+import { safelyFormatDate } from '../lib/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
@@ -142,6 +144,7 @@ import { cache, CACHE_KEYS } from '../lib/cache';
 
 export default function Users() {
   const { user: currentUser } = useAuth();
+  const { users: allUsers, loading: globalLoading, isSyncing, setIsSaving } = useData();
   const theme = useTheme();
   const navigate = useNavigate();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -163,6 +166,9 @@ export default function Users() {
   const [levelFilter, setLevelFilter] = useState('All');
   const [roleFilter, setRoleFilter] = useState('All');
   
+  const [filterAnchorEl, setFilterAnchorEl] = useState<null | HTMLElement>(null);
+  const openFilter = Boolean(filterAnchorEl);
+
   const [profileToView, setProfileToView] = useState<UserProfile | null>(null);
   const [openProfileDialog, setOpenProfileDialog] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => (sessionStorage.getItem('users_view') as any) || 'grid');
@@ -239,7 +245,7 @@ export default function Users() {
       return;
     }
 
-    setLoading(true);
+    setIsSaving(true);
     try {
       const batch = writeBatch(db);
       for (const userId of selectedUsers) {
@@ -255,13 +261,13 @@ export default function Users() {
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'bulk-action');
     } finally {
-      setLoading(false);
+      setIsSaving(false);
     }
   };
 
   const handleBulkDelete = async () => {
     setDeleteConfirmOpen(false);
-    setLoading(true);
+    setIsSaving(true);
     try {
       const batch = writeBatch(db);
       for (const userId of selectedUsers) {
@@ -273,7 +279,7 @@ export default function Users() {
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'bulk-delete');
     } finally {
-      setLoading(false);
+      setIsSaving(false);
     }
   };
 
@@ -478,6 +484,191 @@ export default function Users() {
     printWindow.document.close();
   };
 
+  const handleStudentIDCard = (u: UserProfile) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const qrDetails = `Name: ${u.displayName}\nID: ${u.admissionNo || u.uid.slice(0,8)}\nLevel: ${u.classLevel || 'N/A'}`;
+    const verificationUrl = `${window.location.origin}/verify/profile/${u.uid}`;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Student ID Card - ${u.displayName}</title>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+          <style>
+            @page { size: A4; margin: 10mm; }
+            body { 
+              margin: 0; 
+              padding: 0; 
+              font-family: 'Inter', sans-serif; 
+              background: white;
+              display: flex;
+              justify-content: center;
+              padding-top: 20mm;
+            }
+            .print-container {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 10mm;
+              justify-content: center;
+              width: 100%;
+            }
+            .id-card {
+              width: 54mm;
+              height: 86mm;
+              position: relative;
+              overflow: hidden;
+              background: #0d9488;
+              color: white;
+              border-radius: 3mm;
+              box-shadow: 0 0 5px rgba(0,0,0,0.1);
+              border: 0.1mm solid #eee;
+            }
+            .id-card.back { background: #0b2e33; }
+            
+            .header {
+              height: 15mm;
+              padding: 2mm;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              text-align: center;
+              border-bottom: 0.5mm solid rgba(255,255,255,0.2);
+            }
+            .logo { height: 8mm; margin-bottom: 1mm; }
+            .inst-name { font-size: 8pt; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: 0.5pt; }
+
+            .content-area {
+              background: white;
+              color: #0b2e33;
+              margin: 2mm;
+              margin-top: 5mm;
+              height: 60mm;
+              border-radius: 8mm 8mm 2mm 2mm;
+              position: relative;
+              padding: 2mm;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              text-align: center;
+              border: 0.2mm solid rgba(0,0,0,0.05);
+            }
+            .student-photo {
+              width: 18mm;
+              height: 18mm;
+              border-radius: 50%;
+              border: 0.8mm solid #fbbf24;
+              object-fit: cover;
+              margin-top: -6mm;
+              z-index: 3;
+              background: #f3f4f6;
+            }
+
+            .qr-code-front {
+              width: 16mm;
+              height: 16mm;
+              margin-top: 1mm;
+            }
+
+            .name { font-size: 10pt; font-weight: 900; margin-top: 2mm; color: #0d9488; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+            .role { font-size: 7pt; font-weight: 700; color: #666; margin-bottom: 1mm; text-transform: uppercase; }
+            
+            .details {
+               width: 100%;
+               font-size: 6.5pt;
+               text-align: left;
+               padding: 0 4mm;
+               margin-top: 1mm;
+            }
+            .detail-row { display: flex; justify-content: space-between; margin-bottom: 0.5mm; }
+            .detail-label { font-weight: 800; color: #888; }
+            .detail-val { font-weight: 900; color: #0b2e33; }
+
+            .footer-strip {
+              position: absolute;
+              bottom: 0;
+              left: 0;
+              right: 0;
+              height: 4mm;
+              background: linear-gradient(90deg, #0d9488, #fbbf24);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 5pt;
+              font-weight: 800;
+              color: white;
+            }
+
+            .back-container {
+              padding: 5mm;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              height: 100%;
+              text-align: center;
+            }
+            .back-logo { width: 15mm; opacity: 0.2; margin-bottom: 5mm; }
+            .verification-title { font-size: 8pt; font-weight: 900; margin-bottom: 2mm; color: #fbbf24; }
+            .qr-code-back { width: 25mm; height: 25mm; padding: 1mm; background: white; border-radius: 2mm; }
+            .back-contact { font-size: 6pt; font-weight: 700; margin-top: 5mm; color: rgba(255,255,255,0.7); }
+            
+            @media print {
+              .no-print { display: none; }
+              body { background: white; }
+              .id-card { -webkit-print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-container">
+            <div class="id-card">
+              <div class="header">
+                 <img class="logo" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}">
+                 <h1 class="inst-name">${instituteSettings.instituteName || 'Maktab Wali Ul Asr'}</h1>
+              </div>
+              <div class="content-area">
+                 <img class="student-photo" src="${u.photoURL || `https://ui-avatars.com/api/?name=${u.displayName}&background=0d9488&color=fff`}">
+                 <div class="name">${u.displayName}</div>
+                 <div class="role">${u.role.toUpperCase()}</div>
+                 <img class="qr-code-front" src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrDetails)}">
+                 <div class="details">
+                    <div class="detail-row">
+                      <span class="detail-label">ID:</span>
+                      <span class="detail-val">${u.admissionNo || u.uid.slice(0,8)}</span>
+                    </div>
+                    <div class="detail-row">
+                      <span class="detail-label">Class:</span>
+                      <span class="detail-val">${u.classLevel || 'N/A'}</span>
+                    </div>
+                 </div>
+              </div>
+              <div class="footer-strip">QUALITY IS OUR TRADITION</div>
+            </div>
+
+            <div class="id-card back">
+              <div class="back-container">
+                 <img class="back-logo" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}">
+                 <h2 class="verification-title">VERIFY STUDENT</h2>
+                 <img class="qr-code-back" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verificationUrl)}">
+                 <div class="back-contact">
+                    ${instituteSettings.address || 'Chattergam, Budgam'}<br>
+                    ${instituteSettings.phone || '+91 90554-99359'}
+                 </div>
+              </div>
+              <div class="footer-strip" style="background: #fbbf24; color: #0b2e33;">VALID IDENTITY DOCUMENT</div>
+            </div>
+          </div>
+          <script>
+            window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 1200); };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   useEffect(() => {
     sessionStorage.setItem('users_search', searchQuery);
     sessionStorage.setItem('users_tab', tabValue.toString());
@@ -485,44 +676,37 @@ export default function Users() {
   }, [searchQuery, tabValue, viewMode]);
 
   useEffect(() => {
-    // Hydrate from cache first
-    const hydrate = async () => {
-      const cached = await cache.get<UserProfile[]>(CACHE_KEYS.USERS);
-      if (cached) {
-        setUsers(cached);
-        setLoading(false);
-      }
-    };
-    hydrate();
-
-    let q;
-    if (isStaff) {
-      q = query(collection(db, 'users'));
-    } else {
-      q = query(
-        collection(db, 'users'),
-        where('role', 'in', ['teacher', 'manager', 'super_admin', 'superadmin'])
-      );
-    }
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let allUsers = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id })) as UserProfile[];
-      allUsers.sort((a, b) => {
-        const nameA = (a.displayName || '').toLowerCase();
-        const nameB = (b.displayName || '').toLowerCase();
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        return 0;
-      });
+    if (allUsers.length > 0) {
       setUsers(allUsers);
-      cache.set(CACHE_KEYS.USERS, allUsers);
       setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'users');
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [isSuperAdmin, isManagerRole, isTeacherRole, currentUser?.uid]);
+    }
+  }, [allUsers]);
+
+  useEffect(() => {
+    // Only fetch if global data is empty as a fallback
+    if (allUsers.length === 0) {
+      let q;
+      if (isStaff) {
+        q = query(collection(db, 'users'));
+      } else {
+        q = query(
+          collection(db, 'users'),
+          where('role', 'in', ['teacher', 'manager', 'super_admin', 'superadmin'])
+        );
+      }
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        let docs = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id })) as UserProfile[];
+        docs.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+        setUsers(docs);
+        setLoading(false);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'users');
+        setLoading(false);
+      });
+      return () => unsubscribe();
+    }
+  }, [isStaff, allUsers.length]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -545,6 +729,12 @@ export default function Users() {
     const canManageUser = isSuperAdmin || (isAdmin && !isTargetSuperAdmin);
 
     const items: ActionMenuItem[] = [
+      { 
+        label: 'Download ID Card', 
+        icon: <Download size={16} />, 
+        color: 'success.main',
+        onClick: () => { handleStudentIDCard(targetUser); } 
+      },
       { 
         label: 'Admission Form', 
         icon: <FileText size={16} />, 
@@ -580,6 +770,7 @@ export default function Users() {
         icon: <UserCheck size={16} />, 
         color: 'primary.main', 
         onClick: async () => {
+           setIsSaving(true);
            try {
              const updateData: any = { isVerified: true, status: 'Active' };
              if (targetUser.role === 'student' && !targetUser.admissionNo) {
@@ -588,7 +779,11 @@ export default function Users() {
              }
              await smartUpdateDoc(doc(db, 'users', targetUser.uid), updateData);
              setSnackbar({ open: true, message: `${targetUser.displayName} verified successfully`, severity: 'success' });
-           } catch (e) { handleFirestoreError(e, OperationType.UPDATE, `users/${targetUser.uid}`); }
+           } catch (e) { 
+             handleFirestoreError(e, OperationType.UPDATE, `users/${targetUser.uid}`); 
+           } finally {
+             setIsSaving(false);
+           }
         },
         disabled: !canManageUser
       });
@@ -627,8 +822,15 @@ export default function Users() {
         icon: <UserCheck size={16} />, 
         color: 'success.main', 
         onClick: async () => {
-          try { await smartUpdateDoc(doc(db, 'users', targetUser.uid), { role: 'teacher', status: 'Active' }); }
-          catch (e) { handleFirestoreError(e, OperationType.UPDATE, `users/${targetUser.uid}`); }
+          setIsSaving(true);
+          try { 
+            await smartUpdateDoc(doc(db, 'users', targetUser.uid), { role: 'teacher', status: 'Active' }); 
+            setSnackbar({ open: true, message: `${targetUser.displayName} approved as teacher`, severity: 'success' });
+          } catch (e) { 
+            handleFirestoreError(e, OperationType.UPDATE, `users/${targetUser.uid}`); 
+          } finally {
+            setIsSaving(false);
+          }
         },
         disabled: !isSuperAdmin
       });
@@ -640,6 +842,7 @@ export default function Users() {
   };
 
   const handleSave = async () => {
+    setIsSaving(true);
     try {
       let finalFormData = { ...formData };
       if (editingUser) {
@@ -679,10 +882,14 @@ export default function Users() {
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to save user details.', severity: 'error' });
       handleFirestoreError(error, OperationType.WRITE, 'users');
-    } finally { setLoading(false); }
+    } finally { 
+      setLoading(false);
+      setIsSaving(false); 
+    }
   };
 
   const handleArchive = async (user: UserProfile) => {
+    setIsSaving(true);
     try {
       await smartUpdateDoc(doc(db, 'users', user.uid), {
         status: 'Archived',
@@ -693,10 +900,13 @@ export default function Users() {
       setSnackbar({ open: true, message: `${user.displayName} archived successfully`, severity: 'success' });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleRestore = async (user: UserProfile) => {
+    setIsSaving(true);
     try {
       await smartUpdateDoc(doc(db, 'users', user.uid), {
         status: 'Active',
@@ -705,6 +915,8 @@ export default function Users() {
       setSnackbar({ open: true, message: `${user.displayName} restored successfully`, severity: 'success' });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -742,23 +954,36 @@ export default function Users() {
     }
   };
 
-  const filteredUsers = users.filter(u => {
-    if (u.email === 'zeeshanmaqbool200@gmail.com') return false;
-    const s = searchQuery.toLowerCase();
-    const matchesSearch = u.displayName.toLowerCase().includes(s) || u.email.toLowerCase().includes(s);
-    if (!matchesSearch) return false;
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => {
+      if (u.email === 'zeeshanmaqbool200@gmail.com') return false;
+      
+      const s = searchQuery.toLowerCase();
+      const matchesSearch = (u.displayName?.toLowerCase() || '').includes(s) || 
+                          (u.email?.toLowerCase() || '').includes(s) ||
+                          (u.admissionNo?.toLowerCase() || '').includes(s) ||
+                          (u.phone || '').includes(s);
+      if (!matchesSearch) return false;
 
-    const matchesGender = genderFilter === 'All' || u.gender === genderFilter;
-    if (!matchesGender) return false;
+      const matchesGender = genderFilter === 'All' || u.gender === genderFilter;
+      if (!matchesGender) return false;
 
-    if (tabValue === 2) return !u.isVerified || u.role === 'pending_teacher';
-    if (tabValue === 3) return u.status === 'Archived';
-    
-    if (u.status === 'Archived') return false;
-    if (tabValue === 0) return u.role === 'student';
-    if (tabValue === 1) return ['teacher', 'manager', 'superadmin'].includes(u.role);
-    return true;
-  });
+      const matchesLevel = levelFilter === 'All' || u.classLevel === levelFilter;
+      if (!matchesLevel) return false;
+
+      const currentStatus = u.status || (u.isVerified ? 'Active' : 'Pending');
+      const matchesStatus = statusFilter === 'All' || currentStatus === statusFilter;
+      if (!matchesStatus) return false;
+
+      if (tabValue === 2) return !u.isVerified || u.role === 'pending_teacher';
+      if (tabValue === 3) return u.status === 'Archived';
+      
+      if (u.status === 'Archived') return false;
+      if (tabValue === 0) return u.role === 'student';
+      if (tabValue === 1) return ['teacher', 'manager', 'superadmin'].includes(u.role);
+      return true;
+    });
+  }, [users, searchQuery, genderFilter, levelFilter, statusFilter, tabValue]);
 
   const handleOpenProfile = async (user: UserProfile) => {
     setProfileToView(user);
@@ -780,14 +1005,25 @@ export default function Users() {
     }
   };
 
-  if (loading) return <Box sx={{ p: 4 }}><Skeleton variant="rectangular" width="100%" height={500} /></Box>;
+  if (loading && users.length === 0) {
+    return (
+      <Box sx={{ p: 4 }}>
+        <Stack spacing={3}>
+          <Skeleton variant="rectangular" width="100%" height={200} sx={{ borderRadius: 4 }} />
+          <Grid container spacing={3}>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={i}>
+                <Skeleton variant="rectangular" width="100%" height={250} sx={{ borderRadius: 4 }} />
+              </Grid>
+            ))}
+          </Grid>
+        </Stack>
+      </Box>
+    );
+  }
 
   return (
-    <Box sx={{ pb: 8 }}>
-      <Box sx={{ mb: 2 }}>
-        <Button variant="text" startIcon={<ArrowLeft />} onClick={() => navigate(-1)} sx={{ fontWeight: 800 }}>Back</Button>
-      </Box>
-
+    <Box sx={{ pb: 8, pt: 2 }}>
       <Stack spacing={3}>
         <Box sx={{ 
           display: 'flex', 
@@ -800,9 +1036,9 @@ export default function Users() {
           borderBottom: '1px solid',
           borderColor: 'divider'
         }}>
-          <Box>
-            <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, color: 'primary.main', mb: 0.5 }}>Users Directory</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block' }}>Manage students, staff and administrators</Typography>
+          <Box id="users-directory-header">
+            <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontWeight: 950, color: 'text.primary', mb: 0.5, letterSpacing: -1.5 }}>Member Directory</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800, display: 'block', opacity: 0.8 }}>Manage students, staff and administrators with precision</Typography>
           </Box>
           <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}>
             <Stack direction="row" spacing={1}>
@@ -830,7 +1066,13 @@ export default function Users() {
                   color="info"
                   size={isMobile ? "small" : "medium"}
                   onClick={() => handleBulkAction('print')} 
-                  sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
+                  sx={{ 
+                    borderRadius: 3, 
+                    fontWeight: 900, 
+                    textTransform: 'none',
+                    background: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${alpha(theme.palette.info.main, 0.7)} 100%)`,
+                    boxShadow: `0 8px 16px ${alpha(theme.palette.info.main, 0.3)}`,
+                  }}
                 >
                   Print ({selectedUsers.length})
                 </Button>
@@ -849,7 +1091,20 @@ export default function Users() {
                 size={isMobile ? "small" : "medium"}
                 startIcon={<Plus size={16} />} 
                 onClick={() => { setEditingUser(null); setOpenDialog(true); }} 
-                sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
+                sx={{ 
+                  borderRadius: 3, 
+                  fontWeight: 900, 
+                  textTransform: 'none',
+                  px: isMobile ? 2 : 3,
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+                    : `0 8px 20px ${alpha(theme.palette.primary.main, 0.25)}`,
+                  '&:hover': {
+                    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                    transform: 'translateY(-1px)'
+                  }
+                }}
               >
                 {tabValue === 1 ? 'Add Staff' : 'Add Student'}
               </Button>
@@ -857,41 +1112,61 @@ export default function Users() {
           </Stack>
         </Box>
 
-        <Box sx={{ 
-          display: 'flex', 
-          gap: 2, 
-          flexWrap: 'wrap', 
-          alignItems: 'center',
-          mb: 3 
-        }}>
-          <motion.div
-            animate={{ width: isSearchExpanded || searchQuery ? (isMobile ? '100%' : 400) : 44 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            style={{ overflow: 'hidden' }}
-          >
-            <TextField 
-              size="small" 
-              placeholder="Search users..." 
-              value={searchQuery} 
-              onFocus={() => setIsSearchExpanded(true)}
-              onBlur={() => !searchQuery && setIsSearchExpanded(false)}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{ 
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search size={18} />
-                  </InputAdornment>
-                ),
-                sx: { 
-                  borderRadius: 10,
-                  bgcolor: 'background.paper',
-                  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+        <Paper 
+          elevation={0}
+          sx={{ 
+            display: 'flex', 
+            gap: 2, 
+            flexWrap: 'wrap', 
+            alignItems: 'center',
+            mb: 4,
+            p: 2,
+            borderRadius: 4,
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.4) : 'white',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.04)',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            '&:focus-within': {
+              borderColor: 'primary.main',
+              boxShadow: `0 15px 40px ${alpha(theme.palette.primary.main, 0.1)}`
+            }
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, gap: 2, minWidth: { xs: '100%', md: 400 } }}>
+            <Box sx={{ 
+              p: 1.5, 
+              borderRadius: 2.5, 
+              bgcolor: alpha(theme.palette.primary.main, 0.1), 
+              color: 'primary.main',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Search size={22} />
+            </Box>
+            <Box 
+              component="input" 
+              placeholder="Search members by name, ID, or phone..." 
+              value={searchQuery}
+              onChange={(e: any) => setSearchQuery(e.target.value)}
+              sx={{ 
+                border: 'none', 
+                outline: 'none', 
+                py: 1.5, 
+                width: '100%', 
+                fontWeight: 800,
+                fontSize: '1.05rem',
+                bgcolor: 'transparent',
+                color: 'text.primary',
+                '&::placeholder': { 
+                  color: 'text.disabled',
+                  fontWeight: 600,
+                  fontSize: '0.95rem'
                 }
-              }}
-              sx={{ width: '100%' }}
+              }} 
             />
-          </motion.div>
+          </Box>
 
           <Tabs 
             value={tabValue} 
@@ -903,8 +1178,8 @@ export default function Users() {
             variant="scrollable"
             scrollButtons="auto"
             sx={{ 
-              flex: 1,
-              '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' }
+              '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' },
+              '& .MuiTab-root': { fontWeight: 900, textTransform: 'none', fontSize: '0.9rem', minWidth: 100 }
             }}
           >
             <Tab label="Students" />
@@ -913,52 +1188,97 @@ export default function Users() {
             {isSuperAdmin && <Tab label="Archive" />}
           </Tabs>
 
-          <Stack direction="row" spacing={1} alignItems="center">
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <Select 
-                value={genderFilter} 
-                onChange={(e) => setGenderFilter(e.target.value)}
-                displayEmpty
-                sx={{ 
-                  borderRadius: 10, 
-                  bgcolor: 'background.paper',
-                  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-                  fontSize: '0.85rem',
-                  fontWeight: 700
-                }}
-              >
-                <MenuItem value="All">All Genders</MenuItem>
-                <MenuItem value="male">
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <User size={14} color="#007AFF" />
-                    <span>Male</span>
-                  </Stack>
-                </MenuItem>
-                <MenuItem value="female">
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <User size={14} color="#FF2D55" />
-                    <span>Female</span>
-                  </Stack>
-                </MenuItem>
-                <MenuItem value="other">Other</MenuItem>
-              </Select>
-            </FormControl>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+              startIcon={<Filter size={18} />}
+              sx={{ 
+                borderRadius: 2, 
+                fontWeight: 800, 
+                textTransform: 'none',
+                borderColor: alpha(theme.palette.divider, 0.2),
+                color: 'text.primary',
+                px: 2
+              }}
+            >
+              Filter
+            </Button>
 
-            <Tooltip title="Toggle Selection Mode">
+            <Menu
+              anchorEl={filterAnchorEl}
+              open={openFilter}
+              onClose={() => setFilterAnchorEl(null)}
+              PaperProps={{ sx: { borderRadius: 3, p: 1, minWidth: 200 } }}
+            >
+              <Typography variant="overline" sx={{ px: 2, py: 1, fontWeight: 900, opacity: 0.6 }}>Filter Members</Typography>
+              <MenuItem disableRipple sx={{ '&:hover': { bgcolor: 'transparent' } }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={statusFilter}
+                    label="Status"
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <MenuItem value="All">All Status</MenuItem>
+                    <MenuItem value="Active">Active</MenuItem>
+                    <MenuItem value="Archived">Archived</MenuItem>
+                  </Select>
+                </FormControl>
+              </MenuItem>
+              <MenuItem disableRipple sx={{ '&:hover': { bgcolor: 'transparent' } }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Level</InputLabel>
+                  <Select
+                    value={levelFilter}
+                    label="Level"
+                    onChange={(e) => setLevelFilter(e.target.value)}
+                  >
+                    <MenuItem value="All">All Levels</MenuItem>
+                    {CLASS_LEVELS.map(l => <MenuItem key={l} value={l}>{l}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </MenuItem>
+              <MenuItem disableRipple sx={{ '&:hover': { bgcolor: 'transparent' } }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Gender</InputLabel>
+                  <Select
+                    value={genderFilter}
+                    label="Gender"
+                    onChange={(e) => setGenderFilter(e.target.value)}
+                  >
+                    <MenuItem value="All">All Genders</MenuItem>
+                    <MenuItem value="male">Male</MenuItem>
+                    <MenuItem value="female">Female</MenuItem>
+                  </Select>
+                </FormControl>
+              </MenuItem>
+              <Divider sx={{ my: 1 }} />
+              <MenuItem onClick={() => { setStatusFilter('All'); setLevelFilter('All'); setGenderFilter('All'); setFilterAnchorEl(null); }}>
+                <Typography color="error" sx={{ fontWeight: 800, fontSize: '0.85rem' }}>Clear All Filters</Typography>
+              </MenuItem>
+            </Menu>
+            
+            <Tooltip title="Selection Mode">
               <IconButton 
                 onClick={() => {
                   setSelectionMode(!selectionMode);
                   if (selectionMode) setSelectedUsers([]);
                 }}
-                color={selectionMode ? "primary" : "default"}
-                sx={{ bgcolor: selectionMode ? alpha(theme.palette.primary.main, 0.1) : 'background.paper', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
+                sx={{ 
+                  bgcolor: selectionMode ? 'primary.main' : alpha(theme.palette.divider, 0.1),
+                  color: selectionMode ? 'white' : 'text.primary',
+                  '&:hover': { bgcolor: selectionMode ? 'primary.dark' : alpha(theme.palette.divider, 0.2) }
+                }}
               >
                 <UserCheck size={20} />
               </IconButton>
             </Tooltip>
           </Stack>
-        </Box>
+        </Paper>
+
+        {loading && users.length > 0 && <LinearProgress sx={{ mb: 2, height: 2, borderRadius: 2 }} />}
 
         {viewMode === 'grid' ? (
           <Grid container spacing={3}>
@@ -1089,24 +1409,46 @@ export default function Users() {
       >
         <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'white', color: 'black', borderBottom: '1px solid', borderColor: 'divider' }}>
           <Toolbar>
-            <IconButton edge="start" onClick={() => setOpenProfileDialog(false)}><ArrowLeft /></IconButton>
-            <Typography sx={{ ml: 2, flex: 1, fontWeight: 900, fontFamily: 'var(--font-heading)', fontSize: '1.2rem' }}>
-              Student Profile
+            <Button 
+              startIcon={<X size={18} />} 
+              onClick={() => setOpenProfileDialog(false)}
+              sx={{ 
+                fontWeight: 800, 
+                color: 'text.secondary', 
+                textTransform: 'none', 
+                px: 2,
+                borderRadius: 2,
+                border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                mr: 2,
+                '&:hover': {
+                  bgcolor: alpha(theme.palette.error.main, 0.05),
+                  color: 'error.main',
+                  borderColor: 'error.main'
+                }
+              }}
+            >
+              Close
+            </Button>
+            <Typography sx={{ ml: 2, flex: 1, fontWeight: 900, fontFamily: 'var(--font-heading)', fontSize: '1.2rem', color: 'primary.main' }}>
+              Member Profile
             </Typography>
             <Stack direction="row" spacing={1}>
                <Button 
                 variant="outlined" 
-                startIcon={<Printer />} 
+                size="small"
+                startIcon={<Printer size={16} />} 
                 onClick={() => { setOpenAdmissionForm(true); }}
-                sx={{ borderRadius: 10, fontWeight: 700 }}
+                sx={{ borderRadius: 10, fontWeight: 800, textTransform: 'none' }}
               >
                 Admission Form
               </Button>
               <Button 
                 variant="contained" 
-                startIcon={<Download />} 
-                onClick={() => profileToView && exportToCSV([profileToView], `Profile_${profileToView.displayName}`)}
-                sx={{ borderRadius: 10, fontWeight: 700 }}
+                size="small"
+                id="btn-download-id"
+                startIcon={<Download size={16} />} 
+                onClick={() => profileToView && handleStudentIDCard(profileToView)}
+                sx={{ borderRadius: 10, fontWeight: 900, textTransform: 'none', boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)' }}
               >
                 Download ID
               </Button>
@@ -1133,10 +1475,10 @@ export default function Users() {
                           src={profileToView.photoURL} 
                           sx={{ width: 160, height: 160, mx: 'auto', mb: 3, border: '6px solid white', boxShadow: '0 8px 30px rgba(0,0,0,0.1)' }} 
                         />
-                        <Typography variant="h4" sx={{ fontWeight: 950, mb: 1, letterSpacing: -1, fontFamily: 'var(--font-heading)' }}>
+                        <Typography variant="h4" id="profile-name" sx={{ fontWeight: 950, mb: 1, letterSpacing: -1.5, fontFamily: 'var(--font-heading)', color: 'text.primary' }}>
                           {profileToView.displayName}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800, mb: 3 }}>
+                        <Typography variant="body1" id="profile-email" sx={{ fontWeight: 700, mb: 3, color: 'text.secondary' }}>
                           {profileToView.email}
                         </Typography>
                         
@@ -1188,7 +1530,7 @@ export default function Users() {
                               <Grid size={{ xs: 12, sm: 6 }}>
                                 <Typography className="ui-label">DATE OF BIRTH</Typography>
                                 <Typography sx={{ fontWeight: 700, fontSize: '1.1rem' }}>
-                                  {profileToView.dob ? format(new Date(profileToView.dob), 'dd MM yyyy') : 'N/A'}
+                                  {safelyFormatDate(profileToView.dob)}
                                 </Typography>
                               </Grid>
                               <Grid size={{ xs: 12, sm: 6 }}>
@@ -1253,7 +1595,7 @@ export default function Users() {
                                       <Box>
                                         <Typography sx={{ fontWeight: 800, fontSize: '1rem' }}>{r.feeHead}</Typography>
                                         <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                                          {format(new Date(r.date), 'dd MM yyyy')} • {r.receiptNo}
+                                          {safelyFormatDate(r.date)} • {r.receiptNo}
                                         </Typography>
                                       </Box>
                                    </Box>
@@ -1268,22 +1610,34 @@ export default function Users() {
                          </Card>
 
                          {/* Academic Information */}
-                         <Card className="ios-card" sx={{ p: 4 }}>
-                            <Typography variant="h6" sx={{ fontWeight: 900, mb: 3, fontFamily: 'var(--font-heading)' }}>Academic Details</Typography>
+                         <Card className="ios-card" id="profile-academic-card" sx={{ p: 4, border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
+                            <Typography variant="h6" sx={{ fontWeight: 900, mb: 3, fontFamily: 'var(--font-heading)', color: 'primary.main' }}>Academic Details</Typography>
                             <Grid container spacing={3}>
                               <Grid size={{ xs: 12, sm: 6 }}>
-                                <Typography className="ui-label">ADMISSION NO</Typography>
-                                <Typography sx={{ fontWeight: 800, fontSize: '1.2rem', color: 'primary.main' }}>{profileToView.admissionNo || 'N/A'}</Typography>
+                                <Typography className="ui-label" sx={{ color: 'text.secondary', fontWeight: 800 }}>ADMISSION NO</Typography>
+                                <Typography sx={{ fontWeight: 900, fontSize: '1.4rem', color: 'primary.main', fontFamily: 'JetBrains Mono, monospace' }}>{profileToView.admissionNo || 'N/A'}</Typography>
                               </Grid>
                               <Grid size={{ xs: 12, sm: 6 }}>
-                                <Typography className="ui-label">ENROLLED SINCE</Typography>
-                                <Typography sx={{ fontWeight: 700, fontSize: '1.1rem' }}>{profileToView.createdAt ? format(profileToView.createdAt, 'dd MM yyyy') : 'N/A'}</Typography>
+                                <Typography className="ui-label" sx={{ color: 'text.secondary', fontWeight: 800 }}>ENROLLED SINCE</Typography>
+                                <Typography sx={{ fontWeight: 800, fontSize: '1.2rem', color: 'text.primary' }}>{safelyFormatDate(profileToView.createdAt)}</Typography>
                               </Grid>
                               <Grid size={{ xs: 12 }}>
-                                <Typography className="ui-label">ENROLLED SUBJECTS</Typography>
+                                <Typography className="ui-label" sx={{ color: 'text.secondary', fontWeight: 800 }}>ENROLLED SUBJECTS</Typography>
                                 <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
                                   {profileToView.subjectsEnrolled?.map((s) => (
-                                    <Chip key={s} label={s} size="small" variant="outlined" sx={{ fontWeight: 700, borderRadius: 2 }} />
+                                    <Chip 
+                                      key={s} 
+                                      label={s} 
+                                      size="small" 
+                                      sx={{ 
+                                        fontWeight: 900, 
+                                        borderRadius: 2, 
+                                        bgcolor: alpha(theme.palette.primary.main, 0.05),
+                                        color: 'primary.main',
+                                        border: '1px solid',
+                                        borderColor: alpha(theme.palette.primary.main, 0.1)
+                                      }} 
+                                    />
                                   )) || <Typography variant="body2" sx={{ fontWeight: 600 }}>No subjects listed</Typography>}
                                 </Stack>
                               </Grid>
@@ -1318,17 +1672,18 @@ export default function Users() {
         <AppBar sx={{ position: 'relative', bgcolor: 'white', color: 'black' }} elevation={0} className="no-print">
           <Toolbar sx={{ justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <IconButton onClick={() => setOpenAdmissionForm(false)}><ArrowLeft /></IconButton>
+              <IconButton onClick={() => setOpenAdmissionForm(false)} sx={{ color: 'text.secondary' }}><X size={20} /></IconButton>
               <Typography variant="h6" sx={{ fontWeight: 900 }}>Admission Form</Typography>
             </Box>
             <Button variant="contained" startIcon={<Printer />} onClick={handlePrint}>Print Form</Button>
           </Toolbar>
         </AppBar>
-        <DialogContent sx={{ p: { xs: 0, md: 4 }, display: 'flex', justifyContent: 'center', overflowX: 'auto' }}>
+        <DialogContent sx={{ p: 0, display: 'flex', justifyContent: 'center', overflowX: 'auto', bgcolor: '#f4f4f5' }}>
            <Paper className="admission-page" sx={{ 
              width: '210mm', 
-             minHeight: '297mm', 
-             p: { xs: 2, md: 8 }, 
+             height: '297mm', 
+             p: '15mm', 
+             boxSizing: 'border-box',
              bgcolor: 'white', 
              color: 'black', 
              position: 'relative',
@@ -1336,14 +1691,15 @@ export default function Users() {
              fontFamily: '"Noto Nastaliq Urdu", serif',
              display: 'flex',
              flexDirection: 'column',
-             boxShadow: 3
+             boxShadow: 3,
+             my: { xs: 0, md: 4 }
            }}>
               <Box sx={{ 
                 position: 'absolute', 
                 top: '50%', 
                 left: '50%', 
                 transform: 'translate(-50%, -50%)', 
-                width: '150mm', 
+                width: '140mm', 
                 opacity: 0.04, 
                 zIndex: 0, 
                 pointerEvents: 'none' 
@@ -1352,29 +1708,31 @@ export default function Users() {
               </Box>
 
               <Box sx={{ position: 'relative', zIndex: 10, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <Typography sx={{ textAlign: 'center', fontSize: '1.8rem', mb: 1 }}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Typography>
+                <Typography sx={{ textAlign: 'center', fontSize: '1.5rem', mb: 1 }}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Typography>
 
-                <Box sx={{ textAlign: 'center', mb: 2 }}>
-                  <img src={instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'} style={{ width: 100, height: 100, objectFit: 'contain' }} />
-                  <Typography variant="h2" sx={{ fontWeight: 900, color: 'success.main', mt: 1, fontSize: '3rem' }}>مکتب ولی العصر</Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.secondary', mt: 0.5 }}>زیر نگران ادارہ ولی العصر چھترگام</Typography>
+                <Box sx={{ textAlign: 'center', mb: 1 }}>
+                  <img src={instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'} style={{ width: 80, height: 80, objectFit: 'contain' }} />
+                  <Typography variant="h2" sx={{ fontWeight: 950, color: 'success.main', mt: 0.5, fontSize: '2.8rem', lineHeight: 1.1 }}>مکتب ولی العصر</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.secondary', mt: 0 }}>زیر نگران ادارہ ولی العصر چھترگام</Typography>
                 </Box>
 
                 <Typography sx={{ textAlign: 'center', fontSize: '5rem', fontWeight: 950, my: 4, lineHeight: 0.8 }}>تحریرِ داخلہ</Typography>
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 6, borderBottom: '3px solid', borderColor: 'success.main', pb: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4, borderBottom: '3px solid', borderColor: 'success.main', pb: 1 }}>
                   <Typography sx={{ fontSize: '1.5rem', fontWeight: 900 }}>داخلہ نمبر: <span style={{ fontFamily: 'Inter, sans-serif' }}>{profileToView?.admissionNo || profileToView?.uid.slice(0,8)}</span></Typography>
                   <Typography sx={{ fontSize: '1.5rem', fontWeight: 900 }}>جماعت / درجہ: <span style={{ borderBottom: '2px dotted black', minWidth: 100, display: 'inline-block', textAlign: 'center' }}>{profileToView?.classLevel || ''}</span></Typography>
                 </Box>
 
-                <Stack spacing={6}>
+                <Stack spacing={8}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Typography sx={{ fontSize: '2rem', fontWeight: 900, minWidth: 120 }}>نام :</Typography>
                     <Box sx={{ display: 'flex', flex: 1, gap: 4 }}>
-                      <Box sx={{ flex: 1, height: 50, border: '2px solid black', borderRadius: 2, display: 'flex', alignItems: 'center', px: 2 }}>
+                      <Box sx={{ flex: 1, height: 50, border: '2px solid black', borderRadius: 2, display: 'flex', alignItems: 'center', px: 2, position: 'relative' }}>
+                        <Typography sx={{ position: 'absolute', top: -25, left: '50%', transform: 'translateX(-50%)', fontSize: '0.8rem', opacity: 0.7 }}>ابتدائی</Typography>
                         <Typography variant="h5" sx={{ fontWeight: 800 }}>{(profileToView?.displayName || '').split(' ')[0]}</Typography>
                       </Box>
-                      <Box sx={{ flex: 1, height: 50, border: '2px solid black', borderRadius: 2, display: 'flex', alignItems: 'center', px: 2 }}>
+                      <Box sx={{ flex: 1, height: 50, border: '2px solid black', borderRadius: 2, display: 'flex', alignItems: 'center', px: 2, position: 'relative' }}>
+                         <Typography sx={{ position: 'absolute', top: -25, left: '50%', transform: 'translateX(-50%)', fontSize: '0.8rem', opacity: 0.7 }}>آخری</Typography>
                          <Typography variant="h5" sx={{ fontWeight: 800 }}>{(profileToView?.displayName || '').split(' ').slice(1).join(' ')}</Typography>
                       </Box>
                     </Box>
@@ -1397,7 +1755,7 @@ export default function Users() {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Typography sx={{ fontSize: '2rem', fontWeight: 900, minWidth: 120 }}>تاریخ پیدائش :</Typography>
                     <Box sx={{ flex: 1, height: 50, border: '2px solid black', borderRadius: 2, display: 'flex', alignItems: 'center', px: 2 }}>
-                      <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: 'Inter, sans-serif' }}>{profileToView?.dob || ''}</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: 'Inter, sans-serif' }}>{safelyFormatDate(profileToView?.dob)}</Typography>
                     </Box>
                   </Box>
 
@@ -1409,40 +1767,52 @@ export default function Users() {
                   </Box>
                 </Stack>
 
-                <Box sx={{ display: 'flex', gap: 6, mt: 8, justifyContent: 'space-between' }}>
+                <Box sx={{ display: 'flex', gap: 6, mt: 10, justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <Box sx={{ flex: 1, border: '3px solid', borderColor: 'error.main', borderRadius: 5, p: 3 }}>
                     <Typography variant="h6" sx={{ color: 'error.main', fontWeight: 900, mb: 1 }}>ضروری ہدایات</Typography>
-                    <Typography sx={{ color: 'error.main', fontSize: '1.1rem', fontWeight: 700, lineHeight: 1.8 }}>
-                      • فارم میں درج معلومات درست ہیں۔<br/>
+                    <Typography sx={{ color: 'error.main', fontSize: '1rem', fontWeight: 700, lineHeight: 1.8 }}>
+                      • فارم میں درج معلومات درست ہیں اور میں ادارے کے قوانین کا پابند رہوں گا/گی۔<br/>
                       • داخلے کے لیے عمر کم از کم 5 سال ہونی چاہیے۔<br/>
-                      • ادارے کی ہدایات پر عمل کرنا ضروری ہے۔
+                      • ادارے کی ہدایات پر عمل کرنا لازمی ہے۔
                     </Typography>
                   </Box>
-                  <Box sx={{ width: 160, height: 200, border: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Box sx={{ width: 45 * 3.77, height: 55 * 3.77, border: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#fafafa', overflow: 'hidden' }}>
                      {profileToView?.photoURL ? 
                        <img src={profileToView.photoURL} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : 
-                       <Typography sx={{ fontWeight: 800, color: 'error.main' }}>تصویر</Typography>
+                       <Typography sx={{ fontWeight: 800, color: 'text.disabled', textAlign: 'center' }}>تصویر<br/>(4cm x 5cm)</Typography>
                      }
                   </Box>
                 </Box>
 
-                <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pt: 6 }}>
+                <Box sx={{ mt: 'auto', mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', pt: 6 }}>
                    <Typography sx={{ width: 180, borderTop: '2px solid black', pt: 1, fontWeight: 900, textAlign: 'center' }}>دستخط والدین</Typography>
                    <Box sx={{ textAlign: 'center' }}>
-                     <QRCodeSVG value={`${window.location.origin}/verify/profile/${profileToView?.uid}`} size={100} />
-                     <Typography sx={{ fontWeight: 900, mt: 1, color: 'success.main' }}>دفتر ادارہ</Typography>
+                     <QRCodeSVG value={`${window.location.origin}/verify/profile/${profileToView?.uid}`} size={80} />
+                     <Typography sx={{ fontWeight: 900, mt: 0.5, color: 'success.main', fontSize: '0.8rem' }}>دفتر ادارہ</Typography>
                    </Box>
                    <Typography sx={{ width: 180, borderTop: '2px solid black', pt: 1, fontWeight: 900, textAlign: 'center' }}>دستخط مدرس</Typography>
                 </Box>
                 
-                <Box sx={{ mt: 'auto', pt: 4 }}>
+                <Box sx={{ pt: 2, borderTop: '1px solid #eee' }}>
                    <Box sx={{ height: 6, borderRadius: 2, background: (t) => `linear-gradient(90deg, ${t.palette.primary.main}, #fbbf24)` }} />
                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 4, mt: 1 }}>
-                     <Typography sx={{ fontWeight: 900, fontSize: '0.8rem', fontFamily: 'Inter, sans-serif' }}>📞 +91 9055499359</Typography>
-                     <Typography sx={{ fontWeight: 900, fontSize: '0.8rem', fontFamily: 'Inter, sans-serif' }}>📞 +91 7006182924</Typography>
+                     <Typography sx={{ fontWeight: 900, fontSize: '0.85rem', fontFamily: 'Inter, sans-serif' }}>📞 +91 9055499359</Typography>
+                     <Typography sx={{ fontWeight: 900, fontSize: '0.85rem', fontFamily: 'Inter, sans-serif' }}>📞 +91 9797100753</Typography>
+                     <Typography sx={{ fontWeight: 900, fontSize: '0.85rem', fontFamily: 'Inter, sans-serif' }}>📞 +91 7006182924</Typography>
                    </Box>
                 </Box>
               </Box>
+
+              <style>{`
+                @media print {
+                  @page { size: A4; margin: 0; }
+                  body { margin: 0; -webkit-print-color-adjust: exact; }
+                  .no-print { display: none !important; }
+                  .MuiDialog-container { display: block !important; }
+                  .MuiPaper-root { margin: 0 !important; box-shadow: none !important; border-radius: 0 !important; }
+                  .admission-page { width: 210mm !important; height: 297mm !important; }
+                }
+              `}</style>
            </Paper>
         </DialogContent>
       </Dialog>
@@ -1473,16 +1843,43 @@ export default function Users() {
                 </FormControl>
               </Grid>
               {formData.role === 'student' && (
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <FormControl fullWidth>
-                    <InputLabel>Class Level</InputLabel>
-                    <Select name="classLevel" value={formData.classLevel} label="Class Level" onChange={handleFormChange}>
-                      {CLASS_LEVELS.map(level => (
-                        <MenuItem key={level} value={level}>{level}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+                <>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <FormControl fullWidth>
+                      <InputLabel>Class Level</InputLabel>
+                      <Select name="classLevel" value={formData.classLevel} label="Class Level" onChange={handleFormChange}>
+                        {CLASS_LEVELS.map(level => (
+                          <MenuItem key={level} value={level}>{level}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <FormControl fullWidth>
+                      <InputLabel>Enrolled Subjects</InputLabel>
+                      <Select
+                        multiple
+                        name="subjectsEnrolled"
+                        value={formData.subjectsEnrolled || []}
+                        label="Enrolled Subjects"
+                        onChange={handleFormChange}
+                        renderValue={(selected) => (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {(selected as string[]).map((value) => (
+                              <Chip key={value} label={value} size="small" />
+                            ))}
+                          </Box>
+                        )}
+                      >
+                        {SUBJECT_OPTIONS.map((subject) => (
+                          <MenuItem key={subject} value={subject}>
+                            {subject}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                </>
               )}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth>
@@ -1523,7 +1920,17 @@ export default function Users() {
             variant="contained" 
             onClick={handleSave} 
             disabled={!formData.displayName || loading}
-            sx={{ fontWeight: 900, px: 4 }}
+            sx={{ 
+              fontWeight: 950, 
+              px: 5, 
+              py: 1.2,
+              borderRadius: 3,
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.35)}`,
+              '&:hover': {
+                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+              }
+            }}
           >
             {editingUser ? 'Update Profile' : 'Register Member'}
           </Button>
@@ -1548,60 +1955,51 @@ export default function Users() {
 }
 
 const UserCard = ({ user, actionMenu, onOpenProfile, onSelect, isSelected, selectionMode }: any) => {
-  const isProfilePartiallyComplete = !!(user.dob && user.fatherName && user.motherName && user.address && user.phone);
-
+  const theme = useTheme();
   return (
     <Card 
       onClick={() => onOpenProfile(user)} 
       sx={{ 
         borderRadius: 4, 
         cursor: 'pointer', 
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
-        '&:hover': { transform: 'translateY(-8px)', boxShadow: 10 },
+        transition: 'all 0.2s ease', 
+        '&:hover': { boxShadow: theme.palette.mode === 'dark' ? '0 8px 30px rgba(0,0,0,0.4)' : '0 8px 30px rgba(0,0,0,0.06)' },
         border: isSelected ? '2px solid' : '1px solid',
-        borderColor: isSelected ? 'primary.main' : 'divider',
+        borderColor: isSelected ? 'primary.main' : alpha(theme.palette.divider, 0.1),
         position: 'relative',
-        overflow: 'visible'
+        overflow: 'hidden',
+        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.5) : 'white'
       }}
     >
-      {/* {isProfilePartiallyComplete && user.status !== 'Archived' && (
-         <Tooltip title="Information Complete">
-           <Box sx={{ 
-             position: 'absolute', 
-             top: -5, 
-             right: -5, 
-             width: 15, 
-             height: 15, 
-             bgcolor: 'success.main', 
-             borderRadius: '50%', 
-             border: '3px solid white', 
-             zIndex: 10,
-             animation: 'pulse-green 2s infinite'
-           }} />
-         </Tooltip>
-      )} */}
-      <Box sx={{ height: 80, bgcolor: 'primary.main' }} />
-      <CardContent sx={{ pt: 5, textAlign: 'center', position: 'relative' }}>
-        <Avatar 
-          src={user.photoURL} 
-          imgProps={{ loading: 'lazy' }}
-          sx={{ width: 80, height: 80, position: 'absolute', top: -40, left: '50%', transform: 'translateX(-50%)', border: '3px solid white' }} 
-        />
-        <Typography variant="h6" sx={{ fontWeight: 900 }}>{user.displayName}</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
-          {user.role} {user.classLevel ? `• ${user.classLevel}` : ''}
-        </Typography>
-        
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 1, alignItems: 'center' }}>
-          {selectionMode && (
+      <CardContent sx={{ p: 2.5 }}>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Avatar 
+            src={user.photoURL} 
+            imgProps={{ loading: 'lazy' }}
+            sx={{ width: 60, height: 60, border: '2px solid', borderColor: alpha(theme.palette.primary.main, 0.2) }} 
+          />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body1" sx={{ fontWeight: 900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.displayName}</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>ID: {user.admissionNo || user.uid.slice(0,8)}</Typography>
+            <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+              <Chip label={user.classLevel || user.role} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 900, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }} />
+              {user.status === 'Archived' && <Chip label="Archived" size="small" color="error" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 900 }} />}
+            </Stack>
+          </Box>
+          <Box onClick={(e) => e.stopPropagation()}>
+            {actionMenu}
+          </Box>
+        </Stack>
+
+        {selectionMode && (
+          <Box sx={{ position: 'absolute', top: 5, right: 5 }} onClick={(e) => e.stopPropagation()}>
             <Checkbox 
               checked={isSelected} 
-              onChange={(e) => { e.stopPropagation(); onSelect(e.target.checked); }}
-              onClick={(e) => e.stopPropagation()}
+              size="small"
+              onChange={(e) => onSelect(e.target.checked)}
             />
-          )}
-          {actionMenu}
-        </Box>
+          </Box>
+        )}
       </CardContent>
     </Card>
   );

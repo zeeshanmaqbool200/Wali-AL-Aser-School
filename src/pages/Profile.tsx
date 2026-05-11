@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Box, Typography, Card, CardContent, Grid, Button, 
   TextField, Avatar, IconButton, Chip, CircularProgress, 
-  Stack, Snackbar, useMediaQuery
+  Stack, Snackbar, useMediaQuery, Alert, Divider
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { Camera, Save, User, Mail, Phone, MapPin, ChevronLeft } from 'lucide-react';
@@ -48,6 +48,8 @@ export default function Profile() {
     try {
       logger.db('Updating Profile', `users/${currentUser.uid}`);
       
+      const isTeacher = profileData.role === 'teacher';
+      
       // Specifically allow only these fields for self-update
       const finalData: any = {
         displayName: profileData.displayName || '',
@@ -59,6 +61,17 @@ export default function Profile() {
         dob: profileData.dob || '',
         updatedAt: Date.now()
       };
+
+      if (isTeacher) {
+        // If teacher, profession and expertise must be pending
+        finalData.pendingProfileChanges = {
+          profession: profileData.profession || '',
+          expertise: profileData.expertise || [],
+          status: 'pending',
+          submittedAt: Date.now()
+        };
+        // Don't update current profession/expertise yet
+      }
       
       if (profileData.photoURL) {
         finalData.photoURL = profileData.photoURL;
@@ -123,16 +136,6 @@ export default function Profile() {
     <Box sx={{ maxWidth: 800, mx: 'auto', pb: 8, px: { xs: 2, sm: 0 } }}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
-          <IconButton 
-            onClick={() => window.history.back()} 
-            sx={{ 
-              bgcolor: 'background.paper', 
-              boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-              '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) }
-            }}
-          >
-            <ChevronLeft size={20} />
-          </IconButton>
           <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5 }}>
             Personal Profile
           </Typography>
@@ -251,6 +254,10 @@ export default function Profile() {
                   label="Phone Number"
                   value={profileData.phone || ''}
                   onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                  inputProps={{ 
+                    inputMode: 'tel',
+                    pattern: '[0-9]*'
+                  }}
                   InputProps={{ 
                     startAdornment: <Phone size={18} style={{ marginRight: 8, opacity: 0.5 }} />,
                     sx: { borderRadius: 1.5 }
@@ -292,6 +299,10 @@ export default function Profile() {
                   label="WhatsApp"
                   value={profileData.whatsapp || ''}
                   onChange={(e) => setProfileData({ ...profileData, whatsapp: e.target.value })}
+                  inputProps={{ 
+                    inputMode: 'tel',
+                    pattern: '[0-9]*'
+                  }}
                   InputProps={{ sx: { borderRadius: 1.5 } }}
                 />
               </Grid>
@@ -309,6 +320,42 @@ export default function Profile() {
                   }}
                 />
               </Grid>
+
+              {/* Teacher Specific Fields with Pending Logic */}
+              {profileData.role === 'teacher' && (
+                <>
+                  <Grid size={12} sx={{ mt: 2 }}>
+                    <Divider sx={{ mb: 2 }}>
+                      <Chip label="PROfESSIONAL DETAILS" size="small" sx={{ fontWeight: 900, letterSpacing: 1 }} />
+                    </Divider>
+                    {profileData.pendingProfileChanges?.status === 'pending' && (
+                      <Alert severity="info" sx={{ mb: 2, borderRadius: 2, border: '1px solid', borderColor: 'info.light' }}>
+                        You have pending changes for Profession/Expertise awaiting Admin approval.
+                      </Alert>
+                    )}
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField
+                      fullWidth
+                      label="Profession"
+                      placeholder="e.g. Software Engineer, Doctor"
+                      value={profileData.profession || ''}
+                      onChange={(e) => setProfileData({ ...profileData, profession: e.target.value })}
+                      InputProps={{ sx: { borderRadius: 1.5 } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField
+                      fullWidth
+                      label="Expertise (Comma separated)"
+                      placeholder="e.g. Math, Quran, Physics"
+                      value={profileData.expertise?.join(', ') || ''}
+                      onChange={(e) => setProfileData({ ...profileData, expertise: e.target.value.split(',').map(s => s.trim()).filter(s => s !== '') })}
+                      InputProps={{ sx: { borderRadius: 1.5 } }}
+                    />
+                  </Grid>
+                </>
+              )}
             </Grid>
 
             <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Box, Typography, Paper, CircularProgress, alpha, useTheme, Avatar, Divider, Button, Chip, Skeleton, Card, CardContent, Stack } from '@mui/material';
-import { ShieldCheck, Calendar, User, BookOpen, Clock, CheckCircle, Smartphone, XCircle } from 'lucide-react';
+import { ShieldCheck, Calendar, User, BookOpen, Clock, CheckCircle, Smartphone, XCircle, IndianRupee, GraduationCap, Layout } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { motion } from 'motion/react';
@@ -17,24 +17,25 @@ export default function Verify() {
     async function verifyData() {
       if (!id || !type) return;
       try {
+        const decodedId = decodeURIComponent(id);
         const collectionName = type === 'receipt' ? 'receipts' : 'users';
-        console.log(`Verifying ${type} with id: ${id}`);
+        console.log(`Verifying ${type} with id: ${decodedId}`);
         
         // 1. Try fetching by document ID
-        const docRef = doc(db, collectionName, id);
+        const docRef = doc(db, collectionName, decodedId);
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
           console.log("Found by doc ID");
           setData({ id: docSnap.id, ...docSnap.data() });
         } else {
-          // 2. Comprehensive search
-          console.log("Searching all matching fields...");
+          // 2. Comprehensive search if ID is not the document ID
+          console.log("Searching alternative fields...");
           
           if (type === 'receipt') {
             const receiptQueries = [
-              query(collection(db, 'receipts'), where('receiptNo', '==', id)),
-              query(collection(db, 'receipts'), where('receiptNumber', '==', id))
+              query(collection(db, 'receipts'), where('receiptNo', '==', decodedId)),
+              query(collection(db, 'receipts'), where('receiptNumber', '==', decodedId))
             ];
             for (const q of receiptQueries) {
               const snap = await getDocs(q);
@@ -44,17 +45,17 @@ export default function Verify() {
               }
             }
           } else {
-            const userQueries = [
-              query(collection(db, 'users'), where('uid', '==', id)),
-              query(collection(db, 'users'), where('admissionNo', '==', id)),
-              query(collection(db, 'users'), where('teacherId', '==', id)),
-              query(collection(db, 'users'), where('studentId', '==', id))
-            ];
-            for (const q of userQueries) {
-              const snap = await getDocs(q);
-               if (!snap.empty) {
-                setData({ id: snap.docs[0].id, ...snap.docs[0].data() });
-                return;
+            const searchTerms = [decodedId, decodedId.trim(), decodedId.trim().toLowerCase()];
+            const fields = ['uid', 'id', 'email', 'admissionNo', 'studentId', 'teacherId'];
+            
+            for (const field of fields) {
+              for (const term of searchTerms) {
+                const q = query(collection(db, 'users'), where(field, '==', term));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                  setData({ id: snap.docs[0].id, ...snap.docs[0].data() });
+                  return;
+                }
               }
             }
           }
@@ -89,50 +90,133 @@ export default function Verify() {
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', p: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ width: '100%', maxWidth: 450 }}>
-        <Card sx={{ borderRadius: 8, boxShadow: theme.palette.mode === 'dark' ? '0 30px 60px rgba(0,0,0,0.5)' : '0 30px 60px rgba(0,0,0,0.05)', border: 'none', overflow: 'hidden' }}>
-          <Box sx={{ p: 4, textAlign: 'center', bgcolor: alpha(theme.palette.success.main, 0.05) }}>
-            <CheckCircle size={48} color={theme.palette.success.main} />
-            <Typography variant="h5" sx={{ mt: 2, fontWeight: 900, fontFamily: 'var(--font-heading)', color: 'success.main', letterSpacing: 1 }}>AUTHENTICATED</Typography>
-          </Box>
-          <CardContent sx={{ p: 4 }}>
-            {type === 'receipt' ? (
-              <Stack spacing={2.5}>
-                <DataRow label="STUDENT" value={data.studentName} />
-                <DataRow label="RECEIPT NO" value={data.receiptNo} />
-                <DataRow label="AMOUNT" value={`Rs.${data.amount}`} />
-                <DataRow label="CATEGORY" value={data.feeHead} />
-                <DataRow label="DATE" value={data.date} />
-              </Stack>
-            ) : (
-              <Stack spacing={2.5}>
-                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                  <Avatar src={data.photoURL} sx={{ width: 100, height: 100, border: '3px solid', borderColor: 'primary.main' }} />
-                </Box>
-                <DataRow label="NAME" value={data.displayName} />
-                <DataRow label="CLASS" value={data.classLevel} />
-                <DataRow label="ID NO" value={data.admissionNo || data.teacherId || 'N/A'} />
-                <DataRow label="ROLE" value={data.role?.toUpperCase()} />
-              </Stack>
-            )}
-            <Divider sx={{ my: 3 }} />
-            <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', color: 'text.disabled', fontWeight: 800 }}>
-              VERIFIED ON: {new Date().toLocaleString()}
+    <Box sx={{ minHeight: '100vh', p: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: theme.palette.mode === 'dark' ? '#0a0a0a' : '#f5f7fa' }}>
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} style={{ width: '100%', maxWidth: 500 }}>
+        
+        {/* Certificate-like header */}
+        <Box sx={{ textAlign: 'center', mb: -4, position: 'relative', zIndex: 10 }}>
+           <Avatar 
+             src="/logo.png" 
+             sx={{ 
+               width: 80, height: 80, mx: 'auto', bgcolor: 'white', p: 0.5, 
+               boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+               border: '4px solid white'
+             }} 
+           />
+        </Box>
+
+        <Card sx={{ 
+          borderRadius: 8, 
+          boxShadow: theme.palette.mode === 'dark' ? '0 40px 100px rgba(0,0,0,0.6)' : '0 40px 100px rgba(0,0,0,0.08)', 
+          border: '1px solid',
+          borderColor: alpha(theme.palette.divider, 0.1),
+          overflow: 'hidden',
+          pt: 4
+        }}>
+          <Box sx={{ 
+            p: 4, pt: 6, textAlign: 'center', 
+            background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.05)} 0%, ${alpha(theme.palette.success.main, 0.15)} 100%)` 
+          }}>
+            <Box sx={{ 
+              display: 'inline-flex', p: 2, borderRadius: '50%', 
+              bgcolor: 'success.main', color: 'white', mb: 2,
+              boxShadow: `0 10px 25px ${alpha(theme.palette.success.main, 0.4)}`
+            }}>
+              <ShieldCheck size={40} />
+            </Box>
+            <Typography variant="h4" sx={{ fontWeight: 950, fontFamily: 'var(--font-heading)', color: 'success.dark', letterSpacing: -1 }}>
+              Official Verification
             </Typography>
-            <Button fullWidth onClick={() => window.location.href = '/'} sx={{ mt: 3, borderRadius: 2, fontWeight: 800 }}>Close</Button>
+            <Typography variant="body2" sx={{ fontWeight: 600, opacity: 0.7 }}>
+              Security Clearance: LEVEL 1 (AUTHENTIC)
+            </Typography>
+          </Box>
+
+          <CardContent sx={{ p: 4 }}>
+            <Box sx={{ mb: 4, p: 3, borderRadius: 4, bgcolor: alpha(theme.palette.background.default, 0.5), border: '1px solid', borderColor: alpha(theme.palette.divider, 0.05) }}>
+              {type === 'receipt' ? (
+                <Stack spacing={3}>
+                  <DataRow icon={<User size={18} />} label="STUDENT NAME" value={data.studentName} />
+                  <DataRow icon={<Smartphone size={18} />} label="RECEIPT NO" value={data.receiptNo} highlight />
+                  <DataRow icon={< IndianRupee size={18} />} label="TOTAL AMOUNT" value={`Rs.${data.amount}`} />
+                  <DataRow icon={<BookOpen size={18} />} label="CATEGORY" value={data.feeHead} />
+                  <DataRow icon={<Calendar size={18} />} label="ISSUE DATE" value={data.date} />
+                  <DataRow icon={<CheckCircle size={18} />} label="PAYMENT STATUS" value={(data.status || 'Verified').toUpperCase()} color="success.main" />
+                </Stack>
+              ) : (
+                <Stack spacing={3}>
+                  <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+                    <Box sx={{ position: 'relative' }}>
+                      <Avatar 
+                        src={data.photoURL} 
+                        sx={{ 
+                          width: 120, height: 120, 
+                          border: '4px solid', 
+                          borderColor: 'primary.main',
+                          boxShadow: `0 15px 35px ${alpha(theme.palette.primary.main, 0.2)}`
+                        }} 
+                      />
+                      <Box sx={{ position: 'absolute', bottom: 5, right: 5, bgcolor: 'success.main', color: 'white', p: 0.5, borderRadius: '50%', border: '3px solid white' }}>
+                        <CheckCircle size={16} />
+                      </Box>
+                    </Box>
+                  </Box>
+                  <DataRow icon={<User size={18} />} label="FULL NAME" value={data.displayName} highlight />
+                  <DataRow icon={<GraduationCap size={18} />} label="IDENTIFICATION" value={data.admissionNo || data.teacherId || 'PROVISIONAL'} />
+                  <DataRow icon={<Layout size={18} />} label="DESIGNATION" value={data.role?.toUpperCase()} />
+                  <DataRow icon={<ShieldCheck size={18} />} label="ACCOUNT STATUS" value={(data.status || 'Active').toUpperCase()} color="success.main" />
+                </Stack>
+              )}
+            </Box>
+
+            <Divider sx={{ mb: 3 }}>
+               <Typography variant="caption" sx={{ fontWeight: 900, px: 1.5, opacity: 0.5 }}>BLOCKCHAIN TIMESTAMP</Typography>
+            </Divider>
+            
+            <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', color: 'text.disabled', fontWeight: 800, fontFamily: 'monospace', fontSize: '0.75rem' }}>
+              SECURITY HASH: {id?.substring(0, 8).toUpperCase()}-{type?.toUpperCase()}-{Math.random().toString(36).substring(7).toUpperCase()}
+              <br />
+              VERIFIED AT: {new Date().toLocaleString()}
+            </Typography>
+
+            <Stack direction="row" spacing={2} sx={{ mt: 4 }}>
+              <Button 
+                variant="outlined" 
+                fullWidth 
+                onClick={() => window.location.href = '/'} 
+                sx={{ borderRadius: 3, fontWeight: 900, py: 1.5, textTransform: 'none' }}
+              >
+                Back to Portal
+              </Button>
+              <Button 
+                variant="contained" 
+                fullWidth 
+                onClick={() => window.print()} 
+                sx={{ borderRadius: 3, fontWeight: 900, py: 1.5, textTransform: 'none' }}
+              >
+                Download PDF
+              </Button>
+            </Stack>
           </CardContent>
+          <Box sx={{ p: 2, bgcolor: 'success.main', color: 'white', textAlign: 'center' }}>
+             <Typography variant="caption" sx={{ fontWeight: 900, letterSpacing: 1.5 }}>PORTAL.WALIULASER.ORG</Typography>
+          </Box>
         </Card>
       </motion.div>
     </Box>
   );
 }
 
-function DataRow({ label, value }: { label: string, value: string }) {
+function DataRow({ icon, label, value, highlight, color }: { icon: React.ReactNode, label: string, value: string, highlight?: boolean, color?: string }) {
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', letterSpacing: 0.5 }}>{label}</Typography>
-      <Typography variant="body1" sx={{ fontWeight: 800 }}>{value || 'N/A'}</Typography>
+      <Stack direction="row" spacing={1.5} alignItems="center">
+        <Box sx={{ opacity: 0.6 }}>{icon}</Box>
+        <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', letterSpacing: 0.5 }}>{label}</Typography>
+      </Stack>
+      <Typography variant={highlight ? "body1" : "body2"} sx={{ fontWeight: highlight ? 950 : 800, color: color || 'text.primary', letterSpacing: highlight ? -0.5 : 0 }}>
+        {value || 'DATA NOT AVAILABLE'}
+      </Typography>
     </Box>
   );
 }

@@ -238,9 +238,14 @@ export default function Notes() {
                   px: 4, 
                   py: 1.5,
                   textTransform: 'none',
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
                   boxShadow: theme.palette.mode === 'dark'
                     ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                    : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+                    : `0 8px 24px ${alpha(theme.palette.primary.main, 0.25)}`,
+                  '&:hover': {
+                    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                    transform: 'translateY(-2px)'
+                  }
                 }}
               >
                 Mawad Upload Karein
@@ -413,7 +418,17 @@ export default function Notes() {
             variant="contained" 
             startIcon={<Plus size={18} />} 
             disabled={!formData.title}
-            sx={{ borderRadius: 3, fontWeight: 800, px: 3, boxShadow: '0 8px 24px rgba(15, 118, 110, 0.3)' }}
+            sx={{ 
+              borderRadius: 3, 
+              fontWeight: 950, 
+              px: 4,
+              py: 1.2,
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
+              '&:hover': {
+                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+              }
+            }}
           >
             Upload Now
           </Button>

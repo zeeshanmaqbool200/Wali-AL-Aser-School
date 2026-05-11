@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Paper, BottomNavigation, BottomNavigationAction, Badge, Avatar, Tooltip } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { LayoutDashboard, Users, CreditCard, Bell, Terminal, Settings as SettingsIcon, Calendar, BarChart3, BookOpen, IndianRupee } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, Bell, Terminal, Settings as SettingsIcon, Calendar, BarChart3, BookOpen, IndianRupee, FileText } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
@@ -76,17 +76,22 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
       setLastScrollY(currentScrollY);
     };
 
-    const handleClick = () => {
+    const handleClick = (e: MouseEvent | TouchEvent) => {
+      // Ignore clicks on the bottom nav itself
+      const navElement = document.querySelector('[data-testid="bottom-nav-paper"]');
+      if (navElement && navElement.contains(e.target as Node)) return;
+
+      // Don't hide/show nav purely because of a click wiggling the scroll
       isRecentlyClicked = true;
       if (clickTimeout) clearTimeout(clickTimeout);
       clickTimeout = setTimeout(() => {
         isRecentlyClicked = false;
-      }, 1500); 
+      }, 500); 
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('mousedown', handleClick, { passive: true });
-    window.addEventListener('touchstart', handleClick, { passive: true });
+    window.addEventListener('mousedown', handleClick as any, { passive: true });
+    window.addEventListener('touchstart', handleClick as any, { passive: true });
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
@@ -108,6 +113,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
     { label: 'Courses', icon: <BookOpen size={20} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: 'Students', icon: <Users size={20} />, path: '/users', roles: ['superadmin', 'manager'] },
     { label: 'Expenses', icon: <CreditCard size={20} />, path: '/expenses', roles: ['superadmin', 'manager'] },
+    { label: 'Forms', icon: <FileText size={20} />, path: '/forms', roles: ['superadmin', 'manager'] },
     { label: 'Fees', icon: <IndianRupee size={20} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'] },
     { label: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['superadmin'] },
     { label: 'Settings', icon: <SettingsIcon size={20} />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'] },
@@ -139,28 +145,38 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
             }}
             sx={{ 
               position: 'fixed', 
-              bottom: { xs: 24, sm: 32 }, 
-              left: '50%', 
+              bottom: { xs: 0, sm: 24 }, 
+              left: { xs: 0, sm: '50%' }, 
+              transform: { xs: 'none', sm: 'translateX(-50%)' },
               zIndex: 5000, 
-              width: 'auto',
+              width: { xs: '100%', sm: 'auto' },
+              maxWidth: { xs: 'none', sm: 'none' },
               pointerEvents: isActuallyVisible ? 'auto' : 'none',
+              pb: { xs: 'env(safe-area-inset-bottom)', sm: 0 },
+              bgcolor: { xs: theme.palette.mode === 'dark' ? alpha('#111111', 0.95) : alpha('#ffffff', 0.95), sm: 'transparent' },
             }}
           >
           <Paper 
             elevation={0}
+            data-testid="bottom-nav-paper"
             sx={{ 
-              borderRadius: '999px',
-              p: 0.75,
-              bgcolor: theme.palette.mode === 'dark' ? alpha('#111111', 0.9) : alpha('#ffffff', 0.9),
-              backdropFilter: 'blur(20px)',
-              border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+              borderRadius: { xs: 0, sm: '999px' },
+              p: 0.5,
+              width: '100%',
+              bgcolor: theme.palette.mode === 'dark' ? alpha('#111111', 0.95) : alpha('#ffffff', 0.95),
+              backdropFilter: 'blur(15px)',
+              border: 'none',
+              borderTop: { xs: `1px solid ${alpha(theme.palette.divider, 0.12)}`, sm: 'none' },
+              borderLeft: { xs: 'none', sm: `1px solid ${alpha(theme.palette.divider, 0.12)}` },
+              borderRight: { xs: 'none', sm: `1px solid ${alpha(theme.palette.divider, 0.12)}` },
+              borderBottom: { xs: 'none', sm: `1px solid ${alpha(theme.palette.divider, 0.12)}` },
               boxShadow: theme.palette.mode === 'dark' 
-                ? '0 10px 40px rgba(0,0,0,0.6)' 
-                : '0 10px 40px rgba(0,0,0,0.1)',
+                ? '0 15px 50px rgba(0,0,0,0.8)' 
+                : '0 15px 50px rgba(0,0,0,0.15)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: 0.5,
+              justifyContent: 'space-around',
+              gap: 0.25,
               pointerEvents: 'auto',
             }} 
           >
@@ -202,11 +218,38 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                     />
                   )}
                   {React.cloneElement(item.icon as React.ReactElement<any>, { size: 22 })}
+                  {item.label === 'Home' && unreadNotifications > 0 && (
+                     <Badge 
+                       badgeContent={unreadNotifications} 
+                       color="error" 
+                       sx={{ 
+                         position: 'absolute', 
+                         top: 10, 
+                         right: 10,
+                         '& .MuiBadge-badge': {
+                           fontSize: '0.6rem',
+                           height: 16,
+                           minWidth: 16,
+                           animation: 'pulse 2s infinite',
+                           fontWeight: 900
+                         }
+                       }} 
+                     />
+                  )}
                 </Box>
               );
             })}
           </Paper>
         </Box>
+      <style>
+        {`
+          @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+          }
+        `}
+      </style>
     </Box>
   );
 }

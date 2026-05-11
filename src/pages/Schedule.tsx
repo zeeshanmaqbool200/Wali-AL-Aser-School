@@ -300,9 +300,17 @@ export default function Schedule() {
                   px: 4, 
                   py: 1.5,
                   textTransform: 'none',
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
                   boxShadow: theme.palette.mode === 'dark'
                     ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
-                    : '8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff',
+                    : `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
+                  '&:hover': {
+                    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                    transform: 'translateY(-2px)',
+                    boxShadow: theme.palette.mode === 'dark'
+                      ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
+                      : `0 12px 32px ${alpha(theme.palette.primary.main, 0.4)}`,
+                  }
                 }}
               >
                 Add Schedule
@@ -650,7 +658,17 @@ export default function Schedule() {
             variant="contained" 
             startIcon={<Save size={18} />} 
             disabled={!formData.subject || !formData.classLevel}
-            sx={{ borderRadius: 3, fontWeight: 800, px: 3, boxShadow: '0 8px 24px rgba(15, 118, 110, 0.3)' }}
+            sx={{ 
+              borderRadius: 3, 
+              fontWeight: 900, 
+              px: 4, 
+              py: 1.5,
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.35)}`,
+              '&:hover': {
+                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+              }
+            }}
           >
             {editingSchedule ? 'Update Schedule' : 'Add to Schedule'}
           </Button>
@@ -680,7 +698,7 @@ export default function Schedule() {
             )}
           </List>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ p: 3 }}>
           <Button onClick={() => setOpenMaterialsDialog(false)} sx={{ fontWeight: 800 }}>Close</Button>
         </DialogActions>
       </Dialog>
@@ -714,8 +732,25 @@ export default function Schedule() {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setOpenEventDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSaveEvent} disabled={!eventFormData.title} sx={{ borderRadius: 2 }}>Save Event</Button>
+          <Button onClick={() => setOpenEventDialog(false)} sx={{ fontWeight: 800, color: 'text.secondary' }}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            onClick={handleSaveEvent} 
+            disabled={!eventFormData.title} 
+            sx={{ 
+              borderRadius: 3, 
+              fontWeight: 950, 
+              px: 4, 
+              py: 1.5,
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+              boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
+              '&:hover': {
+                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+              }
+            }}
+          >
+            Save Event
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

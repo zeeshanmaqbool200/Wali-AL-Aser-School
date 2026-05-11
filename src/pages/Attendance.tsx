@@ -18,7 +18,7 @@ import { db, OperationType, handleFirestoreError, smartSetDoc } from '../firebas
 import { UserProfile, Attendance } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subDays, addDays } from 'date-fns';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { exportToCSV } from '../lib/exportUtils';
 import { useNavigate } from 'react-router-dom';
 
@@ -209,8 +209,8 @@ export default function AttendancePage() {
 
   const filteredStudents = students.filter(s => 
     s.classLevel === selectedClass && 
-    (s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-     s.studentId?.toLowerCase().includes(searchQuery.toLowerCase()))
+    ((s.displayName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
+     (s.studentId?.toLowerCase() || '').includes(searchQuery.toLowerCase()))
   );
 
   const presentCount = attendanceData.filter(a => a.status === 'present' && filteredStudents.some(s => s.uid === a.studentId)).length;
@@ -238,17 +238,7 @@ export default function AttendancePage() {
   );
 
   return (
-    <Box sx={{ pb: 8 }}>
-      <Box sx={{ mb: 2 }}>
-        <Button 
-          variant="text" 
-          startIcon={<ArrowLeft size={20} />} 
-          onClick={() => navigate(-1)}
-          sx={{ fontWeight: 800, color: 'text.secondary' }}
-        >
-          Back
-        </Button>
-      </Box>
+    <Box sx={{ pb: 8, pt: 2 }}>
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -540,40 +530,62 @@ export default function AttendancePage() {
                           </TableCell>
                           <TableCell align="right">
                             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
-                              <Button 
-                                size="small" 
-                                variant={record?.status === 'present' ? 'contained' : 'outlined'}
-                                color="success"
-                                startIcon={markingIds.has(student.uid) ? null : <CheckCircle size={16} />}
-                                onClick={() => handleMarkAttendance(student.uid, 'present')}
-                                disabled={!isStaff || markingIds.has(student.uid) || bulkMarking !== null}
-                                sx={{ 
-                                  borderRadius: 3, 
-                                  minWidth: { xs: 80, sm: 100 }, 
-                                  fontWeight: 800,
-                                  fontSize: { xs: '0.7rem', sm: '0.8125rem' },
-                                  boxShadow: record?.status === 'present' ? '0 4px 12px rgba(16, 185, 129, 0.3)' : 'none'
-                                }}
-                              >
-                                {markingIds.has(student.uid) ? <CircularProgress size={16} color="inherit" /> : 'Present'}
-                              </Button>
-                              <Button 
-                                size="small" 
-                                variant={record?.status === 'absent' ? 'contained' : 'outlined'}
-                                color="error"
-                                startIcon={markingIds.has(student.uid) ? null : <XCircle size={16} />}
-                                onClick={() => handleMarkAttendance(student.uid, 'absent')}
-                                disabled={!isStaff || markingIds.has(student.uid) || bulkMarking !== null}
-                                sx={{ 
-                                  borderRadius: 3, 
-                                  minWidth: { xs: 80, sm: 100 }, 
-                                  fontWeight: 800,
-                                  fontSize: { xs: '0.7rem', sm: '0.8125rem' },
-                                  boxShadow: record?.status === 'absent' ? '0 4px 12px rgba(239, 68, 68, 0.3)' : 'none'
-                                }}
-                              >
-                                {markingIds.has(student.uid) ? <CircularProgress size={16} color="inherit" /> : 'Absent'}
-                              </Button>
+                                <Button 
+                                  size="small" 
+                                  variant={record?.status === 'present' ? 'contained' : 'outlined'}
+                                  color="success"
+                                  startIcon={markingIds.has(student.uid) ? null : <CheckCircle size={16} />}
+                                  onClick={() => handleMarkAttendance(student.uid, 'present')}
+                                  disabled={!isStaff || markingIds.has(student.uid) || bulkMarking !== null}
+                                  sx={{ 
+                                    borderRadius: 3, 
+                                    minWidth: { xs: 80, sm: 100 }, 
+                                    fontWeight: 800,
+                                    fontSize: { xs: '0.7rem', sm: '0.8125rem' },
+                                    background: record?.status === 'present' 
+                                      ? `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${alpha(theme.palette.success.main, 0.5)} 100%)` 
+                                      : 'transparent',
+                                    border: record?.status === 'present' ? 'none' : `1px solid ${theme.palette.success.main}`,
+                                    color: record?.status === 'present' ? 'white' : 'success.main',
+                                    boxShadow: record?.status === 'present' ? `0 4px 12px ${alpha(theme.palette.success.main, 0.15)}` : 'none',
+                                    '&:hover': {
+                                      background: record?.status === 'present' 
+                                        ? `linear-gradient(135deg, ${theme.palette.success.dark} 0%, ${alpha(theme.palette.success.dark, 0.8)} 100%)` 
+                                        : alpha(theme.palette.success.main, 0.05),
+                                      border: record?.status === 'present' ? 'none' : `1px solid ${theme.palette.success.main}`,
+                                    }
+                                  }}
+                                >
+                                  {markingIds.has(student.uid) ? <CircularProgress size={16} color="inherit" /> : 'Present'}
+                                </Button>
+                                <Button 
+                                  size="small" 
+                                  variant={record?.status === 'absent' ? 'contained' : 'outlined'}
+                                  color="error"
+                                  startIcon={markingIds.has(student.uid) ? null : <XCircle size={16} />}
+                                  onClick={() => handleMarkAttendance(student.uid, 'absent')}
+                                  disabled={!isStaff || markingIds.has(student.uid) || bulkMarking !== null}
+                                  sx={{ 
+                                    borderRadius: 3, 
+                                    minWidth: { xs: 80, sm: 100 }, 
+                                    fontWeight: 800,
+                                    fontSize: { xs: '0.7rem', sm: '0.8125rem' },
+                                    background: record?.status === 'absent' 
+                                      ? `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${alpha(theme.palette.error.main, 0.5)} 100%)` 
+                                      : 'transparent',
+                                    border: record?.status === 'absent' ? 'none' : `1px solid ${theme.palette.error.main}`,
+                                    color: record?.status === 'absent' ? 'white' : 'error.main',
+                                    boxShadow: record?.status === 'absent' ? `0 4px 12px ${alpha(theme.palette.error.main, 0.15)}` : 'none',
+                                    '&:hover': {
+                                      background: record?.status === 'absent' 
+                                        ? `linear-gradient(135deg, ${theme.palette.error.dark} 0%, ${alpha(theme.palette.error.dark, 0.8)} 100%)` 
+                                        : alpha(theme.palette.error.main, 0.05),
+                                      border: record?.status === 'absent' ? 'none' : `1px solid ${theme.palette.error.main}`,
+                                    }
+                                  }}
+                                >
+                                  {markingIds.has(student.uid) ? <CircularProgress size={16} color="inherit" /> : 'Absent'}
+                                </Button>
                             </Box>
                           </TableCell>
                         </TableRow>

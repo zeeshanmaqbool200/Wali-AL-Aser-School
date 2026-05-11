@@ -54,9 +54,32 @@ export default function Notifications() {
   const isStaff = isAdmin || isTeacherRole;
 
   useEffect(() => {
+    if (!currentUser || notifications.length === 0) return;
+
+    // Automatically mark visible notifications as read when entering the page
+    // This handles the "red dot should hide" requirement
+    const unread = notifications.filter(n => !n.readBy?.includes(currentUser.uid));
+    if (unread.length === 0) return;
+
+    const markAsReadTimeout = setTimeout(async () => {
+      logger.info(`Auto-marking ${unread.length} notifications as read`);
+      try {
+        await Promise.all(unread.map(n => 
+          updateDoc(doc(db, 'notifications', n.id), {
+            readBy: arrayUnion(currentUser.uid)
+          })
+        ));
+      } catch (err) {
+        console.error("Auto-marking failed", err);
+      }
+    }, 300); // Reduced delay for better UX
+
+    return () => clearTimeout(markAsReadTimeout);
+  }, [currentUser, notifications.length]); // Re-run when notification count changes
+
+  useEffect(() => {
     if (!currentUser) return;
     logger.info('Notifications Page Loading...');
-
     let q;
     if (isStaff) {
       q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'));
@@ -125,7 +148,7 @@ export default function Notifications() {
 
   const handleMarkAllAsRead = async () => {
     if (!currentUser) return;
-    const unread = notifications.filter(n => !n.readBy.includes(currentUser.uid));
+    const unread = notifications.filter(n => !n.readBy?.includes(currentUser.uid));
     if (unread.length === 0) return;
 
     try {
@@ -166,11 +189,23 @@ export default function Notifications() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, type?: string) => {
+    if (!currentUser) return;
     try {
-      logger.db('Deleting Notification', `notifications/${id}`);
-      await deleteDoc(doc(db, 'notifications', id));
-      logger.success('Notification Deleted');
+      logger.db('Hiding/Deleting Notification', `notifications/${id}`);
+      
+      // If it's an announcement or the user is not superadmin, just hide it for this user
+      // Deleting should not delete the global announcement
+      if (type === 'announcement' || !isSuperAdmin) {
+        await updateDoc(doc(db, 'notifications', id), {
+          hiddenBy: arrayUnion(currentUser.uid)
+        });
+        logger.success('Notification hidden from your view');
+      } else {
+        // Only superadmins can truly delete non-announcement notifications globally
+        await deleteDoc(doc(db, 'notifications', id));
+        logger.success('Notification Deleted Globally');
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `notifications/${id}`);
     }
@@ -195,15 +230,16 @@ export default function Notifications() {
   };
 
   const filteredNotifications = notifications
-    .filter(n => tabValue === 0 ? !n.readBy.includes(currentUser?.uid || '') : n.readBy.includes(currentUser?.uid || ''))
+    .filter(n => !n.hiddenBy?.includes(currentUser?.uid || '')) // Filter out hidden ones
+    .filter(n => tabValue === 0 ? true : !n.readBy?.includes(currentUser?.uid || '')) // Tab 0 shows ALL (read/unread), Tab 1 shows only UNREAD
     .filter(n => typeFilter === 'all' || n.type === typeFilter)
     .filter(n => 
-      n.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      n.message.toLowerCase().includes(searchQuery.toLowerCase())
+      (n.title?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
+      (n.message?.toLowerCase() || '').includes(searchQuery.toLowerCase())
     );
 
   const handleNotificationClick = (notif: Notification) => {
-    if (!notif.readBy.includes(currentUser?.uid || '')) {
+    if (!notif.readBy?.includes(currentUser?.uid || '')) {
       handleMarkAsRead(notif.id);
     }
     
@@ -291,10 +327,15 @@ export default function Notifications() {
                 >
                   <Tab label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                      Inbox (New)
-                      {notifications.filter(n => !n.readBy.includes(currentUser?.uid || '')).length > 0 && (
+                      Inbox (All)
+                    </Box>
+                  } />
+                  <Tab label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      Unread
+                      {notifications.filter(n => !n.readBy?.includes(currentUser?.uid || '') && !n.hiddenBy?.includes(currentUser?.uid || '')).length > 0 && (
                         <Chip 
-                          label={notifications.filter(n => !n.readBy.includes(currentUser?.uid || '')).length} 
+                          label={notifications.filter(n => !n.readBy?.includes(currentUser?.uid || '') && !n.hiddenBy?.includes(currentUser?.uid || '')).length} 
                           size="small" 
                           color="primary" 
                           sx={{ height: 22, minWidth: 22, fontSize: '0.7rem', fontWeight: 900 }} 
@@ -302,7 +343,6 @@ export default function Notifications() {
                       )}
                     </Box>
                   } />
-                  <Tab label="Archived (Old)" />
                 </Tabs>
                 
                 <Select
@@ -364,7 +404,7 @@ export default function Notifications() {
                     }} 
                   />
                 </Paper>
-                {notifications.some(n => !n.readBy.includes(currentUser?.uid || '')) && (
+                {notifications.some(n => !n.readBy?.includes(currentUser?.uid || '')) && (
                   <Tooltip title="Mark all as read">
                     <IconButton 
                       onClick={handleMarkAllAsRead} 
@@ -399,7 +439,7 @@ export default function Notifications() {
                       currentUser={currentUser} 
                       isTeacher={isStaff}
                       onRead={() => handleMarkAsRead(notif.id)}
-                      onDelete={() => handleDelete(notif.id)}
+                      onDelete={() => handleDelete(notif.id, notif.type)}
                       onClick={() => handleNotificationClick(notif)}
                       getIcon={getIcon}
                       getTypeColor={getTypeColor}
@@ -494,7 +534,7 @@ export default function Notifications() {
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>Unread</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 900, color: 'primary.main' }}>
-                      {notifications.filter(n => !n.readBy.includes(currentUser?.uid || '')).length}
+                      {notifications.filter(n => !n.readBy?.includes(currentUser?.uid || '')).length}
                     </Typography>
                   </Box>
                   <Divider />
@@ -666,123 +706,162 @@ export default function Notifications() {
 
 function NotificationItem({ notif, currentUser, isTeacher, onRead, onDelete, onClick, getIcon, getTypeColor }: any) {
   const theme = useTheme();
-  const isRead = notif.readBy.includes(currentUser?.uid || '');
+  const isRead = notif.readBy?.includes(currentUser?.uid || '');
   
   return (
-    <ListItem 
-      onClick={onClick}
-      sx={{ 
-        px: 3,
-        py: 2.5,
-        cursor: 'pointer',
-        borderBottom: '1px solid', 
-        borderColor: 'divider',
-        bgcolor: isRead ? 'transparent' : alpha(theme.palette.primary.main, 0.03),
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        position: 'relative',
-        '&:hover': { 
-          bgcolor: alpha(theme.palette.primary.main, 0.05),
-          '& .action-buttons': { opacity: 1, transform: 'translateX(0)' }
-        }
-      }}
-    >
-      <ListItemAvatar sx={{ mr: 1 }}>
-        <Badge 
-          overlap="circular" 
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-          variant="dot"
-          color={isRead ? 'default' : 'primary'}
-          invisible={isRead}
-          sx={{ '& .MuiBadge-badge': { width: 12, height: 12, borderRadius: '50%', border: '2px solid white' } }}
-        >
-          <Avatar 
-            sx={{ 
-              bgcolor: alpha(theme.palette[getTypeColor(notif.type) as 'primary' | 'success' | 'warning' | 'info'].main, 0.1), 
-              color: `${getTypeColor(notif.type)}.main`,
-              borderRadius: 3,
-              width: 52,
-              height: 52,
-              boxShadow: theme.palette.mode === 'dark'
-                ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-            }}
-          >
-            {getIcon(notif.type)}
-          </Avatar>
-        </Badge>
-      </ListItemAvatar>
-      
-      <ListItemText
-        primaryTypographyProps={{ component: 'div' }}
-        secondaryTypographyProps={{ component: 'div' }}
-        primary={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-            <Typography variant="subtitle1" component="span" sx={{ fontWeight: isRead ? 700 : 900, color: isRead ? 'text.primary' : 'primary.main' }}>
-              {notif.title}
-            </Typography>
-            <Chip 
-              label={notif.type.replace('_', ' ')} 
-              size="small" 
-              sx={{ 
-                fontSize: '0.65rem', 
-                height: 20, 
-                fontWeight: 800, 
-                textTransform: 'uppercase',
-                bgcolor: alpha(theme.palette[getTypeColor(notif.type) as 'primary' | 'success' | 'warning' | 'info'].main, 0.05),
-                color: `${getTypeColor(notif.type)}.main`,
-                border: 'none'
-              }} 
-            />
-          </Box>
-        }
-        secondary={
-          <Box>
-            <Typography variant="body2" color="text.secondary" component="p" sx={{ mb: 1.5, fontWeight: 500, lineHeight: 1.6 }}>
-              {notif.message}
-            </Typography>
-            <Stack direction="row" spacing={2} alignItems="center">
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                <User size={14} />
-                <Typography variant="caption" sx={{ fontWeight: 700 }}>{notif.senderName}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                <Clock size={14} />
-                <Typography variant="caption" sx={{ fontWeight: 600 }}>{format(notif.createdAt, 'PPp')}</Typography>
-              </Box>
-            </Stack>
-          </Box>
-        }
-      />
-      
+    <Box sx={{ position: 'relative', overflow: 'hidden', borderRadius: 2 }}>
+      {/* Background Delete Action (visible on swipe) */}
       <Box 
-        className="action-buttons"
         sx={{ 
+          position: 'absolute', 
+          right: 0, 
+          top: 0, 
+          bottom: 0, 
+          width: 80, 
+          bgcolor: 'error.main', 
           display: 'flex', 
-          gap: 1, 
-          opacity: { xs: 1, sm: 0 }, 
-          transform: { xs: 'none', sm: 'translateX(10px)' },
-          transition: 'all 0.2s ease',
-          ml: 2
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          color: 'white',
+          zIndex: 0,
+          borderTopRightRadius: 8,
+          borderBottomRightRadius: 8
         }}
       >
-        {isTeacher && (
-          <Tooltip title="Delete">
-            <IconButton 
-              size="small" 
-              onClick={onDelete} 
-              sx={{ 
-                bgcolor: 'background.paper', 
-                boxShadow: theme.palette.mode === 'dark'
-                  ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
-                  : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
-                '&:hover': { bgcolor: 'error.main', color: 'white' } 
-              }}
-            >
-              <Trash2 size={18} />
-            </IconButton>
-          </Tooltip>
-        )}
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+          <Trash2 size={24} />
+          <Typography variant="caption" sx={{ fontWeight: 900, textTransform: 'uppercase', fontSize: '0.6rem' }}>Delete</Typography>
+        </Box>
       </Box>
-    </ListItem>
+
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: -80, right: 0 }}
+        dragElastic={0.1}
+        onDragEnd={(_, info) => {
+          if (info.offset.x < -50) {
+            onDelete(notif.id);
+          }
+        }}
+        whileTap={{ scale: 0.995 }}
+        style={{ position: 'relative', zIndex: 1, backgroundColor: theme.palette.background.paper }}
+      >
+        <ListItem 
+          onClick={onClick}
+          sx={{ 
+            px: 3,
+            py: 2.5,
+            cursor: 'pointer',
+            borderBottom: '1px solid', 
+            borderColor: 'divider',
+            bgcolor: isRead ? 'transparent' : alpha(theme.palette.primary.main, 0.03),
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            position: 'relative',
+            '&:hover': { 
+              bgcolor: alpha(theme.palette.primary.main, 0.05),
+              '& .action-buttons': { opacity: 1, transform: 'translateX(0)' }
+            }
+          }}
+        >
+          <ListItemAvatar sx={{ mr: 1 }}>
+            <Badge 
+              overlap="circular" 
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              variant="dot"
+              color={isRead ? 'default' : 'primary'}
+              invisible={isRead}
+              sx={{ '& .MuiBadge-badge': { width: 12, height: 12, borderRadius: '50%', border: '2px solid white' } }}
+            >
+              <Avatar 
+                sx={{ 
+                  bgcolor: alpha(theme.palette[getTypeColor(notif.type) as 'primary' | 'success' | 'warning' | 'info'].main, 0.1), 
+                  color: `${getTypeColor(notif.type)}.main`,
+                  borderRadius: 3,
+                  width: 52,
+                  height: 52,
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                    : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
+                }}
+              >
+                {getIcon(notif.type)}
+              </Avatar>
+            </Badge>
+          </ListItemAvatar>
+          
+          <ListItemText
+            primaryTypographyProps={{ component: 'div' }}
+            secondaryTypographyProps={{ component: 'div' }}
+            primary={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
+                <Typography variant="subtitle1" component="span" sx={{ fontWeight: isRead ? 700 : 900, color: isRead ? 'text.primary' : 'primary.main' }}>
+                  {notif.title}
+                </Typography>
+                <Chip 
+                  label={notif.type.replace('_', ' ')} 
+                  size="small" 
+                  sx={{ 
+                    fontSize: '0.65rem', 
+                    height: 20, 
+                    fontWeight: 800, 
+                    textTransform: 'uppercase',
+                    bgcolor: alpha(theme.palette[getTypeColor(notif.type) as 'primary' | 'success' | 'warning' | 'info'].main, 0.05),
+                    color: `${getTypeColor(notif.type)}.main`,
+                    border: 'none'
+                  }} 
+                />
+              </Box>
+            }
+            secondary={
+              <Box>
+                <Typography variant="body2" color="text.secondary" component="p" sx={{ mb: 1.5, fontWeight: 500, lineHeight: 1.6 }}>
+                  {notif.message}
+                </Typography>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                    <User size={14} />
+                    <Typography variant="caption" sx={{ fontWeight: 700 }}>{notif.senderName}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                    <Clock size={14} />
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>{format(notif.createdAt, 'PPp')}</Typography>
+                  </Box>
+                </Stack>
+              </Box>
+            }
+          />
+          
+          <Box 
+            className="action-buttons"
+            sx={{ 
+              display: 'flex', 
+              gap: 1, 
+              opacity: { xs: 1, sm: 0 }, 
+              transform: { xs: 'none', sm: 'translateX(10px)' },
+              transition: 'all 0.2s ease',
+              ml: 2
+            }}
+          >
+            {isTeacher && (
+              <Tooltip title="Delete">
+                <IconButton 
+                  size="small" 
+                  onClick={() => onDelete(notif.id)} 
+                  sx={{ 
+                    bgcolor: 'background.paper', 
+                    boxShadow: theme.palette.mode === 'dark'
+                      ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
+                      : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
+                    '&:hover': { bgcolor: 'error.main', color: 'white' } 
+                  }}
+                >
+                  <Trash2 size={18} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        </ListItem>
+      </motion.div>
+    </Box>
   );
 }

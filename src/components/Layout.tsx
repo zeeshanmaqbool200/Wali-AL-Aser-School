@@ -13,8 +13,11 @@ import {
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserProfile, Notification as NotificationType } from '../types';
+import { useData } from '../context/DataContext';
 import BottomNav from './BottomNav';
 import Sidebar from './Sidebar';
+import SavingOverlay from './SavingOverlay';
+import ImportantNotificationBanner from './ImportantNotificationBanner';
 import { collection, query, onSnapshot, orderBy, limit, updateDoc, doc, arrayUnion, getDoc, where, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -30,7 +33,9 @@ interface LayoutProps {
 export default function Layout({ children, user, onLogout }: LayoutProps) {
   const theme = useTheme();
   const { mode, setMode } = useThemeContext();
+  const { isSyncing, notifications: allNotifs, isSaving } = useData();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -127,42 +132,10 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
-    
-    let q;
-    const isSuperAdmin = user.email === 'zeeshanmaqbool200@gmail.com';
-    const isManagerRole = user.role === 'manager';
-    const isTeacherRole = user.role === 'teacher';
-    
-    if (isSuperAdmin || isManagerRole || isTeacherRole) {
-      q = query(
-        collection(db, 'notifications'),
-        orderBy('createdAt', 'desc'),
-        limit(20)
-      );
-    } else {
-      q = query(
-        collection(db, 'notifications'),
-        or(
-          where('targetType', '==', 'all'),
-          where('targetId', '==', user.uid),
-          where('targetId', '==', user.classLevel || 'none'),
-          where('targetId', '==', user.classLevel || 'none')
-        ),
-        orderBy('createdAt', 'desc'),
-        limit(20)
-      );
-    }
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
-      const unread = notifs.filter(n => !n.readBy.includes(user.uid)).length;
-      setUnreadCount(unread);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'notifications');
-    });
-    return () => unsubscribe();
-  }, [user]);
+    if (!user || allNotifs.length === 0) return;
+    const unread = allNotifs.filter(n => !n.readBy?.includes(user.uid)).length;
+    setUnreadCount(unread);
+  }, [user, allNotifs]);
 
   if (!user) return <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>{children}</Box>;
 
@@ -177,17 +150,40 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default', overflowX: 'hidden' }}>
-      {/* Sidebar for Desktop */}
+      <SavingOverlay isSaving={isSaving} />
+      
+      {/* Sidebar for Desktop / Drawer for Tablet */}
       {!isMobile && (
-        <Sidebar 
-          role={user.role} 
-          open={sidebarOpen} 
-          onToggle={() => setSidebarOpen(!sidebarOpen)} 
-          onLogout={onLogout}
-          unreadNotifications={unreadCount}
-          instituteName={instituteName}
-          logoUrl={logoUrl}
-        />
+        isTablet ? (
+          <Drawer
+            variant="temporary"
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            sx={{
+              '& .MuiDrawer-paper': { width: 280, boxSizing: 'border-box' },
+            }}
+          >
+             <Sidebar 
+                role={user.role} 
+                open={true} 
+                onToggle={() => setSidebarOpen(false)} 
+                onLogout={onLogout}
+                unreadNotifications={unreadCount}
+                instituteName={instituteName}
+                logoUrl={logoUrl}
+              />
+          </Drawer>
+        ) : (
+          <Sidebar 
+            role={user.role} 
+            open={sidebarOpen} 
+            onToggle={() => setSidebarOpen(!sidebarOpen)} 
+            onLogout={onLogout}
+            unreadNotifications={unreadCount}
+            instituteName={instituteName}
+            logoUrl={logoUrl}
+          />
+        )
       )}
 
       <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -198,7 +194,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           elevation={0} 
           className="no-print"
           sx={{ 
-            zIndex: theme.zIndex.drawer + 1,
+            zIndex: theme.zIndex.drawer + 2,
             bgcolor: alpha(theme.palette.background.default, 0.9),
             backdropFilter: 'blur(10px)',
             borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
@@ -220,7 +216,12 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             />
           )}
           <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 60, md: 80 }, px: { xs: 2, md: 4 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {isTablet && !isMobile && (
+                <IconButton onClick={() => setSidebarOpen(true)} sx={{ mr: 1, color: 'primary.main' }}>
+                  <MenuIcon size={24} />
+                </IconButton>
+              )}
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -244,8 +245,10 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                     <Box 
                       component="img" 
                       src={logoUrl} 
-                      alt="Institute Logo" 
+                      alt={`${instituteName} Logo`} 
                       loading="lazy"
+                      width={45}
+                      height={45}
                       sx={{ 
                         width: '100%', 
                         height: '100%', 
@@ -283,6 +286,37 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 3 } }}>
+              {/* Sync Status Label */}
+              <AnimatePresence>
+                {isSyncing && (
+                  <Box 
+                    component={motion.div}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 0.8, 
+                      bgcolor: alpha(theme.palette.success.main, 0.1),
+                      color: 'success.main',
+                      px: 1.5,
+                      py: 0.5,
+                      borderRadius: 10,
+                      border: '1px solid',
+                      borderColor: alpha(theme.palette.success.main, 0.2)
+                    }}
+                  >
+                    <Box 
+                      component={motion.div}
+                      animate={{ opacity: [0.4, 1, 0.4] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                      sx={{ width: 8, height: 8, bgcolor: 'success.main', borderRadius: '50%' }}
+                    />
+                    <Typography variant="caption" sx={{ fontWeight: 900, textTransform: 'uppercase', fontSize: '0.6rem', letterSpacing: 1 }}>Syncing</Typography>
+                  </Box>
+                )}
+              </AnimatePresence>
               {/* Global Search - Disabled on search-heavy pages to avoid redundancy */}
               {!['/', '/dashboard', '/users', '/fees', '/expenses', '/reports'].includes(location.pathname) && (
                 <Box sx={{ position: 'relative', display: { xs: 'none', sm: 'block' } }}>
@@ -378,73 +412,27 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
               </Tooltip>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 1 }}>
-                <IconButton 
-                  onClick={handleProfileMenuOpen} 
-                  size="small" 
-                  sx={{ 
-                    p: 0.5, 
-                    border: '1.5px solid', 
-                    borderColor: profileAnchorEl ? 'primary.main' : (location.pathname === '/profile' ? 'primary.main' : alpha(theme.palette.divider, 0.1)),
-                    transition: 'all 0.2s',
-                    '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' }
-                  }}
-                >
-                  <Avatar 
-                    src={user.photoURL} 
-                    imgProps={{ loading: 'lazy' }}
-                    sx={{ width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, bgcolor: 'primary.main', fontWeight: 600, fontSize: isMobile ? '0.85rem' : '1rem' }}
+                <Tooltip title="Manage Profile">
+                  <IconButton 
+                    onClick={() => navigate('/profile')} 
+                    size="small" 
+                    sx={{ 
+                      p: 0.5, 
+                      border: '1.5px solid', 
+                      borderColor: (location.pathname === '/profile' ? 'primary.main' : alpha(theme.palette.divider, 0.1)),
+                      transition: 'all 0.2s',
+                      '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' }
+                    }}
                   >
-                    {user.displayName.charAt(0)}
-                  </Avatar>
-                </IconButton>
-                <Menu
-                  anchorEl={profileAnchorEl}
-                  open={Boolean(profileAnchorEl)}
-                  onClose={handleProfileMenuClose}
-                  onClick={handleProfileMenuClose}
-                  transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-                  anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-                  PaperProps={{
-                    sx: {
-                      mt: 1.5,
-                      borderRadius: 1,
-                      minWidth: 200,
-                      boxShadow: theme.palette.mode === 'dark'
-                        ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
-                        : '4px 4px 10px rgba(0,0,0,0.1)',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      '& .MuiMenuItem-root': {
-                        py: 1.5,
-                        px: 2,
-                        borderRadius: 1,
-                        mx: 1,
-                        fontWeight: 700,
-                        fontSize: '0.9rem',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) }
-                      }
-                    }
-                  }}
-                >
-                  <Box sx={{ px: 2, py: 1.5 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{user.displayName}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{user.email}</Typography>
-                  </Box>
-                  <Divider sx={{ my: 1, opacity: 0.5 }} />
-                  <MenuItem onClick={() => navigate('/profile')}>
-                    <ListItemIcon><User size={18} /></ListItemIcon>
-                    Manage Profile
-                  </MenuItem>
-                  <MenuItem onClick={() => navigate('/settings?tab=security')}>
-                    <ListItemIcon><Shield size={18} /></ListItemIcon>
-                    Security & Privacy
-                  </MenuItem>
-                  <Divider sx={{ my: 1, opacity: 0.5 }} />
-                  <MenuItem onClick={onLogout} sx={{ color: 'error.main' }}>
-                    <ListItemIcon><LogOut size={18} color={theme.palette.error.main} /></ListItemIcon>
-                    Logout Account
-                  </MenuItem>
-                </Menu>
+                    <Avatar 
+                      src={user.photoURL} 
+                      imgProps={{ loading: 'lazy' }}
+                      sx={{ width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, bgcolor: 'primary.main', fontWeight: 600, fontSize: isMobile ? '0.85rem' : '1rem' }}
+                    >
+                      {user.displayName.charAt(0)}
+                    </Avatar>
+                  </IconButton>
+                </Tooltip>
               </Box>
             </Box>
           </Toolbar>

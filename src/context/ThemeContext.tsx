@@ -4,18 +4,19 @@ import { useAuth } from './AuthContext';
 import localforage from 'localforage';
 
 type ThemeMode = 'light' | 'dark' | 'system';
+type FontSize = 'small' | 'medium' | 'large';
 
 interface ThemeContextType {
   mode: ThemeMode;
   setMode: (mode: ThemeMode) => void;
-  accentColor: string;
-  setAccentColor: (color: string) => void;
   highContrast: boolean;
   setHighContrast: (val: boolean) => void;
   reduceMotion: boolean;
   setReduceMotion: (val: boolean) => void;
   compactLayout: boolean;
   setCompactLayout: (val: boolean) => void;
+  instituteColors: { primary: string; secondary: string };
+  setInstituteColors: (colors: { primary: string; secondary: string }) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -23,17 +24,14 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProviderWrapper({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [mode, setMode] = useState<ThemeMode>('system');
+  const [instituteColors, setInstituteColors] = useState({ primary: '#0f766e', secondary: '#134e4a' });
 
   // Initialize theme from storage
   useEffect(() => {
     const loadTheme = async () => {
       try {
-        const saved = await localforage.getItem<ThemeMode>('theme-mode');
-        if (saved) {
-          setMode(saved);
-        } else {
-          setMode('system'); // Default to system if not saved
-        }
+        const savedMode = await localforage.getItem<ThemeMode>('theme-mode');
+        if (savedMode) setMode(savedMode);
       } catch (err) {
         console.error('Failed to load theme from storage', err);
       }
@@ -41,12 +39,32 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
     loadTheme();
   }, []);
 
+  // Listen for Institutional Branding
+  useEffect(() => {
+    import('../firebase').then(({ db }) => {
+      import('firebase/firestore').then(({ doc, onSnapshot }) => {
+        const unsubscribe = onSnapshot(doc(db, 'settings', 'institute'), (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.primaryColor) {
+              setInstituteColors({
+                primary: data.primaryColor,
+                secondary: data.secondaryColor || data.primaryColor
+              });
+            }
+          }
+        });
+        return () => unsubscribe();
+      });
+    });
+  }, []);
+
   // Listen for system theme changes if mode is 'system'
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {
       if (mode === 'system') {
-        // Force refresh by setting mode again
+        // Force refresh
         setMode('system'); 
       }
     };
@@ -54,20 +72,19 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [mode]);
 
-  const initialUiPrefs = useMemo(() => user?.uiPrefs || {
-    highContrast: false,
-    reduceMotion: false,
-    compactLayout: false,
-    accentColor: '#0f766e'
+  const initialUiPrefs = useMemo(() => {
+    return user?.uiPrefs || {
+      highContrast: false,
+      reduceMotion: false,
+      compactLayout: false,
+    };
   }, [user?.uiPrefs]);
 
-  const [accentColor, setAccentColor] = useState(initialUiPrefs.accentColor);
   const [highContrast, setHighContrast] = useState(initialUiPrefs.highContrast);
   const [reduceMotion, setReduceMotion] = useState(initialUiPrefs.reduceMotion);
   const [compactLayout, setCompactLayout] = useState(initialUiPrefs.compactLayout);
 
   useEffect(() => {
-    setAccentColor(initialUiPrefs.accentColor);
     setHighContrast(initialUiPrefs.highContrast);
     setReduceMotion(initialUiPrefs.reduceMotion);
     setCompactLayout(initialUiPrefs.compactLayout);
@@ -90,7 +107,13 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
       // High Contrast Adjustments
       const primaryMain = highContrast 
         ? (isDark ? '#5eead4' : '#042f2e') 
-        : accentColor;
+        : instituteColors.primary;
+
+      const secondaryMain = highContrast
+        ? (isDark ? '#cbd5e1' : '#334155')
+        : (instituteColors.secondary || instituteColors.primary);
+
+      const baseFontSize = 16;
       
       return createTheme({
         palette: {
@@ -102,8 +125,10 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
             contrastText: isDark ? '#000000' : '#ffffff',
           },
           secondary: {
-            main: isDark ? '#121212' : '#f5f5f5',
-            contrastText: isDark ? '#ffffff' : '#000000',
+            main: secondaryMain,
+            light: lighten(secondaryMain, 0.2),
+            dark: darken(secondaryMain, 0.2),
+            contrastText: isDark ? '#000000' : '#ffffff',
           },
           background: {
             default: isDark ? '#000000' : '#ffffff',
@@ -117,17 +142,18 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
         },
         spacing: compactLayout ? 4 : 8,
         typography: {
+          fontSize: baseFontSize,
           fontFamily: '"Inter", "SF Pro Display", -apple-system, blinkmacsystemfont, "Segoe UI", roboto, sans-serif',
-          h1: { fontFamily: '"Cinzel", serif', fontWeight: 800, letterSpacing: '0.02em' },
-          h2: { fontFamily: '"Cinzel", serif', fontWeight: 800, letterSpacing: '0.02em' },
-          h3: { fontFamily: '"Cinzel", serif', fontWeight: 700, letterSpacing: '0.01em' },
-          h4: { fontFamily: '"Cinzel", serif', fontWeight: 700, letterSpacing: '0.01em' },
+          h1: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, letterSpacing: '0.04em' },
+          h2: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, letterSpacing: '0.04em' },
+          h3: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 700, letterSpacing: '0.02em' },
+          h4: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 700, letterSpacing: '0.02em' },
           h5: { fontFamily: '"Inter", sans-serif', fontWeight: 600 },
           h6: { fontFamily: '"Inter", sans-serif', fontWeight: 600 },
           subtitle1: { fontWeight: 500, letterSpacing: '-0.01em' },
           subtitle2: { fontWeight: 500, letterSpacing: '-0.01em' },
-          body1: { lineHeight: 1.6, fontSize: '1rem', letterSpacing: '-0.011em' },
-          body2: { lineHeight: 1.5, fontSize: '0.875rem', letterSpacing: '-0.01em' },
+          body1: { lineHeight: 1.6, fontSize: `${baseFontSize / 16}rem`, letterSpacing: '-0.011em' },
+          body2: { lineHeight: 1.5, fontSize: `${(baseFontSize * 14 / 16) / 16}rem`, letterSpacing: '-0.01em' },
           button: { textTransform: 'none', fontWeight: 700, letterSpacing: '0.01em' },
           caption: { letterSpacing: '0.02em' }
         },
@@ -275,15 +301,15 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           },
         },
       });
-    }, [mode, highContrast, compactLayout, accentColor]);
+    }, [mode, highContrast, compactLayout, instituteColors.primary]);
 
   return (
     <ThemeContext.Provider value={{ 
       mode, setMode, 
-      accentColor, setAccentColor, 
       highContrast, setHighContrast, 
       reduceMotion, setReduceMotion, 
-      compactLayout, setCompactLayout 
+      compactLayout, setCompactLayout,
+      instituteColors, setInstituteColors
     }}>
       <ThemeProvider theme={theme}>
         <GlobalStyles

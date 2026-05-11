@@ -3,6 +3,8 @@
   "description": "Comprehensive Shia Maktab Management System for student enrollment, fee collection (Zakat/Khums), attendance, and academic progress with QR verification.",
   "requestFramePermissions": [
     "camera",
-    "geolocation"
+    "microphone",
+    "geolocation",
+    "notifications"
   ]
 }

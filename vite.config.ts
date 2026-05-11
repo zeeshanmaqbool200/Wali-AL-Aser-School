@@ -25,17 +25,24 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
-      hmr: process.env.DISABLE_HMR !== 'true',
+      hmr: false, // Force disable HMR to stop WebSocket connection attempts
+      watch: {
+        usePolling: true,
+      }
     },
     build: {
       outDir: 'dist',
       emptyOutDir: true,
+      chunkSizeWarningLimit: 2500,
+      reportCompressedSize: false,
       rollupOptions: {
         output: {
           manualChunks: {
-            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-            'vendor-mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
-            'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore']
+            'vendor-react': ['react', 'react-dom', 'react-router-dom', 'motion/react'],
+            'vendor-mui': ['@mui/material', '@emotion/react', '@emotion/styled'],
+            'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+            'vendor-utils': ['date-fns', 'lucide-react', 'canvas-confetti', 'qrcode.react', 'gsap'],
+            'vendor-charts': ['recharts']
           }
         }
       }

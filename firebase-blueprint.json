@@ -68,6 +68,31 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["itemName", "category", "amount", "spentById", "date"]
+    },
+    "Form": {
+      "title": "Form Schema",
+      "description": "Definition of an exam, survey, or registration form.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["exam", "survey", "registration"] },
+        "status": { "type": "string", "enum": ["draft", "published", "closed"] },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["title", "type", "status", "createdBy"]
+    },
+    "FormResponse": {
+      "title": "Form Response",
+      "description": "Submission record for a form.",
+      "type": "object",
+      "properties": {
+        "formId": { "type": "string" },
+        "userId": { "type": "string" },
+        "ipAddress": { "type": "string" },
+        "submittedAt": { "type": "number" }
+      },
+      "required": ["formId", "ipAddress", "submittedAt"]
     }
   },
   "firestore": {
@@ -90,6 +115,14 @@
     "/courses/{courseId}": {
       "schema": "object",
       "description": "Mazameen (Courses)."
+    },
+    "/forms/{formId}": {
+      "schema": "Form",
+      "description": "Form definitions."
+    },
+    "/form_responses/{responseId}": {
+      "schema": "FormResponse",
+      "description": "Form submissions."
     }
   }
 }

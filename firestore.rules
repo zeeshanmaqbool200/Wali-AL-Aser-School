@@ -91,9 +91,8 @@ service cloud.firestore {
 
     // USERS
     match /users/{userId} {
-      // Allow anyone signed in to get a profile (for verification/staff list)
-      // But strictly filter what's returned in the app code
-      allow get: if isSignedIn();
+      // Allow public get for verification page
+      allow get: if true;
       
       // Staff can list everyone. 
       // Students can list users IF they are staff (to see teachers)
@@ -116,7 +115,9 @@ service cloud.firestore {
 
     // RECEIPTS
     match /receipts/{receiptId} {
-      allow get: if isSignedIn();
+      // Allow public get for verification page
+      allow get: if true;
+
       allow list: if isStaff() || (isSignedIn() && (resource.data.studentId == request.auth.uid || resource.data.createdBy == request.auth.uid));
       allow create: if isStaff();
       allow update: if isManager() || (isTeacher() && existing().createdBy == request.auth.uid);
@@ -153,6 +154,19 @@ service cloud.firestore {
     match /notes/{noteId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isTeacher();
+    }
+
+    // FORMS
+    match /forms/{formId} {
+      allow read: if isSignedIn() || (exists(/databases/$(database)/documents/forms/$(formId)) && get(/databases/$(database)/documents/forms/$(formId)).data.allowNonStudents == true);
+      allow create, update, delete: if isStaff();
+    }
+
+    // FORM RESPONSES
+    match /form_responses/{responseId} {
+      allow create: if true; // Allow anyone to submit (client-side checks for non-students)
+      allow read: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
+      allow update, delete: if isStaff();
     }
   }
 }

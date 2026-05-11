@@ -19,8 +19,10 @@ import {
 } from 'firebase/firestore';
 import { db, auth, smartDeleteDoc, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
+import { safelyFormatDate } from '../lib/dateUtils';
 import ActionMenu from '../components/ActionMenu';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend 
@@ -28,6 +30,7 @@ import {
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import Papa from 'papaparse';
+import html2canvas from 'html2canvas';
 import { EXPENSE_CATEGORIES as CATEGORIES } from '../constants';
 
 interface Expense {
@@ -45,10 +48,18 @@ interface Expense {
 
 export default function Expenses() {
   const theme = useTheme();
-  const { user } = useAuth(); // Assuming useAuth is available
+  const { user } = useAuth();
+  const { expenses: allExpenses, loading: globalLoading, isSyncing } = useData();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (allExpenses.length > 0) {
+      setExpenses(allExpenses);
+      setLoading(false);
+    }
+  }, [allExpenses]);
 
   // Form State
   const [itemName, setItemName] = useState('');
@@ -82,22 +93,24 @@ export default function Expenses() {
   }, []);
 
   useEffect(() => {
-    const q = query(collection(db, 'expenses'), orderBy('date', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const expenseDataRaw = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Expense[];
-      setExpenses(expenseDataRaw);
-      setLoading(false);
-    }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, 'expenses');
-      setLoading(false);
-    });
+    if (allExpenses.length === 0) {
+      const q = query(collection(db, 'expenses'), orderBy('date', 'desc'));
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const expenseDataRaw = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Expense[];
+        setExpenses(expenseDataRaw);
+        setLoading(false);
+      }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'expenses');
+        setLoading(false);
+      });
 
-    return () => unsubscribe();
-  }, []);
+      return () => unsubscribe();
+    }
+  }, [allExpenses.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,10 +181,10 @@ export default function Expenses() {
       end: new Date(endDate)
     });
     const s = searchQuery.toLowerCase();
-    const matchesSearch = exp.itemName.toLowerCase().includes(s) || 
-                          exp.category.toLowerCase().includes(s) ||
-                          (exp.description && exp.description.toLowerCase().includes(s)) ||
-                          (exp.spentBy && exp.spentBy.toLowerCase().includes(s));
+    const matchesSearch = (exp.itemName?.toLowerCase() || '').includes(s) || 
+                          (exp.category?.toLowerCase() || '').includes(s) ||
+                          (exp.description?.toLowerCase() || '').includes(s) ||
+                          (exp.spentBy?.toLowerCase() || '').includes(s);
     const matchesType = typeFilter === 'all' || exp.type === typeFilter;
     return isDateInRange && matchesSearch && matchesType;
   });
@@ -202,8 +215,8 @@ export default function Expenses() {
 
   const exportCSV = () => {
     const data = filteredExpenses.map(exp => ({
-      'Date': format(new Date(exp.date), 'dd-MM-yyyy'),
-      'Time': exp.createdAt ? format(exp.createdAt.toDate(), 'hh:mm a') : 'N/A',
+      'Date': safelyFormatDate(exp.date, 'dd-MM-yyyy'),
+      'Time': exp.createdAt ? safelyFormatDate(exp.createdAt, 'hh:mm a') : 'N/A',
       'Type': (exp.type || 'debit').toUpperCase(),
       'Item': exp.itemName,
       'Category': exp.category,
@@ -221,7 +234,7 @@ export default function Expenses() {
     document.body.removeChild(link);
   };
 
-  const exportPDF = () => {
+  const exportPDF = async () => {
     const doc = new jsPDF();
     
     // Header
@@ -233,7 +246,7 @@ export default function Expenses() {
     doc.setFontSize(14);
     doc.text('Institute Financial Operations Report', 105, 28, { align: 'center' });
     doc.setFontSize(10);
-    doc.text(`Period: ${format(new Date(startDate), 'dd MM yyyy')} to ${format(new Date(endDate), 'dd MM yyyy')}`, 105, 36, { align: 'center' });
+    doc.text(`Period: ${safelyFormatDate(startDate)} to ${safelyFormatDate(endDate)}`, 105, 36, { align: 'center' });
 
     // Summary Section
     doc.setTextColor(0, 0, 0);
@@ -255,9 +268,33 @@ export default function Expenses() {
     doc.text(`Generated By: ${user?.displayName || 'Authorized Admin'}`, 130, 65);
     doc.text(`Date of Generation: ${format(new Date(), 'dd MM yyyy HH:mm')}`, 130, 72);
 
+    // Capture and add charts if they exist
+    try {
+      const trendChart = document.getElementById('trend-chart');
+      const categoriesChart = document.getElementById('categories-chart');
+
+      if (trendChart) {
+        const canvas = await html2canvas(trendChart, { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        doc.addImage(imgData, 'PNG', 14, 90, 182, 100);
+      }
+
+      if (categoriesChart) {
+        const canvas = await html2canvas(categoriesChart, { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        doc.addPage();
+        doc.addImage(imgData, 'PNG', 14, 15, 182, 120);
+      } else {
+        doc.addPage();
+      }
+    } catch (err) {
+      console.error("Chart capture failed", err);
+      doc.addPage();
+    }
+
     // Table
     (doc as any).autoTable({
-      startY: 95,
+      startY: 140, // Adjust startY based on previous page or content
       head: [['Date', 'Description', 'Category', 'Type', 'Amount (Rs.)', 'Logged By']],
       body: filteredExpenses.map(exp => [
         format(new Date(exp.date), 'dd-MM-yyyy'), 
@@ -340,7 +377,20 @@ export default function Expenses() {
               variant="contained" 
               startIcon={<Printer size={18} />} 
               onClick={exportPDF}
-              sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 700, px: 3, boxShadow: '0 8px 16px rgba(15, 118, 110, 0.2)' }}
+              sx={{ 
+                borderRadius: 3, 
+                textTransform: 'none', 
+                fontWeight: 800, 
+                px: 3, 
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.6)} 100%)`,
+                boxShadow: theme.palette.mode === 'dark'
+                  ? '4px 4px 12px rgba(0,0,0,0.5)'
+                  : `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`,
+                '&:hover': {
+                  background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                  transform: 'translateY(-2px)'
+                }
+              }}
             >
               Print Report
             </Button>
@@ -549,7 +599,20 @@ export default function Expenses() {
                       type="submit"
                       variant="contained"
                       disabled={submitting}
-                      sx={{ height: 56, borderRadius: 3, textTransform: 'none', fontWeight: 900, fontSize: '1rem' }}
+                      sx={{ 
+                        height: 56, 
+                        borderRadius: 3, 
+                        textTransform: 'none', 
+                        fontWeight: 950, 
+                        fontSize: '1rem',
+                        background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+                        boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        '&:hover': {
+                          background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                          transform: 'translateY(-2px)'
+                        }
+                      }}
                     >
                       {submitting ? <CircularProgress size={24} color="inherit" /> : 'Record Entry'}
                     </Button>
@@ -574,7 +637,7 @@ export default function Expenses() {
 
           {/* Analysis Section */}
           <Grid size={{ xs: 12, md: 7 }}>
-            <Paper sx={{ p: 4, borderRadius: 5, height: 450, position: 'relative', border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+            <Paper id="trend-chart" sx={{ p: 4, borderRadius: 5, height: 450, position: 'relative', border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
               <Typography variant="h6" sx={{ fontWeight: 900, mb: 4 }}>Financial Pulse (Last 6 Months)</Typography>
               <ResponsiveContainer width="100%" height="85%">
                 <BarChart data={monthlyTrend}>
@@ -594,7 +657,7 @@ export default function Expenses() {
           </Grid>
 
           <Grid size={{ xs: 12, md: 5 }}>
-            <Paper sx={{ p: 4, borderRadius: 5, height: 450, border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+            <Paper id="categories-chart" sx={{ p: 4, borderRadius: 5, height: 450, border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
               <Typography variant="h6" sx={{ fontWeight: 900, mb: 4 }}>Category Distribution</Typography>
               <ResponsiveContainer width="100%" height="85%">
                 <PieChart>
@@ -623,22 +686,47 @@ export default function Expenses() {
           <Grid size={{ xs: 12 }}>
             <Paper sx={{ borderRadius: 5, overflow: 'hidden', border: `1px solid ${alpha(theme.palette.divider, 0.1)}`, boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
               <Box sx={{ p: 3, borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`, bgcolor: alpha(theme.palette.background.default, 0.5) }}>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid size={{ xs: 12, md: 6 }}>
-                    <TextField
-                      fullWidth
-                      placeholder="Search items, categories, or admins..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      variant="outlined"
-                      size="small"
-                      InputProps={{
-                        startAdornment: <Search size={18} style={{ marginRight: 12, opacity: 0.5 }} />,
-                        sx: { borderRadius: 3, bgcolor: 'background.paper', height: 45 }
+                <Grid container spacing={4} alignItems="center">
+                  <Grid size={{ xs: 12, md: 7 }}>
+                    <Paper 
+                      elevation={0}
+                      sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        px: 2, 
+                        borderRadius: 4, 
+                        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                        bgcolor: 'background.paper',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        '&:focus-within': {
+                           borderColor: 'primary.main',
+                           boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.08)}`,
+                        }
                       }}
-                    />
+                    >
+                      <Search size={20} color={theme.palette.text.disabled} />
+                      <Box 
+                        component="input" 
+                        placeholder="Search items, categories, or contributors..." 
+                        value={searchQuery}
+                        onChange={(e: any) => setSearchQuery(e.target.value)}
+                        sx={{ 
+                          border: 'none', 
+                          outline: 'none', 
+                          py: 2, 
+                          px: 2,
+                          width: '100%', 
+                          fontWeight: 800,
+                          fontSize: '0.95rem',
+                          bgcolor: 'transparent',
+                          color: 'text.primary',
+                          '&::placeholder': { color: 'text.disabled', fontWeight: 600 }
+                        }} 
+                      />
+                    </Paper>
                   </Grid>
-                  <Grid size={{ xs: 12, md: 6 }}>
+                  <Grid size={{ xs: 12, md: 5 }}>
                     <Stack direction="row" spacing={2} justifyContent="flex-end">
                       <Button
                         variant="outlined"
@@ -739,7 +827,15 @@ export default function Expenses() {
                         variant="contained"
                         startIcon={<Download size={18} />}
                         onClick={exportCSV}
-                        sx={{ borderRadius: 3, px: 3, height: 45, fontWeight: 900, textTransform: 'none' }}
+                        sx={{ 
+                          borderRadius: 3, 
+                          px: 3, 
+                          height: 45, 
+                          fontWeight: 950, 
+                          textTransform: 'none',
+                          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.6)} 100%)`,
+                          boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.15)}`,
+                        }}
                       >
                         Export
                       </Button>
@@ -915,7 +1011,13 @@ export default function Expenses() {
                 color="error"
                 onClick={() => itemToDelete && handleDelete(itemToDelete)}
                 disabled={deletingId !== null}
-                sx={{ borderRadius: 2, fontWeight: 800, px: 3 }}
+                sx={{ 
+                  borderRadius: 3, 
+                  fontWeight: 900, 
+                  px: 3,
+                  background: `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${alpha(theme.palette.error.main, 0.6)} 100%)`,
+                  boxShadow: `0 4px 12px ${alpha(theme.palette.error.main, 0.15)}`,
+                }}
               >
                 {deletingId ? 'Deleting...' : 'Delete Record'}
               </Button>

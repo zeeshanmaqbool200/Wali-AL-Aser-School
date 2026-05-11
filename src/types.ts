@@ -33,7 +33,14 @@ export interface UserProfile {
   // Teacher specific
   teacherId?: string;
   subject?: string;
+  profession?: string;
   expertise?: string[];
+  pendingProfileChanges?: {
+    profession?: string;
+    expertise?: string[];
+    status: 'pending' | 'approved' | 'rejected';
+    submittedAt: number;
+  };
   assignedClasses?: string[];
   notificationPrefs?: {
     email: boolean;
@@ -181,6 +188,7 @@ export interface FeeReceipt {
   studentPhotoURL?: string;
   createdAt: number;
   createdBy: string; // UID
+  createdByName?: string;
   approvedBy?: string; // Teacher UID
   approvedByName?: string;
   approvedAt?: number;
@@ -191,13 +199,85 @@ export interface Notification {
   id: string;
   title: string;
   message: string;
-  type: 'fee_request' | 'class_timing' | 'announcement' | 'general';
+  type: 'fee_request' | 'class_timing' | 'announcement' | 'general' | 'form_assignment';
   targetType: 'individual' | 'class' | 'all';
   targetId?: string; // UID or Class Name
   senderId: string;
   senderName: string;
   createdAt: number;
   readBy: string[]; // Array of UIDs
+  hiddenBy?: string[]; // Array of UIDs who dismissed/deleted this notification
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  imageUrl?: string;
+  formId?: string; // Link to a form
+}
+
+export interface FormQuestion {
+  id: string;
+  type: 'text' | 'paragraph' | 'multiple_choice' | 'checkbox' | 'dropdown' | 'date' | 'time' | 'number';
+  label: string;
+  placeholder?: string;
+  required: boolean;
+  options?: string[]; // For multiple choice, checkbox, dropdown
+  correctAnswer?: string | string[]; // For exams
+  points?: number;
+}
+
+export interface FormSchema {
+  id: string;
+  title: string;
+  description: string;
+  type: 'exam' | 'survey' | 'registration';
+  status: 'draft' | 'published' | 'closed';
+  
+  // Timing & Access
+  startDate?: number;
+  endDate?: number;
+  durationLimit?: number; // In minutes
+  
+  // Visibility
+  allowNonStudents: boolean;
+  anonymous?: boolean;
+  
+  // Branding
+  logoUrl?: string; // Custom logo for this form
+  bannerUrl?: string; // High-resolution banner image
+  primaryColor?: string; // Custom accent for this form
+  headerLeftImageUrl?: string; // Branding Left image
+  headerRightImageUrl?: string; // Branding Right image
+  
+  // Logic
+  showProgressBar?: boolean;
+  limitOneResponse?: boolean;
+  
+  questions: FormQuestion[];
+  
+  createdBy: string;
+  createdByName: string;
+  createdAt: number;
+  updatedAt: number; department?: string; // For Admin-level filtering
+}
+
+export interface FormResponse {
+  id: string;
+  formId: string;
+  userId?: string; // If logged in
+  userEmail?: string;
+  userName?: string;
+  userRollNo?: string;
+  ipAddress: string;
+  
+  responses: {
+    questionId: string;
+    answer: any;
+    isCorrect?: boolean; // For auto-graded exams
+    score?: number;
+  }[];
+  
+  totalScore?: number;
+  submittedAt: number;
+  isDuplicate?: boolean; // System flagged
+  browserInfo?: string;
 }
 
 export interface InstituteSettings {
@@ -230,6 +310,9 @@ export interface InstituteSettings {
   receiptPrefix: string;
   primaryColor: string;
   secondaryColor: string;
+  accentColors?: string[]; // 4 accent colors
+  announcementBgColor?: string;
+  announcementTextColor?: string;
   jafariOffset?: number;
   quotes?: string[];
 }

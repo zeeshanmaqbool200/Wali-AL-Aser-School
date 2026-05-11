@@ -1,29 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, Typography, Grid, Card, CardContent, Button, 
   Avatar, Chip, Divider, List, ListItem, ListItemText, 
   ListItemAvatar, CircularProgress, IconButton, Tooltip as MuiTooltip,
   Paper, useMediaQuery, Fab, Zoom, Stack, Skeleton, Container,
-  Dialog, Badge, Alert
+  Dialog, DialogTitle, DialogContent, DialogActions, Badge, Alert, TextField, Tooltip,
+  keyframes
 } from '@mui/material';
 import LoadingScreen from '../components/LoadingScreen';
-import { useTheme, alpha } from '@mui/material/styles';
+import { useTheme, alpha, styled } from '@mui/material/styles';
 import { 
   Users, BookOpen, Calendar, CreditCard, Bell, 
   Check, X, Plus, ArrowRight, TrendingUp, Clock, 
-  AlertCircle, Send, FileText, ClipboardList, UserCheck,
+  AlertCircle, Send, FileText, ClipboardList, UserCheck, Megaphone, AlertTriangle,
   MoreVertical, ExternalLink, Phone, MessageCircle, MessageSquare,
   UserPlus, BarChart3, User, GraduationCap, Award, Book, CheckCircle, XCircle,
-  Wallet, ArrowUpRight, ArrowDownRight, Smartphone, Layout, IndianRupee, RefreshCw
+  Wallet, ArrowUpRight, ArrowDownRight, Smartphone, Layout, IndianRupee, RefreshCw,
+  Edit, Trash2, Trash
 } from 'lucide-react';
+import ImportantNotificationBanner from '../components/ImportantNotificationBanner';
 import { 
   db, OperationType, handleFirestoreError,
-  collection, query, onSnapshot, orderBy, where, limit, updateDoc, doc, getDocs, arrayUnion, or, and, getDoc 
+  collection, query, onSnapshot, orderBy, where, limit, updateDoc, doc, getDocs, arrayUnion, or, and, getDoc, addDoc, deleteDoc
 } from '../firebase';
 import { UserProfile, FeeReceipt, Notification as NotificationType, Course, InstituteSettings } from '../types';
+import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { format, subDays } from 'date-fns';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
+import gsap from 'gsap';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 
 import { logger } from '../lib/logger';
@@ -36,11 +41,12 @@ interface DashboardProps {
 
 export default function Dashboard({ user }: DashboardProps) {
   const { logout, instituteSettings, permissions } = useAuth();
+  const { users: allUsers, receipts: allReceipts, notifications: allNotifs, availableCourses: allCourses, loading: globalLoading, isSyncing } = useData();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(!(window as any)._dashboardLoaded && !localStorage.getItem(`dashboard_stats_${user.uid}`));
+  const [loading, setLoading] = useState(globalLoading && !localStorage.getItem(`dashboard_stats_${user.uid}`));
   const [stats, setStats] = useState<any>(() => {
     // Try to recover cached stats to prevent white flicker
     const cached = localStorage.getItem(`dashboard_stats_${user.uid}`);
@@ -90,10 +96,30 @@ export default function Dashboard({ user }: DashboardProps) {
   }, [instituteSettings]);
 
   useEffect(() => {
-    const availableQuotes = (instituteData?.quotes && instituteData.quotes.length > 0) ? instituteData.quotes : quotes;
-    setQuote(availableQuotes[Math.floor(Math.random() * availableQuotes.length)]);
+    const availableQuotes = (instituteData?.quotes && instituteData.quotes.length > 0) 
+      ? instituteData.quotes.filter(q => q.trim().length > 0) 
+      : quotes;
+    
+    if (availableQuotes.length > 0) {
+      setQuote(availableQuotes[Math.floor(Math.random() * availableQuotes.length)]);
+    }
+
+    // Auto-rotate quotes if there are multiple
+    let quoteInterval: NodeJS.Timeout;
+    if (availableQuotes.length > 1) {
+      quoteInterval = setInterval(() => {
+        setQuote(prev => {
+          const others = availableQuotes.filter(q => q !== prev);
+          return others[Math.floor(Math.random() * others.length)];
+        });
+      }, 30000); // Rotate every 30 seconds
+    }
+
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      if (quoteInterval) clearInterval(quoteInterval);
+    };
   }, [instituteData]);
 
   const [activeStatIndex, setActiveStatIndex] = useState(0);
@@ -104,15 +130,15 @@ export default function Dashboard({ user }: DashboardProps) {
       value: stats.totalStudents || 0, 
       unit: 'Students', 
       icon: <Users size={18} />, 
-      color: '#ffcf52', 
-      chart: [40, 70, 50, 90, 60, 100, 80] // Placeholder for growth trend
+      color: instituteData.accentColors?.[0] || '#ffcf52', 
+      chart: [40, 70, 50, 90, 60, 100, 80] 
     },
     { 
       label: 'Monthly Fund', 
       value: stats.totalFeesMonth ? `${(stats.totalFeesMonth/1000).toFixed(1)}k` : '0', 
       unit: 'INR', 
       icon: <Wallet size={18} />, 
-      color: '#4ade80', 
+      color: instituteData.accentColors?.[1] || '#4ade80', 
       chart: collectionTrendData.length > 0 ? collectionTrendData.map(d => (d.value / Math.max(...collectionTrendData.map(v => v.value || 1))) * 100) : [60, 40, 80, 50, 90, 70, 100]
     },
     { 
@@ -120,7 +146,7 @@ export default function Dashboard({ user }: DashboardProps) {
       value: stats.totalCourses || 0, 
       unit: 'Classes', 
       icon: <GraduationCap size={18} />, 
-      color: '#60a5fa', 
+      color: instituteData.accentColors?.[2] || '#60a5fa', 
       chart: [30, 60, 40, 80, 50, 100, 70] 
     },
     { 
@@ -128,17 +154,45 @@ export default function Dashboard({ user }: DashboardProps) {
       value: stats.attendanceRate ? `${stats.attendanceRate}%` : '0%', 
       unit: 'Avg', 
       icon: <CheckCircle size={18} />, 
-      color: '#f87171', 
+      color: instituteData.accentColors?.[3] || '#f87171', 
       chart: [80, 90, 85, 100, 95, 98, 99] 
     }
   ];
 
   useEffect(() => {
+    if (!allUsers && !allReceipts) return;
+
+    const currentMonthStart = format(new Date(), 'yyyy-MM-01');
+    const filteredReceipts = allReceipts.filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount)));
+    const monthAmount = filteredReceipts
+      .filter(r => r.status === 'approved' && r.date >= currentMonthStart)
+      .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    
+    const students = allUsers.filter(u => u.role === 'student');
+    const staff = allUsers.filter(u => ['teacher', 'manager', 'superadmin'].includes(u.role));
+    
+    setStats(prev => ({
+      ...prev,
+      totalStudents: students.length,
+      totalFeesMonth: monthAmount,
+      pendingFees: filteredReceipts.filter(r => r.status === 'pending').length,
+      recentAdmissions: students.slice(0, 5),
+      availableCourses: allCourses.slice(0, 6)
+    }));
+    
+    setStaffMembers(staff as UserProfile[]);
+    setRecentNotifications(allNotifs.slice(0, 10));
+    setPendingReceipts(filteredReceipts.filter(r => r.status === 'pending').slice(0, 5));
+    
+    if (loading && !globalLoading) setLoading(false);
+  }, [allUsers, allReceipts, allNotifs, allCourses, globalLoading]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
-      setActiveStatIndex((prev) => (prev + 1) % instituteStats.length);
+      setActiveStatIndex((prev) => (prev + 1) % 4); // Use 4 instead of instituteStats.length if it's constant
     }, 5000);
     return () => clearInterval(timer);
-  }, [stats]);
+  }, []);
 
   const currentStat = instituteStats[activeStatIndex];
   const [recentNotifications, setRecentNotifications] = useState<any[]>([]);
@@ -442,7 +496,7 @@ export default function Dashboard({ user }: DashboardProps) {
   };
 
   const handleNotificationClick = async (notif: NotificationType) => {
-    if (!notif.readBy.includes(user.uid)) {
+    if (!notif.readBy || !notif.readBy.includes(user.uid)) {
       try {
         await updateDoc(doc(db, 'notifications', notif.id), {
           readBy: arrayUnion(user.uid)
@@ -468,8 +522,10 @@ export default function Dashboard({ user }: DashboardProps) {
 
   const instanceTextVisibilityColor = () => {
     if (!instituteData.bannerUrl) return 'text.primary';
-    return theme.palette.mode === 'dark' ? 'white' : 'primary.contrastText';
+    return 'white'; // Default to white for banner overlays with shadows
   };
+
+  const textShadow = '0 2px 4px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.3)';
 
   return (
     <Box
@@ -479,257 +535,235 @@ export default function Dashboard({ user }: DashboardProps) {
       transition={{ duration: 1 }}
       sx={{ pb: 8, position: 'relative' }}
     >
-      {/* Shia Islamic Orientation Ornament - Simplified and hidden circles per user request */}
-      <Box sx={{ 
-        position: 'absolute', 
-        top: -10, 
-        left: '50%', 
-        transform: 'translateX(-50%)', 
-        zIndex: 5,
-        opacity: 0.15,
-        pointerEvents: 'none',
-        display: { xs: 'none', md: 'block' }
-      }}>
-        <svg width="200" height="40" viewBox="0 0 200 40">
-          <path d="M0 0 Q100 60 200 0" fill="transparent" stroke={theme.palette.primary.main} strokeWidth="1" />
-        </svg>
-      </Box>
-
-      {/* Decorative Border Layer - Shia Theme Inspired - REMOVED white line per user request */}
-      {/* <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`, m: 1, borderRadius: 4, zIndex: 100 }} /> */}
-
-      {/* Hero Welcome Section - Mockup Styles applied */}
+      <ImportantNotificationBanner />
+      {/* Hero Welcome Section - Refined for clarity and design quality */}
       <Box 
         sx={{ 
           position: 'relative',
           borderRadius: { xs: 4, md: 8 }, 
           overflow: 'hidden',
-          mb: 4,
-          minHeight: { xs: 340, md: 500 }, 
+          mb: 0,
+          minHeight: { xs: 300, md: 380 }, 
           display: 'flex',
-          bgcolor: theme.palette.mode === 'dark' ? '#0a0a0a' : '#fcfcfc', 
+          bgcolor: '#000', 
           transition: 'all 0.5s ease',
-          boxShadow: '0 30px 60px rgba(0,0,0,0.06)',
-          border: theme.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(0,0,0,0.03)',
+          boxShadow: '0 30px 60px rgba(0,0,0,0.12)',
         }}
       >
-        {/* Left Side: Photo */}
+        {/* Banner Image with better scaling and presence */}
         <Box sx={{ 
           position: 'absolute', 
           inset: 0, 
-          zIndex: 2,
+          zIndex: 1,
           display: 'flex',
           justifyContent: 'center',
-          alignItems: 'center',
-          pointerEvents: 'none'
+          alignItems: 'center'
         }}>
           <img 
             src={instituteData.bannerUrl || ""} 
-            alt="Hero Profile" 
+            alt="Institute Banner" 
+            width="100%"
+            height="100%"
+            loading="eager"
             style={{ 
               height: '100%', 
               width: '100%', 
               objectFit: 'cover',
-              opacity: theme.palette.mode === 'dark' ? 0.6 : 0.8,
-              transition: 'opacity 0.5s ease',
+              objectPosition: 'center 20%',
+              opacity: 0.7,
               display: instituteData.bannerUrl ? 'block' : 'none',
-              backgroundColor: 'transparent'
             }} 
           />
           
-          {/* Subtle Overlay Gradient for better text readability */}
+          {/* Multi-layer Gradient Overlay for maximum readability */}
           <Box sx={{ 
             position: 'absolute', 
             inset: 0, 
-            background: theme.palette.mode === 'dark' 
-              ? `linear-gradient(to right, rgba(0,0,0,0.95), rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.1) 100%)`
-              : `linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.4) 40%, rgba(255,255,255,0.1) 100%)`,
-            zIndex: 3 
+            background: `linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0.7) 100%)`,
+            zIndex: 2 
           }} />
-          
-          {!instituteData.bannerUrl && (
-            <Box sx={{ 
-              width: '100%', 
-              height: '100%', 
-              background: theme.palette.mode === 'dark' 
-                ? `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.4)} 0%, ${alpha(theme.palette.primary.main, 0.2)} 100%)`
-                : `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${alpha(theme.palette.primary.main, 0.8)} 100%)`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-               <Typography variant="h2" sx={{ color: 'white', opacity: 0.1, fontWeight: 900, fontFamily: 'var(--font-heading)', letterSpacing: -2 }}>
-                {instituteData.instituteName?.toUpperCase()}
-              </Typography>
-            </Box>
-          )}
+          <Box sx={{ 
+            position: 'absolute', 
+            inset: 0, 
+            background: `linear-gradient(to right, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 60%)`,
+            zIndex: 2 
+          }} />
         </Box>
 
-        {/* Top Left: Badges (Time & Hijri Date) */}
-        <Box sx={{ position: 'absolute', top: { xs: 16, md: 32 }, left: { xs: 16, md: 32 }, zIndex: 10, textAlign: 'left' }}>
-          <Stack direction="column" spacing={1}>
-             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', px: 1.2, py: 0.6, borderRadius: 2, border: '1px solid rgba(255,255,255,0.1)', width: 'fit-content' }}>
-               <Clock size={12} color={theme.palette.primary.main} />
-               <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: theme.palette.mode === 'dark' ? 'white' : 'text.primary' }}>
+        {/* Top Badges: Clock & Hijri Date - Premium Gradient Style */}
+        <Box sx={{ position: 'absolute', top: { xs: 16, md: 32 }, left: { xs: 16, md: 32 }, zIndex: 10 }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+             <Box sx={{ 
+               display: 'flex', 
+               alignItems: 'center', 
+               gap: 1, 
+               background: 'linear-gradient(135deg, #6366f1 0%, #1e1b4b 100%)',
+               backdropFilter: 'blur(12px)', 
+               px: 2, 
+               py: 1, 
+               borderRadius: 2, 
+               border: '1px solid rgba(255,255,255,0.4)',
+               boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+               transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+               cursor: 'default',
+               '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }
+             }}>
+               <Clock size={16} color="#ffffff" />
+               <Typography variant="body2" sx={{ fontWeight: 950, fontFamily: '"JetBrains Mono", monospace', color: 'white', letterSpacing: 1.5, fontSize: '0.75rem', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
                  {format12H(currentTime)}
                </Typography>
              </Box>
-             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)', px: 1.2, py: 0.6, borderRadius: 2, border: '1px solid rgba(255,255,255,0.1)', width: 'fit-content' }}>
-               <span style={{ fontSize: '12px' }}>☪️</span>
-               <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.65rem', color: theme.palette.mode === 'dark' ? 'white' : 'text.primary' }}>{jafariDate || 'Islamic Date'}</Typography>
+             <Box sx={{ 
+               display: 'flex', 
+               alignItems: 'center', 
+               gap: 1, 
+               background: 'linear-gradient(135deg, #f59e0b 0%, #7c2d12 100%)',
+               backdropFilter: 'blur(12px)', 
+               px: 2, 
+               py: 1, 
+               borderRadius: 2, 
+               border: '1px solid rgba(255,255,255,0.4)',
+               boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+               transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+               cursor: 'default',
+               '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 12px 40px rgba(0,0,0,0.4)' }
+             }}>
+               <Typography variant="body2" sx={{ fontWeight: 950, color: 'white', fontSize: '0.75rem', letterSpacing: 0.5, textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+                 {jafariDate || 'Islamic Date'}
+               </Typography>
              </Box>
           </Stack>
         </Box>
 
-        {/* Right Side Card: Graph Info Card - Dynamic Stats pulse */}
-        <Box sx={{ position: 'absolute', bottom: { xs: 100, md: 100 }, right: { xs: 12, md: 32 }, zIndex: 40 }}>
+        {/* Stats Overlay - Compacted */}
+        <Box sx={{ 
+          position: 'absolute', 
+          top: { xs: 'auto', md: '50%' },
+          bottom: { xs: 16, md: 'auto' },
+          right: { xs: 16, md: 32 }, 
+          transform: { xs: 'none', md: 'translateY(-50%)' },
+          zIndex: 40 
+        }}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeStatIndex}
-              initial={{ scale: 0.8, opacity: 0, x: 20 }}
+              initial={{ scale: 0.9, opacity: 0, x: 20 }}
               animate={{ scale: 1, opacity: 1, x: 0 }}
-              exit={{ scale: 0.8, opacity: 0, x: -20 }}
-              transition={{ duration: 0.4, ease: 'easeInOut' }}
+              exit={{ scale: 0.9, opacity: 0, x: -20 }}
+              transition={{ duration: 0.5 }}
             >
               <Card sx={{ 
-                bgcolor: alpha(theme.palette.mode === 'dark' ? '#000' : '#fff', 0.8), 
-                color: theme.palette.mode === 'dark' ? 'white' : 'text.primary', 
+                bgcolor: 'rgba(255,255,255,0.1)', 
+                color: 'white', 
                 borderRadius: 4, 
-                p: { xs: 1.5, md: 2.5 }, 
-                width: { xs: 120, md: 200 },
-                boxShadow: '0 20px 50px rgba(0,0,0,0.1)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255,255,255,0.05)',
-                position: 'relative',
-                overflow: 'hidden'
+                p: { xs: 1.5, md: 2 }, 
+                width: { xs: 140, md: 200 },
+                boxShadow: '0 25px 50px rgba(0,0,0,0.3)',
+                backdropFilter: 'blur(25px)',
+                border: '1px solid rgba(255,255,255,0.2)',
               }}>
                 <Stack spacing={1}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Box sx={{ 
-                      p: 0.8, 
+                      p: 1, 
                       borderRadius: 1.5, 
-                      background: alpha(currentStat.color, 0.1),
+                      background: alpha(currentStat.color, 0.2),
                       color: currentStat.color,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'
                     }}>
-                      {React.cloneElement(currentStat.icon as React.ReactElement<any>, { size: isMobile ? 14 : 20 })}
+                      {React.cloneElement(currentStat.icon as React.ReactElement<any>, { size: 18 })}
                     </Box>
-                    <Typography variant="caption" sx={{ fontWeight: 800, fontSize: { xs: '0.6rem', md: '0.8rem' }, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1 }}>{currentStat.label}</Typography>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 900, fontSize: '0.6rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: 1 }}>{currentStat.label}</Typography>
+                    </Box>
                   </Box>
-                  <Typography variant="h3" sx={{ fontWeight: 950, letterSpacing: -1.5, fontSize: { xs: '1.4rem', md: '2.8rem' }, fontFamily: 'var(--font-heading)' }}>{currentStat.value}</Typography>
                   
-                  {/* Subtle graph visual */}
-                  <Box sx={{ pt: 1, height: { xs: 24, md: 40 }, width: '100%', display: 'flex', alignItems: 'flex-end', gap: 0.5 }}>
-                     {currentStat.chart.map((h, i) => (
-                       <motion.div 
-                         key={i} 
-                         initial={{ height: 0 }}
-                         animate={{ height: `${h}%` }}
-                         transition={{ delay: i * 0.05, duration: 0.5 }}
-                         style={{ 
-                           flex: 1, 
-                           backgroundColor: currentStat.color, 
-                           opacity: 0.2,
-                           borderRadius: '4px 4px 0 0' 
-                         }} 
-                       />
-                     ))}
-                  </Box>
+                  <Typography variant="h4" sx={{ fontWeight: 950, letterSpacing: -1, fontSize: { xs: '1.8rem', md: '2.5rem' }, fontFamily: 'var(--font-heading)', lineHeight: 1 }}>{currentStat.value}</Typography>
                 </Stack>
               </Card>
             </motion.div>
           </AnimatePresence>
         </Box>
 
-        {/* Bottom Left: Greeting, Name, Title - Smoother blur and updated text */}
+        {/* Welcome Text Content - Maximized readability and impact */}
         <Box sx={{ 
           position: 'absolute', 
-          bottom: 0, 
-          left: 0, 
-          right: 0, 
+          bottom: { xs: 24, md: 40 }, 
+          left: { xs: 16, md: 40 }, 
           zIndex: 10,
-          p: { xs: 3, md: 6 },
-          pb: { xs: 5, md: 10 }, 
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-start',
-          textAlign: 'left',
-          pointerEvents: 'none',
-          gap: 0.5
+          maxWidth: { xs: '90%', md: '70%' },
+          pointerEvents: 'none'
         }}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography 
-              component="span"
-              variant="caption" 
-              sx={{ 
-                color: 'primary.main', 
-                fontWeight: 900, 
-                letterSpacing: 3, 
-                textTransform: 'uppercase', 
-                fontSize: { xs: '0.55rem', md: '0.7rem' },
-                display: 'inline-block',
+          <Stack spacing={0.5}>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+              <Typography 
+                variant="overline" 
+                sx={{ 
+                  color: '#fbbf24', 
+                  fontWeight: 900, 
+                  letterSpacing: 4, 
+                  fontSize: { xs: '0.6rem', md: '0.8rem' },
+                  textShadow: '0 2px 10px rgba(0,0,0,0.8)'
+                }}
+              >
+                ASSALAMU ALAIKUM
+              </Typography>
+            </motion.div>
+            
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+              <Typography variant="h1" sx={{ 
+                fontWeight: 950, 
+                color: 'white', 
+                letterSpacing: { xs: 1, md: 3 }, 
+                fontSize: { xs: '2.5rem', md: '5rem' }, 
+                lineHeight: 0.85,
+                fontFamily: '"Cinzel Decorative", serif',
+                textShadow: '0 10px 40px rgba(0,0,0,0.6)',
                 mb: 1
-              }}
-            >
-              assalamu alaikum {user.displayName?.split(' ')[0]}
-            </Typography>
-            <IconButton 
-              size="small" 
-              onClick={() => {
-                setLoading(true);
-                setTimeout(() => setLoading(false), 900);
-              }}
-              sx={{ 
-                p: 0.2, 
-                mt: -1,
-                color: alpha(theme.palette.primary.main, 0.3),
-                '&:hover': { color: 'primary.main', transform: 'rotate(180deg)' },
-                transition: 'all 0.6s ease'
-              }}
-            >
-              <RefreshCw size={12} />
-            </IconButton>
-          </Stack>
-          
-          <Box sx={{ 
-            pointerEvents: 'auto',
-            width: 'fit-content'
-          }}>
-             <Typography variant="h2" sx={{ 
-               fontWeight: 950, 
-               color: theme.palette.mode === 'dark' ? 'white' : 'text.primary', 
-               letterSpacing: -3, 
-               fontSize: { xs: '2.8rem', md: '5.5rem' }, 
-               lineHeight: 0.85,
-               fontFamily: 'var(--font-heading)'
-             }}>
-              {user.displayName}
-            </Typography>
-          </Box>
+              }}>
+                {instituteData.greeting ? instituteData.greeting.replace('{name}', user.displayName?.split(' ')[0] || '') : user.displayName?.split(' ')[0]}
+              </Typography>
+              {instituteData.tagline && (
+                <Typography variant="h5" sx={{ 
+                  color: 'rgba(255,255,255,0.9)', 
+                  fontWeight: 700, 
+                  textShadow,
+                  mb: 2,
+                  fontFamily: '"Cinzel Decorative", serif',
+                  letterSpacing: 2
+                }}>
+                  {instituteData.tagline}
+                </Typography>
+              )}
+            </motion.div>
 
-          <Box sx={{ 
-            mt: 2,
-            pointerEvents: 'auto',
-            maxWidth: { xs: '100%', md: '65%' },
-            width: 'fit-content',
-            borderLeft: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
-            pl: 2
-          }}>
-            <Typography 
-              component="p"
-              sx={{ 
-                fontSize: { xs: '0.75rem', md: '1.05rem' }, 
-                fontWeight: 500, 
-                color: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.5)' : 'text.secondary', 
-                lineHeight: 1.6,
-                letterSpacing: 0
-              }}
-            >
-              {quote}
-            </Typography>
-          </Box>
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 }}>
+              <Box sx={{ 
+                mt: 1,
+                pl: 2,
+                borderLeft: `3px solid #fbbf24`,
+                maxWidth: '450px'
+              }}>
+                <Typography 
+                  sx={{ 
+                    fontSize: { xs: '0.85rem', md: '1.05rem' }, 
+                    fontWeight: 700, 
+                    color: 'rgba(255,255,255,0.95)', 
+                    lineHeight: 1.6,
+                    fontStyle: 'italic',
+                    textShadow,
+                    whiteSpace: 'pre-line',
+                    letterSpacing: '0.01em',
+                    fontFamily: 'var(--font-serif)',
+                  }}
+                >
+                  "{quote}"
+                </Typography>
+              </Box>
+            </motion.div>
+          </Stack>
         </Box>
       </Box>
 
@@ -782,42 +816,51 @@ export default function Dashboard({ user }: DashboardProps) {
               <>
                 {[
                   { label: 'Users', path: '/users', icon: <UserPlus size={18} /> },
-                  { label: 'Attendance', path: '/attendance', icon: <UserCheck size={18} /> },
+                  { label: 'Forms', path: '/forms', icon: <FileText size={18} /> },
                   { label: 'Fees', path: '/fees', icon: <IndianRupee size={18} /> },
                   { label: 'Courses', path: '/courses', icon: <BookOpen size={18} /> },
-                  { label: 'Exps', path: '/expenses', icon: <CreditCard size={18} /> },
+                  { label: 'Attendance', path: '/attendance', icon: <UserCheck size={18} /> },
                 ].map((action, i) => (
                   <Grid key={i} size={{ xs: 4, sm: 2 }}>
                     <Button 
-                      variant="text"
+                      variant="contained"
                       fullWidth
                       onClick={() => navigate(action.path)}
                       sx={{ 
-                        borderRadius: 3, 
-                        fontWeight: 800, 
-                        py: { xs: 1.5, sm: 2 }, 
+                        borderRadius: 4, 
+                        fontWeight: 950, 
+                        py: { xs: 2, sm: 3 }, 
                         flexDirection: 'column',
-                        gap: 1,
-                        color: 'text.primary',
-                        bgcolor: alpha(theme.palette.mode === 'dark' ? '#fff' : '#000', 0.03),
-                        border: '1px solid transparent',
-                        fontSize: { xs: '0.65rem', sm: '0.8rem' },
-                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        gap: 1.5,
+                        color: 'white',
+                        background: [
+                          'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+                          'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+                          'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
+                          'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                          'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'
+                        ][i % 5],
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+                        textShadow: '0 1px 4px rgba(0,0,0,0.3)',
+                        fontSize: { xs: '0.7rem', sm: '0.85rem' },
+                        transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                         '&:hover': { 
-                          bgcolor: alpha(theme.palette.primary.main, 0.08),
-                          color: 'primary.main',
-                          border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                          transform: 'translateY(-4px)' 
-                        } 
+                          transform: 'translateY(-3px)',
+                          boxShadow: `0 8px 20px ${alpha(instituteData.accentColors?.[i % (instituteData.accentColors?.length || 4)] || theme.palette.primary.main, 0.2)}`,
+                          filter: 'brightness(1.05)'
+                        },
+                        '&:active': { transform: 'scale(0.92)' }
                       }}
                     >
                       <Box sx={{ 
-                        p: 1.2, 
+                        p: 1, 
                         borderRadius: 2, 
-                        bgcolor: alpha(theme.palette.mode === 'dark' ? '#fff' : '#000', 0.05),
+                        bgcolor: 'rgba(255,255,255,0.25)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        color: 'white'
                        }}>
                          {action.icon}
                       </Box>
@@ -830,40 +873,48 @@ export default function Dashboard({ user }: DashboardProps) {
               // Student Actions
               <>
                 {[
-                  { label: 'My Profile', path: '/profile', icon: <User size={18} /> },
+                  { label: 'Exams', path: '/exams', icon: <FileText size={18} /> },
+                  { label: 'Forms', path: '/forms', icon: <ClipboardList size={18} /> },
                   { label: 'Courses', path: '/courses', icon: <BookOpen size={18} /> },
-                  { label: 'Pay Fees', path: '/fees', icon: <CreditCard size={18} /> },
-                  { label: 'Attendance', path: '/attendance', icon: <UserCheck size={18} /> },
+                  { label: 'Fees', path: '/fees', icon: <IndianRupee size={18} /> },
                 ].map((action, i) => (
                   <Grid key={i} size={{ xs: 3, sm: 2 }}>
                     <Button 
-                      variant="text"
+                      variant="contained"
                       fullWidth
                       onClick={() => navigate(action.path)}
                       sx={{ 
                         borderRadius: 3, 
-                        fontWeight: 800, 
-                        py: { xs: 1.5, sm: 2 }, 
+                        fontWeight: 950, 
+                        py: { xs: 1.5, sm: 2.2 }, 
                         flexDirection: 'column',
-                        gap: 1,
-                        color: 'text.primary',
-                        bgcolor: alpha(theme.palette.mode === 'dark' ? '#fff' : '#000', 0.03),
+                        gap: 1.2,
+                        color: 'white',
+                        background: [
+                          'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+                          'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+                          'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
+                          'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                        ][i % 4],
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        textShadow: '0 1px 4px rgba(0,0,0,0.3)',
                         fontSize: { xs: '0.6rem', sm: '0.75rem' },
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         '&:hover': { 
-                          bgcolor: alpha(theme.palette.primary.main, 0.08),
-                          color: 'primary.main',
-                          transform: 'translateY(-4px)' 
+                          transform: 'translateY(-2px)',
+                          boxShadow: `0 8px 16px ${alpha(instituteData.accentColors?.[i % (instituteData.accentColors?.length || 4)] || theme.palette.primary.main, 0.2)}`,
+                          filter: 'brightness(1.05)'
                         } 
                       }}
                     >
                       <Box sx={{ 
-                        p: 1.2, 
-                        borderRadius: 2, 
-                        bgcolor: alpha(theme.palette.mode === 'dark' ? '#fff' : '#000', 0.05),
+                        p: 0.8, 
+                        borderRadius: 1.5, 
+                        bgcolor: 'rgba(255,255,255,0.25)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        color: 'white'
                        }}>
                          {action.icon}
                       </Box>
@@ -877,7 +928,273 @@ export default function Dashboard({ user }: DashboardProps) {
         </Container>
       </Box>
 
-      {/* Side Scrolling Events with Tilted BG */}
+      {/* Institutional Financial Health (Moved to Top as per user request) */}
+      {isAdmin && collectionTrendData.length > 0 && (
+        <Container maxWidth="lg" sx={{ mb: 6, mt: 4 }}>
+          <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <TrendingUp size={28} />
+            Financial Health
+          </Typography>
+          <Paper 
+            sx={{ 
+              p: { xs: 2, md: 4 }, 
+              borderRadius: 6, 
+              border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+              bgcolor: 'background.paper',
+              boxShadow: theme.palette.mode === 'dark' ? '0 20px 40px rgba(0,0,0,0.4)' : '0 10px 30px rgba(0,0,0,0.03)'
+            }}
+          >
+            <Box sx={{ height: 300, width: '100%' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={collectionTrendData}>
+                  <defs>
+                    <linearGradient id="dashboardColorRev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={instituteData.accentColors?.[1] || theme.palette.primary.main} stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor={instituteData.accentColors?.[1] || theme.palette.primary.main} stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.divider, 0.1)} />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: theme.palette.text.secondary, fontWeight: 700, fontSize: 11 }} 
+                  />
+                  <YAxis hide />
+                  <RechartsTooltip 
+                    contentStyle={{ 
+                      borderRadius: 12, 
+                      border: 'none', 
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                      fontWeight: 900,
+                      fontSize: '0.8rem'
+                    }} 
+                    formatter={(value: any) => [`${value.toLocaleString()}`, 'Amount (INR)']}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="value" 
+                    stroke={instituteData.accentColors?.[1] || theme.palette.primary.main} 
+                    strokeWidth={4} 
+                    fillOpacity={1} 
+                    fill="url(#dashboardColorRev)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Box>
+            <Box sx={{ mt: 3, textAlign: 'center' }}>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 1 }}>
+                Approved funds collected over final 7 business days
+              </Typography>
+            </Box>
+          </Paper>
+        </Container>
+      )}
+
+      {/* Reports / Actions Needed Section */}
+      <Container maxWidth="lg" sx={{ mb: 6 }}>
+        {isStaff && (pendingReceipts.length > 0 || pendingStudents.length > 0) && (
+          <Box sx={{ mb: 6 }}>
+            <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'warning.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <AlertTriangle size={28} />
+              Reports & Pending Actions
+            </Typography>
+            <Paper sx={{ borderRadius: 6, overflow: 'hidden', border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`, bgcolor: alpha(theme.palette.warning.main, 0.02) }}>
+              <List sx={{ p: 0 }}>
+                {pendingReceipts.map(receipt => {
+                  const actions: ActionMenuItem[] = [
+                    { label: 'Approve Fee', icon: <CheckCircle size={18} />, color: 'success.main', onClick: () => handleApproveFee(receipt.id) },
+                    { label: 'Reject Fee', icon: <XCircle size={18} />, color: 'error.main', onClick: () => handleRejectFee(receipt.id) },
+                    { label: 'View Receipt', icon: <ExternalLink size={18} />, onClick: () => navigate('/fees') }
+                  ];
+
+                  return (
+                    <ListItem key={receipt.id} divider sx={{ py: 2.5, px: 4 }}>
+                      <ListItemText 
+                        primary={`${receipt.studentName} - Fee Request`}
+                        secondary={`Rs.${receipt.amount} • ${format(new Date(receipt.date), 'MMMM yyyy')}`}
+                        primaryTypographyProps={{ fontWeight: 800, fontSize: '1rem' }}
+                        secondaryTypographyProps={{ fontWeight: 600 }}
+                      />
+                      <ActionMenu items={actions} />
+                    </ListItem>
+                  );
+                })}
+                {pendingStudents.map(student => {
+                  const actions: ActionMenuItem[] = [
+                    { label: 'Approve Student', icon: <UserCheck size={18} />, color: 'success.main', onClick: () => handleApproveStudent(student) },
+                    { label: 'Reject Student', icon: <XCircle size={18} />, color: 'error.main', onClick: () => handleRejectStudent(student) },
+                    { label: 'View Details', icon: <ExternalLink size={18} />, onClick: () => { setSelectedTeacher(student); setOpenTeacherProfile(true); } }
+                  ];
+
+                  return (
+                    <ListItem key={student.uid} divider sx={{ py: 2.5, px: 4 }}>
+                      <ListItemText 
+                        primary={`${student.displayName} - New Student`}
+                        secondary={`Level: ${student.pendingClassLevel || 'N/A'}`}
+                        primaryTypographyProps={{ fontWeight: 800, fontSize: '1rem' }}
+                        secondaryTypographyProps={{ fontWeight: 600 }}
+                      />
+                      <ActionMenu items={actions} />
+                    </ListItem>
+                  );
+                })}
+              </List>
+            </Paper>
+          </Box>
+        )}
+      </Container>
+
+      {/* Staff Members Section */}
+      <Container maxWidth="lg" sx={{ mb: 6 }}>
+          <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <User size={28} />
+            Staff Members
+          </Typography>
+        <Paper 
+          sx={{ 
+            borderRadius: 4, 
+            overflow: 'hidden', 
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            bgcolor: 'background.paper',
+            p: 1
+          }}
+        >
+          <Grid container spacing={1}>
+            {staffMembers.map((staff) => (
+              <Grid key={staff.uid} size={{ xs: 12, sm: 6, md: 4 }}>
+                <ListItem 
+                  onClick={() => showTeacherProfile(staff)}
+                  sx={{ 
+                    py: 1.5, 
+                    px: 2, 
+                    cursor: 'pointer', 
+                    borderRadius: 2,
+                    transition: '0.2s',
+                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } 
+                  }}
+                >
+                  <ListItemAvatar sx={{ minWidth: 50 }}>
+                    <Badge
+                      overlap="circular"
+                      anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                      variant="dot"
+                      color="success"
+                    >
+                      <Avatar 
+                        src={staff.photoURL} 
+                        sx={{ width: 40, height: 40, borderRadius: 1.5, border: `2px solid ${alpha(theme.palette.primary.main, 0.1)}` }} 
+                        imgProps={{ referrerPolicy: 'no-referrer' }}
+                      >
+                        {staff.displayName?.charAt(0)}
+                      </Avatar>
+                    </Badge>
+                  </ListItemAvatar>
+                  <ListItemText 
+                    primary={staff.displayName} 
+                    secondary={staff.role === 'superadmin' ? 'Head of Institute' : (staff.role === 'teacher' ? 'Teacher' : 'Staff')}
+                    primaryTypographyProps={{ fontWeight: 900, fontSize: '0.9rem' }}
+                    secondaryTypographyProps={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', textTransform: 'uppercase' }}
+                  />
+                  <IconButton size="small">
+                    <ExternalLink size={14} />
+                  </IconButton>
+                </ListItem>
+              </Grid>
+            ))}
+          </Grid>
+        </Paper>
+      </Container>
+
+      {/* Recently Registered Students Section */}
+      <Container maxWidth="lg" sx={{ mb: 6 }}>
+        {isStaff && stats.recentAdmissions && stats.recentAdmissions.length > 0 && (
+          <Box>
+            <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <UserPlus size={28} />
+              Recent Registrations
+            </Typography>
+            <Paper 
+              elevation={0}
+              sx={{ 
+                borderRadius: 4, 
+                overflow: 'hidden', 
+                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                boxShadow: theme.palette.mode === 'dark' ? '4px 4px 12px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.03)'
+              }}
+            >
+               <List sx={{ p: 0 }}>
+                {stats.recentAdmissions.map((student: any, idx: number) => (
+                  <ListItem 
+                    key={student.uid} 
+                    divider={idx !== stats.recentAdmissions.length - 1}
+                    onClick={() => navigate('/users')}
+                    sx={{ 
+                      py: 2.5, 
+                      px: 3, 
+                      cursor: 'pointer', 
+                      transition: 'all 0.2s ease',
+                      '&:hover': { 
+                        bgcolor: alpha(theme.palette.primary.main, 0.05),
+                      } 
+                    }}
+                  >
+                    <ListItemAvatar>
+                      <Avatar src={student.photoURL} sx={{ width: 44, height: 44, borderRadius: 1.5 }} imgProps={{ referrerPolicy: 'no-referrer' }}>{student.displayName?.charAt(0)}</Avatar>
+                    </ListItemAvatar>
+                    <ListItemText 
+                      primary={student.displayName}
+                      secondary={`Admission No: ${student.admissionNo || 'N/A'} • Level: ${student.classLevel || 'N/A'}`}
+                      primaryTypographyProps={{ fontWeight: 900, fontSize: '1rem' }}
+                      secondaryTypographyProps={{ fontWeight: 700, fontSize: '0.75rem' }}
+                    />
+                    <IconButton size="small">
+                      <ArrowRight size={18} />
+                    </IconButton>
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
+          </Box>
+        )}
+      </Container>
+
+      {/* Subject-Specific Classes / Educational Resources Section */}
+      <Container maxWidth="lg" sx={{ mb: 6 }}>
+        {stats.availableCourses.length > 0 && (
+          <Box>
+            <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <BookOpen size={28} />
+              Subject Resources
+            </Typography>
+            <Grid container spacing={3}>
+              {stats.availableCourses.map((course: any) => (
+                <Grid size={{ xs: 12, sm: 4 }} key={course.id}>
+                  <Card 
+                    onClick={() => navigate(`/courses/${course.id}`)}
+                    sx={{ 
+                      borderRadius: 4, 
+                      overflow: 'hidden', 
+                      cursor: 'pointer',
+                      border: `1px solid ${alpha(theme.palette.divider, 0.1)}`, 
+                      transition: '0.2s', 
+                      '&:hover': { boxShadow: '0 8px 20px rgba(0,0,0,0.1)' } 
+                    }}
+                  >
+                    <Box sx={{ height: 120, bgcolor: 'primary.main', backgroundImage: course.thumbnailUrl ? `url(${course.thumbnailUrl})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                    <CardContent sx={{ p: 2 }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 0.5 }}>{course.name}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{course.description}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        )}
+      </Container>
+
+      {/* Side Scrolling Events (Keep with normal tilt) */}
       {upcomingEvents.length > 0 && (
         <Box 
           sx={{ 
@@ -894,7 +1211,6 @@ export default function Dashboard({ user }: DashboardProps) {
               width: '100%',
               height: '100%',
               bgcolor: alpha(theme.palette.primary.main, 0.05),
-              transform: 'skewY(-1deg) translateY(-20px)',
               zIndex: 0
             }
           }}
@@ -904,7 +1220,21 @@ export default function Dashboard({ user }: DashboardProps) {
               <Typography variant="h6" sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Calendar size={20} className="text-teal-600" /> Upcoming Events
               </Typography>
-              <Button size="small" onClick={() => navigate('/schedule')} sx={{ fontWeight: 900 }}>View All</Button>
+              <Button 
+                size="small" 
+                onClick={() => navigate('/schedule')} 
+                sx={{ 
+                  fontWeight: 900,
+                  color: 'primary.main',
+                  borderRadius: 2,
+                  px: 2,
+                  '&:hover': {
+                    bgcolor: alpha(theme.palette.primary.main, 0.1)
+                  }
+                }}
+              >
+                View All
+              </Button>
             </Box>
             <Box 
               component={motion.div} 
@@ -930,8 +1260,7 @@ export default function Dashboard({ user }: DashboardProps) {
                       minWidth: 280, 
                       borderRadius: 4, 
                       border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                      transition: '0.3s',
-                      '&:hover': { transform: 'scale(1.02)' }
+                      transition: '0.2s',
                     }}
                   >
                     <CardContent sx={{ p: 3 }}>
@@ -939,7 +1268,13 @@ export default function Dashboard({ user }: DashboardProps) {
                         label={event.date} 
                         size="small" 
                         color="secondary" 
-                        sx={{ mb: 2, fontWeight: 900, borderRadius: 1.5, fontSize: '0.7rem' }} 
+                        sx={{ 
+                          mb: 2, 
+                          fontWeight: 900, 
+                          borderRadius: 1.5, 
+                          fontSize: '0.7rem',
+                          background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${alpha(theme.palette.secondary.main, 0.8)} 100%)`
+                        }} 
                       />
                       <Typography variant="subtitle1" sx={{ fontWeight: 950, mb: 1, lineHeight: 1.2 }}>{event.title}</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>{event.location || 'Institute Campus'}</Typography>
@@ -953,367 +1288,49 @@ export default function Dashboard({ user }: DashboardProps) {
       )}
 
       <Container maxWidth="xl">
-        <Grid container spacing={4}>
+        <Grid container spacing={4} sx={{ mb: 4 }}>
           {isStaff ? (
             <>
               {(isAdmin || permissions.manage_fees) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <StatBox title="Revenue" value={`INR ${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0)).toLocaleString()}`} icon={<ArrowUpRight size={32} />} color="#10b981" />
+                  <StatBox title="Revenue" value={`INR ${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0)).toLocaleString()}`} icon={<ArrowUpRight size={32} />} color={instituteData.accentColors?.[0] || "#10b981"} />
                 </Grid>
               )}
               {(isAdmin || permissions.manage_expenses) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <StatBox title="Total Expenses" value={`INR ${(stats.totalExpenses || 0).toLocaleString()}`} icon={<ArrowDownRight size={32} />} color="#ef4444" />
+                  <StatBox title="Total Expenses" value={`INR ${(stats.totalExpenses || 0).toLocaleString()}`} icon={<ArrowDownRight size={32} />} color={instituteData.accentColors?.[3] || "#ef4444"} />
                 </Grid>
               )}
               {(isAdmin || permissions.manage_fees) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <StatBox title="Net Balance" value={`INR ${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0) - (stats.totalExpenses || 0)).toLocaleString()}`} icon={<Wallet size={32} />} color="#8b5cf6" />
+                  <StatBox title="Net Balance" value={`INR ${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0) - (stats.totalExpenses || 0)).toLocaleString()}`} icon={<Wallet size={32} />} color={instituteData.accentColors?.[2] || "#8b5cf6"} />
                 </Grid>
               )}
               {(isAdmin || permissions.manage_attendance) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <StatBox title="Attendance Today" value={stats.todayAttendance} icon={<UserCheck size={32} />} color="#06b6d4" />
+                  <StatBox title="Attendance Today" value={stats.todayAttendance} icon={<UserCheck size={32} />} color={instituteData.accentColors?.[1] || "#06b6d4"} />
                 </Grid>
               )}
             </>
           ) : (
             <>
               <Grid size={{ xs: 12, md: 4 }}>
-                <StatBox title="My Attendance" value={`${stats.attendanceRate}%`} icon={<TrendingUp size={32} />} color="#10b981" subtitle="Regularity Score" />
+                <StatBox title="My Attendance" value={`${stats.attendanceRate}%`} icon={<TrendingUp size={32} />} color={instituteData.accentColors?.[0] || "#10b981"} subtitle="Regularity Score" />
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
-                <StatBox title="Active Lessons" value={user.subjectsEnrolled?.length || 0} icon={<BookOpen size={32} />} color="#3b82f6" subtitle="Current Topics" />
+                <StatBox title="Active Lessons" value={user.subjectsEnrolled?.length || 0} icon={<BookOpen size={32} />} color={instituteData.accentColors?.[1] || "#3b82f6"} subtitle="Current Topics" />
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
-                <StatBox title="My Class Level" value={user.classLevel || 'Intermediate'} icon={<Check size={32} />} color="#f59e0b" subtitle="Level of Study" />
+                <StatBox title="My Class Level" value={user.classLevel || 'Intermediate'} icon={<Check size={32} />} color={instituteData.accentColors?.[2] || "#f59e0b"} subtitle="Level of Study" />
               </Grid>
             </>
           )}
-
-          {/* Detailed Content */}
-          <Grid size={{ xs: 12, md: 8 }}>
-            {/* Pending Actions for Staff */}
-            {isStaff && (pendingReceipts.length > 0 || pendingStudents.length > 0) && (
-              <Box sx={{ mb: 6 }}>
-                <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'warning.main' }}>
-                  Actions Needed
-                </Typography>
-                <Paper sx={{ borderRadius: 6, overflow: 'hidden', border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`, bgcolor: alpha(theme.palette.warning.main, 0.02) }}>
-                  <List sx={{ p: 0 }}>
-                    {pendingReceipts.map(receipt => {
-                      const actions: ActionMenuItem[] = [
-                        { label: 'Approve Fee', icon: <CheckCircle size={18} />, color: 'success.main', onClick: () => handleApproveFee(receipt.id) },
-                        { label: 'Reject Fee', icon: <XCircle size={18} />, color: 'error.main', onClick: () => handleRejectFee(receipt.id) },
-                        { label: 'View Receipt', icon: <ExternalLink size={18} />, onClick: () => navigate('/fees') }
-                      ];
-
-                      return (
-                        <ListItem key={receipt.id} divider sx={{ py: 2.5, px: 4 }}>
-                          <ListItemText 
-                            primary={`${receipt.studentName} - Fee Request`}
-                            secondary={`Rs.${receipt.amount} • ${format(new Date(receipt.date), 'MMMM yyyy')}`}
-                            primaryTypographyProps={{ fontWeight: 800, fontSize: '1rem' }}
-                            secondaryTypographyProps={{ fontWeight: 600 }}
-                          />
-                          <ActionMenu items={actions} />
-                        </ListItem>
-                      );
-                    })}
-                    {pendingStudents.map(student => {
-                      const actions: ActionMenuItem[] = [
-                        { label: 'Approve Student', icon: <UserCheck size={18} />, color: 'success.main', onClick: () => handleApproveStudent(student) },
-                        { label: 'Reject Student', icon: <XCircle size={18} />, color: 'error.main', onClick: () => handleRejectStudent(student) },
-                        { label: 'View Details', icon: <ExternalLink size={18} />, onClick: () => { setSelectedTeacher(student); setOpenTeacherProfile(true); } }
-                      ];
-
-                      return (
-                        <ListItem key={student.uid} divider sx={{ py: 2.5, px: 4 }}>
-                          <ListItemText 
-                            primary={`${student.displayName} - New Student`}
-                            secondary={`Level: ${student.pendingClassLevel || 'N/A'}`}
-                            primaryTypographyProps={{ fontWeight: 800, fontSize: '1rem' }}
-                            secondaryTypographyProps={{ fontWeight: 600 }}
-                          />
-                          <ActionMenu items={actions} />
-                        </ListItem>
-                      );
-                    })}
-                  </List>
-                </Paper>
-              </Box>
-            )}
-
-            {/* Recently Registered Students */}
-            {isStaff && stats.recentAdmissions && stats.recentAdmissions.length > 0 && (
-              <Box sx={{ mb: 6 }}>
-                <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <Users size={28} />
-                  Recently Registered Students
-                </Typography>
-                <Paper 
-                  elevation={0}
-                  sx={{ 
-                    borderRadius: 4, 
-                    overflow: 'hidden', 
-                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                    boxShadow: theme.palette.mode === 'dark'
-                      ? '4px 4px 12px rgba(0,0,0,0.5)'
-                      : '0 4px 20px rgba(0,0,0,0.03)'
-                  }}
-                >
-                   <List sx={{ p: 0 }}>
-                    {stats.recentAdmissions.map((student: any, idx: number) => (
-                      <ListItem 
-                        key={student.uid} 
-                        divider={idx !== stats.recentAdmissions.length - 1}
-                        onClick={() => navigate('/users')}
-                        sx={{ 
-                          py: 2.5, 
-                          px: 3, 
-                          cursor: 'pointer', 
-                          transition: 'all 0.2s ease',
-                          '&:hover': { 
-                            bgcolor: alpha(theme.palette.primary.main, 0.05),
-                            paddingLeft: 4,
-                            '& .MuiAvatar-root': {
-                              transform: 'scale(1.1)',
-                              boxShadow: `0 0 15px ${alpha(theme.palette.primary.main, 0.3)}`
-                            }
-                          } 
-                        }}
-                      >
-                        <ListItemAvatar>
-                          <Avatar 
-                            src={student.photoURL} 
-                            imgProps={{ referrerPolicy: 'no-referrer' }}
-                            sx={{ 
-                              width: 48, 
-                              height: 48, 
-                              transition: 'all 0.3s ease',
-                              border: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`
-                            }}
-                          >
-                            {student.displayName?.charAt(0)}
-                          </Avatar>
-                        </ListItemAvatar>
-                        <ListItemText 
-                          primary={student.displayName}
-                          secondary={
-                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                              Admission No: <Box component="span" sx={{ color: 'primary.main', fontWeight: 800 }}>{student.admissionNo || 'N/A'}</Box> • Level: <Box component="span" sx={{ color: 'text.primary', fontWeight: 800 }}>{student.classLevel || 'N/A'}</Box>
-                            </Typography>
-                          }
-                          primaryTypographyProps={{ fontWeight: 900, fontSize: '1.05rem', mb: 0.2 }}
-                        />
-                        <Chip 
-                          label="Active" 
-                          color="success" 
-                          size="small" 
-                          variant="outlined" 
-                          sx={{ 
-                            fontWeight: 900, 
-                            borderRadius: 1.5,
-                            borderWidth: 2,
-                            fontSize: '0.65rem',
-                            textTransform: 'uppercase'
-                          }} 
-                        />
-                        <IconButton size="small" sx={{ ml: 2, color: 'text.disabled' }}>
-                          <ArrowRight size={18} />
-                        </IconButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                </Paper>
-              </Box>
-            )}
-
-            {/* Featured Lessons */}
-            {stats.availableCourses.length > 0 && (
-              <Box sx={{ mb: 6 }}>
-                <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'primary.main' }}>
-                  Educational Resources
-                </Typography>
-                <Grid container spacing={3}>
-                  {stats.availableCourses.map((course: any, idx: number) => (
-                    <Grid size={{ xs: 12, sm: 6 }} key={course.id || idx}>
-                      <Card 
-                        onClick={() => navigate(`/courses/${course.id}`)}
-                        sx={{ 
-                          borderRadius: 6, 
-                          overflow: 'hidden', 
-                          cursor: 'pointer',
-                          border: `1px solid ${alpha(theme.palette.divider, 0.1)}`, 
-                          transition: 'all 0.3s', 
-                          '&:hover': { transform: 'translateY(-5px)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } 
-                        }}
-                      >
-                        <Box sx={{ height: 160, bgcolor: 'primary.dark', backgroundImage: course.thumbnailUrl ? `url(${course.thumbnailUrl})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.9 }} />
-                        <CardContent sx={{ p: 4 }}>
-                          <Typography variant="h6" sx={{ fontWeight: 900, mb: 1 }}>{course.name}</Typography>
-                          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3, fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{course.description}</Typography>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                             <Chip label="Start Learning" size="small" variant="outlined" color="primary" sx={{ fontWeight: 800 }} />
-                             <ArrowRight size={20} className="text-teal-600" />
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
-              </Box>
-            )}
-          </Grid>
-
-          {/* Right Column: Events & Staff */}
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="h6" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 3, color: 'primary.main' }}>
-                Status
-              </Typography>
-              <Paper sx={{ p: 3, borderRadius: 4, border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
-                <Stack spacing={2}>
-                  <ProfileItem label="My Status" value={user.status || 'Active'} icon={<Check size={16} />} />
-                  {isAdmin ? (
-                    <ProfileItem label="Responsibility" value={user.role === 'superadmin' ? 'Principal' : 'Manager'} icon={<Award size={16} />} />
-                  ) : (
-                    <ProfileItem label="Attendance Rate" value={`${stats.attendanceRate}%`} icon={<GraduationCap size={16} />} />
-                  )}
-                </Stack>
-              </Paper>
-            </Box>
-
-            <Box>
-              <Typography variant="h6" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 3, color: 'primary.main' }}>
-                Staff Members
-              </Typography>
-              <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', border: `1px solid ${alpha(theme.palette.divider, 0.1)}`, bgcolor: 'transparent' }}>
-                <List sx={{ p: 0 }}>
-                  {staffMembers.map((staff, idx) => (
-                    <ListItem 
-                      key={staff.uid} 
-                      divider={idx !== staffMembers.length - 1}
-                      onClick={() => showTeacherProfile(staff)}
-                      secondaryAction={
-                        <Stack direction="row" spacing={0.5}>
-                          {staff.phone && (
-                            <IconButton 
-                              size="small" 
-                              color="success"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                window.open(`https://wa.me/${staff.phone.replace(/[^0-9]/g, '')}`, '_blank');
-                              }}
-                              sx={{ bgcolor: alpha(theme.palette.success.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.success.main, 0.2) } }}
-                            >
-                              <MessageSquare size={14} />
-                            </IconButton>
-                          )}
-                          <IconButton size="small" onClick={() => showTeacherProfile(staff)}>
-                            <ExternalLink size={14} />
-                          </IconButton>
-                        </Stack>
-                      }
-                      sx={{ py: 1.5, px: 2, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } }}
-                    >
-                      <ListItemAvatar sx={{ minWidth: 44 }}>
-                        <Badge
-                          overlap="circular"
-                          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                          variant="dot"
-                          color="success"
-                        >
-                          <Avatar src={staff.photoURL} sx={{ width: 36, height: 36, borderRadius: 1.5 }} imgProps={{ referrerPolicy: 'no-referrer' }}>{staff.displayName?.charAt(0)}</Avatar>
-                        </Badge>
-                      </ListItemAvatar>
-                      <ListItemText 
-                        primary={staff.displayName} 
-                        secondary={
-                          <Stack direction="column">
-                            <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 800, color: 'primary.main', textTransform: 'uppercase' }}>
-                              {staff.role === 'superadmin' ? 'Principal' : (staff.role === 'teacher' ? 'Teacher' : (staff.role === 'manager' ? 'Admin' : 'Staff'))}
-                            </Typography>
-                            <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 600 }}>
-                              {staff.phone || 'No Contact'}
-                            </Typography>
-                          </Stack>
-                        }
-                        primaryTypographyProps={{ fontWeight: 900, fontSize: '0.85rem' }}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              </Paper>
-            </Box>
-          </Grid>
         </Grid>
-
-        {/* Bottom Section: Institutional Financial Health (Moved to Bottom) */}
-        {isAdmin && collectionTrendData.length > 0 && (
-          <Box sx={{ mt: 8, mb: 6 }}>
-            <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <TrendingUp size={28} />
-              Institutional Financial Health
-            </Typography>
-            <Paper 
-              sx={{ 
-                p: { xs: 2, md: 4 }, 
-                borderRadius: 6, 
-                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                bgcolor: 'background.paper',
-                boxShadow: theme.palette.mode === 'dark' ? '0 20px 40px rgba(0,0,0,0.4)' : '0 10px 30px rgba(0,0,0,0.03)'
-              }}
-            >
-              <Box sx={{ height: 300, width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={collectionTrendData}>
-                    <defs>
-                      <linearGradient id="dashboardColorRev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.divider, 0.1)} />
-                    <XAxis 
-                      dataKey="name" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: theme.palette.text.secondary, fontWeight: 700, fontSize: 11 }} 
-                    />
-                    <YAxis hide />
-                    <RechartsTooltip 
-                      contentStyle={{ 
-                        borderRadius: 12, 
-                        border: 'none', 
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-                        fontWeight: 900,
-                        fontSize: '0.8rem'
-                      }} 
-                      formatter={(value: any) => [`${value.toLocaleString()}`, 'Amount (INR)']}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke={theme.palette.primary.main} 
-                      strokeWidth={4} 
-                      fillOpacity={1} 
-                      fill="url(#dashboardColorRev)" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </Box>
-              <Box sx={{ mt: 3, textAlign: 'center' }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 1 }}>
-                  Approved funds collected over final 7 business days
-                </Typography>
-              </Box>
-            </Paper>
-          </Box>
-        )}
       </Container>
 
+
       {/* Teacher Profile Dialog */}
+
       <Dialog 
         open={openTeacherProfile} 
         onClose={() => setOpenTeacherProfile(false)}
@@ -1358,7 +1375,7 @@ export default function Dashboard({ user }: DashboardProps) {
             <Typography variant="h4" sx={{ fontWeight: 950, mb: 1, letterSpacing: -1.5 }}>{selectedTeacher.displayName}</Typography>
             <Chip 
               icon={<Award size={16} />}
-              label={selectedTeacher.role === 'superadmin' ? 'Principal' : (selectedTeacher.role === 'teacher' ? 'Teacher' : 'Manager')} 
+              label={selectedTeacher.role === 'superadmin' ? 'Head of Institute' : (selectedTeacher.role === 'teacher' ? 'Teacher' : 'Manager')} 
               color="primary"
               variant="outlined"
               sx={{ mb: 4, fontWeight: 900, borderRadius: 2 }}
@@ -1391,7 +1408,14 @@ export default function Dashboard({ user }: DashboardProps) {
               fullWidth 
               variant="contained" 
               onClick={() => setOpenTeacherProfile(false)}
-              sx={{ borderRadius: 4, py: 2, fontWeight: 900, fontSize: '1rem', boxShadow: '0 10px 20px rgba(15, 118, 110, 0.3)' }}
+              sx={{ 
+                borderRadius: 4, 
+                py: 2, 
+                fontWeight: 950, 
+                fontSize: '1rem', 
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+                boxShadow: '0 10px 20px rgba(15, 118, 110, 0.3)' 
+              }}
             >
               OK
             </Button>
@@ -1447,9 +1471,8 @@ function StatBox({ title, value, icon, color, subtitle }: any) {
         boxShadow: theme.palette.mode === 'dark' 
           ? '0 6px 20px rgba(0,0,0,0.4)' 
           : '0 4px 15px rgba(0,0,0,0.02)',
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: 'all 0.2s ease',
         '&:hover': { 
-          transform: 'translateY(-4px)', 
           boxShadow: theme.palette.mode === 'dark' 
             ? '0 12px 30px rgba(0,0,0,0.5)' 
             : '0 10px 30px rgba(13, 148, 136, 0.08)',
@@ -1482,7 +1505,7 @@ function StatBox({ title, value, icon, color, subtitle }: any) {
           fontWeight: 950, 
           letterSpacing: -0.5, 
           mb: 0.1,
-          fontFamily: 'var(--font-heading)',
+          fontFamily: '"Cinzel Decorative", serif',
           color: 'text.primary'
         }}>{value}</Typography>
         <Typography variant="caption" sx={{ 
@@ -1490,7 +1513,7 @@ function StatBox({ title, value, icon, color, subtitle }: any) {
           color: 'text.secondary', 
           textTransform: 'uppercase', 
           letterSpacing: 1,
-          fontFamily: 'var(--font-heading)',
+          fontFamily: '"Cinzel Decorative", serif',
           fontSize: isMobile ? '0.55rem' : '0.65rem',
           opacity: 0.8
         }}>{title}</Typography>
@@ -1567,5 +1590,102 @@ function FabAction({ label, icon, color, onClick, delay }: any) {
         {React.cloneElement(icon as React.ReactElement<any>, { size: isMobile ? 18 : 22 })}
       </Fab>
     </motion.div>
+  );
+}
+
+function PendingApprovals({ users, onRefresh }: { users: UserProfile[], onRefresh: () => void }) {
+  const theme = useTheme();
+  const pendingTeachers = users.filter(u => u.role === 'teacher' && u.pendingProfileChanges);
+
+  const handleApprove = async (userId: string, changes: any) => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        ...changes,
+        pendingProfileChanges: null,
+        updatedAt: new Date().toISOString()
+      });
+      onRefresh();
+    } catch (err) {
+      console.error("Failed to approve changes", err);
+    }
+  };
+
+  const handleReject = async (userId: string) => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        pendingProfileChanges: null,
+        updatedAt: new Date().toISOString()
+      });
+      onRefresh();
+    } catch (err) {
+      console.error("Failed to reject changes", err);
+    }
+  };
+
+  if (pendingTeachers.length === 0) return null;
+
+  return (
+    <Box>
+      <Typography variant="h6" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 3, color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+        <AlertCircle size={20} /> Pending Approvals
+      </Typography>
+      <Stack spacing={2}>
+        {pendingTeachers.map((teacher) => (
+          <Paper 
+            key={teacher.uid} 
+            sx={{ 
+              p: 2.5, 
+              borderRadius: 3, 
+              border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`,
+              bgcolor: alpha(theme.palette.error.main, 0.02)
+            }}
+          >
+            <Stack direction="row" spacing={2} alignItems="flex-start">
+              <Avatar src={teacher.photoURL} sx={{ width: 44, height: 44, borderRadius: 1.5 }} />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{teacher.displayName}</Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 1.5 }}>
+                  Requested profile updates:
+                </Typography>
+                <Stack spacing={1}>
+                  {teacher.pendingProfileChanges?.profession && (
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <Chip label="Profession" size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 800 }} />
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{teacher.pendingProfileChanges.profession}</Typography>
+                    </Box>
+                  )}
+                  {teacher.pendingProfileChanges?.expertise && (
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <Chip label="Expertise" size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 800 }} />
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{teacher.pendingProfileChanges.expertise}</Typography>
+                    </Box>
+                  )}
+                </Stack>
+                <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                  <Button 
+                    size="small" 
+                    variant="contained" 
+                    color="success"
+                    onClick={() => handleApprove(teacher.uid, teacher.pendingProfileChanges)}
+                    sx={{ borderRadius: 1.5, fontWeight: 800, textTransform: 'none', px: 2 }}
+                  >
+                    Approve
+                  </Button>
+                  <Button 
+                    size="small" 
+                    variant="outlined" 
+                    color="error"
+                    onClick={() => handleReject(teacher.uid)}
+                    sx={{ borderRadius: 1.5, fontWeight: 800, textTransform: 'none', px: 2 }}
+                  >
+                    Reject
+                  </Button>
+                </Stack>
+              </Box>
+            </Stack>
+          </Paper>
+        ))}
+      </Stack>
+    </Box>
   );
 }

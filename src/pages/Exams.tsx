@@ -153,8 +153,8 @@ export default function Exams() {
   }, [exams]);
 
   const filteredExams = exams.filter(e => {
-    const matchesSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         e.subject.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (e.title?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
+                         (e.subject?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     const matchesTab = tabValue === 0 ? e.status === 'upcoming' : e.status === 'completed';
     const matchesLevel = selectedLevel === 'All' || e.classLevel === selectedLevel;
     return matchesSearch && matchesTab && matchesLevel;
@@ -231,13 +231,19 @@ export default function Exams() {
                 startIcon={<Plus size={18} />} 
                 onClick={() => setOpenDialog(true)}
                 sx={{ 
-                  borderRadius: 2, 
-                  fontWeight: 800, 
+                  borderRadius: 3, 
+                  fontWeight: 900, 
                   px: 3, 
-                  py: 1,
+                  py: 1.2,
                   textTransform: 'none',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                  '&:hover': { transform: 'translateY(-2px)' }
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+                    : `0 8px 24px ${alpha(theme.palette.primary.main, 0.25)}`,
+                  '&:hover': { 
+                    transform: 'translateY(-2px)',
+                    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                  }
                 }}
               >
                 Schedule Exam
@@ -637,7 +643,17 @@ export default function Exams() {
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
           <Button onClick={() => setDeleteConfirm({ open: false, id: '' })} sx={{ fontWeight: 800 }}>Cancel</Button>
-          <Button onClick={confirmDelete} color="error" variant="contained" sx={{ borderRadius: 3, fontWeight: 800 }}>
+          <Button 
+            onClick={confirmDelete} 
+            color="error" 
+            variant="contained" 
+            sx={{ 
+              borderRadius: 3, 
+              fontWeight: 900,
+              background: `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${alpha(theme.palette.error.main, 0.75)} 100%)`,
+              boxShadow: `0 8px 20px ${alpha(theme.palette.error.main, 0.25)}`,
+            }}
+          >
             Delete Permanently
           </Button>
         </DialogActions>
@@ -742,12 +758,17 @@ function ExamCard({ exam, isTeacher, onDelete }: any) {
             endIcon={<ArrowRight size={18} />}
             sx={{ 
               borderRadius: 3, 
-              fontWeight: 900, 
-              px: 3,
+              fontWeight: 950, 
+              px: isDark ? 3.5 : 3,
               textTransform: 'none',
-              boxShadow: isDark 
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+              boxShadow: theme.palette.mode === 'dark'
                 ? '6px 6px 12px #060a12, -6px -6px 12px #182442'
-                : '6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff',
+                : `0 8px 16px ${alpha(theme.palette.primary.main, 0.25)}`,
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+              }
             }}
           >
             Details

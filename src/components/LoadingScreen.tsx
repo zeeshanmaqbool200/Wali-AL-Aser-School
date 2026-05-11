@@ -125,6 +125,7 @@ export default function LoadingScreen() {
                     sx={{ 
                       fontWeight: 950, 
                       color: 'primary.main',
+                      fontFamily: '"Cinzel Decorative", serif',
                       textShadow: `0 0 30px ${alpha(theme.palette.primary.main, 0.6)}`
                     }}
                   >
@@ -144,7 +145,7 @@ export default function LoadingScreen() {
                 <Typography 
                   variant="h3" 
                   sx={{ 
-                    fontFamily: 'var(--font-heading)', 
+                    fontFamily: '"Cinzel Decorative", serif', 
                     color: 'primary.main', 
                     fontWeight: 950,
                     letterSpacing: 10,
