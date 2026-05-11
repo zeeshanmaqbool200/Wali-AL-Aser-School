@@ -315,4 +315,23 @@ export interface InstituteSettings {
   announcementTextColor?: string;
   jafariOffset?: number;
   quotes?: string[];
+  portalSettings?: {
+    student: {
+      showDashboardStats: boolean;
+      showQuickActions: boolean;
+      showEnrolledSubjects: boolean;
+      showNotifications: boolean;
+    };
+    teacher: {
+       showRevenueStats: boolean;
+       showAttendanceStats: boolean;
+       showPendingActions: boolean;
+       allowProfileEdit: boolean;
+    };
+    manager: {
+       showFinancialHealth: boolean;
+       showQuickActions: boolean;
+       enableAuditLogs: boolean;
+    };
+  };
 }

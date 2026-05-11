@@ -768,7 +768,7 @@ export default function Dashboard({ user }: DashboardProps) {
       </Box>
 
       {/* Verification or Profile Completion Warning for Students */}
-      {user.role === 'student' && showVerificationAlert && (!user.isVerified || !(user.dob && user.fatherName && user.motherName && user.address && user.phone)) && (
+      {user.role === 'student' && showVerificationAlert && (instituteSettings?.portalSettings?.student?.showNotifications ?? true) && (!user.isVerified || !(user.dob && user.fatherName && user.motherName && user.address && user.phone)) && (
         <Container maxWidth="lg" sx={{ mt: 2, mb: -4, position: 'relative', zIndex: 30 }}>
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -812,14 +812,16 @@ export default function Dashboard({ user }: DashboardProps) {
       <Box sx={{ mb: 4, mt: { xs: 4, md: 6 }, position: 'relative', zIndex: 25 }}>
         <Container maxWidth="lg">
           <Grid container spacing={2} justifyContent="center">
-            {isStaff ? (
+            {isAdmin ? (
+              // Manager/Admin Actions
               <>
                 {[
-                  { label: 'Users', path: '/users', icon: <UserPlus size={18} /> },
-                  { label: 'Forms', path: '/forms', icon: <FileText size={18} /> },
+                  { label: 'Users', path: '/users', icon: <Users size={18} /> },
                   { label: 'Fees', path: '/fees', icon: <IndianRupee size={18} /> },
+                  { label: 'Expenses', path: '/expenses', icon: <TrendingUp size={18} /> },
+                  { label: 'Reports', path: '/reports', icon: <BarChart3 size={18} /> },
                   { label: 'Courses', path: '/courses', icon: <BookOpen size={18} /> },
-                  { label: 'Attendance', path: '/attendance', icon: <UserCheck size={18} /> },
+                  { label: 'Settings', path: '/settings', icon: <Layout size={18} /> },
                 ].map((action, i) => (
                   <Grid key={i} size={{ xs: 4, sm: 2 }}>
                     <Button 
@@ -838,8 +840,9 @@ export default function Dashboard({ user }: DashboardProps) {
                           'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
                           'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
                           'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                          'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)'
-                        ][i % 5],
+                          'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                          'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)'
+                        ][i % 6],
                         border: '1px solid rgba(255,255,255,0.3)',
                         boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
                         textShadow: '0 1px 4px rgba(0,0,0,0.3)',
@@ -869,47 +872,54 @@ export default function Dashboard({ user }: DashboardProps) {
                   </Grid>
                 ))}
               </>
-            ) : (
-              // Student Actions
+            ) : isTeacherRole ? (
+              // Teacher Actions
+              (instituteSettings?.portalSettings?.teacher?.showQuickActions ?? true) && (
               <>
                 {[
-                  { label: 'Exams', path: '/exams', icon: <FileText size={18} /> },
-                  { label: 'Forms', path: '/forms', icon: <ClipboardList size={18} /> },
+                  { label: 'Attendance', path: '/attendance', icon: <UserCheck size={18} /> },
                   { label: 'Courses', path: '/courses', icon: <BookOpen size={18} /> },
-                  { label: 'Fees', path: '/fees', icon: <IndianRupee size={18} /> },
+                  { label: 'Exams', path: '/exams', icon: <FileText size={18} /> },
+                  { label: 'Schedule', path: '/schedule', icon: <Calendar size={18} /> },
+                  { label: 'Forms', path: '/forms', icon: <ClipboardList size={18} /> },
+                  { label: 'Notifications', path: '/notifications', icon: <Bell size={18} /> },
                 ].map((action, i) => (
-                  <Grid key={i} size={{ xs: 3, sm: 2 }}>
+                  <Grid key={i} size={{ xs: 4, sm: 2 }}>
                     <Button 
                       variant="contained"
                       fullWidth
                       onClick={() => navigate(action.path)}
                       sx={{ 
-                        borderRadius: 3, 
+                        borderRadius: 4, 
                         fontWeight: 950, 
-                        py: { xs: 1.5, sm: 2.2 }, 
+                        py: { xs: 2, sm: 3 }, 
                         flexDirection: 'column',
-                        gap: 1.2,
+                        gap: 1.5,
                         color: 'white',
                         background: [
+                          'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
+                          'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                          'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
                           'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
                           'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
-                          'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-                          'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
-                        ][i % 4],
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)'
+                        ][i % 6],
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
                         textShadow: '0 1px 4px rgba(0,0,0,0.3)',
-                        fontSize: { xs: '0.6rem', sm: '0.75rem' },
-                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        fontSize: { xs: '0.7rem', sm: '0.85rem' },
+                        transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                         '&:hover': { 
-                          transform: 'translateY(-2px)',
-                          boxShadow: `0 8px 16px ${alpha(instituteData.accentColors?.[i % (instituteData.accentColors?.length || 4)] || theme.palette.primary.main, 0.2)}`,
+                          transform: 'translateY(-3px)',
+                          boxShadow: `0 8px 20px ${alpha(instituteData.accentColors?.[i % (instituteData.accentColors?.length || 4)] || theme.palette.primary.main, 0.2)}`,
                           filter: 'brightness(1.05)'
-                        } 
+                        },
+                        '&:active': { transform: 'scale(0.92)' }
                       }}
                     >
                       <Box sx={{ 
-                        p: 0.8, 
-                        borderRadius: 1.5, 
+                        p: 1, 
+                        borderRadius: 2, 
                         bgcolor: 'rgba(255,255,255,0.25)',
                         display: 'flex',
                         alignItems: 'center',
@@ -923,6 +933,67 @@ export default function Dashboard({ user }: DashboardProps) {
                   </Grid>
                 ))}
               </>
+              )
+            ) : (
+              // Student Actions
+              (instituteSettings?.portalSettings?.student?.showQuickActions ?? true) && (
+              <>
+                {[
+                  { label: 'My Courses', path: '/courses', icon: <BookOpen size={18} /> },
+                  { label: 'Exams', path: '/exams', icon: <FileText size={18} /> },
+                  { label: 'My Fees', path: '/fees', icon: <IndianRupee size={18} /> },
+                  { label: 'Schedule', path: '/schedule', icon: <Calendar size={18} /> },
+                  { label: 'Forms', path: '/forms', icon: <ClipboardList size={18} /> },
+                  { label: 'My Profile', path: '/profile', icon: <User size={18} /> },
+                ].map((action, i) => (
+                  <Grid key={i} size={{ xs: 4, sm: 2 }}>
+                    <Button 
+                      variant="contained"
+                      fullWidth
+                      onClick={() => navigate(action.path)}
+                      sx={{ 
+                        borderRadius: 4, 
+                        fontWeight: 950, 
+                        py: { xs: 2, sm: 3 }, 
+                        flexDirection: 'column',
+                        gap: 1.5,
+                        color: 'white',
+                        background: [
+                          'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+                          'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+                          'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
+                          'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                          'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                          'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)'
+                        ][i % 6],
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        textShadow: '0 1px 4px rgba(0,0,0,0.3)',
+                        fontSize: { xs: '0.65rem', sm: '0.85rem' },
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        '&:hover': { 
+                          transform: 'translateY(-2px)',
+                          boxShadow: `0 8px 16px ${alpha(instituteData.accentColors?.[i % (instituteData.accentColors?.length || 4)] || theme.palette.primary.main, 0.2)}`,
+                          filter: 'brightness(1.05)'
+                        } 
+                      }}
+                    >
+                      <Box sx={{ 
+                        p: 1, 
+                        borderRadius: 2, 
+                        bgcolor: 'rgba(255,255,255,0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white'
+                       }}>
+                         {action.icon}
+                      </Box>
+                      {action.label}
+                    </Button>
+                  </Grid>
+                ))}
+              </>
+              )
             )}
           </Grid>
         </Container>
@@ -993,7 +1064,7 @@ export default function Dashboard({ user }: DashboardProps) {
 
       {/* Reports / Actions Needed Section */}
       <Container maxWidth="lg" sx={{ mb: 6 }}>
-        {isStaff && (pendingReceipts.length > 0 || pendingStudents.length > 0) && (
+        {isStaff && (isAdmin || (instituteSettings?.portalSettings?.teacher?.showPendingActions ?? true)) && (pendingReceipts.length > 0 || pendingStudents.length > 0) && (
           <Box sx={{ mb: 6 }}>
             <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'warning.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <AlertTriangle size={28} />
@@ -1161,6 +1232,73 @@ export default function Dashboard({ user }: DashboardProps) {
 
       {/* Subject-Specific Classes / Educational Resources Section */}
       <Container maxWidth="lg" sx={{ mb: 6 }}>
+        {isTeacherRole && user.assignedClasses && user.assignedClasses.length > 0 && (
+          <Box sx={{ mb: 6 }}>
+            <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Layout size={28} />
+              My Assigned Classes
+            </Typography>
+            <Grid container spacing={2}>
+              {user.assignedClasses.map((cls, idx) => (
+                <Grid size={{ xs: 6, sm: 4, md: 3 }} key={idx}>
+                  <Card 
+                    variant="outlined"
+                    sx={{ 
+                      borderRadius: 4, 
+                      p: 2, 
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                      bgcolor: alpha(theme.palette.primary.main, 0.02),
+                      '&:hover': {
+                         bgcolor: alpha(theme.palette.primary.main, 0.05),
+                         transform: 'translateY(-2px)'
+                      },
+                      transition: 'all 0.2s'
+                    }}
+                    onClick={() => navigate('/attendance')}
+                  >
+                    <Typography variant="h6" sx={{ fontWeight: 900, color: 'primary.main' }}>{cls}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 700, opacity: 0.7 }}>CLASS LEVEL</Typography>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        )}
+
+        {!isStaff && (instituteSettings?.portalSettings?.student?.showEnrolledSubjects ?? true) && user.subjectsEnrolled && user.subjectsEnrolled.length > 0 && (
+          <Box sx={{ mb: 6 }}>
+            <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <BookOpen size={28} />
+              My Enrolled Subjects
+            </Typography>
+            <Grid container spacing={2}>
+              {user.subjectsEnrolled.map((subject, idx) => (
+                <Grid size={{ xs: 6, sm: 4, md: 3 }} key={idx}>
+                  <Card 
+                    variant="outlined"
+                    sx={{ 
+                      borderRadius: 4, 
+                      p: 2, 
+                      textAlign: 'center',
+                      border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+                      bgcolor: alpha(theme.palette.secondary.main, 0.02),
+                      '&:hover': {
+                         bgcolor: alpha(theme.palette.secondary.main, 0.05),
+                      },
+                      transition: '0.2s'
+                    }}
+                  >
+                    <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'secondary.main' }}>{subject}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 700, opacity: 0.7 }}>CORE SUBJECT</Typography>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        )}
+
         {stats.availableCourses.length > 0 && (
           <Box>
             <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -1291,7 +1429,7 @@ export default function Dashboard({ user }: DashboardProps) {
         <Grid container spacing={4} sx={{ mb: 4 }}>
           {isStaff ? (
             <>
-              {(isAdmin || permissions.manage_fees) && (
+              {(isAdmin || (instituteSettings?.portalSettings?.teacher?.showRevenueStats ?? true) || permissions.manage_fees) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <StatBox title="Revenue" value={`INR ${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0)).toLocaleString()}`} icon={<ArrowUpRight size={32} />} color={instituteData.accentColors?.[0] || "#10b981"} />
                 </Grid>
@@ -1301,12 +1439,12 @@ export default function Dashboard({ user }: DashboardProps) {
                   <StatBox title="Total Expenses" value={`INR ${(stats.totalExpenses || 0).toLocaleString()}`} icon={<ArrowDownRight size={32} />} color={instituteData.accentColors?.[3] || "#ef4444"} />
                 </Grid>
               )}
-              {(isAdmin || permissions.manage_fees) && (
+              {(isAdmin || (instituteSettings?.portalSettings?.teacher?.showRevenueStats ?? true) || permissions.manage_fees) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <StatBox title="Net Balance" value={`INR ${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0) - (stats.totalExpenses || 0)).toLocaleString()}`} icon={<Wallet size={32} />} color={instituteData.accentColors?.[2] || "#8b5cf6"} />
                 </Grid>
               )}
-              {(isAdmin || permissions.manage_attendance) && (
+              {(isAdmin || (instituteSettings?.portalSettings?.teacher?.showAttendanceStats ?? true) || permissions.manage_attendance) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <StatBox title="Attendance Today" value={stats.todayAttendance} icon={<UserCheck size={32} />} color={instituteData.accentColors?.[1] || "#06b6d4"} />
                 </Grid>
@@ -1314,9 +1452,11 @@ export default function Dashboard({ user }: DashboardProps) {
             </>
           ) : (
             <>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <StatBox title="My Attendance" value={`${stats.attendanceRate}%`} icon={<TrendingUp size={32} />} color={instituteData.accentColors?.[0] || "#10b981"} subtitle="Regularity Score" />
-              </Grid>
+              {(instituteSettings?.portalSettings?.student?.showDashboardStats ?? true) && (
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <StatBox title="My Attendance" value={`${stats.attendanceRate}%`} icon={<TrendingUp size={32} />} color={instituteData.accentColors?.[0] || "#10b981"} subtitle="Regularity Score" />
+                </Grid>
+              )}
               <Grid size={{ xs: 12, md: 4 }}>
                 <StatBox title="Active Lessons" value={user.subjectsEnrolled?.length || 0} icon={<BookOpen size={32} />} color={instituteData.accentColors?.[1] || "#3b82f6"} subtitle="Current Topics" />
               </Grid>

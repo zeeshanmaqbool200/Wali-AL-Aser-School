@@ -474,6 +474,7 @@ export default function Settings() {
   const menuItems = [
     { id: 'general', label: 'General', icon: <Layout size={20} />, role: 'all' },
     { id: 'account', label: 'Account', icon: <User size={20} />, role: 'all' },
+    { id: 'portals', label: 'Portals', icon: <Smartphone size={20} />, role: 'admin' },
     { id: 'branding', label: 'Branding', icon: <Palette size={20} />, role: 'admin' },
     { id: 'system', label: 'System', icon: <Terminal size={20} />, role: 'superadmin' },
     { id: 'logs', label: 'Audit Logs', icon: <Database size={20} />, role: 'admin' },
@@ -797,6 +798,84 @@ export default function Settings() {
                       >
                         Update Password
                       </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Portals Section */}
+            {tabValue === 'portals' && isAdmin && (
+              <motion.div key="portals" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
+                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Portal Experiences</Typography>
+                  </Box>
+                  <CardContent sx={{ p: 4 }}>
+                    <Stack spacing={4}>
+                      {/* Student Portal Settings */}
+                      <Box>
+                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>STUDENT PORTAL</Typography>
+                        <Grid container spacing={2}>
+                          {[
+                            { key: 'showDashboardStats', label: 'Attendance Stats', desc: 'Allow students to see attendance %' },
+                            { key: 'showQuickActions', label: 'Quick Actions', desc: 'Show course/fee shortcut buttons' },
+                            { key: 'showEnrolledSubjects', label: 'Enrolled Subjects', desc: 'List current subjects on dashboard' },
+                            { key: 'showNotifications', label: 'Banner Notifications', desc: 'Show alert banners to students' }
+                          ].map((setting) => (
+                            <Grid size={{ xs: 12, md: 6 }} key={setting.key}>
+                              <Box sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Box>
+                                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{setting.label}</Typography>
+                                  <Typography variant="caption" sx={{ opacity: 0.7 }}>{setting.desc}</Typography>
+                                </Box>
+                                <Switch 
+                                  checked={instituteData.portalSettings?.student?.[setting.key as keyof typeof instituteData.portalSettings.student] ?? true} 
+                                  onChange={(e) => {
+                                    const student = { ...(instituteData.portalSettings?.student || {}), [setting.key]: e.target.checked };
+                                    setInstituteData({ ...instituteData, portalSettings: { ...(instituteData.portalSettings || { teacher: {}, manager: {} }), student: student as any } as any });
+                                  }}
+                                />
+                              </Box>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      </Box>
+                      
+                      <Divider />
+
+                      {/* Teacher Portal Settings */}
+                      <Box>
+                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'secondary.main', mb: 2, display: 'block' }}>TEACHER PORTAL</Typography>
+                        <Grid container spacing={2}>
+                          {[
+                            { key: 'showQuickActions', label: 'Quick Actions', desc: 'Show attendance/course shortcuts' },
+                            { key: 'showRevenueStats', label: 'Class Revenue', desc: 'Allow teachers to see class fee status' },
+                            { key: 'showAttendanceStats', label: 'Attendance Rates', desc: 'Show class-wise attendance metrics' },
+                            { key: 'showPendingActions', label: 'Pending Approvals', desc: 'Show student/fee approval lists' },
+                            { key: 'allowProfileEdit', label: 'Profile Editing', desc: 'Allow teachers to update expertise' }
+                          ].map((setting) => (
+                            <Grid size={{ xs: 12, md: 6 }} key={setting.key}>
+                              <Box sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Box>
+                                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{setting.label}</Typography>
+                                  <Typography variant="caption" sx={{ opacity: 0.7 }}>{setting.desc}</Typography>
+                                </Box>
+                                <Switch 
+                                  checked={instituteData.portalSettings?.teacher?.[setting.key as keyof typeof instituteData.portalSettings.teacher] ?? true} 
+                                  onChange={(e) => {
+                                    const teacher = { ...(instituteData.portalSettings?.teacher || {}), [setting.key]: e.target.checked };
+                                    setInstituteData({ ...instituteData, portalSettings: { ...(instituteData.portalSettings || { student: {}, manager: {} }), teacher: teacher as any } as any });
+                                  }}
+                                />
+                              </Box>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      </Box>
+                    </Stack>
+                    <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveInstitute} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Save Portal Settings</Button>
                     </Box>
                   </CardContent>
                 </Card>
