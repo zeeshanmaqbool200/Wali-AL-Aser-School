@@ -371,7 +371,7 @@ export default function AttendancePage() {
                       border: 'none',
                       bgcolor: 'background.default',
                       boxShadow: theme.palette.mode === 'dark'
-                        ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
+                        ? 'inset 4px 4px 8px #000000, inset -4px -4px 8px rgba(255,255,255,0.02)'
                         : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
                     }}
                   >
@@ -402,7 +402,7 @@ export default function AttendancePage() {
                             bgcolor: 'background.paper', 
                             color: 'primary.main', 
                             boxShadow: theme.palette.mode === 'dark'
-                              ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
+                              ? '4px 4px 8px #000000, -4px -4px 8px rgba(255,255,255,0.01)'
                               : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
                             '&:hover': { bgcolor: 'primary.main', color: 'white' } 
                           }}
@@ -418,7 +418,7 @@ export default function AttendancePage() {
                             bgcolor: 'background.paper', 
                             color: 'success.main', 
                             boxShadow: theme.palette.mode === 'dark'
-                              ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
+                              ? '4px 4px 8px #000000, -4px -4px 8px rgba(255,255,255,0.01)'
                               : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
                             '&:hover': { bgcolor: 'success.main', color: 'white' } 
                           }}
@@ -434,7 +434,7 @@ export default function AttendancePage() {
                             bgcolor: 'background.paper', 
                             color: 'error.main', 
                             boxShadow: theme.palette.mode === 'dark'
-                              ? '4px 4px 8px #060a12, -4px -4px 8px #182442'
+                              ? '4px 4px 8px #000000, -4px -4px 8px rgba(255,255,255,0.01)'
                               : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
                             '&:hover': { bgcolor: 'error.main', color: 'white' } 
                           }}

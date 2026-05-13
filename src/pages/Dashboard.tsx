@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Box, Typography, Grid, Card, CardContent, Button, 
   Avatar, Chip, Divider, List, ListItem, ListItemText, 
@@ -16,7 +16,7 @@ import {
   MoreVertical, ExternalLink, Phone, MessageCircle, MessageSquare,
   UserPlus, BarChart3, User, GraduationCap, Award, Book, CheckCircle, XCircle,
   Wallet, ArrowUpRight, ArrowDownRight, Smartphone, Layout, IndianRupee, RefreshCw,
-  Edit, Trash2, Trash
+  Edit, Trash2, Trash, Sparkles, Zap
 } from 'lucide-react';
 import ImportantNotificationBanner from '../components/ImportantNotificationBanner';
 import { 
@@ -33,6 +33,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 
 import { logger } from '../lib/logger';
 import { useAuth } from '../context/AuthContext';
+import { useThemeContext } from '../context/ThemeContext';
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 
 interface DashboardProps {
@@ -41,12 +42,21 @@ interface DashboardProps {
 
 export default function Dashboard({ user }: DashboardProps) {
   const { logout, instituteSettings, permissions } = useAuth();
+  const { instituteColors } = useThemeContext();
   const { users: allUsers, receipts: allReceipts, notifications: allNotifs, availableCourses: allCourses, loading: globalLoading, isSyncing } = useData();
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(globalLoading && !localStorage.getItem(`dashboard_stats_${user.uid}`));
+  const getActionIcon = (icon: React.ReactNode, size: number) => {
+    return React.cloneElement(icon as any, { size });
+  };
+
+  const [loading, setLoading] = useState(() => {
+    if ((window as any)._dashboardLoaded) return false;
+    return globalLoading && !localStorage.getItem(`dashboard_stats_${user.uid}`);
+  });
   const [stats, setStats] = useState<any>(() => {
     // Try to recover cached stats to prevent white flicker
     const cached = localStorage.getItem(`dashboard_stats_${user.uid}`);
@@ -95,11 +105,18 @@ export default function Dashboard({ user }: DashboardProps) {
     }
   }, [instituteSettings]);
 
+  const availableQuotes = useMemo(() => {
+    const raw: string | any[] = (instituteData?.quotes && instituteData.quotes.length > 0) ? (instituteData.quotes as string | any[]) : quotes;
+    if (typeof raw === 'string') {
+      return (raw as string).split('\n').map(q => q.trim()).filter(q => q.length > 0);
+    }
+    if (Array.isArray(raw)) {
+      return (raw as any[]).flatMap(q => typeof q === 'string' ? q.split('\n') : [q]).map(q => q.trim()).filter(q => q.length > 0);
+    }
+    return quotes;
+  }, [instituteData.quotes, quotes]);
+
   useEffect(() => {
-    const availableQuotes = (instituteData?.quotes && instituteData.quotes.length > 0) 
-      ? instituteData.quotes.filter(q => q.trim().length > 0) 
-      : quotes;
-    
     if (availableQuotes.length > 0) {
       setQuote(availableQuotes[Math.floor(Math.random() * availableQuotes.length)]);
     }
@@ -110,9 +127,9 @@ export default function Dashboard({ user }: DashboardProps) {
       quoteInterval = setInterval(() => {
         setQuote(prev => {
           const others = availableQuotes.filter(q => q !== prev);
-          return others[Math.floor(Math.random() * others.length)];
+          return others.length > 0 ? others[Math.floor(Math.random() * others.length)] : prev;
         });
-      }, 30000); // Rotate every 30 seconds
+      }, 180000); // Rotate every 180 seconds (Slowed down from 60s)
     }
 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -120,7 +137,7 @@ export default function Dashboard({ user }: DashboardProps) {
       clearInterval(timer);
       if (quoteInterval) clearInterval(quoteInterval);
     };
-  }, [instituteData]);
+  }, [availableQuotes]);
 
   const [activeStatIndex, setActiveStatIndex] = useState(0);
   
@@ -540,14 +557,15 @@ export default function Dashboard({ user }: DashboardProps) {
       <Box 
         sx={{ 
           position: 'relative',
-          borderRadius: { xs: 4, md: 8 }, 
+          borderRadius: { xs: 1, md: 2 }, 
           overflow: 'hidden',
           mb: 0,
-          minHeight: { xs: 300, md: 380 }, 
+          minHeight: { xs: 260, md: 360 }, 
           display: 'flex',
-          bgcolor: '#000', 
+          bgcolor: isDark ? '#050505' : '#f8fafc', 
           transition: 'all 0.5s ease',
           boxShadow: '0 30px 60px rgba(0,0,0,0.12)',
+          border: isDark ? '1px solid rgba(255,255,255,0.03)' : 'none'
         }}
       >
         {/* Banner Image with better scaling and presence */}
@@ -590,176 +608,193 @@ export default function Dashboard({ user }: DashboardProps) {
           }} />
         </Box>
 
-        {/* Top Badges: Clock & Hijri Date - Premium Gradient Style */}
-        <Box sx={{ position: 'absolute', top: { xs: 16, md: 32 }, left: { xs: 16, md: 32 }, zIndex: 10 }}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
-             <Box sx={{ 
-               display: 'flex', 
-               alignItems: 'center', 
-               gap: 1, 
-               background: 'linear-gradient(135deg, #6366f1 0%, #1e1b4b 100%)',
-               backdropFilter: 'blur(12px)', 
-               px: 2, 
-               py: 1, 
-               borderRadius: 2, 
-               border: '1px solid rgba(255,255,255,0.4)',
-               boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-               transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-               cursor: 'default',
-               '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }
-             }}>
-               <Clock size={16} color="#ffffff" />
-               <Typography variant="body2" sx={{ fontWeight: 950, fontFamily: '"JetBrains Mono", monospace', color: 'white', letterSpacing: 1.5, fontSize: '0.75rem', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                 {format12H(currentTime)}
-               </Typography>
-             </Box>
-             <Box sx={{ 
-               display: 'flex', 
-               alignItems: 'center', 
-               gap: 1, 
-               background: 'linear-gradient(135deg, #f59e0b 0%, #7c2d12 100%)',
-               backdropFilter: 'blur(12px)', 
-               px: 2, 
-               py: 1, 
-               borderRadius: 2, 
-               border: '1px solid rgba(255,255,255,0.4)',
-               boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-               transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-               cursor: 'default',
-               '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 12px 40px rgba(0,0,0,0.4)' }
-             }}>
-               <Typography variant="body2" sx={{ fontWeight: 950, color: 'white', fontSize: '0.75rem', letterSpacing: 0.5, textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                 {jafariDate || 'Islamic Date'}
-               </Typography>
-             </Box>
-          </Stack>
-        </Box>
-
-        {/* Stats Overlay - Compacted */}
+        {/* Dynamic Data (Time & Date) - ALIGNED TOP LEFT ONE LINE */}
         <Box sx={{ 
           position: 'absolute', 
-          top: { xs: 'auto', md: '50%' },
-          bottom: { xs: 16, md: 'auto' },
-          right: { xs: 16, md: 32 }, 
-          transform: { xs: 'none', md: 'translateY(-50%)' },
-          zIndex: 40 
+          top: { xs: 20, md: 32 }, 
+          left: { xs: 16, md: 48 }, 
+          zIndex: 10,
+          display: 'flex',
+          flexDirection: 'row',
+          gap: 1.5,
+          alignItems: 'center'
+        }}>
+           <Box sx={{ 
+             display: 'flex', 
+             alignItems: 'center', 
+             gap: 1.5, 
+             background: 'rgba(0,0,0,0.85)',
+             px: 2, 
+             py: 0.8, 
+             borderRadius: 2, 
+             border: '1px solid rgba(255,255,255,0.2)',
+             boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+             backdropFilter: 'blur(10px)'
+           }}>
+             <Clock size={14} color="#ffffff" />
+             <Typography variant="body2" sx={{ fontWeight: 950, fontFamily: '"JetBrains Mono", monospace', color: 'white', letterSpacing: 0.5, fontSize: { xs: '0.7rem', md: '0.85rem' } }}>
+               {format12H(currentTime)}
+             </Typography>
+             <Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.2)', mx: 1 }} />
+             <Typography variant="body2" sx={{ fontWeight: 950, color: 'white', fontSize: { xs: '0.65rem', md: '0.85rem' }, letterSpacing: 0.5 }}>
+               {jafariDate || 'Islamic Date'}
+             </Typography>
+           </Box>
+        </Box>
+
+        {/* Stats Overlay - Refined for bottom right alignment */}
+        <Box sx={{ 
+          position: 'absolute', 
+          bottom: { xs: 40, md: 50 },
+          right: { xs: 16, md: 48 }, 
+          zIndex: 40,
+          width: { xs: 'calc(100% - 32px)', sm: 'auto' },
+          display: 'flex',
+          justifyContent: { xs: 'center', md: 'flex-end' }
         }}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeStatIndex}
-              initial={{ scale: 0.9, opacity: 0, x: 20 }}
-              animate={{ scale: 1, opacity: 1, x: 0 }}
-              exit={{ scale: 0.9, opacity: 0, x: -20 }}
+              initial={{ scale: 0.9, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: -10 }}
               transition={{ duration: 0.5 }}
+              style={{ width: '100%' }}
             >
               <Card sx={{ 
-                bgcolor: 'rgba(255,255,255,0.1)', 
+                bgcolor: 'rgba(0,0,0,0.7)', 
                 color: 'white', 
-                borderRadius: 4, 
-                p: { xs: 1.5, md: 2 }, 
-                width: { xs: 140, md: 200 },
-                boxShadow: '0 25px 50px rgba(0,0,0,0.3)',
-                backdropFilter: 'blur(25px)',
-                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 1, 
+                p: { xs: 1.2, md: 1.5 }, 
+                width: { xs: '100%', md: 180 },
+                boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                display: 'flex',
+                flexDirection: { xs: 'row', md: 'column' },
+                alignItems: { xs: 'center', md: 'flex-start' },
+                gap: { xs: 2, md: 0.8 },
+                justifyContent: { xs: 'space-between', md: 'center' }
               }}>
-                <Stack spacing={1}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ 
-                      p: 1, 
-                      borderRadius: 1.5, 
-                      background: alpha(currentStat.color, 0.2),
-                      color: currentStat.color,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      {React.cloneElement(currentStat.icon as React.ReactElement<any>, { size: 18 })}
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" sx={{ fontWeight: 900, fontSize: '0.6rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: 1 }}>{currentStat.label}</Typography>
-                    </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 1 } }}>
+                  <Box sx={{ 
+                    p: 0.7, 
+                    borderRadius: 1.5, 
+                    background: alpha(currentStat.color, 0.2),
+                    color: currentStat.color,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: `0 4px 12px ${alpha(currentStat.color, 0.2)}`
+                  }}>
+                    {React.cloneElement(currentStat.icon as React.ReactElement<any>, { size: 12 })}
                   </Box>
-                  
-                  <Typography variant="h4" sx={{ fontWeight: 950, letterSpacing: -1, fontSize: { xs: '1.8rem', md: '2.5rem' }, fontFamily: 'var(--font-heading)', lineHeight: 1 }}>{currentStat.value}</Typography>
-                </Stack>
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 900, fontSize: { xs: '0.45rem', md: '0.55rem' }, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 1.2 }}>
+                      {currentStat.label}
+                    </Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 1000, letterSpacing: -0.5, fontSize: { xs: '0.85rem', md: '1.25rem' }, fontFamily: 'var(--font-heading)', lineHeight: 1, mt: 0.1 }}>
+                      {currentStat.value}
+                    </Typography>
+                  </Box>
+                </Box>
+                
+                <Box sx={{ display: { xs: 'none', md: 'block' }, mt: 0.1 }}>
+                   <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 800, fontSize: '0.6rem', letterSpacing: 0.5 }}>{currentStat.unit}</Typography>
+                </Box>
+                
+                {/* Visual Progress indicator */}
+                <Box sx={{ display: 'flex', gap: 0.6, mt: { md: 1.2 } }}>
+                   {instituteStats.slice(0, 4).map((_, i) => (
+                     <Box key={i} sx={{ width: i === activeStatIndex ? { xs: 10, md: 20 } : 4, height: 3, borderRadius: 2, bgcolor: i === activeStatIndex ? currentStat.color : 'rgba(255,255,255,0.15)', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+                   ))}
+                </Box>
               </Card>
             </motion.div>
           </AnimatePresence>
         </Box>
 
-        {/* Welcome Text Content - Maximized readability and impact */}
+        {/* Welcome Text Content - Align below time/date left */}
         <Box sx={{ 
           position: 'absolute', 
-          bottom: { xs: 24, md: 40 }, 
-          left: { xs: 16, md: 40 }, 
+          top: { xs: 70, md: 90 },
+          left: { xs: 16, md: 32 },
           zIndex: 10,
-          maxWidth: { xs: '90%', md: '70%' },
+          width: { xs: 'calc(100% - 32px)', md: '600px' },
+          textAlign: 'left',
           pointerEvents: 'none'
         }}>
-          <Stack spacing={0.5}>
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-              <Typography 
-                variant="overline" 
-                sx={{ 
-                  color: '#fbbf24', 
-                  fontWeight: 900, 
-                  letterSpacing: 4, 
-                  fontSize: { xs: '0.6rem', md: '0.8rem' },
-                  textShadow: '0 2px 10px rgba(0,0,0,0.8)'
-                }}
-              >
-                ASSALAMU ALAIKUM
-              </Typography>
-            </motion.div>
-            
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-              <Typography variant="h1" sx={{ 
-                fontWeight: 950, 
+          <Stack spacing={0.5} alignItems="flex-start">
+            <motion.div initial={{ opacity: 0, x: -15 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
+              <Typography variant="h5" sx={{ 
+                fontWeight: 1000, 
                 color: 'white', 
-                letterSpacing: { xs: 1, md: 3 }, 
-                fontSize: { xs: '2.5rem', md: '5rem' }, 
-                lineHeight: 0.85,
+                letterSpacing: -0.5, 
+                fontSize: { xs: '1.8rem', md: '3rem' }, 
+                lineHeight: 1.1,
                 fontFamily: '"Cinzel Decorative", serif',
-                textShadow: '0 10px 40px rgba(0,0,0,0.6)',
-                mb: 1
+                textShadow: '0 4px 20px rgba(0,0,0,0.8)',
+                mb: 0.5,
+                display: 'block'
               }}>
-                {instituteData.greeting ? instituteData.greeting.replace('{name}', user.displayName?.split(' ')[0] || '') : user.displayName?.split(' ')[0]}
+                {instituteData.greeting ? instituteData.greeting.replace('{name}', user.displayName?.split(' ')[0] || '') : `Salaam, ${user.displayName?.split(' ')[0]}`}
               </Typography>
               {instituteData.tagline && (
-                <Typography variant="h5" sx={{ 
-                  color: 'rgba(255,255,255,0.9)', 
-                  fontWeight: 700, 
-                  textShadow,
-                  mb: 2,
+                <Typography variant="body2" sx={{ 
+                  color: 'rgba(255,255,255,0.95)', 
+                  fontWeight: 800, 
+                  textShadow: '0 4px 16px rgba(0,0,0,1)',
+                  mb: 3,
                   fontFamily: '"Cinzel Decorative", serif',
-                  letterSpacing: 2
+                  letterSpacing: { xs: 1, md: 2 },
+                  fontSize: { xs: '0.8rem', md: '1.1rem' },
+                  textTransform: 'uppercase'
                 }}>
                   {instituteData.tagline}
                 </Typography>
               )}
             </motion.div>
-
-            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 }}>
+            
+            <motion.div 
+              initial={{ opacity: 0, x: -15 }} 
+              animate={{ opacity: 1, x: 0 }} 
+              transition={{ delay: 0.8 }}
+              style={{ width: '100%', maxWidth: '600px' }}
+            >
               <Box sx={{ 
-                mt: 1,
-                pl: 2,
-                borderLeft: `3px solid #fbbf24`,
-                maxWidth: '450px'
+                bgcolor: 'transparent', 
+                p: 0, 
+                width: '100%',
+                pointerEvents: 'none',
+                borderLeft: '4px solid',
+                borderColor: alpha(theme.palette.primary.main, 0.6),
+                pl: 3
               }}>
-                <Typography 
-                  sx={{ 
-                    fontSize: { xs: '0.85rem', md: '1.05rem' }, 
-                    fontWeight: 700, 
-                    color: 'rgba(255,255,255,0.95)', 
-                    lineHeight: 1.6,
-                    fontStyle: 'italic',
-                    textShadow,
-                    whiteSpace: 'pre-line',
-                    letterSpacing: '0.01em',
-                    fontFamily: 'var(--font-serif)',
-                  }}
-                >
-                  "{quote}"
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={quote}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    transition={{ duration: 1.5, ease: "easeInOut" }}
+                  >
+                    <Typography 
+                      sx={{ 
+                        fontSize: { xs: '0.9rem', sm: '1.1rem', md: '1.4rem' }, 
+                        fontWeight: 700, 
+                        color: 'rgba(255,255,255,1)', 
+                        lineHeight: 1.4,
+                        fontStyle: 'italic',
+                        fontFamily: '"Cinzel", serif',
+                        textAlign: 'left',
+                        textShadow: '0 4px 12px rgba(0,0,0,0.8)'
+                      }}
+                    >
+                      "{quote}"
+                    </Typography>
+                  </motion.div>
+                </AnimatePresence>
+                <Typography variant="caption" sx={{ mt: 1, display: 'block', color: alpha('#fff', 0.6), fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase' }}>
+                  Words of Wisdom
                 </Typography>
               </Box>
             </motion.div>
@@ -829,43 +864,43 @@ export default function Dashboard({ user }: DashboardProps) {
                       fullWidth
                       onClick={() => navigate(action.path)}
                       sx={{ 
-                        borderRadius: 4, 
+                        borderRadius: 1, 
                         fontWeight: 950, 
-                        py: { xs: 2, sm: 3 }, 
+                        py: { xs: 1.5, sm: 3 }, 
                         flexDirection: 'column',
-                        gap: 1.5,
+                        gap: { xs: 1, sm: 1.5 },
                         color: 'white',
                         background: [
-                          'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
-                          'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
-                          'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-                          'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                          'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
-                          'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)'
+                          `linear-gradient(135deg, ${instituteColors.primary} 0%, ${alpha(instituteColors.primary, 0.8)} 100%)`,
+                          `linear-gradient(135deg, ${instituteColors.accent1} 0%, ${alpha(instituteColors.accent1, 0.9)} 100%)`,
+                          `linear-gradient(135deg, ${instituteColors.accent2} 0%, ${alpha(instituteColors.accent2, 0.8)} 100%)`,
+                          'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
+                          'linear-gradient(135deg, #db2777 0%, #9d174d 100%)',
+                          'linear-gradient(135deg, #0891b2 0%, #155e75 100%)'
                         ][i % 6],
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-                        textShadow: '0 1px 4px rgba(0,0,0,0.3)',
-                        fontSize: { xs: '0.7rem', sm: '0.85rem' },
-                        transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
+                        textShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                        fontSize: { xs: '0.6rem', sm: '0.85rem' },
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         '&:hover': { 
-                          transform: 'translateY(-3px)',
-                          boxShadow: `0 8px 20px ${alpha(instituteData.accentColors?.[i % (instituteData.accentColors?.length || 4)] || theme.palette.primary.main, 0.2)}`,
-                          filter: 'brightness(1.05)'
+                          transform: 'translateY(-4px)',
+                          boxShadow: `0 12px 25px ${alpha('#000', 0.2)}`,
+                          filter: 'brightness(1.1) saturate(1.1)',
                         },
-                        '&:active': { transform: 'scale(0.92)' }
+                        '&:active': { transform: 'scale(0.95)' }
                       }}
                     >
                       <Box sx={{ 
-                        p: 1, 
-                        borderRadius: 2, 
+                        p: { xs: 0.8, sm: 1 }, 
+                        borderRadius: 1, 
                         bgcolor: 'rgba(255,255,255,0.25)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         color: 'white'
                        }}>
-                         {action.icon}
+                         {getActionIcon(action.icon, isMobile ? 16 : 18)}
                       </Box>
                       {action.label}
                     </Button>
@@ -890,43 +925,43 @@ export default function Dashboard({ user }: DashboardProps) {
                       fullWidth
                       onClick={() => navigate(action.path)}
                       sx={{ 
-                        borderRadius: 4, 
+                        borderRadius: 1, 
                         fontWeight: 950, 
-                        py: { xs: 2, sm: 3 }, 
+                        py: { xs: 1.5, sm: 3 }, 
                         flexDirection: 'column',
-                        gap: 1.5,
+                        gap: { xs: 1, sm: 1.5 },
                         color: 'white',
                         background: [
-                          'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-                          'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                          'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
-                          'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
-                          'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
-                          'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)'
+                          `linear-gradient(135deg, ${instituteColors.primary} 0%, ${alpha(instituteColors.primary, 0.8)} 100%)`,
+                          `linear-gradient(135deg, ${instituteColors.accent1} 0%, ${alpha(instituteColors.accent1, 0.9)} 100%)`,
+                          `linear-gradient(135deg, ${instituteColors.accent2} 0%, ${alpha(instituteColors.accent2, 0.8)} 100%)`,
+                          `linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)`,
+                          `linear-gradient(135deg, #db2777 0%, #9d174d 100%)`,
+                          `linear-gradient(135deg, #0891b2 0%, #155e75 100%)`
                         ][i % 6],
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-                        textShadow: '0 1px 4px rgba(0,0,0,0.3)',
-                        fontSize: { xs: '0.7rem', sm: '0.85rem' },
-                        transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
+                        textShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                        fontSize: { xs: '0.6rem', sm: '0.85rem' },
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         '&:hover': { 
-                          transform: 'translateY(-3px)',
-                          boxShadow: `0 8px 20px ${alpha(instituteData.accentColors?.[i % (instituteData.accentColors?.length || 4)] || theme.palette.primary.main, 0.2)}`,
-                          filter: 'brightness(1.05)'
+                          transform: 'translateY(-4px)',
+                          boxShadow: `0 12px 25px ${alpha('#000', 0.2)}`,
+                          filter: 'brightness(1.1) saturate(1.1)'
                         },
-                        '&:active': { transform: 'scale(0.92)' }
+                        '&:active': { transform: 'scale(0.95)' }
                       }}
                     >
                       <Box sx={{ 
-                        p: 1, 
-                        borderRadius: 2, 
+                        p: { xs: 0.8, sm: 1 }, 
+                        borderRadius: 1, 
                         bgcolor: 'rgba(255,255,255,0.25)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         color: 'white'
                        }}>
-                         {action.icon}
+                         {getActionIcon(action.icon, isMobile ? 16 : 18)}
                       </Box>
                       {action.label}
                     </Button>
@@ -952,41 +987,46 @@ export default function Dashboard({ user }: DashboardProps) {
                       fullWidth
                       onClick={() => navigate(action.path)}
                       sx={{ 
-                        borderRadius: 4, 
+                        borderRadius: 1, 
                         fontWeight: 950, 
-                        py: { xs: 2, sm: 3 }, 
+                        py: { xs: 1.5, sm: 3 }, 
                         flexDirection: 'column',
-                        gap: 1.5,
+                        gap: { xs: 1, sm: 1.5 },
                         color: 'white',
                         background: [
-                          'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
-                          'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
-                          'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-                          'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                          'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
-                          'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)'
-                        ][i % 6],
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        textShadow: '0 1px 4px rgba(0,0,0,0.3)',
-                        fontSize: { xs: '0.65rem', sm: '0.85rem' },
+                          `linear-gradient(135deg, ${instituteColors.primary} 0%, ${alpha(instituteColors.primary, 0.8)} 100%)`,
+                          `linear-gradient(135deg, ${instituteColors.accent1} 0%, ${alpha(instituteColors.accent1, 0.9)} 100%)`,
+                          `linear-gradient(135deg, ${instituteColors.accent2} 0%, ${alpha(instituteColors.accent2, 0.8)} 100%)`,
+                          'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)',
+                          'linear-gradient(135deg, #db2777 0%, #9d174d 100%)',
+                          'linear-gradient(135deg, #0891b2 0%, #155e75 100%)',
+                          'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)',
+                          'linear-gradient(135deg, #8b5cf6 0%, #5b21b6 100%)',
+                          'linear-gradient(135deg, #06b6d4 0%, #155e75 100%)'
+                        ][i % 9],
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
+                        textShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                        fontSize: { xs: '0.6rem', sm: '0.85rem' },
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         '&:hover': { 
-                          transform: 'translateY(-2px)',
-                          boxShadow: `0 8px 16px ${alpha(instituteData.accentColors?.[i % (instituteData.accentColors?.length || 4)] || theme.palette.primary.main, 0.2)}`,
-                          filter: 'brightness(1.05)'
-                        } 
+                          transform: 'translateY(-4px)',
+                          boxShadow: `0 12px 25px ${alpha('#000', 0.2)}`,
+                          filter: 'brightness(1.1) saturate(1.1)'
+                        },
+                        '&:active': { transform: 'scale(0.95)' }
                       }}
                     >
                       <Box sx={{ 
-                        p: 1, 
-                        borderRadius: 2, 
+                        p: { xs: 0.8, sm: 1 }, 
+                        borderRadius: 1, 
                         bgcolor: 'rgba(255,255,255,0.25)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         color: 'white'
                        }}>
-                         {action.icon}
+                         {getActionIcon(action.icon, isMobile ? 16 : 18)}
                       </Box>
                       {action.label}
                     </Button>
@@ -1480,7 +1520,7 @@ export default function Dashboard({ user }: DashboardProps) {
             p: { xs: 3, md: 5 }, 
             minWidth: { xs: '90%', sm: 400 },
             background: theme.palette.mode === 'dark' 
-              ? 'linear-gradient(145deg, #0f172a, #1e293b)' 
+              ? 'linear-gradient(145deg, #050505, #0d0d0d)' 
               : 'linear-gradient(145deg, #f8fafc, #f1f5f9)',
             border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
             boxShadow: theme.shadows[24],

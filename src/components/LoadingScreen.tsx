@@ -36,6 +36,8 @@ export default function LoadingScreen() {
     };
   }, []);
 
+  const isDark = theme.palette.mode === 'dark';
+
   return (
     <Box 
       sx={{ 
@@ -45,12 +47,14 @@ export default function LoadingScreen() {
         flexDirection: 'column',
         alignItems: 'center', 
         justifyContent: 'center',
-        bgcolor: '#000',
+        bgcolor: isDark ? '#050505' : '#f8fafc',
         position: 'fixed',
         top: 0,
         left: 0,
         zIndex: 99999,
-        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(15, 118, 110, 0.15) 0%, rgba(0,0,0,0) 80%)',
+        backgroundImage: isDark 
+          ? `radial-gradient(circle at 50% 50%, ${alpha('#1e40af', 0.05)} 0%, transparent 80%)`
+          : `radial-gradient(circle at 50% 50%, ${alpha(theme.palette.primary.main, 0.05)} 0%, transparent 80%)`,
         overflow: 'hidden'
       }}
     >

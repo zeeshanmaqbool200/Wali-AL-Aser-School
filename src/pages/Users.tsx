@@ -50,6 +50,7 @@ import {
   alpha,
   Container
 } from '@mui/material';
+import ImageCaptureDialog from '../components/ImageCaptureDialog';
 import { 
   Search, 
   Plus, 
@@ -78,7 +79,9 @@ import {
   RotateCcw,
   User,
   IndianRupee,
-  Users as UsersIcon
+  MessageCircle,
+  Users as UsersIcon,
+  Camera
 } from 'lucide-react';
 import { 
   collection, 
@@ -156,7 +159,10 @@ export default function Users() {
   const isStaff = isAdmin || isTeacherRole;
 
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if ((window as any)._usersLoaded) return false;
+    return true;
+  });
   const [searchQuery, setSearchQuery] = useState(() => sessionStorage.getItem('users_search') || '');
   const [tabValue, setTabValue] = useState(() => Number(sessionStorage.getItem('users_tab')) || 0);
   const [openDialog, setOpenDialog] = useState(false);
@@ -205,6 +211,7 @@ export default function Users() {
     gender: '', // Added gender field
     dob: '',
     photoURL: '',
+    qualifications: '', // Added qualifications field
     subjectsEnrolled: [] as string[]
   });
 
@@ -223,6 +230,7 @@ export default function Users() {
   const [newClassLevel, setNewClassLevel] = useState('');
 
   const [openAdmissionForm, setOpenAdmissionForm] = useState(false);
+  const [openCapture, setOpenCapture] = useState(false);
 
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [bulkActionAnchor, setBulkActionAnchor] = useState<null | HTMLElement>(null);
@@ -349,11 +357,11 @@ export default function Users() {
             const dob = u.dob ? new Date(u.dob) : null;
             return `
               <div class="admission-container">
-                 <img class="watermark" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}">
+                 <img class="watermark" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}" crossorigin="anonymous" referrerpolicy="no-referrer">
                  
                  <div class="header">
                     <div class="bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
-                    <img class="logo" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}">
+                    <img class="logo" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}" crossorigin="anonymous" referrerpolicy="no-referrer">
                     <h1 class="institute-name">مکتب ولی العصر</h1>
                     <div class="tagline">زیر نگران ادارہ ولی العصر چھترگام</div>
                  </div>
@@ -449,7 +457,7 @@ export default function Users() {
                       </ul>
                     </div>
                     <div class="photo-box">
-                      ${u.photoURL ? `<img src="${u.photoURL}">` : '<div style="line-height:1">تصویر<br>4*4</div>'}
+                      ${u.photoURL ? `<img src="${u.photoURL}" crossorigin="anonymous" referrerpolicy="no-referrer">` : '<div style="line-height:1">تصویر<br>4*4</div>'}
                     </div>
                  </div>
                  
@@ -679,6 +687,7 @@ export default function Users() {
     if (allUsers.length > 0) {
       setUsers(allUsers);
       setLoading(false);
+      (window as any)._usersLoaded = true;
     }
   }, [allUsers]);
 
@@ -856,7 +865,7 @@ export default function Users() {
       } else {
         setLoading(true);
         let uid = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const userData = {
+        const userData: any = {
           ...finalFormData,
           uid,
           id: uid, 
@@ -865,6 +874,23 @@ export default function Users() {
           updatedAt: Date.now(),
           photoURL: finalFormData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(finalFormData.displayName)}&background=random&color=fff`,
         };
+
+        // Auto-generate IDs if empty
+        if (userData.role === 'student' && !userData.admissionNo) {
+          const year = new Date().getFullYear();
+          userData.admissionNo = `ADM-${year}-${(userData.displayName || 'STU').slice(0, 3).toUpperCase()}-${Math.floor(100000 + Math.random() * 900000)}`;
+        } else if (['teacher', 'manager', 'superadmin'].includes(userData.role) && !userData.staffId) {
+          const prefix = userData.role === 'teacher' ? 'TEA' : userData.role === 'manager' ? 'MGR' : 'ADM';
+          userData.staffId = `WUA-${prefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+          // Maintain legacy fields for compatibility
+          if (userData.role === 'teacher') userData.teacherId = userData.staffId;
+          if (userData.role === 'manager') userData.managerId = userData.staffId;
+        }
+
+        if (!userData.qualifications) {
+          userData.qualifications = '';
+        }
+
         const { password: _, ...dataToStore } = userData as any;
         
         // Optimistic UI update for new user
@@ -1098,7 +1124,7 @@ export default function Users() {
                   px: isMobile ? 2 : 3,
                   background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
                   boxShadow: theme.palette.mode === 'dark'
-                    ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+                    ? '8px 8px 16px #000000, -8px -8px 16px rgba(255,255,255,0.02)'
                     : `0 8px 20px ${alpha(theme.palette.primary.main, 0.25)}`,
                   '&:hover': {
                     background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
@@ -1407,7 +1433,7 @@ export default function Users() {
         open={openProfileDialog} 
         onClose={() => setOpenProfileDialog(false)}
       >
-        <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'white', color: 'black', borderBottom: '1px solid', borderColor: 'divider' }}>
+        <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'background.paper', color: 'text.primary', borderBottom: '1px solid', borderColor: 'divider' }}>
           <Toolbar>
             <Button 
               startIcon={<X size={18} />} 
@@ -1418,7 +1444,7 @@ export default function Users() {
                 textTransform: 'none', 
                 px: 2,
                 borderRadius: 2,
-                border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
                 mr: 2,
                 '&:hover': {
                   bgcolor: alpha(theme.palette.error.main, 0.05),
@@ -1433,6 +1459,42 @@ export default function Users() {
               Member Profile
             </Typography>
             <Stack direction="row" spacing={1}>
+               {isSuperAdmin && (
+                 <Button 
+                   variant="outlined" 
+                   size="small"
+                   startIcon={<Edit2 size={16} />} 
+                   onClick={() => {
+                     if (profileToView) {
+                       setEditingUser(profileToView);
+                        setFormData({
+                          displayName: profileToView.displayName || '',
+                          email: profileToView.email || '',
+                          role: profileToView.role || 'student',
+                          status: profileToView.status || 'Active',
+                          isVerified: profileToView.isVerified ?? true,
+                          classLevel: profileToView.classLevel || '',
+                          admissionNo: profileToView.admissionNo || '',
+                          teacherId: profileToView.teacherId || '',
+                          password: '',
+                          gender: (profileToView as any).gender || '',
+                          phone: profileToView.phone || '',
+                          fatherName: profileToView.fatherName || '',
+                          motherName: profileToView.motherName || '',
+                          dob: profileToView.dob || '',
+                          address: profileToView.address || '',
+                          qualifications: profileToView.qualifications || '',
+                          photoURL: profileToView.photoURL || '',
+                          subjectsEnrolled: profileToView.subjectsEnrolled || []
+                        });
+                       setOpenDialog(true);
+                     }
+                   }}
+                   sx={{ borderRadius: 10, fontWeight: 800, textTransform: 'none' }}
+                 >
+                   Edit Profile
+                 </Button>
+               )}
                <Button 
                 variant="outlined" 
                 size="small"
@@ -1455,7 +1517,7 @@ export default function Users() {
             </Stack>
           </Toolbar>
         </AppBar>
-        <DialogContent sx={{ bgcolor: '#f2f2f7', p: 0 }}>
+        <DialogContent sx={{ bgcolor: 'background.default', p: 0 }}>
            {profileToView && (
              <Box sx={{ pb: 10 }}>
                 {/* Hero Header */}
@@ -1473,9 +1535,22 @@ export default function Users() {
                       <Card className="ios-card" sx={{ p: 4, textAlign: 'center' }}>
                         <Avatar 
                           src={profileToView.photoURL} 
-                          sx={{ width: 160, height: 160, mx: 'auto', mb: 3, border: '6px solid white', boxShadow: '0 8px 30px rgba(0,0,0,0.1)' }} 
+                          sx={{ width: 160, height: 160, mx: 'auto', mb: 3, border: `6px solid ${theme.palette.background.paper}`, boxShadow: '0 8px 30px rgba(0,0,0,0.1)' }} 
                         />
-                        <Typography variant="h4" id="profile-name" sx={{ fontWeight: 950, mb: 1, letterSpacing: -1.5, fontFamily: 'var(--font-heading)', color: 'text.primary' }}>
+                        <Typography variant="h4" id="profile-name" sx={{ 
+                          fontWeight: 950, 
+                          mb: 1, 
+                          letterSpacing: -1, 
+                          fontFamily: 'var(--font-heading)', 
+                          color: 'text.primary',
+                          fontSize: { xs: '1.8rem', md: '2.4rem' },
+                          lineHeight: 1.1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxDirection: 'vertical'
+                        }}>
                           {profileToView.displayName}
                         </Typography>
                         <Typography variant="body1" id="profile-email" sx={{ fontWeight: 700, mb: 3, color: 'text.secondary' }}>
@@ -1500,13 +1575,31 @@ export default function Users() {
                                 <Mail size={18} className="text-zinc-400" />
                                 <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{profileToView.email}</Typography>
                               </Box>
+                              {profileToView.phone && (
+                                <Button
+                                  fullWidth
+                                  variant="contained"
+                                  startIcon={<MessageCircle size={18} />}
+                                  onClick={() => window.open(`https://wa.me/${profileToView.phone.replace(/\D/g, '')}`, '_blank')}
+                                  sx={{ 
+                                    mt: 1, 
+                                    fontWeight: 900, 
+                                    borderRadius: 3,
+                                    bgcolor: '#25D366',
+                                    color: 'white',
+                                    '&:hover': { bgcolor: '#128C7E' }
+                                  }}
+                                >
+                                  WhatsApp Now
+                                </Button>
+                              )}
                            </Stack>
                         </Box>
 
-                        <Box sx={{ p: 3, bgcolor: '#f2f2f7', borderRadius: 5 }}>
+                        <Box sx={{ p: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 5 }}>
                            <Typography className="ui-label" sx={{ mb: 1.5, display: 'block', textAlign: 'center' }}>PROFILE VERIFICATON</Typography>
-                           <Box sx={{ p: 1, bgcolor: 'white', display: 'inline-block', borderRadius: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                            <QRCodeSVG value={`${window.location.origin}/verify/profile/${profileToView.uid}`} size={140} />
+                           <Box sx={{ p: 1, bgcolor: theme.palette.mode === 'dark' ? 'white' : 'white', display: 'inline-block', borderRadius: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                            <QRCodeSVG value={`${window.location.origin}/verify/profile/${profileToView.uid}`} size={140} bgColor="white" fgColor="#000000" />
                            </Box>
                         </Box>
                       </Card>
@@ -1667,9 +1760,9 @@ export default function Users() {
         fullScreen 
         open={openAdmissionForm} 
         onClose={() => setOpenAdmissionForm(false)}
-        PaperProps={{ sx: { bgcolor: '#eee' } }}
+        PaperProps={{ sx: { bgcolor: 'background.default' } }}
       >
-        <AppBar sx={{ position: 'relative', bgcolor: 'white', color: 'black' }} elevation={0} className="no-print">
+        <AppBar sx={{ position: 'relative', bgcolor: 'background.paper', color: 'text.primary' }} elevation={0} className="no-print">
           <Toolbar sx={{ justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <IconButton onClick={() => setOpenAdmissionForm(false)} sx={{ color: 'text.secondary' }}><X size={20} /></IconButton>
@@ -1678,91 +1771,97 @@ export default function Users() {
             <Button variant="contained" startIcon={<Printer />} onClick={handlePrint}>Print Form</Button>
           </Toolbar>
         </AppBar>
-        <DialogContent sx={{ p: 0, display: 'flex', justifyContent: 'center', overflowX: 'auto', bgcolor: '#f4f4f5' }}>
+        <DialogContent sx={{ p: 0, display: 'flex', justifyContent: 'center', overflowX: 'auto', bgcolor: 'background.default' }}>
            <Paper className="admission-page" sx={{ 
              width: '210mm', 
-             height: '297mm', 
-             p: '15mm', 
+             minHeight: '297mm', 
+             p: '12mm', 
              boxSizing: 'border-box',
-             bgcolor: 'white', 
-             color: 'black', 
+             bgcolor: '#FFFFFF', 
+             color: '#000000', 
              position: 'relative',
              direction: 'rtl',
              fontFamily: '"Noto Nastaliq Urdu", serif',
              display: 'flex',
              flexDirection: 'column',
              boxShadow: 3,
-             my: { xs: 0, md: 4 }
+             my: { xs: 0, md: 4 },
+             overflow: 'hidden'
            }}>
-              <Box sx={{ 
-                position: 'absolute', 
-                top: '50%', 
-                left: '50%', 
-                transform: 'translate(-50%, -50%)', 
-                width: '140mm', 
-                opacity: 0.04, 
-                zIndex: 0, 
-                pointerEvents: 'none' 
-              }}>
-                <img src={instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'} style={{ width: '100%' }} />
-              </Box>
+                <Box sx={{ 
+                  position: 'absolute', 
+                  top: '50%', 
+                  left: '50%', 
+                  transform: 'translate(-50%, -50%)', 
+                  width: '140mm', 
+                  opacity: 0.04, 
+                  zIndex: 0, 
+                  pointerEvents: 'none' 
+                }}>
+                  <img src={instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'} style={{ width: '100%' }} crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                </Box>
 
               <Box sx={{ position: 'relative', zIndex: 10, flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <Typography sx={{ textAlign: 'center', fontSize: '1.5rem', mb: 1 }}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Typography>
 
                 <Box sx={{ textAlign: 'center', mb: 1 }}>
-                  <img src={instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'} style={{ width: 80, height: 80, objectFit: 'contain' }} />
-                  <Typography variant="h2" sx={{ fontWeight: 950, color: 'success.main', mt: 0.5, fontSize: '2.8rem', lineHeight: 1.1 }}>مکتب ولی العصر</Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.secondary', mt: 0 }}>زیر نگران ادارہ ولی العصر چھترگام</Typography>
+                  <img 
+                    src={instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'} 
+                    style={{ width: 60, height: 60, objectFit: 'contain' }} 
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
+                  />
+                  <Typography variant="h3" sx={{ fontWeight: 950, color: 'success.main', mt: 0.5, fontSize: '2.4rem', lineHeight: 1.1, fontFamily: 'var(--font-urdu)' }}>مکتب ولی العصر</Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#64748b', mt: 0, opacity: 0.8 }}>زیر نگران ادارہ ولی العصر چھترگام</Typography>
                 </Box>
 
-                <Typography sx={{ textAlign: 'center', fontSize: '5rem', fontWeight: 950, my: 4, lineHeight: 0.8 }}>تحریرِ داخلہ</Typography>
+                <Typography sx={{ textAlign: 'center', fontSize: '3.5rem', fontWeight: 950, my: 2, lineHeight: 0.8, fontFamily: 'var(--font-urdu)' }}>تحریرِ داخلہ</Typography>
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4, borderBottom: '3px solid', borderColor: 'success.main', pb: 1 }}>
-                  <Typography sx={{ fontSize: '1.5rem', fontWeight: 900 }}>داخلہ نمبر: <span style={{ fontFamily: 'Inter, sans-serif' }}>{profileToView?.admissionNo || profileToView?.uid.slice(0,8)}</span></Typography>
-                  <Typography sx={{ fontSize: '1.5rem', fontWeight: 900 }}>جماعت / درجہ: <span style={{ borderBottom: '2px dotted black', minWidth: 100, display: 'inline-block', textAlign: 'center' }}>{profileToView?.classLevel || ''}</span></Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4, borderBottom: '2px solid', borderColor: 'success.main', pb: 1 }}>
+                  <Typography sx={{ fontSize: '1.2rem', fontWeight: 900 }}>داخلہ نمبر: <span style={{ fontFamily: 'Inter, sans-serif' }}>{profileToView?.admissionNo || profileToView?.uid.slice(0,8)}</span></Typography>
+                  <Typography sx={{ fontSize: '1.2rem', fontWeight: 900 }}>جماعت / درجہ: <span style={{ borderBottom: '2px dotted black', minWidth: 100, display: 'inline-block', textAlign: 'center' }}>{profileToView?.classLevel || ''}</span></Typography>
                 </Box>
 
-                <Stack spacing={8}>
+                <Stack spacing={4}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Typography sx={{ fontSize: '2rem', fontWeight: 900, minWidth: 120 }}>نام :</Typography>
+                    <Typography sx={{ fontSize: '1.8rem', fontWeight: 900, minWidth: 120 }}>نام :</Typography>
                     <Box sx={{ display: 'flex', flex: 1, gap: 4 }}>
-                      <Box sx={{ flex: 1, height: 50, border: '2px solid black', borderRadius: 2, display: 'flex', alignItems: 'center', px: 2, position: 'relative' }}>
-                        <Typography sx={{ position: 'absolute', top: -25, left: '50%', transform: 'translateX(-50%)', fontSize: '0.8rem', opacity: 0.7 }}>ابتدائی</Typography>
-                        <Typography variant="h5" sx={{ fontWeight: 800 }}>{(profileToView?.displayName || '').split(' ')[0]}</Typography>
+                      <Box sx={{ flex: 1, height: 44, border: '1.5px solid black', borderRadius: 1.5, display: 'flex', alignItems: 'center', px: 2, position: 'relative' }}>
+                        <Typography sx={{ position: 'absolute', top: -20, left: '50%', transform: 'translateX(-50%)', fontSize: '0.7rem', opacity: 0.7 }}>ابتدائی</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 800 }}>{(profileToView?.displayName || '').split(' ')[0]}</Typography>
                       </Box>
-                      <Box sx={{ flex: 1, height: 50, border: '2px solid black', borderRadius: 2, display: 'flex', alignItems: 'center', px: 2, position: 'relative' }}>
-                         <Typography sx={{ position: 'absolute', top: -25, left: '50%', transform: 'translateX(-50%)', fontSize: '0.8rem', opacity: 0.7 }}>آخری</Typography>
-                         <Typography variant="h5" sx={{ fontWeight: 800 }}>{(profileToView?.displayName || '').split(' ').slice(1).join(' ')}</Typography>
+                      <Box sx={{ flex: 1, height: 44, border: '1.5px solid black', borderRadius: 1.5, display: 'flex', alignItems: 'center', px: 2, position: 'relative' }}>
+                         <Typography sx={{ position: 'absolute', top: -20, left: '50%', transform: 'translateX(-50%)', fontSize: '0.7rem', opacity: 0.7 }}>آخری</Typography>
+                         <Typography variant="h6" sx={{ fontWeight: 800 }}>{(profileToView?.displayName || '').split(' ').slice(1).join(' ')}</Typography>
                       </Box>
                     </Box>
                   </Box>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Typography sx={{ fontSize: '2rem', fontWeight: 900, minWidth: 120 }}>ولدیت :</Typography>
-                    <Box sx={{ flex: 1, height: 50, border: '2px solid black', borderRadius: 2, display: 'flex', alignItems: 'center', px: 2 }}>
-                      <Typography variant="h5" sx={{ fontWeight: 800 }}>{profileToView?.fatherName}</Typography>
+                    <Typography sx={{ fontSize: '1.8rem', fontWeight: 900, minWidth: 120 }}>ولدیت :</Typography>
+                    <Box sx={{ flex: 1, height: 44, border: '1.5px solid black', borderRadius: 1.5, display: 'flex', alignItems: 'center', px: 2 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>{profileToView?.fatherName}</Typography>
                     </Box>
                   </Box>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Typography sx={{ fontSize: '2rem', fontWeight: 900, minWidth: 120 }}>سکونت :</Typography>
-                    <Box sx={{ flex: 1, height: 50, border: '2px solid black', borderRadius: 2, display: 'flex', alignItems: 'center', px: 2 }}>
-                      <Typography variant="h5" sx={{ fontWeight: 800 }}>{profileToView?.address}</Typography>
+                    <Typography sx={{ fontSize: '1.8rem', fontWeight: 900, minWidth: 120 }}>سکونت :</Typography>
+                    <Box sx={{ flex: 1, height: 44, border: '1.5px solid black', borderRadius: 1.5, display: 'flex', alignItems: 'center', px: 2 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800 }}>{profileToView?.address}</Typography>
                     </Box>
                   </Box>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Typography sx={{ fontSize: '2rem', fontWeight: 900, minWidth: 120 }}>تاریخ پیدائش :</Typography>
-                    <Box sx={{ flex: 1, height: 50, border: '2px solid black', borderRadius: 2, display: 'flex', alignItems: 'center', px: 2 }}>
-                      <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: 'Inter, sans-serif' }}>{safelyFormatDate(profileToView?.dob)}</Typography>
+                    <Typography sx={{ fontSize: '1.8rem', fontWeight: 900, minWidth: 120 }}>تاریخ پیدائش :</Typography>
+                    <Box sx={{ flex: 1, height: 44, border: '1.5px solid black', borderRadius: 1.5, display: 'flex', alignItems: 'center', px: 2 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: 'Inter, sans-serif' }}>{safelyFormatDate(profileToView?.dob)}</Typography>
                     </Box>
                   </Box>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Typography sx={{ fontSize: '2rem', fontWeight: 900, minWidth: 120 }}>رابطہ نمبر :</Typography>
-                    <Box sx={{ flex: 1, height: 50, border: '2px solid black', borderRadius: 2, display: 'flex', alignItems: 'center', px: 2 }}>
-                      <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: 'Inter, sans-serif' }}>{profileToView?.phone}</Typography>
+                    <Typography sx={{ fontSize: '1.8rem', fontWeight: 900, minWidth: 120 }}>رابطہ نمبر :</Typography>
+                    <Box sx={{ flex: 1, height: 44, border: '1.5px solid black', borderRadius: 1.5, display: 'flex', alignItems: 'center', px: 2 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, fontFamily: 'Inter, sans-serif' }}>{profileToView?.phone}</Typography>
                     </Box>
                   </Box>
                 </Stack>
@@ -1778,7 +1877,12 @@ export default function Users() {
                   </Box>
                   <Box sx={{ width: 45 * 3.77, height: 55 * 3.77, border: '2px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#fafafa', overflow: 'hidden' }}>
                      {profileToView?.photoURL ? 
-                       <img src={profileToView.photoURL} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : 
+                       <img 
+                        src={profileToView.photoURL} 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                        referrerPolicy="no-referrer"
+                        crossOrigin="anonymous"
+                       /> : 
                        <Typography sx={{ fontWeight: 800, color: 'text.disabled', textAlign: 'center' }}>تصویر<br/>(4cm x 5cm)</Typography>
                      }
                   </Box>
@@ -1806,11 +1910,28 @@ export default function Users() {
               <style>{`
                 @media print {
                   @page { size: A4; margin: 0; }
-                  body { margin: 0; -webkit-print-color-adjust: exact; }
+                  body { margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background: white !important; }
                   .no-print { display: none !important; }
                   .MuiDialog-container { display: block !important; }
-                  .MuiPaper-root { margin: 0 !important; box-shadow: none !important; border-radius: 0 !important; }
-                  .admission-page { width: 210mm !important; height: 297mm !important; }
+                  .MuiPaper-root { margin: 0 !important; box-shadow: none !important; border-radius: 0 !important; background: white !important; color: black !important; }
+                  .admission-page { 
+                    width: 210mm !important; 
+                    height: 297mm !important; 
+                    margin: 0 !important;
+                    padding: 10mm !important;
+                    box-shadow: none !important;
+                    -webkit-print-color-adjust: exact !important;
+                    background: white !important;
+                    color: black !important;
+                    position: absolute !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                  }
+                  .admission-page * {
+                    background: transparent !important;
+                    color: black !important;
+                  }
+                  img { max-width: 100%; display: block !important; }
                 }
               `}</style>
            </Paper>
@@ -1824,6 +1945,33 @@ export default function Users() {
         </DialogTitle>
         <DialogContent sx={{ px: 3 }}>
           <Box sx={{ mt: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+              <Box sx={{ position: 'relative' }}>
+                <Avatar 
+                  src={formData.photoURL} 
+                  sx={{ width: 100, height: 100, border: '4px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }} 
+                />
+                <IconButton 
+                  size="small"
+                  onClick={() => setOpenCapture(true)}
+                  sx={{ 
+                    position: 'absolute', 
+                    bottom: 0, 
+                    right: 0, 
+                    bgcolor: 'background.paper',
+                    boxShadow: 2,
+                    '&:hover': { bgcolor: 'background.default' }
+                  }}
+                >
+                  <Camera size={16} />
+                </IconButton>
+                <ImageCaptureDialog 
+                  open={openCapture}
+                  onClose={() => setOpenCapture(false)}
+                  onCapture={(base64) => setFormData(prev => ({ ...prev, photoURL: base64 }))}
+                />
+              </Box>
+            </Box>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField fullWidth label="Full Name" name="displayName" value={formData.displayName} onChange={handleFormChange} required />
@@ -1856,27 +2004,44 @@ export default function Users() {
                   </Grid>
                   <Grid size={{ xs: 12 }}>
                     <FormControl fullWidth>
-                      <InputLabel>Enrolled Subjects</InputLabel>
+                      <InputLabel>Enrolled Subjects (Required for Curriculum)</InputLabel>
                       <Select
                         multiple
                         name="subjectsEnrolled"
                         value={formData.subjectsEnrolled || []}
-                        label="Enrolled Subjects"
+                        label="Enrolled Subjects (Required for Curriculum)"
                         onChange={handleFormChange}
                         renderValue={(selected) => (
                           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                             {(selected as string[]).map((value) => (
-                              <Chip key={value} label={value} size="small" />
+                              <Chip 
+                                key={value} 
+                                label={value} 
+                                size="small" 
+                                sx={{ 
+                                  fontWeight: 800, 
+                                  bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                  color: 'primary.main',
+                                  borderRadius: 1
+                                }} 
+                              />
                             ))}
                           </Box>
                         )}
                       >
                         {SUBJECT_OPTIONS.map((subject) => (
-                          <MenuItem key={subject} value={subject}>
+                          <MenuItem 
+                            key={subject} 
+                            value={subject}
+                            sx={{ fontWeight: formData.subjectsEnrolled?.includes(subject) ? 900 : 500 }}
+                          >
                             {subject}
                           </MenuItem>
                         ))}
                       </Select>
+                      <Typography variant="caption" sx={{ mt: 0.5, ml: 1, fontWeight: 600, color: 'text.secondary' }}>
+                        Select all subjects this student is studying (Quran, Urdu, Diniyat, etc.)
+                      </Typography>
                     </FormControl>
                   </Grid>
                 </>
@@ -1894,6 +2059,19 @@ export default function Users() {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField fullWidth label="Phone Number" name="phone" value={formData.phone} onChange={handleFormChange} />
               </Grid>
+              {(formData.role === 'teacher' || formData.role === 'manager') && (
+                <Grid size={{ xs: 12 }}>
+                  <TextField 
+                    fullWidth 
+                    label="Qualifications" 
+                    name="qualifications" 
+                    value={formData.qualifications || ''} 
+                    onChange={handleFormChange} 
+                    placeholder="e.g. M.A Urdu, B.Ed, Hafiz-e-Quran"
+                    helperText="Academic or professional degrees"
+                  />
+                </Grid>
+              )}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField fullWidth label="Father's Name" name="fatherName" value={formData.fatherName} onChange={handleFormChange} />
               </Grid>
@@ -1981,9 +2159,26 @@ const UserCard = ({ user, actionMenu, onOpenProfile, onSelect, isSelected, selec
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="body1" sx={{ fontWeight: 900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.displayName}</Typography>
             <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>ID: {user.admissionNo || user.uid.slice(0,8)}</Typography>
-            <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+            <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, alignItems: 'center' }}>
               <Chip label={user.classLevel || user.role} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 900, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }} />
               {user.status === 'Archived' && <Chip label="Archived" size="small" color="error" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 900 }} />}
+              {user.phone && (
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
+                  }}
+                  sx={{ 
+                    p: 0, 
+                    ml: 0.5, 
+                    color: '#25D366',
+                    '&:hover': { bgcolor: alpha('#25D366', 0.1) }
+                  }}
+                >
+                  <MessageCircle size={16} />
+                </IconButton>
+              )}
             </Stack>
           </Box>
           <Box onClick={(e) => e.stopPropagation()}>

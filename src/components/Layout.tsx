@@ -9,7 +9,7 @@ import { useTheme, alpha } from '@mui/material/styles';
 import { 
   LogOut, User, Bell, Menu as MenuIcon, Search,
   LayoutDashboard, Users, Calendar, BookOpen, CreditCard, ClipboardList, FileText,
-  ChevronRight, X, Shield, Sun, Moon, School, Download
+  ChevronRight, X, Shield, Sun, Moon, School, Download, ArrowLeft
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserProfile, Notification as NotificationType } from '../types';
@@ -43,6 +43,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [instituteName, setInstituteName] = useState('Wali Ul Aser Institute');
+  const [tagline, setTagline] = useState('Simple Learning for Everyone');
   const [logoUrl, setLogoUrl] = useState('https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png');
   const [bottomNavVisible, setBottomNavVisible] = useState(false);
   const [profileAnchorEl, setProfileAnchorEl] = useState<null | HTMLElement>(null);
@@ -103,6 +104,9 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
         if (data.instituteName !== undefined) {
           setInstituteName(data.instituteName || 'Wali Ul Aser Institute');
           document.title = data.instituteName || 'Wali Ul Aser Institute';
+        }
+        if (data.tagline !== undefined) {
+          setTagline(data.tagline || 'Simple Learning for Everyone');
         }
         if (data.logoUrl !== undefined) {
           const finalLogo = data.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png';
@@ -171,6 +175,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                 unreadNotifications={unreadCount}
                 instituteName={instituteName}
                 logoUrl={logoUrl}
+                tagline={tagline}
               />
           </Drawer>
         ) : (
@@ -182,6 +187,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             unreadNotifications={unreadCount}
             instituteName={instituteName}
             logoUrl={logoUrl}
+            tagline={tagline}
           />
         )
       )}
@@ -217,17 +223,18 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           )}
           <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 60, md: 80 }, px: { xs: 2, md: 4 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {isTablet && !isMobile && (
-                <IconButton onClick={() => setSidebarOpen(true)} sx={{ mr: 1, color: 'primary.main' }}>
-                  <MenuIcon size={24} />
-                </IconButton>
-              )}
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
-                onClick={() => navigate('/')}
-              >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                {isMobile && !['/', '/dashboard', '/users', '/fees', '/reports', '/settings'].includes(location.pathname) && (
+                  <IconButton onClick={() => navigate(-1)} sx={{ color: 'primary.main', mr: 1 }}>
+                    <ArrowLeft size={24} />
+                  </IconButton>
+                )}
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                >
                 <Box sx={{ 
                   width: { xs: 32, md: 45 }, 
                   height: { xs: 32, md: 45 }, 
@@ -236,10 +243,10 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                   alignItems: 'center', 
                   justifyContent: 'center',
                   bgcolor: 'transparent',
-                  borderRadius: 0,
+                  borderRadius: 2,
                   p: 0,
-                  boxShadow: 'none',
-                  border: 'none'
+                  transition: 'all 0.3s ease',
+                  '&:hover': { transform: 'scale(1.05)' }
                 }}>
                   {logoUrl ? (
                     <Box 
@@ -247,13 +254,11 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                       src={logoUrl} 
                       alt={`${instituteName} Logo`} 
                       loading="lazy"
-                      width={45}
-                      height={45}
                       sx={{ 
                         width: '100%', 
                         height: '100%', 
                         objectFit: 'contain',
-                        bgcolor: 'transparent'
+                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
                       }} 
                       referrerPolicy="no-referrer"
                     />
@@ -263,26 +268,32 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Typography variant="h5" sx={{ 
-                    fontWeight: 900, 
+                    fontWeight: 950, 
                     color: 'primary.main', 
-                    letterSpacing: -0.5, 
-                    fontFamily: 'var(--font-serif)', 
-                    fontSize: { xs: '1rem', md: '1.4rem' },
-                    lineHeight: 1
+                    letterSpacing: -1, 
+                    fontFamily: 'var(--font-heading)', 
+                    fontSize: { xs: '0.95rem', md: '1.4rem' },
+                    lineHeight: 1,
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, #fbbf24)`,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
                   }}>
                     {instituteName}
                   </Typography>
                   <Typography variant="caption" sx={{ 
-                    fontWeight: 700, 
+                    fontWeight: 800, 
                     color: 'text.secondary', 
-                    fontSize: '0.65rem', 
+                    fontSize: { xs: '0.6rem', md: '0.65rem' }, 
                     letterSpacing: 0.5,
-                    display: { xs: 'none', md: 'block' }
+                    textTransform: 'uppercase',
+                    opacity: 0.8,
+                    mt: 0.2
                   }}>
-                    Religious & Academic Excellence
+                    {tagline}
                   </Typography>
                 </Box>
-              </motion.div>
+                </motion.div>
+              </Box>
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 3 } }}>
@@ -330,13 +341,13 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                       bgcolor: 'background.default',
                       borderRadius: 1,
                       boxShadow: theme.palette.mode === 'dark'
-                        ? '1px 1px 3px #060a12, -1px -1px 3px #182442'
+                        ? '1px 1px 3px rgba(0,0,0,0.4), -1px -1px 3px rgba(255,255,255,0.02)'
                         : '1px 1px 3px rgba(0,0,0,0.05)',
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                       '&:focus-within': {
                         width: 340,
                         boxShadow: theme.palette.mode === 'dark'
-                          ? '2px 2px 4px #060a12, -2px -2px 4px #182442'
+                          ? '2px 2px 4px rgba(0,0,0,0.6), -2px -2px 4px rgba(255,255,255,0.03)'
                           : '2px 2px 4px rgba(0,0,0,0.1)',
                       }
                     }}

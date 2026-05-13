@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Box, Typography, Card, CardContent, Grid, Button, 
   TextField, Dialog, DialogTitle, DialogContent, 
@@ -406,244 +406,348 @@ export default function Courses() {
     setScrollProgress(progress);
   };
 
+  const isDark = theme.palette.mode === 'dark';
+
+  const genres = [
+    { name: 'Islamic', icon: '🌙' },
+    { name: 'History', icon: '🏛️' },
+    { name: 'Quran', icon: '📖' },
+    { name: 'Fiqh', icon: '⚖️' },
+    { name: 'Arabic', icon: '🕌' },
+    { name: 'Hadees', icon: '📜' },
+    { name: 'Tafseer', icon: '💡' }
+  ];
+
   return (
     <Box sx={{ 
-      pb: 8,
-      pt: 2,
+      pb: 12,
+      pt: 0,
       minHeight: '100vh',
-      background: theme.palette.mode === 'dark' 
-        ? `linear-gradient(135deg, ${theme.palette.background.default} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`
-        : `linear-gradient(135deg, ${theme.palette.background.default} 0%, #f0f7f7 100%)`
+      bgcolor: isDark ? '#050505' : '#F7F3EA', 
+      color: 'text.primary'
     }}>
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
-          <Box>
-            <Typography 
-              variant="h4" 
-              sx={{ 
-                fontFamily: 'var(--font-heading)',
-                fontWeight: 900, 
-                letterSpacing: 2, 
-                mb: 0.5,
-                color: 'primary.main',
-                textTransform: 'uppercase'
-              }}
-            >
-              Sabq (Subjects)
-            </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Manage Islamic curriculum, Student enrollment, and learning paths
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={2} sx={{ width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end', alignItems: 'center' }}>
-            <Box sx={{ 
-              display: 'flex', 
-              bgcolor: 'background.default', 
-              p: 0.6, 
-              borderRadius: 3,
-              boxShadow: theme.palette.mode === 'dark'
-                ? 'inset 2px 2px 4px #060a12, inset -2px -2px 4px #182442'
-                : 'inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff',
-            }}>
-              <IconButton 
-                size="small" 
-                onClick={() => setViewMode('grid')}
-                sx={{ 
-                  borderRadius: 2.5, 
-                  p: 1,
-                  bgcolor: viewMode === 'grid' ? 'background.paper' : 'transparent', 
-                  boxShadow: viewMode === 'grid' 
-                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff')
-                    : 'none',
-                  color: viewMode === 'grid' ? 'primary.main' : 'text.secondary',
-                  transition: 'all 0.3s ease'
-                }}
-              >
-                <Layout size={isMobile ? 16 : 18} />
-              </IconButton>
-              <IconButton 
-                size="small" 
-                onClick={() => setViewMode('list')}
-                sx={{ 
-                  borderRadius: 2.5, 
-                  p: 1,
-                  bgcolor: viewMode === 'list' ? 'background.paper' : 'transparent', 
-                  boxShadow: viewMode === 'list' 
-                    ? (theme.palette.mode === 'dark' ? '2px 2px 4px #060a12, -2px -2px 4px #182442' : '2px 2px 4px #d1d9e6, -2px -2px 4px #ffffff')
-                    : 'none',
-                  color: viewMode === 'list' ? 'primary.main' : 'text.secondary',
-                  transition: 'all 0.3s ease'
-                }}
-              >
-                <Layers size={isMobile ? 16 : 18} />
-              </IconButton>
+      {/* Search Header Area */}
+      <Box sx={{ 
+        px: { xs: 2, md: 4 }, 
+        pt: { xs: 4, md: 6 }, 
+        pb: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 3
+      }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ p: 1, borderRadius: 2, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+              <Layout size={20} />
             </Box>
-            {isStaff && (
-              <Button 
-                variant="contained" 
-                startIcon={<Plus size={isMobile ? 18 : 22} />} 
-                onClick={() => {
-                  setEditingCourse(null);
-                  setFormData({
-                    name: '',
-                    code: '',
-                    description: '',
-                    duration: '',
-                    fee: 0,
-                    teacherName: currentUser?.displayName || '',
-                    teacherId: currentUser?.uid || '',
-                    thumbnailUrl: '',
-                    sections: [],
-                    isPublished: true,
-                    classLevelId: 'all',
-                    assignedTeachers: [],
-                    targetClassLevels: []
-                  });
-                  setOpenDialog(true);
-                }}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+             <Paper 
+               elevation={0} 
+               sx={{ 
+                 display: 'flex', 
+                 alignItems: 'center', 
+                 px: 2, 
+                 py: 0.8,
+                 borderRadius: '50px', 
+                 bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'white',
+                 border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`,
+                 width: { xs: '180px', sm: '300px' },
+                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                 '&:focus-within': {
+                   width: { xs: '200px', sm: '350px' },
+                   borderColor: 'primary.main',
+                   boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.08)}`
+                 }
+               }}
+             >
+               <Search size={18} style={{ opacity: 0.5, marginRight: 8 }} />
+               <Box 
+                 component="input" 
+                 placeholder="Search a book..." 
+                 value={searchQuery}
+                 onChange={(e: any) => setSearchQuery(e.target.value)}
+                 sx={{ 
+                   border: 'none', 
+                   outline: 'none', 
+                   width: '100%', 
+                   fontWeight: 600,
+                   fontSize: '0.85rem',
+                   bgcolor: 'transparent',
+                   color: 'text.primary',
+                   '&::placeholder': { color: 'text.disabled' }
+                 }} 
+               />
+             </Paper>
+             <Avatar 
+               src={currentUser?.photoURL} 
+               imgProps={{ referrerPolicy: 'no-referrer' }}
+               sx={{ width: 40, height: 40, bgcolor: 'primary.main', fontWeight: 900, cursor: 'pointer', border: `2px solid ${isDark ? '#333' : '#fff'}` }}
+             >
+               {currentUser?.displayName?.[0]}
+             </Avatar>
+          </Box>
+        </Box>
+
+        {/* Popular Authors Section */}
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 800, mb: 2, fontFamily: '"Outfit", sans-serif' }}>
+            Popular Authors
+          </Typography>
+          <Stack direction="row" spacing={3} sx={{ overflowX: 'auto', pb: 2, px: 0.5, '&::-webkit-scrollbar': { display: 'none' } }}>
+            {allTeachers.slice(0, 6).map((teacher) => (
+              <Box 
+                key={teacher.uid} 
+                onClick={() => showTeacherProfile(teacher.uid)}
                 sx={{ 
-                  borderRadius: 2, 
-                  fontWeight: 800, 
-                  px: isMobile ? 2 : 3, 
-                  py: isMobile ? 1 : 1.2,
-                  minHeight: isMobile ? 40 : 48,
-                  textTransform: 'none',
-                  fontSize: isMobile ? '0.8rem' : '0.9rem',
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
-                  boxShadow: theme.palette.mode === 'dark'
-                    ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
-                    : `0 8px 16px ${alpha(theme.palette.primary.main, 0.25)}`,
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-                    boxShadow: theme.palette.mode === 'dark'
-                      ? '6px 6px 14px #060a12, -6px -6px 14px #182442'
-                      : `0 12px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
-                  }
+                  textAlign: 'center', 
+                  cursor: 'pointer',
+                  minWidth: 80,
+                  transition: 'transform 0.2s',
+                  '&:hover': { transform: 'translateY(-5px)' }
                 }}
               >
-                {isMobile ? "Add" : "Add Subject"}
-              </Button>
-            )}
+                <Avatar 
+                  src={teacher.photoURL} 
+                  imgProps={{ referrerPolicy: 'no-referrer' }}
+                  sx={{ 
+                    width: 80, height: 80, mx: 'auto', mb: 1, 
+                    borderRadius: 4, 
+                    boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+                    border: `2px solid ${isDark ? '#222' : '#fff'}`
+                  }}
+                >
+                  {teacher.displayName?.[0]}
+                </Avatar>
+                <Typography variant="caption" sx={{ fontWeight: 700, opacity: 0.8, display: 'block' }}>
+                  {teacher.displayName?.split(' ')[0]}
+                </Typography>
+              </Box>
+            ))}
+            {allTeachers.length === 0 && [1, 2, 3, 4].map(i => (
+              <Skeleton key={i} variant="rectangular" width={80} height={80} sx={{ borderRadius: 4, minWidth: 80 }} />
+            ))}
           </Stack>
         </Box>
-      </motion.div>
 
-      <Box sx={{ mb: 6 }}>
-        <Paper 
-          elevation={0} 
-          sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            px: { xs: 2, md: 3 }, 
-            py: 1,
-            borderRadius: 4, 
-            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-            bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.4) : 'white',
-            backdropFilter: 'blur(20px)',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.04)',
-            gap: 2,
-            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            '&:focus-within': {
-              borderColor: 'primary.main',
-              boxShadow: `0 15px 40px ${alpha(theme.palette.primary.main, 0.1)}`,
-              transform: 'translateY(-2px)'
-            }
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, gap: 2 }}>
-            <Box sx={{ 
-              p: 1.5, 
-              borderRadius: 2.5, 
-              bgcolor: alpha(theme.palette.primary.main, 0.1), 
-              color: 'primary.main',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Search size={22} />
-            </Box>
-            <Box 
-              component="input" 
-              placeholder="Search subjects, codes, or teachers..." 
-              value={searchQuery}
-              onChange={(e: any) => setSearchQuery(e.target.value)}
+        {/* Genre Section */}
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 800, mb: 2, fontFamily: '"Outfit", sans-serif' }}>
+            Genre
+          </Typography>
+          <Stack direction="row" spacing={1.5} sx={{ overflowX: 'auto', pb: 2, px: 0.5, '&::-webkit-scrollbar': { display: 'none' } }}>
+            <Chip 
+              label="All" 
+              onClick={() => setClassLevelFilter('all')}
               sx={{ 
-                border: 'none', 
-                outline: 'none', 
-                py: 2, 
-                width: '100%', 
-                fontWeight: 800,
-                fontSize: '1.1rem',
-                bgcolor: 'transparent',
-                color: 'text.primary',
-                '&::placeholder': { 
-                  color: 'text.disabled',
-                  fontWeight: 600,
-                  fontSize: '0.95rem'
-                }
-              }} 
+                height: 48, 
+                px: 2, 
+                borderRadius: '12px',
+                fontWeight: 700, 
+                bgcolor: classLevelFilter === 'all' ? '#E9C46A' : (isDark ? 'rgba(255,255,255,0.03)' : 'white'),
+                color: classLevelFilter === 'all' ? '#000' : 'text.primary',
+                border: classLevelFilter === 'all' ? 'none' : `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`,
+                '&:hover': { bgcolor: classLevelFilter === 'all' ? '#E9C46A' : alpha(theme.palette.primary.main, 0.1) }
+              }}
             />
-          </Box>
-          
-          {!isMobile && (
-            <Stack direction="row" spacing={2} alignItems="center">
-              <Divider orientation="vertical" flexItem sx={{ height: 32, my: 'auto' }} />
-              <FormControl size="small" sx={{ minWidth: 160 }}>
-                <Select
-                  value={classLevelFilter}
-                  onChange={(e) => setClassLevelFilter(e.target.value)}
-                  sx={{ 
-                    borderRadius: 2,
-                    fontWeight: 800,
-                    fontSize: '0.9rem',
-                    '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                  }}
-                  displayEmpty
-                >
-                  <MenuItem value="all" sx={{ fontWeight: 700 }}>📚 All Levels</MenuItem>
-                  {CLASS_LEVELS.filter(level => !level.includes('manager') && !level.includes('superadmin')).map(g => (
-                    <MenuItem key={g} value={g} sx={{ fontWeight: 700 }}>{g}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Stack>
-          )}
-        </Paper>
+            {genres.map((g) => (
+              <Chip 
+                key={g.name}
+                label={`${g.icon} ${g.name}`}
+                onClick={() => setClassLevelFilter(g.name)}
+                sx={{ 
+                  height: 48, 
+                  px: 2, 
+                  borderRadius: '12px',
+                  fontWeight: 700, 
+                  bgcolor: classLevelFilter === g.name ? '#E9C46A' : (isDark ? 'rgba(255,255,255,0.03)' : 'white'),
+                  color: classLevelFilter === g.name ? '#000' : 'text.primary',
+                  border: classLevelFilter === g.name ? 'none' : `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`,
+                  '&:hover': { bgcolor: classLevelFilter === g.name ? '#E9C46A' : alpha(theme.palette.primary.main, 0.1) }
+                }}
+              />
+            ))}
+          </Stack>
+        </Box>
       </Box>
 
-      <Grid container spacing={3}>
-        <AnimatePresence mode="popLayout">
-          {filteredCourses.map((course, index) => (
-            <Grid size={{ xs: 12, sm: viewMode === 'list' ? 12 : 6, md: viewMode === 'list' ? 12 : 4 }} key={course.id}>
-              <motion.div
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
-              >
-                <CourseCard 
-                  course={course} 
-                  isTeacher={isStaff} 
-                  isSuperAdmin={isSuperAdmin}
-                  onEdit={() => handleEdit(course)} 
-                  onDelete={() => handleDelete(course.id)}
-                  onRead={handleReadCourse}
-                  onShare={handleShare}
-                  viewMode={viewMode}
-                  onShowTeacher={showTeacherProfile}
-                  teacherPhoto={allTeachers.find(m => m.uid === course.teacherId)?.photoURL}
-                />
-              </motion.div>
-            </Grid>
-          ))}
-        </AnimatePresence>
-      </Grid>
+      {/* Featured Book Section */}
+      {filteredCourses.length > 0 && !searchQuery && (
+        <Box sx={{ px: { xs: 2, md: 4 }, mb: 6 }}>
+          <Box sx={{ 
+            bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'white',
+            borderRadius: 8,
+            p: { xs: 3, md: 5 },
+            display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' },
+            gap: 4,
+            alignItems: 'center',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.05)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <Box sx={{ 
+              width: { xs: '100%', md: '30%' }, 
+              position: 'relative',
+              perspective: '1000px'
+            }}>
+              <Box 
+                component="img"
+                referrerPolicy="no-referrer"
+                src={filteredCourses[0].thumbnailUrl || `https://picsum.photos/seed/${filteredCourses[0].id}/400/600`}
+                sx={{ 
+                  width: '100%', 
+                  aspectRatio: '2/3', 
+                  objectFit: 'cover', 
+                  borderRadius: 4,
+                  boxShadow: '20px 20px 60px rgba(0,0,0,0.3)',
+                  transform: 'rotateY(-10deg)',
+                  transition: 'all 0.5s',
+                  '&:hover': { transform: 'rotateY(0deg) scale(1.02)' }
+                }}
+              />
+              <Box sx={{ 
+                position: 'absolute', 
+                top: 20, 
+                right: 20, 
+                bgcolor: 'rgba(0,0,0,0.6)', 
+                backdropFilter: 'blur(10px)',
+                px: 1.5, 
+                py: 0.5, 
+                borderRadius: 2, 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 0.5,
+                color: 'white'
+              }}>
+                <Star size={14} color="#E9C46A" fill="#E9C46A" />
+                <Typography variant="caption" sx={{ fontWeight: 900 }}>4.8</Typography>
+              </Box>
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h3" sx={{ fontWeight: 900, mb: 1, fontFamily: '"Outfit", sans-serif', letterSpacing: -1.5 }}>
+                {filteredCourses[0].name}
+              </Typography>
+              <Typography variant="subtitle1" sx={{ color: 'primary.main', fontWeight: 800, mb: 3 }}>
+                Author: {filteredCourses[0].teacherName}
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 4, lineHeight: 1.8, maxWidth: 600 }}>
+                {filteredCourses[0].description || "Whether you're craving an escape from reality, seeking wisdom, or simply looking for a captivating story to lose yourself in..."}
+              </Typography>
+              <Stack direction="row" spacing={2}>
+                <Button 
+                  variant="contained" 
+                  onClick={() => handleReadCourse(filteredCourses[0])}
+                  sx={{ 
+                    bgcolor: '#E9C46A', 
+                    color: '#000', 
+                    fontWeight: 900, 
+                    px: 4, 
+                    py: 1.5, 
+                    borderRadius: 3,
+                    '&:hover': { bgcolor: '#D9B45A' } 
+                  }}
+                >
+                  Read This Book
+                </Button>
+                <Button variant="outlined" sx={{ fontWeight: 900, px: 3, py: 1.5, borderRadius: 3, color: 'text.primary', borderColor: 'divider' }}>
+                   Listen Audiobook
+                </Button>
+              </Stack>
+            </Box>
+          </Box>
+        </Box>
+      )}
+
+      {/* Course Grid Header */}
+      <Box sx={{ px: { xs: 2, md: 4 }, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: '"Outfit", sans-serif' }}>
+          {searchQuery ? 'Search Results' : 'New Books'}
+        </Typography>
+        {isStaff && (
+          <Button 
+            variant="text" 
+            startIcon={<Plus size={18} />} 
+            onClick={() => {
+              setEditingCourse(null);
+              setFormData({
+                name: '',
+                code: '',
+                description: '',
+                duration: '',
+                fee: 0,
+                teacherName: currentUser?.displayName || '',
+                teacherId: currentUser?.uid || '',
+                thumbnailUrl: '',
+                sections: [],
+                isPublished: true,
+                classLevelId: 'all',
+                assignedTeachers: [],
+                targetClassLevels: []
+              });
+              setOpenDialog(true);
+            }}
+            sx={{ fontWeight: 800, textTransform: 'none', color: 'primary.main' }}
+          >
+            Add Subject
+          </Button>
+        )}
+      </Box>
+
+      <Box sx={{ px: { xs: 2, md: 4 } }}>
+        <Grid container spacing={4}>
+          <AnimatePresence mode="popLayout">
+            {filteredCourses.map((course, index) => (
+              <Grid size={{ xs: 6, sm: 4, md: 2.4 }} key={course.id}>
+                <motion.div
+                  layout
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.4, delay: index * 0.02 }}
+                >
+                  <BookCard 
+                    course={course} 
+                    onRead={() => handleReadCourse(course)}
+                    teacherPhoto={allTeachers.find(m => m.uid === course.teacherId)?.photoURL}
+                  />
+                </motion.div>
+              </Grid>
+            ))}
+          </AnimatePresence>
+        </Grid>
+      </Box>
+
+      {/* Floating Bottom Nav */}
+      <Paper sx={{ 
+        position: 'fixed', 
+        bottom: 24, 
+        left: '50%', 
+        transform: 'translateX(-50%)',
+        width: { xs: '90%', sm: 400 },
+        height: 64,
+        borderRadius: '24px',
+        bgcolor: '#E9C46A', 
+        boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        zIndex: 1000,
+        px: 2
+      }}>
+        <IconButton sx={{ color: '#000', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+           <Layout size={22} /><Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Home</Typography>
+        </IconButton>
+        <IconButton sx={{ color: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+           <Search size={22} /><Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Explore</Typography>
+        </IconButton>
+        <IconButton sx={{ color: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+           <Bookmark size={22} /><Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Saved</Typography>
+        </IconButton>
+        <IconButton sx={{ color: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+           <User size={22} /><Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>Profile</Typography>
+        </IconButton>
+      </Paper>
 
       {filteredCourses.length === 0 && (
         <Box sx={{ p: 10, textAlign: 'center' }}>
@@ -1084,13 +1188,17 @@ export default function Courses() {
                     <Box sx={{ 
                       '& .CodeMirror': { 
                         bgcolor: theme.palette.mode === 'dark' ? '#000' : '#fff',
+                      },
+                      '& .editor-toolbar': {
+                        borderTopLeftRadius: 16,
+                        borderTopRightRadius: 16,
+                        bgcolor: theme.palette.mode === 'dark' ? alpha('#fff', 0.05) : '#f8f9fa'
                       }
                     }}>
                       <SimpleMDE 
-                        key={editingSectionIdx ?? 'new'}
                         value={newSection.content} 
-                        onChange={(value) => setNewSection({ ...newSection, content: value })} 
-                        options={{
+                        onChange={(value) => setNewSection(prev => ({ ...prev, content: value }))} 
+                        options={useMemo(() => ({
                           placeholder: "Write lesson content here (Markdown support)...",
                           spellChecker: false,
                           status: false,
@@ -1098,7 +1206,7 @@ export default function Courses() {
                           toolbar: isMobile 
                             ? ["bold", "italic", "heading", "|", "unordered-list", "preview"] 
                             : ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "|", "link", "image", "|", "preview", "side-by-side", "fullscreen"]
-                        }}
+                        }), [isMobile])}
                       />
                     </Box>
                     
@@ -1710,42 +1818,44 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sec
         if (selectedAnswers[i] === q.correctAnswer) correct++;
       });
       
-      const percentage = (correct / quiz.questions.length) * 100;
-      setScore(correct);
-      setShowResults(true);
+  const percentage = (correct / quiz.questions.length) * 100;
+  const passingScore = quiz.passingScore || 70;
+  setScore(correct);
+  setShowResults(true);
 
-      // Save results to Firestore
-      if (currentUser) {
-        setSubmitting(true);
-        try {
-          await smartAddDoc(collection(db, 'quiz_results'), {
-            studentId: currentUser.uid,
-            studentName: currentUser.displayName,
-            courseId,
-            sectionId,
-            score: correct,
-            totalQuestions: quiz.questions.length,
-            percentage,
-            passed: percentage >= quiz.passingScore,
-            timestamp: Date.now(),
-            classLevel: currentUser.classLevel || 'N/A'
-          });
-        } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, 'quiz_results');
-        } finally {
-          setSubmitting(false);
-        }
-      }
+  // Save results to Firestore
+  if (currentUser) {
+    setSubmitting(true);
+    try {
+      await smartAddDoc(collection(db, 'quiz_results'), {
+        studentId: currentUser.uid,
+        studentName: currentUser.displayName,
+        courseId,
+        sectionId,
+        score: correct,
+        totalQuestions: quiz.questions.length,
+        percentage,
+        passed: percentage >= passingScore,
+        timestamp: Date.now(),
+        classLevel: currentUser.classLevel || 'N/A'
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'quiz_results');
+    } finally {
+      setSubmitting(false);
+    }
+  }
     }
   };
 
   if (showResults) {
     const percentage = (score / quiz.questions.length) * 100;
+    const passingScore = quiz.passingScore || 70;
     return (
       <Box sx={{ p: 4, textAlign: 'center', bgcolor: 'rgba(255,255,255,0.03)', borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)' }}>
-        <Trophy size={64} color={percentage >= quiz.passingScore ? "#FFD700" : "#888"} />
+        <Trophy size={64} color={percentage >= passingScore ? "#FFD700" : "#888"} />
         <Typography variant="h4" sx={{ mt: 2, mb: 1, fontWeight: 900, color: '#fff' }}>
-          {percentage >= quiz.passingScore ? "Mubarak!" : "Keep Practicing"}
+          {percentage >= passingScore ? "Mubarak!" : "Keep Practicing"}
         </Typography>
         <Typography variant="h6" sx={{ mb: 3, color: 'text.secondary' }}>
           Your Score: {score} / {quiz.questions.length} ({Math.round(percentage)}%)
@@ -1836,268 +1946,99 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: { quiz: any, sec
 }
 
 
-function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead, onShare, viewMode, onShowTeacher, teacherPhoto }: any) {
+function BookCard({ 
+  course, 
+  onRead, 
+  teacherPhoto 
+}: { 
+  course: Course, 
+  onRead: () => void, 
+  teacherPhoto?: string 
+}) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isRTL = (text: string) => /[\u0600-\u06FF]/.test(text);
-
-  const teacherActions: ActionMenuItem[] = [
-    { label: 'Share Subject', icon: <Share2 size={16} />, onClick: () => onShare(course) },
-    { label: 'Edit Subject', icon: <Edit2 size={16} />, onClick: onEdit },
-    { label: 'Delete Subject', icon: <Trash2 size={16} />, color: 'error.main', onClick: onDelete, disabled: !isSuperAdmin }
-  ];
   
-  if (viewMode === 'list') {
-    return (
-      <Card sx={{ 
-        borderRadius: 7, 
-        mb: 3, 
-        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-        border: 'none',
-        bgcolor: 'background.paper',
-        boxShadow: isDark 
-          ? '2px 2px 6px #060a12, -2px -2px 6px #182442'
-          : '2px 2px 6px #d1d9e6, -2px -2px 6px #ffffff',
-        '&:hover': { 
-          transform: 'translateX(10px)', 
-          boxShadow: isDark 
-            ? '4px 4px 10px #060a12, -4px -4px 10px #182442'
-            : '4px 4px 10px #d1d9e6, -4px -4px 10px #ffffff',
-        }
-      }}>
-        <CardContent sx={{ p: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Avatar 
-            src={teacherPhoto}
-            onClick={() => onShowTeacher(course.teacherId)}
-            sx={{ 
-              bgcolor: 'background.default', 
-              color: 'primary.main', 
-              borderRadius: 4, 
-              width: 80, 
-              height: 80,
-              cursor: 'pointer',
-              boxShadow: isDark
-                ? 'inset 4px 4px 8px #060a12, inset -4px -4px 8px #182442'
-                : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-              '&:hover': { transform: 'scale(1.05)', transition: '0.3s' }
-            }}
-            imgProps={{ referrerPolicy: 'no-referrer' }}
-          >
-            {course.teacherName?.charAt(0)}
-          </Avatar>
-          <Box sx={{ flex: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
-              <Typography variant="h5" sx={{ fontWeight: 900, letterSpacing: -1 }}>{course.name}</Typography>
-              <Chip label={course.code} size="small" sx={{ fontWeight: 900, height: 24, fontSize: '0.75rem', border: 'none', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }} />
-            </Box>
-            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-              {course.description}
-            </Typography>
-            <Stack direction="row" spacing={3} sx={{ mt: 2 }}>
-               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
-                 <Eye size={16} />
-                 <Typography variant="caption" sx={{ fontWeight: 800 }}>{course.views || 0} Views</Typography>
-               </Box>
-               <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.disabled' }}>•</Typography>
-               <Typography variant="caption" sx={{ fontWeight: 800, color: 'primary.main' }}>{course.teacherName}</Typography>
-            </Stack>
-          </Box>
-          <Stack direction="row" spacing={4} sx={{ px: 4 }}>
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1.5, mb: 1 }}>TIME</Typography>
-              <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{course.duration}</Typography>
-            </Box>
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1.5, mb: 1 }}>SECTIONS</Typography>
-              <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'primary.main' }}>{course.sections?.length || 0}</Typography>
-            </Box>
-          </Stack>
-          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-            {isTeacher && <ActionMenu items={teacherActions} />}
-            <IconButton 
-              aria-label="Read course"
-              size="large" 
-              onClick={() => onRead(course)}
-              sx={{ 
-                bgcolor: 'primary.main', 
-                color: 'white', 
-                boxShadow: '0 8px 16px rgba(15, 118, 110, 0.3)',
-                '&:hover': { bgcolor: 'primary.dark' },
-                p: 2
-              }}
-            >
-              <ArrowRight size={24} />
-            </IconButton>
-          </Box>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card sx={{ 
-      borderRadius: 8, 
-      height: '100%', 
-      display: 'flex', 
-      flexDirection: 'column',
-      transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-      overflow: 'hidden',
-      border: 'none',
-      bgcolor: 'background.paper',
-      boxShadow: isDark 
-        ? '12px 12px 24px #060a12, -12px -12px 24px #182442'
-        : '12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff',
-      '&:hover': { 
-        transform: 'translateY(-16px)', 
-        boxShadow: isDark 
-          ? '20px 20px 40px #060a12, -20px -20px 40px #182442'
-          : '20px 20px 40px #d1d9e6, -20px -20px 40px #ffffff',
-        '& .course-image': { transform: 'scale(1.15)' }
-      }
-    }}>
-      <Box sx={{ position: 'relative', height: 240, overflow: 'hidden' }}>
-        <Box 
-          className="course-image" 
-          component="img" 
-          src={course.thumbnailUrl || `https://picsum.photos/seed/${course.code}/600/400`} 
-          alt={course.name} 
-          loading="lazy" 
-          decoding="async" 
-          sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 1s cubic-bezier(0.4, 0, 0.2, 1)' }} 
-        />
-        <Box sx={{ position: 'absolute', top: 20, left: 20, display: 'flex', gap: 1.5 }}>
-          <Chip 
-            label={course.code} 
-            size="small" 
-            sx={{ 
-              bgcolor: alpha('#000', 0.6), 
-              backdropFilter: 'blur(12px)', 
-              fontWeight: 900, 
-              color: 'white', 
-              border: `1px solid ${alpha('#fff', 0.2)}`,
-              px: 1.5
-            }} 
-          />
-        </Box>
-        <Box sx={{ 
-          position: 'absolute', 
-          bottom: 0, 
-          left: 0, 
-          right: 0, 
-          p: 2, 
-          background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'white' }}>
-              <Eye size={14} />
-              <Typography variant="caption" sx={{ fontWeight: 800 }}>{course.views || 0}</Typography>
-            </Box>
-          </Stack>
-        </Box>
-      </Box>
-
-      <CardContent sx={{ p: isMobile ? 3 : 4.5, flexGrow: 1 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Typography variant="h5" sx={{ 
-            fontWeight: 900, 
-            lineHeight: 1.1, 
-            letterSpacing: -1.2, 
-            color: 'text.primary',
-            fontFamily: isRTL(course.name) ? 'var(--font-urdu)' : 'var(--font-heading)',
-            direction: isRTL(course.name) ? 'rtl' : 'ltr',
-            fontSize: isRTL(course.name) ? '1.5rem' : { xs: '1.2rem', md: '1.5rem' }
-          }}>
-            {course.name}
-          </Typography>
-          {isTeacher && <ActionMenu items={teacherActions} />}
-        </Box>
-        
-        <Typography variant="body2" color="text.secondary" sx={{ 
-          mb: 3, 
-          fontWeight: 600, 
-          display: '-webkit-box', 
-          WebkitLineClamp: 3, 
-          WebkitBoxOrient: 'vertical', 
-          overflow: 'hidden', 
-          minHeight: 60, 
-          lineHeight: isRTL(course.description) ? 2.2 : 1.6,
-          fontFamily: isRTL(course.description) ? 'var(--font-urdu)' : 'inherit',
-          direction: isRTL(course.description) ? 'rtl' : 'ltr',
-          textAlign: isRTL(course.description) ? 'right' : 'left'
-        }}>
-          {course.description}
-        </Typography>
-
-        <Stack direction="row" spacing={4} sx={{ mb: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'text.secondary' }}>
-            <Clock size={20} color={theme.palette.primary.main} />
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{course.duration}</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'text.secondary' }}>
-            <Users size={20} color={theme.palette.primary.main} />
-            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{(course.sections?.length || 0) * 12 + 10} Students</Typography>
-          </Box>
-        </Stack>
-
-        <Divider sx={{ mb: 4, borderStyle: 'dashed', opacity: 0.6 }} />
-
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box 
-            sx={{ display: 'flex', alignItems: 'center', gap: 2.5, cursor: 'pointer' }}
-            onClick={() => onShowTeacher(course.teacherId)}
-          >
-            <Avatar 
-              src={teacherPhoto}
-              sx={{ 
-                width: 44, height: 44, fontSize: '1rem', fontWeight: 900, 
-                bgcolor: 'primary.main', color: 'white',
-                boxShadow: theme.shadows[4],
-                transition: '0.3s',
-                '&:hover': { transform: 'scale(1.1)' }
-              }}
-              imgProps={{ referrerPolicy: 'no-referrer' }}
-            >
-              {course.teacherName?.charAt(0)}
-            </Avatar>
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 900, color: 'text.primary', display: 'block', mb: -0.5 }}>{course.teacherName}</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 700 }}>Instructor</Typography>
-            </Box>
-          </Box>
-          <Box sx={{ textAlign: 'right' }}>
-            <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 900, display: 'block', letterSpacing: 1.5, fontSize: '0.65rem' }}>MODULES</Typography>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: 'primary.main', lineHeight: 1 }}>{course.sections?.length || 0}</Typography>
-          </Box>
-        </Box>
-      </CardContent>
-      
-      <Button 
-        fullWidth 
-        variant="contained" 
-        onClick={() => onRead(course)}
-        endIcon={<ArrowRight size={22} />}
+    <Box sx={{ textAlign: 'center' }}>
+      <Box 
+        onClick={onRead}
         sx={{ 
-          borderRadius: 0, 
-          py: 3, 
-          fontWeight: 950, 
-          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.8)} 100%)`, 
-          color: 'white',
-          textTransform: 'none',
-          fontSize: '1.1rem',
-          letterSpacing: 0.5,
-          '&:hover': { 
-            background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-            transform: 'translateY(-2px)',
-            transition: '0.3s'
-          } 
+          width: '100%', 
+          aspectRatio: '2/3', 
+          borderRadius: '4px 12px 12px 4px', 
+          overflow: 'hidden', 
+          cursor: 'pointer',
+          position: 'relative',
+          boxShadow: '0 5px 15px rgba(0,0,0,0.2), 10px 10px 20px rgba(0,0,0,0.1)',
+          transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          perspective: '1000px',
+          '&:hover': {
+            transform: 'rotateY(-15deg) translateY(-8px)',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.25), 15px 15px 30px rgba(0,0,0,0.1)',
+            '& .overlay': { opacity: 1 },
+            '& .book-spine': { opacity: 1 }
+          }
         }}
       >
-        Read Subject
-      </Button>
-    </Card>
+        {/* Book Spine Detail */}
+        <Box className="book-spine" sx={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 8,
+          background: 'linear-gradient(to right, rgba(0,0,0,0.3) 0%, rgba(255,255,255,0.1) 50%, rgba(0,0,0,0.3) 100%)',
+          zIndex: 5,
+          opacity: 0.8,
+          transition: 'opacity 0.3s'
+        }} />
+        
+        <Box 
+          component="img"
+          referrerPolicy="no-referrer"
+          src={course.thumbnailUrl || `https://picsum.photos/seed/${course.id}/300/450`}
+          sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+        
+        <Box className="overlay" sx={{ 
+          position: 'absolute', inset: 0, 
+          background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%)',
+          opacity: 0, transition: 'opacity 0.4s',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          pb: 4
+        }}>
+           <Box sx={{ 
+             width: 48, height: 48, borderRadius: '50%', bgcolor: 'white', 
+             display: 'flex', alignItems: 'center', justifyContent: 'center',
+             color: 'primary.main', boxShadow: '0 10px 20px rgba(0,0,0,0.3)',
+             transform: 'scale(0.8)', transition: 'transform 0.4s',
+             '.overlay:hover &': { transform: 'scale(1)' }
+           }}>
+              <BookOpen size={24} />
+           </Box>
+        </Box>
+        
+        <Box sx={{ 
+          position: 'absolute', top: 12, right: 12, 
+          bgcolor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)',
+          px: 1.2, py: 0.5, borderRadius: 2, display: 'flex', 
+          alignItems: 'center', gap: 0.5, color: '#E9C46A',
+          border: '1px solid rgba(255,255,255,0.1)',
+          zIndex: 6
+        }}>
+          <Star size={12} fill="#E9C46A" />
+          <Typography variant="caption" sx={{ fontWeight: 900, fontSize: '0.7rem' }}>Premium</Typography>
+        </Box>
+      </Box>
+      <Typography noWrap variant="body2" sx={{ mt: 2, fontWeight: 900, fontFamily: '"Outfit", sans-serif', fontSize: '0.95rem' }}>
+        {course.name}
+      </Typography>
+      <Typography variant="caption" sx={{ fontWeight: 700, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        {course.teacherName || "Instructed"}
+      </Typography>
+    </Box>
   );
+}
+
+function CourseCard({ course, isTeacher, isSuperAdmin, onEdit, onDelete, onRead, onShare, viewMode, onShowTeacher, teacherPhoto }: any) {
+  return <BookCard course={course} onRead={() => onRead(course)} teacherPhoto={teacherPhoto} />;
 }

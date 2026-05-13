@@ -113,24 +113,39 @@ export default function FormBuilder() {
 
   const generatePDF = () => {
     const doc = new jsPDF();
-    const logoBase64 = instituteSettings?.logoUrl; // In real app, would need to handle CORS/Base64
     
     // Header
     doc.setFillColor(form.primaryColor || '#000000');
-    doc.rect(0, 0, 210, 40, 'F');
+    doc.rect(0, 0, 210, 45, 'F');
     
+    // Branding Images
+    if (form.headerLeftImageUrl || instituteSettings?.receiptLeftImageUrl) {
+      const left = form.headerLeftImageUrl || instituteSettings?.receiptLeftImageUrl;
+      try { doc.addImage(left!, 'JPEG', 10, 5, 30, 35); } catch(e) {}
+    }
+    if (form.headerRightImageUrl || instituteSettings?.receiptRightImageUrl) {
+      const right = form.headerRightImageUrl || instituteSettings?.receiptRightImageUrl;
+      try { doc.addImage(right!, 'JPEG', 170, 5, 30, 35); } catch(e) {}
+    }
+    if (form.logoUrl || instituteSettings?.logoUrl) {
+      const logo = form.logoUrl || instituteSettings?.logoUrl;
+      try { doc.addImage(logo!, 'PNG', 95, 5, 20, 20); } catch(e) {}
+    }
+
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
-    doc.text(form.title || 'Untitled Form', 20, 20);
+    doc.setFont('helvetica', 'bold');
+    doc.text(form.title || 'Untitled Form', 105, 30, { align: 'center' });
     doc.setFontSize(10);
-    doc.text(instituteSettings?.instituteName || 'Islamic Academy', 20, 30);
+    doc.setFont('helvetica', 'normal');
+    doc.text(instituteSettings?.instituteName || 'Institutional Form', 105, 38, { align: 'center' });
 
     // Form Description
     doc.setTextColor(50, 50, 50);
     doc.setFontSize(11);
-    doc.text(form.description || '', 20, 50, { maxWidth: 170 });
+    doc.text(form.description || '', 20, 55, { maxWidth: 170 });
 
-    let cursorY = 70;
+    let cursorY = 75;
 
     // Questions
     form.questions?.forEach((q, i) => {

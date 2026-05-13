@@ -275,13 +275,15 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
           <Text style={[pdfStyles.colDesc, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>DESCRIPTION</Text>
           <Text style={[pdfStyles.colAmount, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>AMOUNT</Text>
         </View>
-        <View style={pdfStyles.tableRow}>
-          <View style={pdfStyles.colDesc}>
-            <Text style={{ fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }}>{receipt.feeHead}</Text>
-            <Text style={{ fontSize: 8, color: '#4b5563', marginTop: 4 }}>{receipt.remarks || 'Standard fee payment for the current academic session.'}</Text>
+          <View style={pdfStyles.tableRow}>
+            <View style={pdfStyles.colDesc}>
+              <Text style={{ fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }}>
+                {receipt.feeHead} {receipt.month ? `(${receipt.month})` : ''}
+              </Text>
+              <Text style={{ fontSize: 8, color: '#4b5563', marginTop: 4 }}>{receipt.remarks || 'Standard fee payment for the current academic session.'}</Text>
+            </View>
+            <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>Rs.{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
           </View>
-          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>Rs.{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
-        </View>
         <View style={pdfStyles.tableFooter}>
           <Text style={[pdfStyles.colDesc, { textAlign: 'right', fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>TOTAL PAID AMOUNT</Text>
           <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', color: '#0d9488' }]}>Rs.{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
@@ -592,7 +594,9 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             </Box>
             <Box sx={{ display: 'flex', p: 1.5 }}>
               <Box sx={{ flex: 3 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>{receipt.feeHead}</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  {receipt.feeHead} {(receipt as any).month ? `(${(receipt as any).month})` : ''}
+                </Typography>
                 <Typography variant="caption" sx={{ color: '#6b7280 !important', display: 'block', mt: 0.5 }}>
                   {receipt.remarks || 'Standard fee payment for the current academic session.'}
                 </Typography>

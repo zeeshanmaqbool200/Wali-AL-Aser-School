@@ -70,16 +70,15 @@ export default function ActionMenu({ items, icon, size = 'small' }: ActionMenuPr
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
         {activeItems.map((item, idx) => (
-          item.divider ? (
-            <MuiDivider key={idx} sx={{ my: 1, opacity: 0.6 }} />
-          ) : (
+          <React.Fragment key={idx}>
+            {item.divider && <MuiDivider sx={{ my: 1, opacity: 0.6 }} />}
             <MenuItem 
-              key={idx}
               onClick={(e) => {
                 e.stopPropagation();
                 item.onClick();
                 handleClose();
               }}
+              disabled={item.disabled}
               sx={{ 
                 py: 1,
                 px: 2,
@@ -98,7 +97,7 @@ export default function ActionMenu({ items, icon, size = 'small' }: ActionMenuPr
                 }} 
               />
             </MenuItem>
-          )
+          </React.Fragment>
         ))}
       </Menu>
     </>

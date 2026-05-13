@@ -49,17 +49,24 @@ interface Expense {
 export default function Expenses() {
   const theme = useTheme();
   const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'superadmin' || user?.email === 'zeeshanmaqbool200@gmail.com';
+  const role = user?.role || 'student';
+  const isManagerRole = role === 'manager';
+  const isAdmin = isSuperAdmin || isManagerRole;
   const { expenses: allExpenses, loading: globalLoading, isSyncing } = useData();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (allExpenses.length > 0) {
-      setExpenses(allExpenses);
+    setExpenses(allExpenses);
+  }, [allExpenses]);
+
+  useEffect(() => {
+    if (!globalLoading) {
       setLoading(false);
     }
-  }, [allExpenses]);
+  }, [globalLoading]);
 
   // Form State
   const [itemName, setItemName] = useState('');
@@ -93,24 +100,8 @@ export default function Expenses() {
   }, []);
 
   useEffect(() => {
-    if (allExpenses.length === 0) {
-      const q = query(collection(db, 'expenses'), orderBy('date', 'desc'));
-      
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const expenseDataRaw = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Expense[];
-        setExpenses(expenseDataRaw);
-        setLoading(false);
-      }, (err) => {
-        handleFirestoreError(err, OperationType.LIST, 'expenses');
-        setLoading(false);
-      });
-
-      return () => unsubscribe();
-    }
-  }, [allExpenses.length]);
+    // Rely on useData sync
+  }, [allExpenses.length, isAdmin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,13 +135,14 @@ export default function Expenses() {
   };
 
   const handleDelete = async (id: string) => {
-    setDeletingId(id);
     try {
+      setDeletingId(id);
       await smartDeleteDoc(doc(db, 'expenses', id));
+      setExpenses(prev => prev.filter(e => e.id !== id));
       setDeleteDialogOpen(false);
       setItemToDelete(null);
     } catch (err) {
-      // Error handled by smartDeleteDoc/handleFirestoreError
+      console.error("Delete error:", err);
       setError("Failed to delete record.");
     } finally {
       setDeletingId(null);
@@ -176,10 +168,9 @@ export default function Expenses() {
 
   const filteredExpenses = expenses.filter(exp => {
     const expDate = new Date(exp.date);
-    const isDateInRange = isWithinInterval(expDate, {
-      start: new Date(startDate),
-      end: new Date(endDate)
-    });
+    // Use ISO string for safer comparison
+    const isDateInRange = exp.date >= startDate && exp.date <= endDate;
+    
     const s = searchQuery.toLowerCase();
     const matchesSearch = (exp.itemName?.toLowerCase() || '').includes(s) || 
                           (exp.category?.toLowerCase() || '').includes(s) ||

@@ -145,38 +145,33 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
             }}
             sx={{ 
               position: 'fixed', 
-              bottom: { xs: 0, sm: 24 }, 
-              left: { xs: 0, sm: '50%' }, 
-              transform: { xs: 'none', sm: 'translateX(-50%)' },
+              bottom: { xs: 16, sm: 24 }, 
+              left: '50%', 
+              transform: 'translateX(-50%)',
               zIndex: 5000, 
-              width: { xs: '100%', sm: 'auto' },
-              maxWidth: { xs: 'none', sm: 'none' },
+              width: { xs: 'calc(100% - 32px)', sm: 'auto' },
+              maxWidth: { xs: 450, sm: 'none' },
               pointerEvents: isActuallyVisible ? 'auto' : 'none',
               pb: { xs: 'env(safe-area-inset-bottom)', sm: 0 },
-              bgcolor: { xs: theme.palette.mode === 'dark' ? alpha('#111111', 0.95) : alpha('#ffffff', 0.95), sm: 'transparent' },
             }}
           >
           <Paper 
             elevation={0}
             data-testid="bottom-nav-paper"
             sx={{ 
-              borderRadius: { xs: 0, sm: '999px' },
+              borderRadius: '999px',
               p: 0.5,
               width: '100%',
               bgcolor: theme.palette.mode === 'dark' ? alpha('#111111', 0.95) : alpha('#ffffff', 0.95),
               backdropFilter: 'blur(15px)',
-              border: 'none',
-              borderTop: { xs: `1px solid ${alpha(theme.palette.divider, 0.12)}`, sm: 'none' },
-              borderLeft: { xs: 'none', sm: `1px solid ${alpha(theme.palette.divider, 0.12)}` },
-              borderRight: { xs: 'none', sm: `1px solid ${alpha(theme.palette.divider, 0.12)}` },
-              borderBottom: { xs: 'none', sm: `1px solid ${alpha(theme.palette.divider, 0.12)}` },
+              border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
               boxShadow: theme.palette.mode === 'dark' 
                 ? '0 15px 50px rgba(0,0,0,0.8)' 
                 : '0 15px 50px rgba(0,0,0,0.15)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-around',
-              gap: 0.25,
+              justifyContent: 'center',
+              gap: { xs: 0, sm: 0.25 },
               pointerEvents: 'auto',
             }} 
           >

@@ -15,8 +15,11 @@ interface ThemeContextType {
   setReduceMotion: (val: boolean) => void;
   compactLayout: boolean;
   setCompactLayout: (val: boolean) => void;
-  instituteColors: { primary: string; secondary: string };
-  setInstituteColors: (colors: { primary: string; secondary: string }) => void;
+  instituteColors: {
+    primary: string;
+    accent1: string;
+    accent2: string;
+  };
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -24,7 +27,11 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProviderWrapper({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [mode, setMode] = useState<ThemeMode>('system');
-  const [instituteColors, setInstituteColors] = useState({ primary: '#0f766e', secondary: '#134e4a' });
+  const [instituteColors, setInstituteColors] = useState({ 
+    primary: '#0d9488', 
+    accent1: '#0d9488',
+    accent2: '#0284c7' 
+  });
 
   // Initialize theme from storage
   useEffect(() => {
@@ -46,12 +53,11 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
         const unsubscribe = onSnapshot(doc(db, 'settings', 'institute'), (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            if (data.primaryColor) {
-              setInstituteColors({
-                primary: data.primaryColor,
-                secondary: data.secondaryColor || data.primaryColor
-              });
-            }
+            setInstituteColors({
+              primary: data.primaryBrandColor || data.primaryColor || '#0d9488',
+              accent1: data.accentColors?.[0] || data.primaryBrandColor || data.primaryColor || '#0d9488',
+              accent2: data.accentColors?.[1] || data.secondaryColor || '#0284c7'
+            });
           }
         });
         return () => unsubscribe();
@@ -103,6 +109,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
 
     const theme = useMemo(() => {
       const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const isMobileSub = window.matchMedia('(max-width: 600px)').matches;
       
       // High Contrast Adjustments
       const primaryMain = highContrast 
@@ -111,43 +118,48 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
 
       const secondaryMain = highContrast
         ? (isDark ? '#cbd5e1' : '#334155')
-        : (instituteColors.secondary || instituteColors.primary);
+        : (instituteColors.accent1 || instituteColors.primary);
 
-      const baseFontSize = 16;
+      const baseFontSize = isMobileSub ? 14 : 16;
       
       return createTheme({
         palette: {
           mode: isDark ? 'dark' : 'light',
           primary: {
             main: primaryMain,
-            light: lighten(primaryMain, 0.2),
-            dark: darken(primaryMain, 0.2),
-            contrastText: isDark ? '#000000' : '#ffffff',
+            light: lighten(primaryMain, 0.1),
+            dark: darken(primaryMain, 0.1),
+            contrastText: '#ffffff',
           },
           secondary: {
             main: secondaryMain,
-            light: lighten(secondaryMain, 0.2),
-            dark: darken(secondaryMain, 0.2),
-            contrastText: isDark ? '#000000' : '#ffffff',
+            light: lighten(secondaryMain, 0.1),
+            dark: darken(secondaryMain, 0.1),
+            contrastText: '#ffffff',
           },
           background: {
-            default: isDark ? '#000000' : '#ffffff',
-            paper: isDark ? '#121212' : '#ffffff',
+            default: isDark ? '#070707' : '#f8fafc',
+            paper: isDark ? '#0f0f0f' : '#ffffff',
           },
           text: {
-            primary: isDark ? '#ffffff' : '#000000',
-            secondary: isDark ? '#8e8e93' : '#737373',
+            primary: isDark ? '#ffffff' : '#0f172a',
+            secondary: isDark ? '#a1a1aa' : '#64748b',
           },
           divider: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.08)',
         },
+        // Custom colors available via theme.accent1/accent2
+        ...( {
+          accent1: instituteColors.accent1,
+          accent2: instituteColors.accent2
+        } as any),
         spacing: compactLayout ? 4 : 8,
         typography: {
           fontSize: baseFontSize,
           fontFamily: '"Inter", "SF Pro Display", -apple-system, blinkmacsystemfont, "Segoe UI", roboto, sans-serif',
-          h1: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, letterSpacing: '0.04em' },
-          h2: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, letterSpacing: '0.04em' },
-          h3: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 700, letterSpacing: '0.02em' },
-          h4: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 700, letterSpacing: '0.02em' },
+          h1: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 1000, letterSpacing: '-0.02em' },
+          h2: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 1000, letterSpacing: '-0.02em' },
+          h3: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, letterSpacing: '-0.02em' },
+          h4: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, letterSpacing: '-0.02em' },
           h5: { fontFamily: '"Inter", sans-serif', fontWeight: 600 },
           h6: { fontFamily: '"Inter", sans-serif', fontWeight: 600 },
           subtitle1: { fontWeight: 500, letterSpacing: '-0.01em' },
@@ -158,20 +170,21 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           caption: { letterSpacing: '0.02em' }
         },
         shape: {
-          borderRadius: 0.5,
+          borderRadius: 0.25,
         },
         components: {
           MuiButton: {
             styleOverrides: {
               root: {
-                borderRadius: 1,
-                padding: '10px 20px', // Standardized padding
-                minHeight: 44, // Touch target optimization
+                borderRadius: 0.5,
+                padding: '8px 16px', // Standardized padding
+                minHeight: 40, // Touch target optimization
                 boxShadow: 'none',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                '@media (min-width: 600px)': {
-                  minHeight: 40, // Scaled for desktop
-                  padding: '8px 20px',
+                '@media (max-width: 600px)': {
+                  minHeight: 36, // Scaled compact for mobile
+                  padding: '6px 14px',
+                  fontSize: '0.8rem',
                 },
                 '&:hover': {
                   transform: 'translateY(-1px)',
@@ -202,19 +215,19 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiCard: {
             styleOverrides: {
               root: {
-                borderRadius: 1,
-                background: isDark ? '#121212' : '#ffffff',
+                borderRadius: 0.5,
+                background: isDark ? '#050505' : '#ffffff',
                 boxShadow: isDark 
-                  ? '0 4px 20px rgba(0,0,0,0.4)' 
-                  : '0 4px 20px rgba(0,0,0,0.03)',
-                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
+                  ? '0 4px 12px rgba(0,0,0,0.4)' 
+                  : '0 4px 12px rgba(0,0,0,0.02)',
+                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)'}`,
                 transition: 'all 0.3s ease',
                 overflow: 'hidden',
                 '&:hover': {
-                  borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
                   boxShadow: isDark 
-                    ? '0 8px 30px rgba(0,0,0,0.5)' 
-                    : '0 8px 30px rgba(0,0,0,0.05)',
+                    ? '0 8px 24px rgba(0,0,0,0.6)' 
+                    : '0 8px 24px rgba(0,0,0,0.04)',
                 },
               },
             },
@@ -222,7 +235,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiPaper: {
             styleOverrides: {
               root: {
-                borderRadius: 1,
+                borderRadius: 0.5,
                 boxShadow: isDark 
                   ? '0 2px 10px rgba(0,0,0,0.3)' 
                   : '0 2px 10px rgba(0,0,0,0.02)',
@@ -235,7 +248,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
             styleOverrides: {
               root: {
                 '& .MuiOutlinedInput-root': {
-                  borderRadius: 1,
+                  borderRadius: 0.5,
                   background: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
                   '& fieldset': {
                     borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
@@ -276,7 +289,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiChip: {
             styleOverrides: {
               root: {
-                borderRadius: 0.5,
+                borderRadius: 0.25,
                 fontWeight: 700,
                 fontSize: '0.75rem',
               },
@@ -301,15 +314,19 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           },
         },
       });
-    }, [mode, highContrast, compactLayout, instituteColors.primary]);
+    }, [mode, highContrast, compactLayout, instituteColors.primary, instituteColors.accent1, instituteColors.accent2]);
 
   return (
     <ThemeContext.Provider value={{ 
-      mode, setMode, 
-      highContrast, setHighContrast, 
-      reduceMotion, setReduceMotion, 
-      compactLayout, setCompactLayout,
-      instituteColors, setInstituteColors
+      mode, 
+      setMode, 
+      highContrast, 
+      setHighContrast,
+      reduceMotion,
+      setReduceMotion,
+      compactLayout,
+      setCompactLayout,
+      instituteColors
     }}>
       <ThemeProvider theme={theme}>
         <GlobalStyles
@@ -318,6 +335,10 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
               '0%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(46, 125, 50, 0.4)' },
               '70%': { transform: 'scale(1.1)', boxShadow: '0 0 0 10px rgba(46, 125, 50, 0)' },
               '100%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(46, 125, 50, 0)' },
+            },
+            '::selection': {
+              backgroundColor: alpha(instituteColors.primary, 0.3),
+              color: 'inherit'
             },
             '*': reduceMotion ? {
               transition: 'none !important',

@@ -110,11 +110,25 @@ export default function FormView() {
     doc.setFillColor(primaryColor);
     doc.rect(0, 0, 210, 45, 'F');
     
+    // Left Branding
+    const left = form?.headerLeftImageUrl || instituteSettings?.receiptLeftImageUrl;
+    if (left) try { doc.addImage(left, 'JPEG', 10, 5, 30, 35); } catch(e) {}
+
+    // Right Branding
+    const right = form?.headerRightImageUrl || instituteSettings?.receiptRightImageUrl;
+    if (right) try { doc.addImage(right, 'JPEG', 170, 5, 30, 35); } catch(e) {}
+
+    // Center Logo
+    const logo = form?.logoUrl || instituteSettings?.logoUrl;
+    if (logo) try { doc.addImage(logo, 'PNG', 95, 5, 20, 20); } catch(e) {}
+
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.text('Submission Receipt', 20, 25);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Submission Receipt', 105, 30, { align: 'center' });
     doc.setFontSize(10);
-    doc.text(`${instituteSettings?.instituteName || 'Institutional'} Form Solution • ${format(Date.now(), 'PPP p')}`, 20, 35);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${instituteSettings?.instituteName || 'Institutional'} Form Solution`, 105, 38, { align: 'center' });
 
     doc.setTextColor(50, 50, 50);
     doc.setFontSize(14);

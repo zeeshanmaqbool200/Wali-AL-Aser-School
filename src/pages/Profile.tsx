@@ -3,16 +3,17 @@ import React, { useState, useEffect } from 'react';
 import { 
   Box, Typography, Card, CardContent, Grid, Button, 
   TextField, Avatar, IconButton, Chip, CircularProgress, 
-  Stack, Snackbar, useMediaQuery, Alert, Divider
+  Stack, Snackbar, useMediaQuery, Alert, Divider, Dialog
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { Camera, Save, User, Mail, Phone, MapPin, ChevronLeft } from 'lucide-react';
+import { Camera, Save, User, Mail, Phone, MapPin, ChevronLeft, Send, AlertCircle } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartUpdateDoc } from '../firebase';
 import { UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
 import { logger } from '../lib/logger';
+import ImageCaptureDialog from '../components/ImageCaptureDialog';
 
 export default function Profile() {
   const { user: currentUser } = useAuth();
@@ -21,9 +22,40 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profileData, setProfileData] = useState<Partial<UserProfile>>({});
+  const [openCapture, setOpenCapture] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ 
     open: false, message: '', severity: 'success' 
   });
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [requestNote, setRequestNote] = useState('');
+  const [sendingRequest, setSendingRequest] = useState(false);
+
+  const handleSendRequest = async () => {
+    if (!currentUser || !requestNote.trim()) return;
+    setSendingRequest(true);
+    try {
+      const { addDoc, collection } = await import('firebase/firestore');
+      await addDoc(collection(db, 'notifications'), {
+        type: 'sensitive_edit_request',
+        title: 'Sensitive Edit Request',
+        message: `${currentUser.displayName} has requested a sensitive data change: ${requestNote}`,
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName,
+        targetType: 'role',
+        targetId: 'superadmin',
+        createdAt: Date.now(),
+        readBy: []
+      });
+      setSnackbar({ open: true, message: "Request sent to Administration!", severity: 'success' });
+      setRequestDialogOpen(false);
+      setRequestNote('');
+    } catch (err) {
+      logger.error('Failed to send request', err);
+      setSnackbar({ open: true, message: "Failed to send request", severity: 'error' });
+    } finally {
+      setSendingRequest(false);
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -59,6 +91,7 @@ export default function Profile() {
         fatherName: profileData.fatherName || '',
         motherName: profileData.motherName || '',
         dob: profileData.dob || '',
+        qualifications: profileData.qualifications || '',
         updatedAt: Date.now()
       };
 
@@ -183,7 +216,7 @@ export default function Profile() {
                 </Avatar>
                 <IconButton 
                   size="small"
-                  onClick={() => document.getElementById('profile-upload')?.click()}
+                  onClick={() => setOpenCapture(true)}
                   sx={{ 
                     position: 'absolute', 
                     bottom: 0, 
@@ -196,7 +229,11 @@ export default function Profile() {
                 >
                   <Camera size={16} />
                 </IconButton>
-                <input type="file" id="profile-upload" hidden accept="image/*" onChange={handlePhotoUpload} />
+                <ImageCaptureDialog 
+                  open={openCapture}
+                  onClose={() => setOpenCapture(false)}
+                  onCapture={(base64) => setProfileData({ ...profileData, photoURL: base64 })}
+                />
               </Box>
               <Box sx={{ mb: 1 }}>
                 <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary' }}>
@@ -306,6 +343,19 @@ export default function Profile() {
                   InputProps={{ sx: { borderRadius: 1.5 } }}
                 />
               </Grid>
+              {(profileData.role === 'teacher' || profileData.role === 'manager' || profileData.role === 'superadmin') && (
+                <Grid size={12}>
+                  <TextField 
+                    fullWidth 
+                    label="Qualifications" 
+                    value={profileData.qualifications || ''} 
+                    onChange={(e) => setProfileData({ ...profileData, qualifications: e.target.value })} 
+                    placeholder="e.g. M.A Urdu, B.Ed, Hafiz-e-Quran"
+                    helperText="Academic or professional degrees"
+                    InputProps={{ sx: { borderRadius: 1.5 } }}
+                  />
+                </Grid>
+              )}
               <Grid size={12}>
                 <TextField
                   fullWidth
@@ -358,7 +408,26 @@ export default function Profile() {
               )}
             </Grid>
 
-            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
+              {(profileData.role === 'teacher' || profileData.role === 'manager') && (
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  startIcon={<AlertCircle size={20} />}
+                  onClick={() => setRequestDialogOpen(true)}
+                  sx={{ 
+                    borderRadius: 1.5, 
+                    fontWeight: 800, 
+                    px: 3, 
+                    py: 1.2,
+                    textTransform: 'none',
+                    borderWidth: 2,
+                    '&:hover': { borderWidth: 2 }
+                  }}
+                >
+                  Request Sensitive Edit
+                </Button>
+              )}
               <Button
                 variant="contained"
                 startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save size={20} />}
@@ -387,6 +456,38 @@ export default function Profile() {
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         message={snackbar.message}
       />
+
+      <Dialog open={requestDialogOpen} onClose={() => setRequestDialogOpen(false)} maxWidth="sm" fullWidth>
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ fontWeight: 900, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <AlertCircle color={theme.palette.warning.main} /> Request Sensitive Change
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Use this to request changes to locked data (like joining date, permanent records etc.) or to provide feedback to the Head of Institute.
+          </Typography>
+          <TextField
+             fullWidth
+             multiline
+             rows={4}
+             placeholder="Describe the change you need or your feedback..."
+             value={requestNote}
+             onChange={(e) => setRequestNote(e.target.value)}
+             InputProps={{ sx: { borderRadius: 2 } }}
+          />
+          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+            <Button onClick={() => setRequestDialogOpen(false)} sx={{ fontWeight: 800 }}>Cancel</Button>
+            <Button 
+               variant="contained" 
+               startIcon={sendingRequest ? <CircularProgress size={16} color="inherit" /> : <Send size={18} />} 
+               disabled={sendingRequest || !requestNote.trim()}
+               onClick={handleSendRequest}
+               sx={{ borderRadius: 2, fontWeight: 800, px: 3 }}
+            >
+              Send Request
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
     </Box>
   );
 }

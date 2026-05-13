@@ -25,9 +25,10 @@ interface SidebarProps {
   unreadNotifications?: number;
   instituteName?: string;
   logoUrl?: string;
+  tagline?: string;
 }
 
-export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifications = 0, instituteName = 'WALI UL ASER INSTITUTE', logoUrl = 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png' }: SidebarProps) {
+export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifications = 0, instituteName = 'WALI UL ASER INSTITUTE', logoUrl = 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png', tagline = 'Islamic Academy' }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -129,21 +130,11 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
                   {instituteName}
                 </Typography>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 2, fontSize: '0.6rem' }}>
-                  Islamic Academy
+                  {tagline}
                 </Typography>
               </Box>
             )}
           </motion.div>
-          <IconButton 
-            onClick={onToggle} 
-            sx={{ 
-              borderRadius: 1,
-              border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-              '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } 
-            }}
-          >
-            {open ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-          </IconButton>
         </Box>
 
         <List sx={{ px: 0, flexGrow: 1 }}>

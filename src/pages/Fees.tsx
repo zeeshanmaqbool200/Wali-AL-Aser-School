@@ -38,7 +38,9 @@ import {
   Tooltip,
   Menu,
   Tabs,
-  Tab
+  Tab,
+  ListItemIcon,
+  ListItemText
 } from '@mui/material';
 import { 
   Plus, 
@@ -74,6 +76,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { FEE_HEADS, PAYMENT_MODES } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 import FeeReceiptModal from '../components/FeeReceiptModal';
+import ActionMenu from '../components/ActionMenu';
 import { logger } from '../lib/logger';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
@@ -116,12 +119,13 @@ export default function Fees() {
     paymentMode: 'Cash',
     transactionId: '',
     remarks: '',
+    month: format(new Date(), 'MMMM yyyy'),
     date: format(new Date(), 'yyyy-MM-dd')
   });
 
-  const isSuperAdmin = user?.email === 'zeeshanmaqbool200@gmail.com';
+  const isSuperAdmin = user?.role === 'superadmin' || user?.email === 'zeeshanmaqbool200@gmail.com';
   const role = user?.role || 'student';
-  const isManagerRole = role === 'manager' || (role === 'superadmin' && !isSuperAdmin);
+  const isManagerRole = role === 'manager';
   const isTeacherRole = role === 'teacher';
   const isAdmin = isSuperAdmin || isManagerRole;
   const isStaff = isAdmin || isTeacherRole;
@@ -152,14 +156,12 @@ export default function Fees() {
   }, [tabValue, searchQuery, feeHeadFilter, paymentModeFilter, startDate, endDate]);
 
   useEffect(() => {
-    if (allReceipts.length > 0) {
-      setReceipts(allReceipts.filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount))));
-      setLoading(false);
-    }
+    setReceipts(allReceipts.filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount))));
     if (allStudents.length > 0) {
       setStudents(allStudents.filter(u => u.role === 'student'));
     }
-  }, [allReceipts, allStudents]);
+    if (!globalLoading) setLoading(false);
+  }, [allReceipts, allStudents, globalLoading]);
 
   useEffect(() => {
     if (!user) return;
@@ -256,6 +258,7 @@ export default function Fees() {
         studentName: '',
         amount: '',
         feeHead: 'Monthly Fee',
+        month: format(new Date(), 'MMMM yyyy'),
         paymentMode: 'Cash',
         transactionId: '',
         remarks: '',
@@ -474,7 +477,7 @@ export default function Fees() {
                 minWidth: { xs: '100%', sm: 160 },
                 background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
                 boxShadow: theme.palette.mode === 'dark'
-                  ? '8px 8px 16px #060a12, -8px -8px 16px #182442'
+                  ? '8px 8px 16px #000000, -8px -8px 16px rgba(255,255,255,0.02)'
                   : `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
                 '&:hover': {
                   background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
@@ -565,16 +568,64 @@ export default function Fees() {
               </Stack>
               
               <Stack direction="row" spacing={1}>
-                {isAdmin && (
-                  <Button 
-                    variant="contained" 
-                    color="primary" 
-                    startIcon={<Printer />}
-                    onClick={handleBulkPrint}
-                    sx={{ borderRadius: 2.5, fontWeight: 800, px: 2, textTransform: 'none' }}
-                  >
-                    Bulk Print
-                  </Button>
+                {isStaff && (
+                  <>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<Printer size={16} />}
+                      onClick={handleBulkPrint}
+                      sx={{ 
+                        borderRadius: 2, 
+                        fontWeight: 900, 
+                        px: 2,
+                        bgcolor: 'primary.main',
+                        '&:hover': { bgcolor: 'primary.dark' }
+                      }}
+                    >
+                      Bulk Print
+                    </Button>
+                    <IconButton 
+                      onClick={(e) => setBulkMenuAnchor(e.currentTarget)}
+                      sx={{ 
+                        bgcolor: alpha(theme.palette.primary.main, 0.1), 
+                        color: 'primary.main',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+                      }}
+                    >
+                      <MoreVertical size={20} />
+                    </IconButton>
+                    <Menu
+                      anchorEl={bulkMenuAnchor}
+                      open={Boolean(bulkMenuAnchor)}
+                      onClose={() => setBulkMenuAnchor(null)}
+                      transformOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                      anchorOrigin={{ horizontal: 'right', vertical: 'top' }}
+                      PaperProps={{ 
+                        sx: { 
+                          borderRadius: 3, 
+                          p: 1, 
+                          minWidth: 220,
+                          boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+                          border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                        } 
+                      }}
+                    >
+                      <MenuItem onClick={() => { handleBulkPrint(); setBulkMenuAnchor(null); }} sx={{ borderRadius: 2, py: 1.5 }}>
+                        <ListItemIcon><Printer size={18} /></ListItemIcon>
+                        <ListItemText primary="Bulk Print Receipts" primaryTypographyProps={{ fontWeight: 800 }} />
+                      </MenuItem>
+                      <MenuItem onClick={() => setBulkMenuAnchor(null)} sx={{ borderRadius: 2, py: 1.5 }}>
+                        <ListItemIcon><FileText size={18} /></ListItemIcon>
+                        <ListItemText primary="Export as CSV" primaryTypographyProps={{ fontWeight: 800 }} />
+                      </MenuItem>
+                      <Divider sx={{ my: 1 }} />
+                      <MenuItem onClick={() => { setSelectedReceiptIds([]); setIsSelectionMode(false); setBulkMenuAnchor(null); }} sx={{ borderRadius: 2, py: 1.5, color: 'error.main' }}>
+                        <ListItemIcon><X size={18} color={theme.palette.error.main} /></ListItemIcon>
+                        <ListItemText primary="Cancel Selection" primaryTypographyProps={{ fontWeight: 800 }} />
+                      </MenuItem>
+                    </Menu>
+                  </>
                 )}
                 <IconButton 
                   onClick={() => { setSelectedReceiptIds([]); setIsSelectionMode(false); }}
@@ -795,59 +846,21 @@ export default function Fees() {
                           sx={{ fontWeight: 900, borderRadius: 1.5, fontSize: '0.65rem' }}
                         />
                       </TableCell>
-                      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
-                          <Tooltip title="View / Print">
-                            <IconButton 
-                              size="small" 
-                              color="primary" 
-                              sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}
-                              onClick={() => {
-                                setSelectedReceipt(receipt);
-                                setOpenReceiptModal(true);
-                              }}
-                            >
-                              <Printer size={18} />
-                            </IconButton>
-                          </Tooltip>
-
-                          {receipt.status === 'pending' && isStaff && (
-                            <>
-                              <Tooltip title="Approve">
-                                <IconButton 
-                                  size="small" 
-                                  color="success" 
-                                  sx={{ bgcolor: alpha(theme.palette.success.main, 0.05) }}
-                                  onClick={() => handleUpdateStatus(receipt.id, 'approved')}
-                                >
-                                  <CheckCircle size={18} />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Reject">
-                                <IconButton 
-                                  size="small" 
-                                  color="error" 
-                                  sx={{ bgcolor: alpha(theme.palette.error.main, 0.05) }}
-                                  onClick={() => handleUpdateStatus(receipt.id, 'rejected')}
-                                >
-                                  <XCircle size={18} />
-                                </IconButton>
-                              </Tooltip>
-                            </>
-                          )}
-
-                          {isStaff && (
-                            <Tooltip title="Delete">
-                              <IconButton 
-                                size="small" 
-                                sx={{ bgcolor: alpha(theme.palette.divider, 0.1) }}
-                                onClick={() => setDeleteConfirm({ open: true, id: receipt.id })}
-                              >
-                                <Trash2 size={18} />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </Stack>
+                      <TableCell align="right">
+                        <Box onClick={(e) => e.stopPropagation()} sx={{ display: 'inline-block' }}>
+                          <ActionMenu 
+                            items={[
+                              { label: 'View / Print Receipt', icon: <Printer size={18} />, onClick: () => { setSelectedReceipt(receipt); setOpenReceiptModal(true); }, color: 'primary.main' },
+                              ...(receipt.status === 'pending' && isStaff ? [
+                                { label: 'Approve Payment', icon: <CheckCircle size={18} />, onClick: () => handleUpdateStatus(receipt.id, 'approved'), color: 'success.main', divider: true },
+                                { label: 'Reject Payment', icon: <XCircle size={18} />, onClick: () => handleUpdateStatus(receipt.id, 'rejected'), color: 'error.main' }
+                              ] : []),
+                              ...(isStaff ? [
+                                { label: 'Delete Permanently', icon: <Trash2 size={18} />, onClick: () => setDeleteConfirm({ open: true, id: receipt.id }), color: 'error.main', divider: true }
+                              ] : [])
+                            ]}
+                          />
+                        </Box>
                       </TableCell>
                     </TableRow>
                   );
@@ -971,10 +984,10 @@ export default function Fees() {
                   <TextField fullWidth label="Full Name" value={formData.studentName} onChange={(e) => setFormData({ ...formData, studentName: e.target.value })} />
                 </Grid>
               )}
-              <Grid size={6}>
+              <Grid size={formData.feeHead === 'Monthly Fee' ? 4 : 6}>
                  <TextField fullWidth label="Amount (Rs.)" type="number" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} />
               </Grid>
-              <Grid size={6}>
+              <Grid size={formData.feeHead === 'Monthly Fee' ? 4 : 6}>
                  <FormControl fullWidth>
                    <InputLabel>Fee Head</InputLabel>
                    <Select value={formData.feeHead} label="Fee Head" onChange={(e) => setFormData({ ...formData, feeHead: e.target.value })}>
@@ -982,6 +995,21 @@ export default function Fees() {
                    </Select>
                  </FormControl>
               </Grid>
+              {formData.feeHead === 'Monthly Fee' && (
+                <Grid size={4}>
+                  <FormControl fullWidth>
+                    <InputLabel>Month</InputLabel>
+                    <Select value={formData.month} label="Month" onChange={(e) => setFormData({ ...formData, month: e.target.value })}>
+                      {Array.from({ length: 12 }).map((_, i) => {
+                        const d = new Date();
+                        d.setMonth(d.getMonth() - i);
+                        const m = format(d, 'MMMM yyyy');
+                        return <MenuItem key={m} value={m}>{m}</MenuItem>;
+                      })}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              )}
               <Grid size={6}>
                  <FormControl fullWidth>
                    <InputLabel>Payment Mode</InputLabel>

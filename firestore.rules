@@ -119,7 +119,7 @@ service cloud.firestore {
       allow get: if true;
 
       allow list: if isStaff() || (isSignedIn() && (resource.data.studentId == request.auth.uid || resource.data.createdBy == request.auth.uid));
-      allow create: if isStaff();
+      allow create: if isSignedIn() && (isStaff() || (incoming().status == 'pending' && incoming().studentId == request.auth.uid));
       allow update: if isManager() || (isTeacher() && existing().createdBy == request.auth.uid);
       allow delete: if isSuperAdmin();
     }

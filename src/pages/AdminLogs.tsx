@@ -11,7 +11,7 @@ import {
   Search, Trash2, Filter, Calendar, Clock, 
   AlertCircle, CheckCircle, Info, Database,
   Shield, ChevronDown, ChevronUp, RefreshCw,
-  Terminal, Zap, HardDrive, Cpu
+  Terminal, Zap, HardDrive, Cpu, ArrowLeft
 } from 'lucide-react';
 import { collection, query, onSnapshot, orderBy, limit, deleteDoc, doc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { logger } from '../lib/logger';
+import { useNavigate } from 'react-router-dom';
 
 interface SystemLog {
   id: string;
@@ -40,6 +41,7 @@ interface SystemLog {
 export default function AdminLogs() {
   const { user: currentUser } = useAuth();
   const theme = useTheme();
+  const navigate = useNavigate();
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -129,11 +131,16 @@ export default function AdminLogs() {
         transition={{ duration: 0.5 }}
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>System Logs</Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Administrative review of application events and errors
-            </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <IconButton onClick={() => navigate(-1)} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) } }}>
+              <ArrowLeft size={20} />
+            </IconButton>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 0.5 }}>System Logs</Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
+                Administrative review of application events and errors
+              </Typography>
+            </Box>
           </Box>
           <Stack direction="row" spacing={2}>
             <Button 

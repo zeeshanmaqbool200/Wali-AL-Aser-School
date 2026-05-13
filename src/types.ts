@@ -14,6 +14,8 @@ export interface UserProfile {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  qualifications?: string;
+  managerId?: string;
   // Student specific
   studentId?: string; // Admission No.
   admissionNo?: string;
@@ -182,6 +184,7 @@ export interface FeeReceipt {
   feeHead: 'Monthly Fee' | 'Admission Fee' | 'Quran / Hifz Fee' | 'Exam / Test Fee' | 'Book Fee' | 'Activity / Competition Fee (Gez-z & Gen-x)' | 'Sadqa / Donation' | 'Others';
   paymentMode: 'Cash' | 'UPI' | 'Bank Transfer' | 'Card' | 'Cheque' | 'Others';
   transactionId?: string;
+  month?: string;
   date: string; // YYYY-MM-DD
   status: 'pending' | 'approved' | 'rejected';
   remarks?: string;

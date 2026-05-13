@@ -40,33 +40,6 @@
 
 @layer base {
   @media print {
-    .print-header {
-      display: flex !important;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 20px;
-      border-bottom: 2px solid #000;
-      padding-bottom: 15px;
-    }
-    .print-header::after {
-      content: "MAKTAB MANAGEMENT SYSTEM";
-      font-size: 24px;
-      font-weight: 900;
-      color: #000;
-    }
-    table {
-      width: 100% !important;
-      border-collapse: collapse !important;
-    }
-    th, td {
-      border: 1px solid #000 !important;
-      padding: 8px !important;
-      text-align: left !important;
-    }
-    th {
-      background-color: #f2f2f2 !important;
-      -webkit-print-color-adjust: exact !important;
-    }
     .no-print, 
     .no-print *,
     header, 
@@ -90,6 +63,17 @@
       height: auto !important;
       margin: 0 !important;
       padding: 0 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    * {
+      background-color: transparent !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+    }
+    .MuiPaper-root {
+      background-color: white !important;
+      color: black !important;
     }
     /* Specific overrides for Receipt and Admission Forms */
     .receipt-container {

@@ -11,14 +11,15 @@ import { alpha, useTheme } from '@mui/material/styles';
 import { 
   Settings as SettingsIcon, User, Shield, Palette, 
   Bell, Globe, Save, Camera, Trash2, Plus, 
-  CheckCircle, Smartphone, Mail, Lock, X,
+  CheckCircle, Smartphone, Mail, Lock, X, Sparkles,
   CreditCard, HelpCircle, LogOut, ChevronRight,
   Monitor, Moon, Sun, Languages, Database,
   Key, Eye, EyeOff, Smartphone as MobileIcon,
   Cloud, Zap, HardDrive, RefreshCw, AlertTriangle, Layout,
-  Download, FileJson, Terminal, Mic, MessageSquare, Image as ImageIcon
+  Download, FileJson, Terminal, Mic, MessageSquare, Image as ImageIcon,
+  Edit2, ExternalLink, AlertCircle
 } from 'lucide-react';
-import { doc, getDoc, updateDoc, collection, query, getDocs, deleteDoc, arrayUnion, setDoc, where } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, getDocs, deleteDoc, arrayUnion, setDoc, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { UserProfile, InstituteSettings } from '../types';
@@ -145,8 +146,7 @@ export default function Settings() {
     mode, setMode, 
     highContrast, setHighContrast, 
     reduceMotion, setReduceMotion, 
-    compactLayout, setCompactLayout,
-    setInstituteColors
+    compactLayout, setCompactLayout
   } = useThemeContext()!;
   const { permissions } = useHardwarePermissions();
   const [searchParams] = useSearchParams();
@@ -158,7 +158,7 @@ export default function Settings() {
   const isStaff = isAdmin || isTeacherRole;
 
   const [loading, setLoading] = useState(true);
-  const [tabValue, setTabValue] = useState(searchParams.get('tab') || 'general');
+  const [tabValue, setTabValue] = useState(searchParams.get('tab') || 'appearance');
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -189,6 +189,23 @@ export default function Settings() {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [purgeType, setPurgeType] = useState<'ALL' | 'STUDENTS' | 'ARCHIVED'>('ALL');
   const [resetConfirmText, setResetConfirmText] = useState('');
+  const [accessLogs, setAccessLogs] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || tabValue !== 'profile_config') return;
+
+    const q = query(
+      collection(db, 'access_logs'), 
+      orderBy('timestamp', 'desc'),
+      limit(5)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setAccessLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'access_logs'));
+
+    return () => unsubscribe();
+  }, [isSuperAdmin, tabValue]);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -221,6 +238,36 @@ export default function Settings() {
     };
     fetchData();
   }, [currentUser]);
+
+  const handleSaveProfile = async () => {
+    if (!currentUser) return;
+    try {
+      setLoading(true);
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        ...profileData,
+        updatedAt: new Date().toISOString()
+      });
+      setSnackbar({ open: true, message: 'Profile updated successfully', severity: 'success' });
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
+      setSnackbar({ open: true, message: 'Failed to update profile', severity: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddAccentColor = (color: string) => {
+    const current = instituteData.accentColors || [];
+    if (current.includes(color)) return;
+    const updated = [...current, color].slice(-7);
+    setInstituteData({ ...instituteData, accentColors: updated });
+  };
+
+  const handleRemoveAccent = (color: string) => {
+    const current = instituteData.accentColors || [];
+    const updated = current.filter((c) => c !== color);
+    setInstituteData({ ...instituteData, accentColors: updated });
+  };
 
   const handleSaveSettings = async () => {
     if (!currentUser) return;
@@ -472,12 +519,11 @@ export default function Settings() {
   };
 
   const menuItems = [
-    { id: 'general', label: 'General', icon: <Layout size={20} />, role: 'all' },
-    { id: 'account', label: 'Account', icon: <User size={20} />, role: 'all' },
-    { id: 'portals', label: 'Portals', icon: <Smartphone size={20} />, role: 'admin' },
-    { id: 'branding', label: 'Branding', icon: <Palette size={20} />, role: 'admin' },
-    { id: 'system', label: 'System', icon: <Terminal size={20} />, role: 'superadmin' },
-    { id: 'logs', label: 'Audit Logs', icon: <Database size={20} />, role: 'admin' },
+    { id: 'appearance', label: 'Personalization & UI', icon: <Sparkles size={20} />, role: 'all' },
+    { id: 'security', label: 'Account Security', icon: <Lock size={20} />, role: 'all' },
+    { id: 'portals', label: 'Portal Management', icon: <Smartphone size={20} />, role: 'admin' },
+    { id: 'profile_config', label: 'Profile Config & Audit', icon: <User size={20} />, role: 'superadmin' },
+    { id: 'system', label: 'Advanced System', icon: <Terminal size={20} />, role: 'superadmin' },
   ].filter(item => {
     if (item.role === 'all') return true;
     if (item.role === 'admin') return isAdmin;
@@ -612,195 +658,423 @@ export default function Settings() {
 
         <Grid size={{ xs: 12, md: 8, lg: 9 }}>
           <AnimatePresence mode="wait">
-            {/* General Section */}
-            {tabValue === 'general' && (
-              <motion.div key="general" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                 <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
+            {/* Appearance Section (Renamed from General) */}
+            {tabValue === 'appearance' && (
+              <motion.div key="appearance" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                 <Stack spacing={4}>
+                   <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
+                    <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 900 }}>Appearance & UI Settings</Typography>
+                    </Box>
+                    <CardContent sx={{ p: 4 }}>
+                      <Stack spacing={4}>
+                        <Box>
+                          <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>LOCAL THEME PREFERENCES</Typography>
+                          <Grid container spacing={3}>
+                            <Grid size={{ xs: 12, md: 6 }}>
+                               <Box sx={{ p: 2, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.4), border: '1px solid', borderColor: 'divider' }}>
+                                 <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Theme Mode</Typography>
+                                 <Stack direction="row" spacing={1}>
+                                    {[
+                                      { id: 'light', label: 'Light', icon: <Sun size={18} /> },
+                                      { id: 'dark', label: 'Dark', icon: <Moon size={18} /> },
+                                      { id: 'system', label: 'System', icon: <Monitor size={18} /> }
+                                    ].map((m) => (
+                                      <Button
+                                        key={m.id}
+                                        onClick={() => setMode(m.id as any)}
+                                        variant={mode === m.id ? 'contained' : 'outlined'}
+                                        startIcon={m.icon}
+                                        size="small"
+                                        sx={{ borderRadius: 2, fontWeight: 800, flex: 1 }}
+                                      >
+                                        {m.label}
+                                      </Button>
+                                    ))}
+                                 </Stack>
+                               </Box>
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 6 }}>
+                               <Stack spacing={2}>
+                                 {[
+                                   { label: 'High Contrast', desc: 'Enhanced legibility', value: highContrast, onChange: (v: boolean) => setHighContrast(v), icon: <Zap size={20} /> },
+                                   { label: 'Compact Layout', desc: 'Information density', value: compactLayout, onChange: (v: boolean) => setCompactLayout(v), icon: <Layout size={20} /> }
+                                 ].map((item, idx) => (
+                                   <Box key={idx} sx={{ p: 2, px: 3, borderRadius: 3, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.05), bgcolor: 'background.default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                       <Box sx={{ color: 'primary.main', display: 'flex' }}>{item.icon}</Box>
+                                       <Box>
+                                         <Typography variant="body2" sx={{ fontWeight: 800 }}>{item.label}</Typography>
+                                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{item.desc}</Typography>
+                                       </Box>
+                                     </Box>
+                                     <IOSSwitch checked={item.value} onChange={(e: any) => item.onChange(e.target.checked)} />
+                                   </Box>
+                                 ))}
+                               </Stack>
+                            </Grid>
+                          </Grid>
+                        </Box>
+                        <Divider />
+                        <Box>
+                          <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>ALERTS & NOTIFICATIONS</Typography>
+                          <Grid container spacing={2}>
+                            {[
+                              { key: 'email', label: 'Email Reports', desc: 'Performance summaries', icon: <Mail size={18} /> },
+                              { key: 'push', label: 'Push Alerts', desc: 'Critical notifications', icon: <Bell size={18} /> },
+                              { key: 'feeReminders', label: 'Fee Alerts', desc: 'Due date reminders', icon: <CreditCard size={18} /> }
+                            ].map((item, i) => (
+                              <Grid size={{ xs: 12, md: 4 }} key={i}>
+                                <Box sx={{ p: 2, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), borderRadius: 3, bgcolor: alpha(theme.palette.background.default, 0.4) }}>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                     <Box sx={{ color: 'primary.main', p: 1, bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 1.5, display: 'flex' }}>
+                                        {item.icon}
+                                     </Box>
+                                     <Switch size="small" checked={(notificationPrefs as any)[item.key]} onChange={(e) => setNotificationPrefs({ ...notificationPrefs, [item.key]: e.target.checked })} />
+                                  </Box>
+                                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{item.label}</Typography>
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', lineHeight: 1.2 }}>{item.desc}</Typography>
+                                </Box>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        </Box>
+                      </Stack>
+                      <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+                        <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveSettings} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Save Theme & Alerts</Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+
+                  {isAdmin && (
+                    <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden', mt: 4 }}>
+                      <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
+                        <Typography variant="h6" sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Sparkles size={22} color={theme.palette.primary.main} /> 
+                          Institute Personalization
+                        </Typography>
+                      </Box>
+                      <CardContent sx={{ p: 4 }}>
+                        <Stack spacing={4}>
+                          <Box>
+                            <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>IDENTITY & BRANDING</Typography>
+                            <Grid container spacing={3}>
+                              <Grid size={{ xs: 12, md: 8 }}>
+                                <TextField 
+                                  fullWidth 
+                                  label="Institute Name" 
+                                  variant="filled" 
+                                  value={instituteData.instituteName || ''} 
+                                  onChange={(e) => setInstituteData({ ...instituteData, instituteName: e.target.value })} 
+                                  sx={{ mb: 2 }} 
+                                  InputProps={{ 
+                                    disableUnderline: true, 
+                                    sx: { borderRadius: 2.5, fontWeight: 900, fontSize: '1.4rem', bgcolor: alpha(theme.palette.primary.main, 0.05), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) } } 
+                                  }} 
+                                />
+                                <TextField 
+                                  fullWidth 
+                                  label="Public Tagline" 
+                                  variant="filled" 
+                                  value={instituteData.tagline || ''} 
+                                  onChange={(e) => setInstituteData({ ...instituteData, tagline: e.target.value })} 
+                                  InputProps={{ 
+                                    disableUnderline: true, 
+                                    sx: { borderRadius: 2, fontWeight: 700, bgcolor: alpha(theme.palette.primary.main, 0.03) } 
+                                  }} 
+                                />
+                              </Grid>
+                              <Grid size={{ xs: 12, md: 4 }}>
+                                <Box sx={{ p: 2.5, borderRadius: 4, border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.15), bgcolor: alpha(theme.palette.primary.main, 0.02), boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 900, mb: 1.5, display: 'block', opacity: 0.8, letterSpacing: 1, textTransform: 'uppercase' }}>Accent Palette (7 Max)</Typography>
+                                  
+                                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
+                                    {(instituteData.accentColors?.length ? instituteData.accentColors : ['#fbbf24', '#10b981', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#f97316']).map((c, i) => (
+                                      <Tooltip key={i} title={c}>
+                                        <Box 
+                                          onClick={async () => {
+                                            const updatedData = { ...instituteData, primaryColor: c };
+                                            setInstituteData(updatedData);
+                                            // Real-time update to Firestore
+                                            if (isAdmin) {
+                                              try {
+                                                await updateDoc(doc(db, 'settings', 'institute'), { primaryColor: c });
+                                              } catch (e) {
+                                                console.error('Failed to update color in real-time', e);
+                                              }
+                                            }
+                                          }} 
+                                          sx={{ 
+                                            width: 42, 
+                                            height: 42, 
+                                            borderRadius: 2.5, 
+                                            bgcolor: c, 
+                                            cursor: 'pointer', 
+                                            border: instituteData.primaryColor === c ? '3px solid #fff' : '1px solid rgba(255,255,255,0.1)', 
+                                            boxShadow: instituteData.primaryColor === c ? `0 0 20px ${alpha(c, 0.5)}, 0 4px 12px rgba(0,0,0,0.3)` : '0 4px 8px rgba(0,0,0,0.1)', 
+                                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
+                                            '&:hover': { transform: 'translateY(-4px) scale(1.1)', boxShadow: `0 8px 24px ${alpha(c, 0.4)}` },
+                                            '&:active': { transform: 'scale(0.9)' },
+                                            position: 'relative',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                          }}
+                                        >
+                                          {instituteData.primaryColor === c && <CheckCircle size={20} color="#fff" />}
+                                          {isAdmin && (
+                                            <IconButton 
+                                              size="small" 
+                                              onClick={(e) => { e.stopPropagation(); handleRemoveAccent(c); }} 
+                                              sx={{ 
+                                                position: 'absolute', 
+                                                top: -8, 
+                                                right: -8, 
+                                                p: 0.2, 
+                                                bgcolor: 'error.main', 
+                                                color: 'white', 
+                                                opacity: 0, 
+                                                '&:hover': { bgcolor: 'error.dark' },
+                                                '.MuiBox-root:hover &': { opacity: 1 },
+                                                transition: '0.2s',
+                                                width: 18, 
+                                                height: 18,
+                                                zIndex: 10
+                                              }}
+                                            >
+                                              <X size={12} />
+                                            </IconButton>
+                                          )}
+                                        </Box>
+                                      </Tooltip>
+                                    ))}
+                                    
+                                    {(instituteData.accentColors?.length || 0) < 7 && isAdmin && (
+                                      <Box 
+                                        component="label" 
+                                        sx={{ 
+                                          width: 42, 
+                                          height: 42, 
+                                          borderRadius: 2.5, 
+                                          border: '2px dashed', 
+                                          borderColor: 'primary.main',
+                                          display: 'flex', 
+                                          alignItems: 'center', 
+                                          justifyContent: 'center', 
+                                          cursor: 'pointer',
+                                          color: 'primary.main',
+                                          transition: '0.2s',
+                                          '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08), transform: 'scale(1.05)' }
+                                        }}
+                                      >
+                                      <input 
+                                        type="color" 
+                                        hidden 
+                                        value={instituteData.primaryColor || '#000000'}
+                                        onInput={(e: any) => {
+                                          const color = e.target.value;
+                                          setInstituteData(prev => ({ ...prev, primaryColor: color }));
+                                        }}
+                                        onChange={(e) => {
+                                          handleAddAccentColor(e.target.value);
+                                        }}
+                                      />
+                                        <Plus size={20} />
+                                      </Box>
+                                    )}
+                                  </Box>
+                                  <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.6, display: 'block', mt: 1 }}>Selected: <strong>{instituteData.primaryColor || 'None'}</strong></Typography>
+                                </Box>
+                              </Grid>
+                            </Grid>
+                          </Box>
+                          <Divider />
+                          <Box>
+                            <Stack direction="row" spacing={2} sx={{ mb: 3, alignItems: 'center' }}>
+                              <ImageIcon size={20} color={theme.palette.primary.main} />
+                              <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 0 }}>VISUAL ASSETS</Typography>
+                            </Stack>
+                            <Grid container spacing={3}>
+                              <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Logo" value={instituteData.logoUrl} onUpload={handleImageUpload('logoUrl')} onRemove={() => handleRemoveImage('logoUrl')} icon={<Globe />} /></Grid>
+                              <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Banner" value={instituteData.bannerUrl} onUpload={handleImageUpload('bannerUrl')} onRemove={() => handleRemoveImage('bannerUrl')} icon={<Layout />} isBanner /></Grid>
+                              <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Receipt Header (L)" value={instituteData.receiptLeftImageUrl} onUpload={handleImageUpload('receiptLeftImageUrl')} onRemove={() => handleRemoveImage('receiptLeftImageUrl')} icon={<FileJson />} /></Grid>
+                              <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Receipt Header (R)" value={instituteData.receiptRightImageUrl} onUpload={handleImageUpload('receiptRightImageUrl')} onRemove={() => handleRemoveImage('receiptRightImageUrl')} icon={<FileJson />} /></Grid>
+                            </Grid>
+                          </Box>
+                          <Divider />
+                          <Box>
+                            <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>DASHBOARD QUOTES (POOL)</Typography>
+                             <TextField
+                                fullWidth
+                                multiline
+                                rows={4}
+                                variant="outlined"
+                                placeholder={`Enter one quote per line...`}
+                                value={instituteData.quotes?.join('\n') || ''}
+                                onChange={(e) => setInstituteData({ ...instituteData, quotes: e.target.value.split('\n').filter(q => q.trim().length > 0) })}
+                                InputProps={{ sx: { borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.02), fontWeight: 600, p: 2, border: 'none' } }}
+                              />
+                          </Box>
+                        </Stack>
+                        <Box sx={{ mt: 5, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                          <Button 
+                            variant="contained" 
+                            size="large"
+                            startIcon={<Save size={20} />} 
+                            onClick={handleSaveInstitute} 
+                            sx={{ 
+                              borderRadius: 3, 
+                              fontWeight: 950, 
+                              px: 6, 
+                              py: 1.5,
+                              boxShadow: `0 10px 20px ${alpha(theme.palette.primary.main, 0.3)}`
+                            }}
+                          >
+                            Publish Identity
+                          </Button>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  )}
+                 </Stack>
+              </motion.div>
+            )}
+            {/* Profile Config (Super Admin Only) */}
+            {tabValue === 'profile_config' && isSuperAdmin && (
+              <motion.div key="profile_config" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
                   <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900 }}>General Settings</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Profile Config & System Logs</Typography>
                   </Box>
                   <CardContent sx={{ p: 4 }}>
                     <Stack spacing={4}>
                       <Box>
-                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>APPEARANCE</Typography>
-                        <Grid container spacing={3}>
-                          <Grid size={{ xs: 12, md: 6 }}>
-                             <Box sx={{ p: 2, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.4), border: '1px solid', borderColor: 'divider' }}>
-                               <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Theme Mode</Typography>
-                               <Stack direction="row" spacing={1}>
-                                  {[
-                                    { id: 'light', label: 'Light', icon: <Sun size={18} /> },
-                                    { id: 'dark', label: 'Dark', icon: <Moon size={18} /> },
-                                    { id: 'system', label: 'System', icon: <Monitor size={18} /> }
-                                  ].map((m) => (
-                                    <Button
-                                      key={m.id}
-                                      onClick={() => setMode(m.id as any)}
-                                      variant={mode === m.id ? 'contained' : 'outlined'}
-                                      startIcon={m.icon}
-                                      size="small"
-                                      sx={{ borderRadius: 2, fontWeight: 800, flex: 1 }}
-                                    >
-                                      {m.label}
-                                    </Button>
-                                  ))}
-                               </Stack>
-                             </Box>
-                          </Grid>
-                          <Grid size={{ xs: 12, md: 6 }}>
-                             <Stack spacing={2}>
-                               {[
-                                 { label: 'High Contrast', desc: 'Enhanced legibility', value: highContrast, onChange: (v: boolean) => setHighContrast(v), icon: <Zap size={20} /> },
-                                 { label: 'Compact Layout', desc: 'Information density', value: compactLayout, onChange: (v: boolean) => setCompactLayout(v), icon: <Layout size={20} /> }
-                               ].map((item, idx) => (
-                                 <Box key={idx} sx={{ p: 2, px: 3, borderRadius: 3, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.05), bgcolor: 'background.default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                     <Box sx={{ color: 'primary.main', display: 'flex' }}>{item.icon}</Box>
-                                     <Box>
-                                       <Typography variant="body2" sx={{ fontWeight: 800 }}>{item.label}</Typography>
-                                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{item.desc}</Typography>
-                                     </Box>
-                                   </Box>
-                                   <IOSSwitch checked={item.value} onChange={(e: any) => item.onChange(e.target.checked)} />
-                                 </Box>
-                               ))}
-                             </Stack>
-                          </Grid>
-                        </Grid>
+                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>PERSONAL ADMIN SETTINGS</Typography>
+                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+                           <TextField fullWidth label="Display Name" value={profileData.displayName || ''} onChange={(e) => setProfileData({ ...profileData, displayName: e.target.value })} variant="filled" InputProps={{ disableUnderline: true, sx: { borderRadius: 2, fontWeight: 700 } }} />
+                           <TextField fullWidth label="System Email" value={profileData.email || ''} disabled variant="filled" InputProps={{ disableUnderline: true, sx: { borderRadius: 2, fontWeight: 700, opacity: 0.8 } }} />
+                        </Stack>
+                        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+                          <Button variant="contained" onClick={handleSaveProfile} startIcon={<Save size={18} />} sx={{ borderRadius: 2, fontWeight: 900, px: 4 }}>Save Identity</Button>
+                        </Box>
                       </Box>
+                      
                       <Divider />
+
                       <Box>
-                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>ALERTS & NOTIFICATIONS</Typography>
-                        <Grid container spacing={2}>
-                          {[
-                            { key: 'email', label: 'Email Reports', desc: 'Performance summaries', icon: <Mail size={18} /> },
-                            { key: 'push', label: 'Push Alerts', desc: 'Critical notifications', icon: <Bell size={18} /> },
-                            { key: 'feeReminders', label: 'Fee Alerts', desc: 'Due date reminders', icon: <CreditCard size={18} /> }
-                          ].map((item, i) => (
-                            <Grid size={{ xs: 12, md: 4 }} key={i}>
-                              <Box sx={{ p: 2, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), borderRadius: 3, bgcolor: alpha(theme.palette.background.default, 0.4) }}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                   <Box sx={{ color: 'primary.main', p: 1, bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 1.5, display: 'flex' }}>
-                                      {item.icon}
+                        <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 0 }}>SYSTEM ACCESS LOGS</Typography>
+                          <Button variant="text" size="small" startIcon={<ExternalLink size={16} />} onClick={() => navigate('/admin-logs')} sx={{ fontWeight: 800 }}>Explore Full Logs</Button>
+                        </Stack>
+                        <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden', bgcolor: alpha(theme.palette.primary.main, 0.01) }}>
+                           <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.primary.main, 0.03) }}>
+                              <Typography variant="caption" sx={{ fontWeight: 900, opacity: 0.6 }}>RECENT CRITICAL AUDIT EVENTS</Typography>
+                           </Box>
+                           <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+                              <List disablePadding>
+                                 {accessLogs.length > 0 ? accessLogs.map((log) => (
+                                   <ListItem key={log.id} sx={{ borderBottom: '1px solid', borderColor: 'divider', py: 2 }}>
+                                      <ListItemIcon>
+                                        {log.level === 'error' ? <AlertTriangle size={20} color={theme.palette.error.main} /> : 
+                                         log.level === 'warn' ? <AlertCircle size={20} color={theme.palette.warning.main} /> :
+                                         <Terminal size={20} color={theme.palette.primary.main} />}
+                                      </ListItemIcon>
+                                      <ListItemText 
+                                        primary={<Typography variant="body2" sx={{ fontWeight: 800 }}>{log.message}</Typography>}
+                                        secondary={<Typography variant="caption" sx={{ fontWeight: 600 }}>{log.userEmail || 'System'} • {log.ip || 'Local'}</Typography>}
+                                      />
+                                      <Typography variant="caption" sx={{ fontWeight: 900, opacity: 0.5 }}>
+                                        {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </Typography>
+                                   </ListItem>
+                                 )) : (
+                                   <Box sx={{ p: 4, textAlign: 'center' }}>
+                                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>No telemetry data captured in this session.</Typography>
                                    </Box>
-                                   <Switch size="small" checked={(notificationPrefs as any)[item.key]} onChange={(e) => setNotificationPrefs({ ...notificationPrefs, [item.key]: e.target.checked })} />
-                                </Box>
-                                <Typography variant="body2" sx={{ fontWeight: 800 }}>{item.label}</Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', lineHeight: 1.2 }}>{item.desc}</Typography>
-                              </Box>
-                            </Grid>
-                          ))}
-                        </Grid>
+                                 )}
+                              </List>
+                           </Box>
+                        </Paper>
                       </Box>
                     </Stack>
-                    <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
-                      <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveSettings} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Save General Settings</Button>
-                    </Box>
                   </CardContent>
                 </Card>
               </motion.div>
             )}
-            {/* Account Section */}
-            {tabValue === 'account' && (
-              <motion.div key="account" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', mb: 4 }}>
-                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Account Profile</Typography>
-                  </Box>
-                  <CardContent sx={{ p: 4 }}>
-                    <Grid container spacing={4}>
-                      <Grid size={{ xs: 12, md: 4 }} sx={{ textAlign: 'center' }}>
-                        <Box sx={{ position: 'relative', display: 'inline-block' }}>
-                          <Avatar src={profileData.photoURL} sx={{ width: 120, height: 120, mb: 2, border: '4px solid', borderColor: 'primary.main' }}>{profileData.displayName?.charAt(0)}</Avatar>
-                          <IconButton size="small" sx={{ position: 'absolute', bottom: 15, right: 0, bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}><Camera size={16} /></IconButton>
-                        </Box>
-                        <Typography variant="h6" sx={{ fontWeight: 800 }}>{profileData.displayName}</Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{profileData.role?.toUpperCase()}</Typography>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 8 }}>
-                        <Stack spacing={2}>
-                          <TextField fullWidth label="Display Name" value={profileData.displayName || ''} onChange={(e) => setProfileData({ ...profileData, displayName: e.target.value })} />
-                          <TextField fullWidth label="Primary Email" value={profileData.email || ''} disabled />
-                          <TextField fullWidth label="Phone" value={profileData.phone || ''} onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })} />
-                        </Stack>
-                      </Grid>
-                    </Grid>
-                    <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
-                      <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveSettings} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Update Profile</Button>
-                    </Box>
-                  </CardContent>
-                </Card>
 
-                <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper' }}>
-                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Security Center</Typography>
-                  </Box>
-                  <CardContent sx={{ p: 4 }}>
-                    <Typography variant="body2" sx={{ mb: 3, fontWeight: 500, color: 'text.secondary' }}>Update your password periodically to maintain account security.</Typography>
-                    <Grid container spacing={3}>
-                      <Grid size={{ xs: 12, md: 4 }}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Current Password"
-                          type={showPassword ? 'text' : 'password'}
-                          value={passwordDialog.current}
-                          onChange={(e) => setPasswordDialog({ ...passwordDialog, current: e.target.value })}
-                          InputProps={{
-                            endAdornment: (
-                              <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
-                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                              </IconButton>
-                            ),
-                            sx: { borderRadius: 1 }
-                          }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 4 }}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="New Password"
-                          type={showPassword ? 'text' : 'password'}
-                          value={passwordDialog.new}
-                          onChange={(e) => setPasswordDialog({ ...passwordDialog, new: e.target.value })}
-                          InputProps={{ sx: { borderRadius: 1 } }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 4 }}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Confirm Password"
-                          type={showPassword ? 'text' : 'password'}
-                          value={passwordDialog.confirm}
-                          onChange={(e) => setPasswordDialog({ ...passwordDialog, confirm: e.target.value })}
-                          InputProps={{ sx: { borderRadius: 1 } }}
-                        />
-                      </Grid>
-                    </Grid>
-                    <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-                      <Button 
-                        variant="contained" 
-                        startIcon={passwordDialog.loading ? <CircularProgress size={16} color="inherit" /> : <Lock size={18} />}
-                        onClick={handleUpdatePassword}
-                        disabled={passwordDialog.loading || !passwordDialog.current || !passwordDialog.new}
-                        sx={{ 
-                          borderRadius: 2, 
-                          fontWeight: 950, 
-                          px: 4,
-                          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
-                          boxShadow: `0 8px 20px ${alpha(theme.palette.primary.main, 0.25)}`,
-                          '&:hover': {
-                            background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-                          }
-                        }}
-                      >
-                        Update Password
-                      </Button>
-                    </Box>
-                  </CardContent>
-                </Card>
+            {/* Security Section (Clean & Minimalist) */}
+            {tabValue === 'security' && (
+              <motion.div key="security" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                 <Stack spacing={3}>
+                   <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', border: '1.5px solid', borderColor: 'divider' }}>
+                     <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Box sx={{ p: 1, bgcolor: alpha(theme.palette.error.main, 0.1), color: 'error.main', borderRadius: 1.5, display: 'flex' }}>
+                             <Shield size={22} />
+                          </Box>
+                          <Box>
+                            <Typography variant="h6" sx={{ fontWeight: 900 }}>Account Integrity</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Credential management and system entry</Typography>
+                          </Box>
+                        </Box>
+                     </Box>
+                     <CardContent sx={{ p: 4 }}>
+                        <Grid container spacing={4}>
+                           <Grid size={{ xs: 12, md: 6 }}>
+                              <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.secondary', display: 'block', mb: 2 }}>CHANGE PASSWORD</Typography>
+                              <Stack spacing={2}>
+                                 <TextField fullWidth size="small" label="Current Secret" type={showPassword ? 'text' : 'password'} value={passwordDialog.current} onChange={(e) => setPasswordDialog({ ...passwordDialog, current: e.target.value })} InputProps={{ endAdornment: <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</IconButton>, sx: { borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5) } }} />
+                                 <TextField fullWidth size="small" label="New Secret" type={showPassword ? 'text' : 'password'} value={passwordDialog.new} onChange={(e) => setPasswordDialog({ ...passwordDialog, new: e.target.value })} InputProps={{ sx: { borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5) } }} />
+                                 <TextField fullWidth size="small" label="Confirm New Secret" type={showPassword ? 'text' : 'password'} value={passwordDialog.confirm} onChange={(e) => setPasswordDialog({ ...passwordDialog, confirm: e.target.value })} InputProps={{ sx: { borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5) } }} />
+                                 <Button variant="contained" color="error" fullWidth startIcon={<Lock size={18} />} onClick={handleUpdatePassword} disabled={passwordDialog.loading || !passwordDialog.new} sx={{ py: 1.5, fontWeight: 900, borderRadius: 2, mt: 1 }}>Update Credentials</Button>
+                              </Stack>
+                           </Grid>
+                           <Grid size={{ xs: 12, md: 6 }}>
+                              <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.secondary', display: 'block', mb: 2 }}>TWO-FACTOR AUTH</Typography>
+                              <Paper variant="outlined" sx={{ p: 3, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.02), display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                                 <Smartphone size={32} color={theme.palette.primary.main} style={{ marginBottom: 12, opacity: 0.5 }} />
+                                 <Typography variant="body2" sx={{ fontWeight: 800, mb: 1 }}>Enhance Security</Typography>
+                                 <Typography variant="caption" sx={{ color: 'text.secondary', mb: 2, fontWeight: 600 }}>Add an extra layer of protection by requiring a code from your phone.</Typography>
+                                 <Button variant="outlined" disabled sx={{ fontWeight: 900, borderRadius: 2 }}>Enabled Soon</Button>
+                              </Paper>
+                           </Grid>
+                        </Grid>
+                     </CardContent>
+                   </Card>
+
+                   <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', border: '1.5px solid', borderColor: 'divider' }}>
+                      <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                         <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Active Sessions & Logged Devices</Typography>
+                         <Chip label="2 Devices" size="small" sx={{ fontWeight: 900, borderRadius: 1 }} />
+                      </Box>
+                      <CardContent sx={{ p: 3 }}>
+                         <List disablePadding>
+                            <ListItem sx={{ py: 2, px: 1, borderRadius: 2, '&:hover': { bgcolor: 'action.hover' } }}>
+                               <ListItemIcon sx={{ minWidth: 48 }}><Monitor size={20} color={theme.palette.primary.main} /></ListItemIcon>
+                               <ListItemText 
+                                 primary={<Typography variant="body2" sx={{ fontWeight: 800 }}>Chrome on Windows Desktop</Typography>} 
+                                 secondary={<Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>Active Now • Current Session</Typography>} 
+                               />
+                               <Chip label="Current" size="small" variant="outlined" color="success" sx={{ fontWeight: 900, height: 20 }} />
+                            </ListItem>
+                            <Divider sx={{ my: 1, opacity: 0.5 }} />
+                            <ListItem sx={{ py: 2, px: 1, borderRadius: 2, '&:hover': { bgcolor: 'action.hover' } }}>
+                               <ListItemIcon sx={{ minWidth: 48 }}><Smartphone size={20} color={theme.palette.text.secondary} /></ListItemIcon>
+                               <ListItemText 
+                                 primary={<Typography variant="body2" sx={{ fontWeight: 800 }}>iPhone 15 Pro (Safari)</Typography>} 
+                                 secondary={<Typography variant="caption" sx={{ fontWeight: 600 }}>Last active: 4 hours ago • Karach, PK</Typography>} 
+                               />
+                               <Button size="small" color="error" sx={{ fontWeight: 900 }}>Revoke</Button>
+                            </ListItem>
+                         </List>
+                         <Box sx={{ mt: 3, bgcolor: alpha(theme.palette.warning.main, 0.05), p: 2, borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette.warning.main, 0.1) }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark', display: 'flex', alignItems: 'center', gap: 1 }}>
+                               <AlertCircle size={14} /> Only your own sessions are visible here for security reasons.
+                            </Typography>
+                         </Box>
+                      </CardContent>
+                   </Card>
+                 </Stack>
               </motion.div>
             )}
 
@@ -882,64 +1156,7 @@ export default function Settings() {
               </motion.div>
             )}
 
-            {/* Branding Section */}
-            {tabValue === 'branding' && isAdmin && (
-              <motion.div key="branding" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
-                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Institute Branding</Typography>
-                  </Box>
-                  <CardContent sx={{ p: 4 }}>
-                    <Stack spacing={4}>
-                      <Box>
-                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>IDENTITY & COLORS</Typography>
-                        <Grid container spacing={3}>
-                          <Grid size={{ xs: 12, md: 8 }}>
-                            <TextField fullWidth label="Institute Name" variant="filled" value={instituteData.instituteName || ''} onChange={(e) => setInstituteData({ ...instituteData, instituteName: e.target.value })} sx={{ mb: 2 }} InputProps={{ disableUnderline: true, sx: { borderRadius: 2, fontWeight: 900, fontSize: '1.2rem', bgcolor: alpha(theme.palette.primary.main, 0.05) } }} />
-                            <TextField fullWidth label="Tagline" variant="filled" value={instituteData.tagline || ''} onChange={(e) => setInstituteData({ ...instituteData, tagline: e.target.value })} InputProps={{ disableUnderline: true, sx: { borderRadius: 2, fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.03) } }} />
-                          </Grid>
-                          <Grid size={{ xs: 12, md: 4 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 800, mb: 1, display: 'block', opacity: 0.7 }}>BRAND COLOR</Typography>
-                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                              {['#0f172a', '#064e3b', '#450a0a', '#18181b'].map(c => (
-                                <Box key={c} onClick={() => { setInstituteData({ ...instituteData, primaryColor: c }); setInstituteColors({ primary: c, secondary: c }); }} sx={{ width: 44, height: 44, borderRadius: '50%', bgcolor: c, cursor: 'pointer', border: instituteData.primaryColor === c ? '3px solid white' : 'none', boxShadow: 2, transition: '0.2s', '&:hover': { transform: 'scale(1.1)' } }} />
-                              ))}
-                              <Box component="label" sx={{ width: 44, height: 44, borderRadius: '50%', border: '2px dashed gray', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><input type="color" hidden onChange={(e) => { setInstituteColors({ primary: e.target.value, secondary: e.target.value }); setInstituteData({ ...instituteData, primaryColor: e.target.value }); }} /><Plus size={20} /></Box>
-                            </Box>
-                          </Grid>
-                        </Grid>
-                      </Box>
-                      <Divider />
-                      <Box>
-                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>VISUAL ASSETS</Typography>
-                        <Grid container spacing={2}>
-                          <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Logo" value={instituteData.logoUrl} onUpload={handleImageUpload('logoUrl')} onRemove={() => handleRemoveImage('logoUrl')} icon={<Globe />} /></Grid>
-                          <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Banner" value={instituteData.bannerUrl} onUpload={handleImageUpload('bannerUrl')} onRemove={() => handleRemoveImage('bannerUrl')} icon={<Layout />} isBanner /></Grid>
-                          <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Receipt Left" value={instituteData.receiptLeftImageUrl} onUpload={handleImageUpload('receiptLeftImageUrl')} onRemove={() => handleRemoveImage('receiptLeftImageUrl')} icon={<ImageIcon />} /></Grid>
-                          <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Receipt Right" value={instituteData.receiptRightImageUrl} onUpload={handleImageUpload('receiptRightImageUrl')} onRemove={() => handleRemoveImage('receiptRightImageUrl')} icon={<ImageIcon />} /></Grid>
-                        </Grid>
-                      </Box>
-                      <Divider />
-                      <Box>
-                         <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>DASHBOARD QUOTES</Typography>
-                         <TextField
-                            fullWidth
-                            multiline
-                            rows={4}
-                            placeholder={`Success is not final.\n\nKnowledge is light.`}
-                            value={instituteData.quotes?.join('\n\n') || ''}
-                            onChange={(e) => setInstituteData({ ...instituteData, quotes: e.target.value.split(/\n\n+/) })}
-                            InputProps={{ sx: { borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.02), fontWeight: 600, p: 2 } }}
-                          />
-                      </Box>
-                    </Stack>
-                    <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
-                      <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveInstitute} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Save Branding</Button>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
+
 
             {/* System Section */}
             {tabValue === 'system' && isSuperAdmin && (

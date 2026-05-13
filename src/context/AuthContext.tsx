@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, onSnapshot, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, getDocs, query, collection, where, deleteDoc, OperationType, handleFirestoreError } from '../firebase';
+import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, onSnapshot, doc, getDoc, setDoc, updateDoc, signInWithEmailAndPassword, createUserWithEmailAndPassword, getDocs, query, collection, where, deleteDoc, OperationType, handleFirestoreError, serverTimestamp } from '../firebase';
 import { UserProfile, UserRole } from '../types';
 import { cache, CACHE_KEYS } from '../lib/cache';
 
@@ -65,6 +65,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         if (firebaseUser) {
           logger.auth('User Detected', { email: firebaseUser.email, uid: firebaseUser.uid });
+          
+          // Track session
+          const sessionRef = doc(collection(db, 'users', firebaseUser.uid, 'sessions'), Date.now().toString());
+          setDoc(sessionRef, {
+            userAgent: navigator.userAgent,
+            lastSeen: serverTimestamp(),
+            platform: navigator.platform,
+            language: navigator.language,
+            type: 'web',
+            active: true
+          }).catch(console.error);
           
           // Try to load from session first for instant hydration
           const cachedProfile = await cache.get<UserProfile>(`profile_${firebaseUser.uid}`);
