@@ -456,38 +456,60 @@ export default function Fees() {
                   mt: isMobile ? -0.2 : 0
                 }}
               >
-                <RefreshCw size={isMobile ? 14 : 20} />
+                 <RefreshCw size={isMobile ? 14 : 20} />
               </IconButton>
             </Stack>
             <Typography variant={isMobile ? "caption" : "body1"} color="text.secondary" sx={{ fontWeight: 600, display: 'block', opacity: 0.8, lineHeight: 1.1, fontSize: isMobile ? '0.65rem' : 'inherit' }}>Financial Management & Receipts</Typography>
           </Box>
-          {isStaff && (
-            <Button 
-              variant="contained" 
-              fullWidth={isMobile}
-              startIcon={<Plus />} 
-              onClick={() => setOpenAddDialog(true)}
-              sx={{ 
-                borderRadius: 3, 
-                py: isMobile ? 1.2 : 1.5, 
-                px: isMobile ? 2 : 4, 
-                fontWeight: 900,
-                fontSize: isMobile ? '0.75rem' : '0.85rem',
-                textTransform: 'none',
-                minWidth: { xs: '100%', sm: 160 },
-                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
-                boxShadow: theme.palette.mode === 'dark'
-                  ? '8px 8px 16px #000000, -8px -8px 16px rgba(255,255,255,0.02)'
-                  : `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
-                '&:hover': {
-                  background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-                  transform: 'translateY(-1px)'
-                }
-              }}
-            >
-              New Receipt
-            </Button>
-          )}
+          
+          <Stack direction="row" spacing={2} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+            {selectedReceiptIds.length > 0 && (
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<Printer size={18} />}
+                onClick={handleBulkPrint}
+                sx={{ 
+                  borderRadius: 3, 
+                  fontWeight: 900, 
+                  px: 3,
+                  bgcolor: alpha(theme.palette.primary.main, 0.05),
+                  borderWidth: 2,
+                  '&:hover': { borderWidth: 2 }
+                }}
+              >
+                Print ({selectedReceiptIds.length})
+              </Button>
+            )}
+            
+            {isStaff && (
+              <Button 
+                variant="contained" 
+                fullWidth={isMobile}
+                startIcon={<Plus />} 
+                onClick={() => setOpenAddDialog(true)}
+                sx={{ 
+                  borderRadius: 3, 
+                  py: isMobile ? 1.2 : 1.5, 
+                  px: isMobile ? 2 : 4, 
+                  fontWeight: 900,
+                  fontSize: isMobile ? '0.75rem' : '0.85rem',
+                  textTransform: 'none',
+                  minWidth: { xs: '100%', sm: 160 },
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
+                  boxShadow: theme.palette.mode === 'dark'
+                    ? '8px 8px 16px #000000, -8px -8px 16px rgba(255,255,255,0.02)'
+                    : `0 8px 24px ${alpha(theme.palette.primary.main, 0.3)}`,
+                  '&:hover': {
+                    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                    transform: 'translateY(-1px)'
+                  }
+                }}
+              >
+                New Receipt
+              </Button>
+            )}
+          </Stack>
         </Box>
 
       {/* Compact Finance Stats */}

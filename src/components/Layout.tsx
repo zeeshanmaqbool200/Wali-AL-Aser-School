@@ -224,7 +224,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 60, md: 80 }, px: { xs: 2, md: 4 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {isMobile && !['/', '/dashboard', '/users', '/fees', '/reports', '/settings'].includes(location.pathname) && (
+                {isMobile && !['/', '/dashboard', '/users', '/fees', '/reports', '/settings', '/courses', '/expenses', '/attendance', '/notes', '/exams', '/schedule', '/profile', '/notifications'].includes(location.pathname) && (
                   <IconButton onClick={() => navigate(-1)} sx={{ color: 'primary.main', mr: 1 }}>
                     <ArrowLeft size={24} />
                   </IconButton>
@@ -232,19 +232,20 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 12, cursor: 'pointer' }}
                   onClick={() => setSidebarOpen(!sidebarOpen)}
                 >
                 <Box sx={{ 
-                  width: { xs: 32, md: 45 }, 
-                  height: { xs: 32, md: 45 }, 
+                  width: { xs: 28, md: 45 }, 
+                  height: { xs: 28, md: 45 }, 
                   overflow: 'hidden', 
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center',
                   bgcolor: 'transparent',
-                  borderRadius: 2,
+                  borderRadius: 1.5,
                   p: 0,
+                  flexShrink: 0,
                   transition: 'all 0.3s ease',
                   '&:hover': { transform: 'scale(1.05)' }
                 }}>
@@ -263,17 +264,20 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <School size={isMobile ? 24 : 32} color={theme.palette.primary.main} />
+                    <School size={isMobile ? 22 : 32} color={theme.palette.primary.main} />
                   )}
                 </Box>
-                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
                   <Typography variant="h5" sx={{ 
                     fontWeight: 950, 
                     color: 'primary.main', 
-                    letterSpacing: -1, 
+                    letterSpacing: -0.5, 
                     fontFamily: 'var(--font-heading)', 
-                    fontSize: { xs: '0.95rem', md: '1.4rem' },
+                    fontSize: { xs: '0.85rem', md: '1.4rem' },
                     lineHeight: 1,
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                    overflow: 'hidden',
                     background: `linear-gradient(135deg, ${theme.palette.primary.main}, #fbbf24)`,
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
@@ -283,11 +287,14 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                   <Typography variant="caption" sx={{ 
                     fontWeight: 800, 
                     color: 'text.secondary', 
-                    fontSize: { xs: '0.6rem', md: '0.65rem' }, 
+                    fontSize: { xs: '0.55rem', md: '0.65rem' }, 
                     letterSpacing: 0.5,
                     textTransform: 'uppercase',
                     opacity: 0.8,
-                    mt: 0.2
+                    mt: 0.1,
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                    overflow: 'hidden'
                   }}>
                     {tagline}
                   </Typography>

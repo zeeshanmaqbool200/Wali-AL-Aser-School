@@ -1907,6 +1907,65 @@ export default function Users() {
                 </Box>
               </Box>
 
+              {/* Second Page: Receipts */}
+              {profileReceipts.length > 0 && (
+                <Box sx={{ 
+                  '@media print': { pageBreakBefore: 'always', mt: 0, pt: 10 }, 
+                  mt: 8, 
+                  position: 'relative', 
+                  zIndex: 10,
+                  width: '100%',
+                  bgcolor: 'white',
+                  color: 'black',
+                  direction: 'ltr' // Receipts are usually LTR
+                }}>
+                  <Box sx={{ borderBottom: '3px solid black', pb: 1, mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 950, textTransform: 'uppercase', color: 'black' }}>Financial Summary</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: 'black' }}>{profileToView?.displayName}</Typography>
+                  </Box>
+
+                  <Grid container spacing={3}>
+                    {profileReceipts.map((r) => (
+                      <Grid key={r.id} size={{ xs: 12, sm: 6 }}>
+                        <Box sx={{ 
+                          border: '1.5px solid black', 
+                          p: 2, 
+                          borderRadius: 2, 
+                          pageBreakInside: 'avoid',
+                          mb: 1,
+                          bgcolor: 'white'
+                        }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5, borderBottom: '1px solid #000', pb: 1 }}>
+                            <Typography sx={{ fontWeight: 950, fontSize: '0.9rem', color: 'black' }}>#{r.receiptNo}</Typography>
+                            <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: 'black' }}>{safelyFormatDate(r.date)}</Typography>
+                          </Box>
+                          <Stack spacing={0.5}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: 'black' }}>Head:</Typography>
+                              <Typography sx={{ fontWeight: 900, fontSize: '0.8rem', color: 'black' }}>{r.feeHead}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: 'black' }}>Amount:</Typography>
+                              <Typography sx={{ fontWeight: 950, fontSize: '1rem', color: 'black' }}>₹{r.amount}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: 'black' }}>Mode:</Typography>
+                              <Typography sx={{ fontWeight: 900, fontSize: '0.8rem', color: 'black' }}>{r.paymentMode}</Typography>
+                            </Box>
+                          </Stack>
+                        </Box>
+                      </Grid>
+                    ))}
+                  </Grid>
+
+                  <Box sx={{ mt: 10, pt: 4, borderTop: '2px solid black', textAlign: 'center' }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: '0.7rem', color: 'black' }}>
+                      Electronically generated on {new Date().toLocaleString()} • Wali Ul Aser Financial System
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+
               <style>{`
                 @media print {
                   @page { size: A4; margin: 0; }

@@ -148,7 +148,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
               bottom: { xs: 16, sm: 24 }, 
               left: '50%', 
               transform: 'translateX(-50%)',
-              zIndex: 5000, 
+              zIndex: 1200, 
               width: { xs: 'calc(100% - 32px)', sm: 'auto' },
               maxWidth: { xs: 450, sm: 'none' },
               pointerEvents: isActuallyVisible ? 'auto' : 'none',

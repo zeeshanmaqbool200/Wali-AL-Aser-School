@@ -446,29 +446,29 @@ export default function FormView() {
       {/* Standalone Branding Banner */}
       {instituteBanner && (
         <Box sx={{ 
-          height: { xs: 150, md: 300 }, 
+          height: { xs: 120, md: 240 }, 
           width: '100%', 
           position: 'relative',
           backgroundImage: `url(${instituteBanner})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          mb: { xs: -6, md: -10 }
+          mb: { xs: -4, md: -6 }
         }}>
-          <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.1))' }} />
+          <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0))' }} />
         </Box>
       )}
 
-      <Container maxWidth="md" sx={{ pt: instituteBanner ? 4 : 8 }}>
+      <Container maxWidth="md" sx={{ pt: instituteBanner ? 2 : 6 }}>
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Button 
             startIcon={<ArrowLeft size={18} />} 
             onClick={() => navigate(-1)}
-            sx={{ fontWeight: 800, borderRadius: 2, color: 'text.secondary', minHeight: 44 }}
+            sx={{ fontWeight: 800, borderRadius: 2, color: 'text.secondary', minHeight: 44, bgcolor: 'background.paper', boxShadow: 1 }}
           >
             Go Back
           </Button>
           {form?.showProgressBar && (
-             <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>
+             <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', bgcolor: 'background.paper', px: 2, py: 0.5, borderRadius: 5, boxShadow: 1 }}>
                {calculateProgress()}% Complete
              </Typography>
           )}
@@ -479,41 +479,44 @@ export default function FormView() {
             mb: 4, 
             overflow: 'hidden', 
             boxShadow: '0 20px 40px rgba(0,0,0,0.08)',
-            borderTop: instituteBanner ? 'none' : `15px solid ${primaryColor}`,
-            background: 'white'
+            borderTop: !instituteBanner ? `12px solid ${primaryColor}` : 'none',
+            background: 'white',
+            position: 'relative'
           }}>
-            <Box sx={{ p: { xs: 3, md: 5 } }}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
-                {form?.headerLeftImageUrl ? (
-                  <Box component="img" src={form.headerLeftImageUrl} sx={{ height: { xs: 40, sm: 60 }, width: 'auto', maxWidth: 100, objectFit: 'contain' }} />
-                ) : (
-                   instituteSettings?.receiptLeftImageUrl && <Box component="img" src={instituteSettings.receiptLeftImageUrl} sx={{ height: { xs: 40, sm: 60 }, width: 'auto', maxWidth: 100, objectFit: 'contain' }} />
-                )}
-                {instituteLogo && (
-                  <Avatar 
-                    src={instituteLogo} 
-                    sx={{ 
-                      width: { xs: 60, sm: 80 }, 
-                      height: { xs: 60, sm: 80 }, 
-                      boxShadow: 4, 
-                      border: '4px solid white',
-                      bgcolor: 'white'
-                    }} 
+            {/* Logo and Header Images Overlay on Card */}
+            <Box sx={{ 
+              p: { xs: 2.5, md: 4 }, 
+              pb: 0,
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'flex-start'
+            }}>
+              <Box sx={{ width: { xs: 60, md: 100 }, height: { xs: 60, md: 100 }, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                {(form?.logoUrl || instituteSettings?.logoUrl) && (
+                  <Box 
+                    component="img" 
+                    src={form?.logoUrl || instituteSettings?.logoUrl} 
+                    sx={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} 
                   />
                 )}
-                {form?.headerRightImageUrl ? (
-                  <Box component="img" src={form.headerRightImageUrl} sx={{ height: { xs: 40, sm: 60 }, width: 'auto', maxWidth: 100, objectFit: 'contain' }} />
-                ) : (
-                  instituteSettings?.receiptRightImageUrl && <Box component="img" src={instituteSettings.receiptRightImageUrl} sx={{ height: { xs: 40, sm: 60 }, width: 'auto', maxWidth: 100, objectFit: 'contain' }} />
+              </Box>
+              <Box sx={{ width: { xs: 60, md: 100 }, height: { xs: 60, md: 100 }, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                {(form?.headerRightImageUrl || instituteSettings?.receiptRightImageUrl) && (
+                  <Box 
+                    component="img" 
+                    src={form?.headerRightImageUrl || instituteSettings?.receiptRightImageUrl} 
+                    sx={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} 
+                  />
                 )}
-              </Stack>
+              </Box>
+            </Box>
 
+            <Box sx={{ p: { xs: 3, md: 5 }, pt: { xs: 1, md: 2 }, textAlign: 'center' }}>
               <Typography variant="h2" sx={{ 
                 fontWeight: 950, 
                 fontFamily: '"Cinzel Decorative", serif', 
                 color: 'text.primary', 
                 letterSpacing: -1, 
-                textAlign: 'center',
                 mb: 2,
                 fontSize: { xs: '1.8rem', sm: '2.5rem', md: '3rem' }
               }}>
@@ -524,7 +527,8 @@ export default function FormView() {
                 color: 'text.secondary', 
                 lineHeight: 1.8, 
                 fontSize: '1.1rem',
-                textAlign: 'center'
+                maxWidth: '700px',
+                mx: 'auto'
               }}>
                 {form?.description}
               </Typography>

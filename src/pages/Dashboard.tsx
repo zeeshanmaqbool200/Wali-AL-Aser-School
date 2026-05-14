@@ -129,7 +129,7 @@ export default function Dashboard({ user }: DashboardProps) {
           const others = availableQuotes.filter(q => q !== prev);
           return others.length > 0 ? others[Math.floor(Math.random() * others.length)] : prev;
         });
-      }, 180000); // Rotate every 180 seconds (Slowed down from 60s)
+      }, 300000); // Rotate every 300 seconds (5 minutes) - Very slow as requested
     }
 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -560,7 +560,7 @@ export default function Dashboard({ user }: DashboardProps) {
           borderRadius: { xs: 1, md: 2 }, 
           overflow: 'hidden',
           mb: 0,
-          minHeight: { xs: 260, md: 360 }, 
+          minHeight: { xs: 340, md: 400 }, 
           display: 'flex',
           bgcolor: isDark ? '#050505' : '#f8fafc', 
           transition: 'all 0.5s ease',
@@ -645,7 +645,7 @@ export default function Dashboard({ user }: DashboardProps) {
         {/* Stats Overlay - Refined for bottom right alignment */}
         <Box sx={{ 
           position: 'absolute', 
-          bottom: { xs: 40, md: 50 },
+          bottom: { xs: 20, md: 50 },
           right: { xs: 16, md: 48 }, 
           zIndex: 40,
           width: { xs: 'calc(100% - 32px)', sm: 'auto' },
@@ -716,8 +716,8 @@ export default function Dashboard({ user }: DashboardProps) {
         {/* Welcome Text Content - Align below time/date left */}
         <Box sx={{ 
           position: 'absolute', 
-          top: { xs: 70, md: 90 },
-          left: { xs: 16, md: 32 },
+          top: { xs: 65, md: 95 },
+          left: { xs: 16, md: 48 },
           zIndex: 10,
           width: { xs: 'calc(100% - 32px)', md: '600px' },
           textAlign: 'left',
@@ -729,7 +729,7 @@ export default function Dashboard({ user }: DashboardProps) {
                 fontWeight: 1000, 
                 color: 'white', 
                 letterSpacing: -0.5, 
-                fontSize: { xs: '1.8rem', md: '3rem' }, 
+                fontSize: { xs: '1.5rem', md: '3rem' }, 
                 lineHeight: 1.1,
                 fontFamily: '"Cinzel Decorative", serif',
                 textShadow: '0 4px 20px rgba(0,0,0,0.8)',
@@ -743,10 +743,10 @@ export default function Dashboard({ user }: DashboardProps) {
                   color: 'rgba(255,255,255,0.95)', 
                   fontWeight: 800, 
                   textShadow: '0 4px 16px rgba(0,0,0,1)',
-                  mb: 3,
+                  mb: { xs: 1, md: 3 },
                   fontFamily: '"Cinzel Decorative", serif',
                   letterSpacing: { xs: 1, md: 2 },
-                  fontSize: { xs: '0.8rem', md: '1.1rem' },
+                  fontSize: { xs: '0.65rem', md: '1.1rem' },
                   textTransform: 'uppercase'
                 }}>
                   {instituteData.tagline}
@@ -779,7 +779,7 @@ export default function Dashboard({ user }: DashboardProps) {
                   >
                     <Typography 
                       sx={{ 
-                        fontSize: { xs: '0.9rem', sm: '1.1rem', md: '1.4rem' }, 
+                        fontSize: { xs: '0.75rem', sm: '1.1rem', md: '1.4rem' }, 
                         fontWeight: 700, 
                         color: 'rgba(255,255,255,1)', 
                         lineHeight: 1.4,
@@ -793,9 +793,6 @@ export default function Dashboard({ user }: DashboardProps) {
                     </Typography>
                   </motion.div>
                 </AnimatePresence>
-                <Typography variant="caption" sx={{ mt: 1, display: 'block', color: alpha('#fff', 0.6), fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase' }}>
-                  Words of Wisdom
-                </Typography>
               </Box>
             </motion.div>
           </Stack>
