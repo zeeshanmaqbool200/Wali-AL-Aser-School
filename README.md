@@ -1,20 +1,97 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 📚 Idarah Wali Ul Aser – CRM Based Maktab Management System
 
-# Run and deploy your AI Studio app
+A modern CRM-based Maktab Management System developed for **Idarah Wali Ul Aser Chattergam** by **Zeeshan**.
 
-This contains everything you need to run your app locally.
+This platform is designed to digitally manage Maktab operations including students, teachers, attendance, fees, classes, announcements, reports, and administration — all in one centralized system.
 
-View your app in AI Studio: https://ai.studio/apps/4a1e6e1e-cea3-4703-9620-3839dc96d173
+---
 
-## Run Locally
+# ✨ Features
 
-**Prerequisites:**  Node.js
+## 👨‍🎓 Student Management
+- Student registration
+- Student profiles
+- Guardian details
+- Admission records
+- Academic progress tracking
 
+## 👨‍🏫 Teacher Management
+- Teacher profiles
+- Assigned classes
+- Attendance records
+- Performance management
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 🕌 Maktab Administration
+- Class scheduling
+- Subject management
+- Batch management
+- Timetable system
+
+## 📅 Attendance System
+- Daily attendance
+- Teacher attendance
+- Monthly reports
+- Attendance analytics
+
+## 💰 Fee Management
+- Fee collection
+- Pending fee tracking
+- Receipt generation
+- Monthly financial reports
+
+## 📢 Communication System
+- Notices & announcements
+- SMS/WhatsApp integration
+- Parent notifications
+
+## 📊 Dashboard & Reports
+- Admin dashboard
+- Student statistics
+- Financial overview
+- Attendance reports
+
+---
+
+# 🛠️ Technologies Used
+
+- HTML5
+- CSS3
+- JavaScript
+- React.js
+- Node.js
+- Express.js
+- MongoDB / SQL
+- Firebase (Optional)
+
+---
+
+# 🔐 User Roles
+
+## Admin
+- Full system control
+- Manage teachers & students
+- Generate reports
+
+## Teacher
+- Mark attendance
+- Manage class records
+- View assigned students
+
+## Student / Guardian
+- View attendance
+- Check notices
+- Access reports
+
+---
+
+# 📁 Project Structure
+
+```bash
+maktab-crm/
+│
+├── frontend/
+├── backend/
+├── database/
+├── public/
+├── assets/
+└── README.md
