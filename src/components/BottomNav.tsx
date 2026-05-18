@@ -17,7 +17,7 @@ interface BottomNavProps {
   logoUrl?: string;
 }
 
-export default function BottomNav({ user, unreadNotifications = 0, visible: controlledVisible = true, logoUrl = 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png' }: BottomNavProps) {
+export default function BottomNav({ user, unreadNotifications = 0, visible: controlledVisible = true, logoUrl = '' }: BottomNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -106,7 +106,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   }, [lastScrollY, internalVisible]);
 
   const role = user.role || 'student';
-  const isSuperAdmin = user.email === 'zeeshanmaqbool200@gmail.com';
+  const isSuperAdmin = user.email?.toLowerCase() === 'zeeshanmaqbool200@gmail.com' || user.uid === 'sZUiAgoSF8MTPBQAOtj6jbFkot93';
   const isManagerRole = role === 'manager';
   const isTeacherRole = role === 'teacher';
   const isAdmin = isSuperAdmin || isManagerRole;

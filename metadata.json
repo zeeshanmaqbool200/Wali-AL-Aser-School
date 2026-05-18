@@ -1,6 +1,6 @@
 {
-  "name": "Wali-ul-Asr Maktab Management",
-  "description": "Comprehensive Shia Maktab Management System for student enrollment, fee collection (Zakat/Khums), attendance, and academic progress with QR verification.",
+  "name": "Institute Management System",
+  "description": "Comprehensive school and institute management system for student enrollment, fee collection, attendance, and academic progress with digital verification.",
   "requestFramePermissions": [
     "camera",
     "microphone",

@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import { NotificationProvider } from './context/NotificationContext';
 import NotificationListener from './components/NotificationListener';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'motion/react';
 import { Clock, X, BookOpen } from 'lucide-react';
 import Layout from './components/Layout';
 import Login from './pages/Login';

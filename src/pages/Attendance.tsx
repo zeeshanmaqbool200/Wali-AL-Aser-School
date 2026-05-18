@@ -18,7 +18,7 @@ import { db, OperationType, handleFirestoreError, smartSetDoc } from '../firebas
 import { UserProfile, Attendance } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subDays, addDays } from 'date-fns';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { exportToCSV } from '../lib/exportUtils';
 import { useNavigate } from 'react-router-dom';
 

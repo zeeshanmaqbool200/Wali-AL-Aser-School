@@ -28,7 +28,7 @@ import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { format, subDays } from 'date-fns';
 import { safelyFormatDate } from '../lib/dateUtils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import gsap from 'gsap';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 
@@ -85,21 +85,9 @@ export default function Dashboard({ user }: DashboardProps) {
     return format(date, 'hh:mm:ss a');
   };
 
-  const quotes = [
-    "Knowledge is a treasure, but practice is the key to it. — Imam Ali (AS)",
-    "The most complete gift of God is a life based on knowledge. — Imam Ali (AS)",
-    "Patience is to victory what the head is to the body. — Imam Ali (AS)",
-    "Be like a flower that gives its fragrance even to the hand that crushes it. — Imam Ali (AS)",
-    "Seek knowledge from the cradle to the grave. — Prophet Muhammad (SAWW)",
-    "A person who knows himself knows his Lord. — Imam Ali (AS)",
-    "Silence is the best reply to a fool. — Imam Ali (AS)",
-    "The best wealth is the abandonment of desires. — Imam Ali (AS)"
-  ];
+  const quotes = [];
 
-  const [instituteData, setInstituteData] = useState<Partial<InstituteSettings>>(instituteSettings || {
-    instituteName: 'Wali Ul Aser Institute',
-    tagline: 'Simple Learning for Everyone'
-  });
+  const [instituteData, setInstituteData] = useState<Partial<InstituteSettings>>(instituteSettings || {});
 
   useEffect(() => {
     if (instituteSettings) {
@@ -108,14 +96,21 @@ export default function Dashboard({ user }: DashboardProps) {
   }, [instituteSettings]);
 
   const availableQuotes = useMemo(() => {
-    const raw: string | any[] = (instituteData?.quotes && instituteData.quotes.length > 0) ? (instituteData.quotes as string | any[]) : quotes;
-    if (typeof raw === 'string') {
-      return (raw as string).split('\n').map(q => q.trim()).filter(q => q.length > 0);
+    // If instituteData.quotes is an empty array but WAS defined, it means the user cleared it.
+    // However, if it's undefined, it's a fresh app or fallback state.
+    if (instituteData?.quotes !== undefined && instituteData.quotes !== null) {
+      if (Array.isArray(instituteData.quotes)) {
+        const filtered = instituteData.quotes.flatMap(q => typeof q === 'string' ? q.split('\n') : [q]).map(q => q.trim()).filter(q => q.length > 0);
+        if (filtered.length > 0) return filtered;
+        // If it's an empty array, return a default single quote or empty
+        return ["Welcome to our Institute Portal."]; 
+      }
+      if (typeof instituteData.quotes === 'string') {
+        const filtered = (instituteData.quotes as string).split('\n').map(q => q.trim()).filter(q => q.length > 0);
+        if (filtered.length > 0) return filtered;
+      }
     }
-    if (Array.isArray(raw)) {
-      return (raw as any[]).flatMap(q => typeof q === 'string' ? q.split('\n') : [q]).map(q => q.trim()).filter(q => q.length > 0);
-    }
-    return quotes;
+    return quotes.length > 0 ? quotes : ["Welcome to our Institute Portal."];
   }, [instituteData.quotes, quotes]);
 
   const parseQuote = (q: string) => {
@@ -190,14 +185,18 @@ export default function Dashboard({ user }: DashboardProps) {
     const students = allUsers.filter(u => u.role === 'student' && u.status !== 'Deleted');
     const staff = allUsers.filter(u => ['teacher', 'manager', 'superadmin'].includes(u.role) && u.status !== 'Deleted');
     
-    setStats(prev => ({
-      ...prev,
-      totalStudents: students.length,
-      totalFeesMonth: monthAmount,
-      pendingFees: filteredReceipts.filter(r => r.status === 'pending').length,
-      recentAdmissions: students.slice(0, 5),
-      availableCourses: allCourses.slice(0, 6)
-    }));
+    setStats(prev => {
+      const newStats = {
+        ...prev,
+        totalStudents: students.length,
+        totalFeesMonth: monthAmount,
+        pendingFees: filteredReceipts.filter(r => r.status === 'pending').length,
+        recentAdmissions: students.slice(0, 5),
+        availableCourses: allCourses.slice(0, 6)
+      };
+      localStorage.setItem(`dashboard_stats_${user.uid}`, JSON.stringify(newStats));
+      return newStats;
+    });
     
     setStaffMembers(staff as UserProfile[]);
     setRecentNotifications(allNotifs.slice(0, 10));
@@ -451,7 +450,7 @@ export default function Dashboard({ user }: DashboardProps) {
           overflow: 'hidden',
           mb: 0,
           mt: { xs: 8, md: 10, lg: 12 }, // Normalized spacing
-          minHeight: { xs: 400, md: 500, xl: 600 }, // Reduced from 700/800
+          minHeight: { xs: 240, md: 320, xl: 380 }, // Reduced for compact layout
           display: 'flex',
           bgcolor: isDark ? '#050505' : '#f8fafc', 
           transition: 'all 0.5s ease',
@@ -601,7 +600,7 @@ export default function Dashboard({ user }: DashboardProps) {
               opacity: 0.8,
               textAlign: 'left'
             }}>
-              {instituteData.tagline || 'Maktab for Imam Mahdi A.J'}
+              {instituteData.tagline || ''}
             </Typography>
           </motion.div>
         </Box>
@@ -1397,77 +1396,92 @@ export default function Dashboard({ user }: DashboardProps) {
           }
         }}
       >
-        <IconButton 
-          onClick={() => setOpenTeacherProfile(false)}
-          sx={{ position: 'absolute', top: -15, right: -15, bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' }, boxShadow: 4 }}
-        >
-          <X size={20} />
-        </IconButton>
-        {selectedTeacher && (
-          <Box sx={{ textAlign: 'center' }}>
-            <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-              <Avatar 
-                src={selectedTeacher.photoURL} 
-                sx={{ 
-                  width: 140, height: 140, mx: 'auto', mb: 3, 
-                  border: `6px solid ${theme.palette.primary.main}`,
-                  boxShadow: theme.shadows[10],
-                  bgcolor: 'primary.main',
-                  fontSize: '3rem',
-                  fontWeight: 900
-                }}
-                imgProps={{ referrerPolicy: 'no-referrer' }}
-              >
-                {selectedTeacher.displayName?.charAt(0)}
-              </Avatar>
-            </motion.div>
-            <Typography variant="h5" sx={{ fontWeight: 950, mb: 1, letterSpacing: -1.5 }}>{selectedTeacher.displayName}</Typography>
-            <Chip 
-              icon={<Award size={16} />}
-              label={selectedTeacher.role === 'superadmin' ? 'Head of Institute' : (selectedTeacher.role === 'teacher' ? 'Teacher' : 'Manager')} 
-              color="primary"
-              variant="outlined"
-              sx={{ mb: 4, fontWeight: 900, borderRadius: 2 }}
-            />
-            
-            <Paper sx={{ p: 3, borderRadius: 4, bgcolor: alpha(theme.palette.action.hover, 0.3), border: '1px solid', borderColor: 'divider', mb: 4 }}>
-              <Grid container spacing={3} textAlign="left">
-                <Grid size={{ xs: 12 }}>
-                   <Stack direction="row" spacing={2} alignItems="center">
-                     <Book size={20} color={theme.palette.primary.main} />
-                     <Box>
-                       <Typography variant="caption" sx={{ fontWeight: 900, opacity: 0.6, display: 'block' }}>EXPERTISE</Typography>
-                       <Typography variant="body2" sx={{ fontWeight: 800 }}>{selectedTeacher.subject || 'Islamic Theology & Guidance'}</Typography>
-                     </Box>
-                   </Stack>
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                   <Stack direction="row" spacing={2} alignItems="center">
-                     <Calendar size={20} color={theme.palette.primary.main} />
-                     <Box>
-                       <Typography variant="caption" sx={{ fontWeight: 900, opacity: 0.6, display: 'block' }}>JOINED DATE</Typography>
-                       <Typography variant="body2" sx={{ fontWeight: 800 }}>{format(new Date(selectedTeacher.createdAt || Date.now()), 'dd MM yyyy')}</Typography>
-                     </Box>
-                   </Stack>
-                </Grid>
-              </Grid>
-            </Paper>
+        <Box sx={{ position: 'absolute', top: -15, right: -15, zIndex: 10 }}>
+          <IconButton 
+            onClick={() => setOpenTeacherProfile(false)}
+            sx={{ bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' }, boxShadow: 6, width: 44, height: 44 }}
+          >
+            <X size={20} />
+          </IconButton>
+        </Box>
 
-            <Button 
-              fullWidth 
-              variant="contained" 
-              onClick={() => setOpenTeacherProfile(false)}
-              sx={{ 
-                borderRadius: 4, 
-                py: 2, 
-                fontWeight: 950, 
-                fontSize: '1rem', 
-                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${alpha(theme.palette.primary.main, 0.75)} 100%)`,
-                boxShadow: '0 10px 20px rgba(15, 118, 110, 0.3)' 
-              }}
-            >
-              OK
-            </Button>
+        {selectedTeacher && (
+          <Box sx={{ position: 'relative' }}>
+            {/* Header / Background Cover */}
+            <Box sx={{ 
+              height: 120, 
+              background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+              borderRadius: '24px 24px 0 0',
+              opacity: 0.9,
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <Box sx={{ position: 'absolute', inset: 0, opacity: 0.1, backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '16px 16px' }} />
+            </Box>
+
+            <Box sx={{ px: 4, pb: 4, mt: -7, textAlign: 'center' }}>
+              <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }}>
+                <Avatar 
+                  src={selectedTeacher.photoURL} 
+                  sx={{ 
+                    width: 120, height: 120, mx: 'auto', mb: 2, 
+                    border: `6px solid ${theme.palette.background.paper}`,
+                    boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+                    bgcolor: 'primary.main',
+                    fontSize: '3rem',
+                    fontWeight: 950
+                  }}
+                  imgProps={{ referrerPolicy: 'no-referrer' }}
+                >
+                  {selectedTeacher.displayName?.charAt(0)}
+                </Avatar>
+              </motion.div>
+
+              <Typography variant="h5" sx={{ fontWeight: 950, mb: 0.5, letterSpacing: -1 }}>
+                {selectedTeacher.displayName}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800, mb: 3 }}>
+                @{selectedTeacher.role === 'superadmin' ? 'Head of Institute' : (selectedTeacher.role === 'teacher' ? 'Faculty Member' : 'System Manager')}
+              </Typography>
+
+              <Stack direction="row" spacing={1} justifyContent="center" sx={{ mb: 4 }}>
+                <Chip icon={<Award size={14} />} label={selectedTeacher.subject || 'Theology'} size="small" sx={{ fontWeight: 900, borderRadius: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', border: 'none' }} />
+                <Chip icon={<UserCheck size={14} />} label="Verified" size="small" color="success" sx={{ fontWeight: 900, borderRadius: 1.5 }} />
+              </Stack>
+
+              <Grid container spacing={1.5} sx={{ mb: 4 }}>
+                {[
+                  { label: 'Specialization', value: selectedTeacher.subject || 'Islamic Sciences', icon: <Book size={18} /> },
+                  { label: 'Member Since', value: format(new Date(selectedTeacher.createdAt || Date.now()), 'MMMM yyyy'), icon: <Calendar size={18} /> },
+                  { label: 'Contact Access', value: selectedTeacher.email, icon: <MessageSquare size={18} /> }
+                ].map((item, idx) => (
+                  <Grid size={{ xs: 12 }} key={idx}>
+                    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2.5, display: 'flex', alignItems: 'center', gap: 2, bgcolor: alpha(theme.palette.background.default, 0.5) }}>
+                      <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', display: 'flex' }}>
+                        {item.icon}
+                      </Box>
+                      <Box textAlign="left">
+                        <Typography variant="caption" sx={{ fontWeight: 900, opacity: 0.5, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.65rem' }}>{item.label}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 800 }}>{item.value}</Typography>
+                      </Box>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
+
+              <Button 
+                fullWidth 
+                variant="contained" 
+                onClick={() => setOpenTeacherProfile(false)}
+                sx={{ 
+                  borderRadius: 3, py: 1.5, fontWeight: 950, fontSize: '1rem',
+                  textTransform: 'none',
+                  boxShadow: `0 10px 20px ${alpha(theme.palette.primary.main, 0.3)}`
+                }}
+              >
+                Done
+              </Button>
+            </Box>
           </Box>
         )}
       </Dialog>

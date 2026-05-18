@@ -303,7 +303,7 @@ export default function Users() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Admission Forms - Wali Ul Asr</title>
+          <title>Admission Forms</title>
           <link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
           <style>
             @page { size: A4; margin: 0; }
@@ -362,11 +362,11 @@ export default function Users() {
             const dob = u.dob ? new Date(u.dob) : null;
             let admissionPage = `
               <div class="admission-container" style="page-break-after: always; position: relative;">
-                 <img class="watermark" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}" crossorigin="anonymous" referrerpolicy="no-referrer">
+                 <img class="watermark" src="${instituteSettings.logoUrl || ''}" crossorigin="anonymous" referrerpolicy="no-referrer">
                  
                  <div class="header">
                     <div class="bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
-                    <img class="logo" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}" crossorigin="anonymous" referrerpolicy="no-referrer">
+                    <img class="logo" src="${instituteSettings.logoUrl || ''}" crossorigin="anonymous" referrerpolicy="no-referrer">
                     <h1 class="institute-name">مکتب ولی العصر</h1>
                     <div class="tagline">زیر نگران ادارہ ولی العصر چھترگام</div>
                  </div>
@@ -659,8 +659,8 @@ export default function Users() {
           <div class="print-container">
             <div class="id-card">
               <div class="header">
-                 <img class="logo" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}">
-                 <h1 class="inst-name">${instituteSettings.instituteName || 'Maktab Wali Ul Asr'}</h1>
+                 <img class="logo" src="${instituteSettings.logoUrl || ''}">
+                 <h1 class="inst-name">${instituteSettings.instituteName || 'Institutional Portal'}</h1>
               </div>
               <div class="content-area">
                  <img class="student-photo" src="${u.photoURL || `https://ui-avatars.com/api/?name=${u.displayName}&background=0d9488&color=fff`}">
@@ -683,7 +683,7 @@ export default function Users() {
 
             <div class="id-card back">
               <div class="back-container">
-                 <img class="back-logo" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}">
+                 <img class="back-logo" src="${instituteSettings.logoUrl || ''}">
                  <h2 class="verification-title">VERIFY STUDENT</h2>
                  <img class="qr-code-back" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verificationUrl)}">
                  <div class="back-contact">
@@ -1900,7 +1900,7 @@ export default function Users() {
                   zIndex: 0, 
                   pointerEvents: 'none' 
                 }}>
-                  <img src={instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'} style={{ width: '100%' }} crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                  <img src={instituteSettings.logoUrl || ''} style={{ width: '100%' }} crossOrigin="anonymous" referrerPolicy="no-referrer" />
                 </Box>
 
               <Box sx={{ position: 'relative', zIndex: 10, flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -1908,7 +1908,7 @@ export default function Users() {
 
                 <Box sx={{ textAlign: 'center', mb: 1 }}>
                   <img 
-                    src={instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'} 
+                    src={instituteSettings.logoUrl || ''} 
                     style={{ width: 60, height: 60, objectFit: 'contain' }} 
                     referrerPolicy="no-referrer"
                     crossOrigin="anonymous"
@@ -2062,7 +2062,7 @@ export default function Users() {
 
                   <Box sx={{ mt: 10, pt: 4, borderTop: '2px solid black', textAlign: 'center' }}>
                     <Typography sx={{ fontWeight: 800, fontSize: '0.7rem', color: 'black' }}>
-                      Electronically generated on {new Date().toLocaleString()} • Wali Ul Aser Financial System
+                      Electronically generated on {new Date().toLocaleString()} • Financial Management System
                     </Typography>
                   </Box>
                 </Box>

@@ -31,7 +31,7 @@ import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { CLASS_LEVELS } from '../constants';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { logger } from '../lib/logger';
 import SimpleMDE from 'react-simplemde-editor';
@@ -125,94 +125,6 @@ export default function Courses() {
   
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Memoized lesson editor to prevent focus loss during typing
-  const LessonEditor = React.useMemo(() => (
-    <Paper id="lesson-editor-entry" variant="outlined" sx={{ p: 4, borderRadius: 6, mb: 4 }}>
-      <Stack spacing={3}>
-        <TextField 
-          fullWidth 
-          label="Lesson Title" 
-          value={newSection.title} 
-          onChange={(e) => setNewSection(p => ({ ...p, title: e.target.value }))} 
-          variant="outlined" 
-        />
-        <FormControl fullWidth>
-          <InputLabel>Type</InputLabel>
-          <Select 
-            value={newSection.type} 
-            label="Type" 
-            onChange={(e) => setNewSection(p => ({ ...p, type: e.target.value as any, mediaUrl: '' }))}
-          >
-            <MenuItem value="text">Text Based</MenuItem>
-            <MenuItem value="audio">AudioBook</MenuItem>
-            <MenuItem value="video">Video Lesson</MenuItem>
-            <MenuItem value="image">Illustrated Guide</MenuItem>
-            <MenuItem value="quiz">Interactive Quiz</MenuItem>
-            <MenuItem value="file">Downloadable Resources</MenuItem>
-          </Select>
-        </FormControl>
-
-        {newSection.type !== 'text' && newSection.type !== 'quiz' && (
-           <Box>
-             <TextField fullWidth label="Media URL" value={newSection.mediaUrl} onChange={(e) => setNewSection(p => ({ ...p, mediaUrl: e.target.value }))} variant="outlined" sx={{ mb: 2 }} />
-             <Button component="label" variant="outlined" fullWidth sx={{ borderRadius: 2 }}>
-                Upload Asset
-                <input type="file" hidden onChange={(e) => handleFileUpload(e, 'section')} />
-             </Button>
-           </Box>
-        )}
-
-        {newSection.type === 'quiz' && (
-          <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 3 }}>
-             <Stack spacing={2}>
-               <TextField fullWidth label="Question" value={currentQuizQuestion.question} onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, question: e.target.value })} />
-               <Grid container spacing={1}>
-                 {currentQuizQuestion.options.map((opt, i) => (
-                   <Grid size={6} key={i}>
-                     <TextField fullWidth label={`Opt ${i+1}`} value={opt} size="small" onChange={(e) => {
-                       const n = [...currentQuizQuestion.options]; n[i] = e.target.value; setCurrentQuizQuestion({ ...currentQuizQuestion, options: n });
-                     }} />
-                   </Grid>
-                 ))}
-               </Grid>
-               <FormControl fullWidth size="small">
-                  <InputLabel>Answer</InputLabel>
-                  <Select value={currentQuizQuestion.correctAnswer} onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, correctAnswer: Number(e.target.value) })}>
-                    {[0,1,2,3].map(i => <MenuItem key={i} value={i}>Option {i+1}</MenuItem>)}
-                  </Select>
-               </FormControl>
-               <Button variant="contained" onClick={handleAddQuizQuestion} disabled={!currentQuizQuestion.question || currentQuizQuestion.options.some(o => !o)}>
-                 Add to Pool
-               </Button>
-               {newSection.quizData.questions.length > 0 && (
-                 <Box sx={{ mt: 2 }}>
-                   <Typography variant="caption" sx={{ fontWeight: 800 }}>Pool Preview</Typography>
-                   <List>
-                     {newSection.quizData.questions.map((q, i) => (
-                       <ListItem key={i} secondaryAction={<IconButton size="small" onClick={() => setNewSection(p => ({ ...p, quizData: { ...p.quizData, questions: p.quizData.questions.filter((_, idx) => idx !== i) } }))}><Trash2 size={14} /></IconButton>}>
-                          <ListItemText primary={q.question} primaryTypographyProps={{ variant: 'caption', fontWeight: 700 }} />
-                       </ListItem>
-                     ))}
-                   </List>
-                 </Box>
-               )}
-             </Stack>
-          </Box>
-        )}
-
-        <SimpleMDE 
-          value={newSection.content} 
-          onChange={(v) => setNewSection(p => ({ ...p, content: v }))} 
-          options={{ placeholder: "Lesson content...", minHeight: "200px", status: false }} 
-        />
-        
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button variant="contained" fullWidth onClick={handleAddSection} sx={{ borderRadius: 6 }}>{editingSectionIdx !== null ? 'Update' : 'Add Module'}</Button>
-          {editingSectionIdx !== null && <Button onClick={() => { setEditingSectionIdx(null); setNewSection({ title: '', content: '', type: 'text', mediaUrl: '', quizData: { questions: [], passingScore: 70 } }); }}>Cancel</Button>}
-        </Box>
-      </Stack>
-    </Paper>
-  ), [newSection, currentQuizQuestion, editingSectionIdx, handleFileUpload, handleAddSection, handleAddQuizQuestion, theme.palette.primary.main]);
   const [classLevelFilter, setClassLevelFilter] = useState<string>('all');
   const [isUploading, setIsUploading] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
@@ -450,6 +362,95 @@ export default function Courses() {
     setCurrentQuizQuestion({ question: '', options: ['', '', '', ''], correctAnswer: 0 });
     setSnackbar({ open: true, message: 'Module saved to subject draft.', severity: 'success' });
   };
+
+  // Memoized lesson editor to prevent focus loss during typing
+  const LessonEditor = React.useMemo(() => (
+    <Paper id="lesson-editor-entry" variant="outlined" sx={{ p: 4, borderRadius: 6, mb: 4 }}>
+      <Stack spacing={3}>
+        <TextField 
+          fullWidth 
+          label="Lesson Title" 
+          value={newSection.title} 
+          onChange={(e) => setNewSection(p => ({ ...p, title: e.target.value }))} 
+          variant="outlined" 
+        />
+        <FormControl fullWidth>
+          <InputLabel>Type</InputLabel>
+          <Select 
+            value={newSection.type} 
+            label="Type" 
+            onChange={(e) => setNewSection(p => ({ ...p, type: e.target.value as any, mediaUrl: '' }))}
+          >
+            <MenuItem value="text">Text Based</MenuItem>
+            <MenuItem value="audio">AudioBook</MenuItem>
+            <MenuItem value="video">Video Lesson</MenuItem>
+            <MenuItem value="image">Illustrated Guide</MenuItem>
+            <MenuItem value="quiz">Interactive Quiz</MenuItem>
+            <MenuItem value="file">Downloadable Resources</MenuItem>
+          </Select>
+        </FormControl>
+
+        {newSection.type !== 'text' && newSection.type !== 'quiz' && (
+           <Box>
+             <TextField fullWidth label="Media URL" value={newSection.mediaUrl} onChange={(e) => setNewSection(p => ({ ...p, mediaUrl: e.target.value }))} variant="outlined" sx={{ mb: 2 }} />
+             <Button component="label" variant="outlined" fullWidth sx={{ borderRadius: 2 }}>
+                Upload Asset
+                <input type="file" hidden onChange={(e) => handleFileUpload(e, 'section')} />
+             </Button>
+           </Box>
+        )}
+
+        {newSection.type === 'quiz' && (
+          <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 3 }}>
+             <Stack spacing={2}>
+               <TextField fullWidth label="Question" value={currentQuizQuestion.question} onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, question: e.target.value })} />
+               <Grid container spacing={1}>
+                 {currentQuizQuestion.options.map((opt, i) => (
+                   <Grid size={6} key={i}>
+                     <TextField fullWidth label={`Opt ${i+1}`} value={opt} size="small" onChange={(e) => {
+                       const n = [...currentQuizQuestion.options]; n[i] = e.target.value; setCurrentQuizQuestion({ ...currentQuizQuestion, options: n });
+                     }} />
+                   </Grid>
+                 ))}
+               </Grid>
+               <FormControl fullWidth size="small">
+                  <InputLabel>Answer</InputLabel>
+                  <Select value={currentQuizQuestion.correctAnswer} onChange={(e) => setCurrentQuizQuestion({ ...currentQuizQuestion, correctAnswer: Number(e.target.value) })}>
+                    {[0,1,2,3].map(i => <MenuItem key={i} value={i}>Option {i+1}</MenuItem>)}
+                  </Select>
+               </FormControl>
+               <Button variant="contained" onClick={handleAddQuizQuestion} disabled={!currentQuizQuestion.question || currentQuizQuestion.options.some(o => !o)}>
+                 Add to Pool
+               </Button>
+               {newSection.quizData.questions.length > 0 && (
+                 <Box sx={{ mt: 2 }}>
+                   <Typography variant="caption" sx={{ fontWeight: 800 }}>Pool Preview</Typography>
+                   <List>
+                     {newSection.quizData.questions.map((q, i) => (
+                       <ListItem key={i} secondaryAction={<IconButton size="small" onClick={() => setNewSection(p => ({ ...p, quizData: { ...p.quizData, questions: p.quizData.questions.filter((_, idx) => idx !== i) } }))}><Trash2 size={14} /></IconButton>}>
+                          <ListItemText primary={q.question} primaryTypographyProps={{ variant: 'caption', fontWeight: 700 }} />
+                       </ListItem>
+                     ))}
+                   </List>
+                 </Box>
+               )}
+             </Stack>
+          </Box>
+        )}
+
+        <SimpleMDE 
+          value={newSection.content} 
+          onChange={(v) => setNewSection(p => ({ ...p, content: v }))} 
+          options={{ placeholder: "Lesson content...", minHeight: "200px", status: false }} 
+        />
+        
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button variant="contained" fullWidth onClick={handleAddSection} sx={{ borderRadius: 6 }}>{editingSectionIdx !== null ? 'Update' : 'Add Module'}</Button>
+          {editingSectionIdx !== null && <Button onClick={() => { setEditingSectionIdx(null); setNewSection({ title: '', content: '', type: 'text', mediaUrl: '', quizData: { questions: [], passingScore: 70 } }); }}>Cancel</Button>}
+        </Box>
+      </Stack>
+    </Paper>
+  ), [newSection, currentQuizQuestion, editingSectionIdx, handleFileUpload, handleAddSection, handleAddQuizQuestion, theme.palette.primary.main]);
 
   const handleEditSection = (idx: number) => {
     const s = formData.sections[idx];
@@ -948,7 +949,7 @@ export default function Courses() {
                   <BookCard 
                     course={course} 
                     onRead={() => handleReadCourse(course)} 
-                    onEdit={() => handleEditCourse(course)}
+                    onEdit={() => handleEdit(course)}
                     onDelete={() => setDeleteConfirmId(course.id)}
                     isAdmin={isStaff} 
                     teacherPhoto={allTeachers.find(t => t.uid === course.teacherId)?.photoURL}

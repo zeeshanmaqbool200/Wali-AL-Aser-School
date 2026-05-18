@@ -199,7 +199,7 @@ export default function Verify() {
             </Stack>
           </CardContent>
           <Box sx={{ p: 2, bgcolor: 'success.main', color: 'white', textAlign: 'center' }}>
-             <Typography variant="caption" sx={{ fontWeight: 900, letterSpacing: 1.5 }}>PORTAL.WALIULASER.ORG</Typography>
+             <Typography variant="caption" sx={{ fontWeight: 900, letterSpacing: 1.5 }}>OFFICIAL VERIFICATION PORTAL</Typography>
           </Box>
         </Card>
       </motion.div>

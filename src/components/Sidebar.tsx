@@ -28,7 +28,7 @@ interface SidebarProps {
   tagline?: string;
 }
 
-export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifications = 0, instituteName = 'WALI UL ASER INSTITUTE', logoUrl = 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png', tagline = 'Islamic Academy' }: SidebarProps) {
+export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifications = 0, instituteName = '', logoUrl = '', tagline = '' }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -87,23 +87,19 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
         borderRight: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
       }}
     >
-      {open && (
-        <IconButton 
+        <Box 
           onClick={onToggle}
           sx={{ 
-            position: 'absolute', 
-            top: 20, 
-            right: 15, 
-            zIndex: 10,
-            bgcolor: alpha(theme.palette.error.main, 0.1),
-            color: 'error.main',
-            '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) }
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: open ? 'space-between' : 'center', 
+            mb: 4, 
+            height: 64, 
+            px: open ? 1 : 0, 
+            pr: open ? 1 : 0,
+            cursor: 'pointer' 
           }}
         >
-          <X size={20} />
-        </IconButton>
-      )}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: open ? 'space-between' : 'center', mb: 4, height: 64, px: open ? 1 : 0, pr: open ? 6 : 0 }}>
           <motion.div
             initial={false}
             animate={{ x: 0 }}

@@ -45,9 +45,9 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [instituteName, setInstituteName] = useState('Wali Ul Aser Institute');
-  const [tagline, setTagline] = useState('Simple Learning for Everyone');
-  const [logoUrl, setLogoUrl] = useState('https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png');
+  const [instituteName, setInstituteName] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [bottomNavVisible, setBottomNavVisible] = useState(false);
   
   const showBottomNav = !isDesktop;
@@ -99,7 +99,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
         { Section: 'Account Status', Field: 'Current Status', Value: user.status },
       ];
       const { exportToCSV } = await import('../lib/exportUtils');
-      exportToCSV(myData, `WaliUlAser_Member_Export_${user.uid}`);
+      exportToCSV(myData, `Member_Export_${user.uid}`);
     } catch (e) {
       console.error('Data export failed:', e);
     }
@@ -133,28 +133,30 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.instituteName !== undefined) {
-          setInstituteName(data.instituteName || 'Wali Ul Aser Institute');
-          document.title = data.instituteName || 'Wali Ul Aser Institute';
+          setInstituteName(data.instituteName || '');
+          document.title = data.instituteName || 'Institute Portal';
         }
         if (data.tagline !== undefined) {
-          setTagline(data.tagline || 'Simple Learning for Everyone');
+          setTagline(data.tagline || '');
         }
         if (data.logoUrl !== undefined) {
-          const finalLogo = data.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png';
+          const finalLogo = data.logoUrl || '';
           setLogoUrl(finalLogo);
           // Dynamically update favicon
-          const link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
-          if (link) {
-            link.href = finalLogo;
-          } else {
-            const newLink = document.createElement('link');
-            newLink.rel = 'icon';
-            newLink.href = finalLogo;
-            document.head.appendChild(newLink);
-          }
-          const appleLink: HTMLLinkElement | null = document.querySelector("link[rel~='apple-touch-icon']");
-          if (appleLink) {
-            appleLink.href = finalLogo;
+          if (finalLogo) {
+            const link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+            if (link) {
+              link.href = finalLogo;
+            } else {
+              const newLink = document.createElement('link');
+              newLink.rel = 'icon';
+              newLink.href = finalLogo;
+              document.head.appendChild(newLink);
+            }
+            const appleLink: HTMLLinkElement | null = document.querySelector("link[rel~='apple-touch-icon']");
+            if (appleLink) {
+              appleLink.href = finalLogo;
+            }
           }
         }
       }
@@ -263,21 +265,6 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           )}
           <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 60, md: 80 }, px: { xs: 1.5, md: 4 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              {showHamburger && !sidebarOpen && (
-                <IconButton 
-                  onClick={() => setSidebarOpen(true)}
-                  sx={{ 
-                    color: 'primary.main', 
-                    mr: 1.5,
-                    bgcolor: alpha(theme.palette.primary.main, 0.05),
-                    borderRadius: 2,
-                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
-                  }}
-                >
-                  <MenuIcon size={24} />
-                </IconButton>
-              )}
-
               {/* Back Button for Deep Pages on Mobile */}
               {isXSmall && !['/', '/dashboard', '/users', '/fees', '/reports', '/settings', '/courses', '/expenses', '/attendance', '/notes', '/exams', '/schedule', '/profile', '/notifications'].includes(location.pathname) && (
                 <IconButton onClick={() => navigate(-1)} sx={{ color: 'primary.main', mr: 1 }}>

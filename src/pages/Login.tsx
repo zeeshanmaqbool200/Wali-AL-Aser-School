@@ -36,10 +36,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [emailCheck, setEmailCheck] = useState<{ exists: boolean, checking: boolean }>({ exists: false, checking: false });
-  const [institute, setInstitute] = useState<Partial<InstituteSettings>>({
-    instituteName: 'Wali Ul Aser Institute',
-    tagline: 'Simple Learning for Everyone'
-  });
+  const [institute, setInstitute] = useState<Partial<InstituteSettings>>({});
 
   // Real-time email duplicate check
   React.useEffect(() => {
@@ -71,7 +68,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
         const data = snap.data();
         setInstitute({
           ...data,
-          tagline: data.tagline || 'Simple Learning for Everyone'
+          tagline: data.tagline || ''
         });
       }
     };

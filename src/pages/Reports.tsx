@@ -134,7 +134,7 @@ export default function Reports() {
       headStyles: { fillColor: [13, 148, 136] }
     });
 
-    doc.save(`WaliUlAsr_Institutional_Insight_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    doc.save(`Institutional_Insight_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   const handleReportClick = (report: any) => {

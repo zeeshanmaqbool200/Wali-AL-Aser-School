@@ -118,7 +118,7 @@ export default function AdminLogs() {
       <Box sx={{ p: 10, textAlign: 'center' }}>
         <Shield size={64} color="error" style={{ marginBottom: 24, opacity: 0.2 }} />
         <Typography variant="h4" color="error" sx={{ fontWeight: 900, mb: 1 }}>Access Forbidden</Typography>
-        <Typography variant="body1" color="text.secondary">Detailed security logs are only visible to the <strong>SUPER ADMIN</strong> of Wali Ul Aser Institute.</Typography>
+        <Typography variant="body1" color="text.secondary">Detailed security logs are only visible to authorized administrators.</Typography>
       </Box>
     );
   }

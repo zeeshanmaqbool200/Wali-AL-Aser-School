@@ -297,7 +297,7 @@ export default function PaymentsSummary() {
                                 <div class="header">
                                   <div style="display: flex; align-items: center; gap: 2mm;">
                                     <div style="width: 8mm; height: 8mm; background: #0d9488; border-radius: 2px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 6px;">WUA</div>
-                                    <span class="title">Wali Ul Aser Institute</span>
+                                    <span class="title">Institute Portal</span>
                                   </div>
                                   <span class="receipt-no">REF: ${r.receiptNo}</span>
                                 </div>

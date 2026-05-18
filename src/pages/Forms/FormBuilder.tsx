@@ -413,7 +413,7 @@ export default function FormBuilder() {
               <TextField
                 fullWidth
                 label="Department / Idarah Name"
-                placeholder="e.g. Maktab Wali Ul Aser"
+                placeholder="e.g. My Institute Name"
                 value={form.department || ''}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 } }}

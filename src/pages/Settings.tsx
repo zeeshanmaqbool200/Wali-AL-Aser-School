@@ -26,7 +26,7 @@ import { UserProfile, InstituteSettings } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useHardwarePermissions } from '../services/hardwareService';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useMediaQuery, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { logger } from '../lib/logger';
 import { saveSessionUser } from '../lib/session';
@@ -1063,7 +1063,7 @@ export default function Settings() {
                                  primary={<Typography variant="body2" sx={{ fontWeight: 800 }}>Current Browser Session</Typography>} 
                                  secondary={<Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>Secure connection active</Typography>} 
                                />
-                               <Chip label="This Device" size="small" variant="contained" color="success" sx={{ fontWeight: 900, height: 20 }} />
+                               <Chip label="This Device" size="small" variant="filled" color="success" sx={{ fontWeight: 900, height: 20 }} />
                             </ListItem>
                          </List>
                          <Box sx={{ mt: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), p: 2, borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>

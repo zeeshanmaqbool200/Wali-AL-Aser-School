@@ -158,7 +158,7 @@ export default function LoadingScreen() {
                     mb: 1
                   }}
                 >
-                  Wali Ul Aser
+                  Portal
                 </Typography>
               </motion.div>
               

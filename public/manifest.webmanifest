@@ -1,24 +1,24 @@
 {
-  "name": "Wali Ul Aser Institute",
-  "short_name": "WUA",
-  "description": "Institute Management System for Wali Ul Aser",
-  "start_url": ".",
+  "name": "Institute Management System",
+  "short_name": "Institute",
+  "description": "Comprehensive Management System for Schools and Institutes",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
-  "theme_color": "#000000",
+  "theme_color": "#0d9488",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png",
+      "src": "/logo.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png",
+      "src": "/logo.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ],
   "categories": ["education", "management"]
