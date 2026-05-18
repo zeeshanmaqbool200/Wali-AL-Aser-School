@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Idarahwaliulaser</string>
+    <string name="title_activity_main">Idarahwaliulaser</string>
+    <string name="package_name">com.idarahwaliulaser.maktabwaliulaser</string>
+    <string name="custom_url_scheme">com.idarahwaliulaser.maktabwaliulaser</string>
+</resources>
