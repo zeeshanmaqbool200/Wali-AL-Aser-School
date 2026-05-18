@@ -100,9 +100,9 @@ export default function Reports() {
       fees: totalFees,
       credits,
       debits,
-      students: allUsers.filter(u => u.role === 'student').length,
-      staff: allUsers.filter(u => ['teacher', 'manager', 'superadmin'].includes(u.role)).length,
-      pendingUsers: allUsers.filter(u => !u.isVerified).length
+      students: allUsers.filter(u => u.role === 'student' && u.status !== 'Deleted').length,
+      staff: allUsers.filter(u => ['teacher', 'manager', 'superadmin'].includes(u.role) && u.status !== 'Deleted').length,
+      pendingUsers: allUsers.filter(u => !u.isVerified && u.status !== 'Deleted').length
     });
 
     setRevenueData(Object.keys(monthly).map(key => ({

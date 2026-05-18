@@ -57,6 +57,7 @@ export interface UserProfile {
     reduceMotion: boolean;
     compactLayout: boolean;
     accentColor?: string;
+    navPreference?: 'bottom' | 'side';
   };
   hardwareStatus?: {
     notifications: 'granted' | 'denied' | 'prompt' | 'not-supported';
@@ -323,6 +324,7 @@ export interface InstituteSettings {
   announcementTextColor?: string;
   jafariOffset?: number;
   quotes?: string[];
+  navPreference?: 'bottom' | 'side';
   portalSettings?: {
     student: {
       showDashboardStats: boolean;

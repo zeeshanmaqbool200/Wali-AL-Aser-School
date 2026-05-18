@@ -65,12 +65,16 @@ export default function AttendancePage() {
         // Fetch students based on role
         let studentsQuery;
         if (isAdmin) {
-          studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+          studentsQuery = query(collection(db, 'users'), 
+            where('role', '==', 'student'),
+            where('status', '!=', 'Deleted')
+          );
         } else if (isTeacherRole) {
           studentsQuery = query(
             collection(db, 'users'),
             and(
               where('role', '==', 'student'), 
+              where('status', '!=', 'Deleted'),
               where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__'])
             )
           );
@@ -293,12 +297,13 @@ export default function AttendancePage() {
       </Box>
  
       <Card sx={{ 
-        borderRadius: 2, 
+        borderRadius: 4, 
         overflow: 'hidden', 
         mb: 4,
         border: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
         bgcolor: 'background.paper',
-        boxShadow: '0 10px 20px rgba(0,0,0,0.2)',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+        transition: 'all 0.3s ease',
       }}>
         <CardContent sx={{ p: 0 }}>
           {/* Filters Bar */}

@@ -170,9 +170,19 @@ export default function Fees() {
   }, [tabValue, searchQuery, feeHeadFilter, paymentModeFilter, startDate, endDate]);
 
   useEffect(() => {
-    setReceipts(allReceipts);
     if (allStudents.length > 0) {
-      setStudents(allStudents.filter(u => u.role === 'student'));
+      const activeStudents = allStudents.filter(u => 
+        u.role === 'student' && 
+        u.status !== 'Deleted' && 
+        u.status !== 'Archived'
+      );
+      setStudents(activeStudents);
+      
+      // Also filter receipts to only show those belonging to active students
+      const activeStudentIds = new Set(activeStudents.map(s => s.uid));
+      setReceipts(allReceipts.filter(r => activeStudentIds.has(r.studentId)));
+    } else if (allReceipts.length > 0 && !globalLoading) {
+      setReceipts([]);
     }
     if (!globalLoading) setLoading(false);
   }, [allReceipts, allStudents, globalLoading]);

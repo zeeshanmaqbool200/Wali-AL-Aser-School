@@ -68,46 +68,42 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
   });
 
   return (
-    <Drawer
-      variant="permanent"
+    <Box
       className="no-print"
       sx={{
         width: open ? 280 : 88,
-        flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: open ? 280 : 88,
-            boxSizing: 'border-box',
-            transition: theme.transitions.create('width', {
-              easing: theme.transitions.easing.sharp,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-            overflowX: 'hidden',
-            bgcolor: 'background.paper',
-            display: { xs: 'none', md: 'flex' },
-            flexDirection: 'column',
-            p: 2,
-            boxShadow: 'none',
-            borderRight: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
-          },
-        }}
-      >
-        {isTablet && open && (
-          <IconButton 
-            onClick={onToggle}
-            sx={{ 
-              position: 'absolute', 
-              top: 10, 
-              right: 10, 
-              zIndex: 10,
-              bgcolor: alpha(theme.palette.error.main, 0.1),
-              color: 'error.main',
-              '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) }
-            }}
-          >
-            <X size={20} />
-          </IconButton>
-        )}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: open ? 'space-between' : 'center', mb: 4, height: 64, px: open ? 1 : 0 }}>
+        height: '100%',
+        transition: theme.transitions.create('width', {
+          easing: theme.transitions.easing.sharp,
+          duration: theme.transitions.duration.enteringScreen,
+        }),
+        overflowX: 'hidden',
+        bgcolor: 'background.paper',
+        display: 'flex',
+        flexDirection: 'column',
+        p: 2,
+        position: 'relative',
+        boxShadow: 'none',
+        borderRight: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
+      }}
+    >
+      {open && (
+        <IconButton 
+          onClick={onToggle}
+          sx={{ 
+            position: 'absolute', 
+            top: 20, 
+            right: 15, 
+            zIndex: 10,
+            bgcolor: alpha(theme.palette.error.main, 0.1),
+            color: 'error.main',
+            '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) }
+          }}
+        >
+          <X size={20} />
+        </IconButton>
+      )}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: open ? 'space-between' : 'center', mb: 4, height: 64, px: open ? 1 : 0, pr: open ? 6 : 0 }}>
           <motion.div
             initial={false}
             animate={{ x: 0 }}
@@ -157,11 +153,17 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
         <List sx={{ px: 0, flexGrow: 1 }}>
           {filteredMenu.map((item) => {
             const active = location.pathname === item.path;
+            const handleClick = () => {
+              navigate(item.path);
+              if (open) {
+                onToggle();
+              }
+            };
             return (
               <ListItem key={item.path} disablePadding sx={{ mb: 0.5, px: open ? 1.5 : 1 }}>
                 <Tooltip title={!open ? item.label : ''} placement="right">
                   <ListItemButton
-                    onClick={() => navigate(item.path)}
+                    onClick={handleClick}
                     sx={{
                       minHeight: 48,
                       justifyContent: open ? 'initial' : 'center',
@@ -228,6 +230,6 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
             {open && <ListItemText primary="Log Out" primaryTypographyProps={{ fontWeight: 800, fontSize: '0.9rem' }} />}
           </ListItemButton>
         </Box>
-    </Drawer>
+    </Box>
   );
 }

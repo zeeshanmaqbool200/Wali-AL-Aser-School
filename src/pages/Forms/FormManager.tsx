@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Container, Typography, Box, Button, Card, CardContent, Grid, 
   Chip, IconButton, Stack, alpha, useTheme, Snackbar, Alert,
-  Dialog, DialogTitle, DialogContent, DialogActions, Zoom
+  Dialog, DialogTitle, DialogContent, DialogActions, Zoom,
+  CircularProgress
 } from '@mui/material';
 import { 
   Plus, FileText, BarChart3, Clock, Lock, Globe, Edit, Trash2, 
@@ -25,7 +26,7 @@ export default function FormManager() {
   const [forms, setForms] = useState<FormSchema[]>([]);
   const [loading, setLoading] = useState(true);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null; loading?: boolean }>({ open: false, id: null, loading: false });
 
   const handleShare = (id: string) => {
     const url = `${window.location.origin}/forms/view/${id}`;
@@ -55,13 +56,15 @@ export default function FormManager() {
     const idToDelete = deleteDialog.id;
     if (!idToDelete) return;
     
-    setDeleteDialog({ open: false, id: null });
+    setDeleteDialog(prev => ({ ...prev, loading: true }));
     try {
       await deleteDoc(doc(db, 'forms', idToDelete));
       setSnackbar({ open: true, message: 'Form deleted successfully!', severity: 'success' });
+      setDeleteDialog({ open: false, id: null, loading: false });
     } catch (error: any) {
       console.error('Delete error:', error);
       setSnackbar({ open: true, message: `Failed to delete form: ${error.message}`, severity: 'error' });
+      setDeleteDialog(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -300,7 +303,8 @@ export default function FormManager() {
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button 
-            onClick={() => setDeleteDialog({ open: false, id: null })} 
+            onClick={() => setDeleteDialog({ open: false, id: null, loading: false })} 
+            disabled={deleteDialog.loading}
             sx={{ fontWeight: 800, borderRadius: 2 }}
           >
             Cancel
@@ -309,9 +313,11 @@ export default function FormManager() {
             onClick={handleDelete} 
             color="error" 
             variant="contained" 
+            disabled={deleteDialog.loading}
+            startIcon={deleteDialog.loading ? <CircularProgress size={16} color="inherit" /> : <Trash2 size={18} />}
             sx={{ fontWeight: 900, borderRadius: 2, px: 3 }}
           >
-            Delete Permanently
+            {deleteDialog.loading ? 'Deleting...' : 'Delete Permanently'}
           </Button>
         </DialogActions>
       </Dialog>

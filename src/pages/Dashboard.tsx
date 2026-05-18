@@ -118,48 +118,30 @@ export default function Dashboard({ user }: DashboardProps) {
     return quotes;
   }, [instituteData.quotes, quotes]);
 
-  useEffect(() => {
-    const parseQuote = (q: string) => {
-      const parts = q.split('—');
-      let authorPart = parts[1]?.trim() || '';
-      if (authorPart.toLowerCase() === 'unknown') authorPart = '';
-      return {
-        text: parts[0]?.trim() || '',
-        author: authorPart
-      };
+  const parseQuote = (q: string) => {
+    const parts = q.split('—');
+    let authorPart = parts[1]?.trim() || '';
+    if (authorPart.toLowerCase() === 'unknown') authorPart = '';
+    return {
+      text: parts[0]?.trim() || '',
+      author: authorPart
     };
+  };
 
+  const [activeStatIndex, setActiveStatIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     if (availableQuotes.length > 0) {
-      const initial = parseQuote(availableQuotes[Math.floor(Math.random() * availableQuotes.length)]);
+      const initial = parseQuote(availableQuotes[activeStatIndex % availableQuotes.length]);
       setQuote(initial.text);
       setAuthor(initial.author);
     }
-
-    // Auto-rotate quotes if there are multiple - Much slower (5 minutes)
-    let quoteInterval: NodeJS.Timeout;
-    if (availableQuotes.length > 1) {
-      quoteInterval = setInterval(() => {
-        setQuote(prev => {
-          const others = availableQuotes.filter(q => {
-            const parsed = parseQuote(q);
-            return parsed.text !== prev;
-          });
-          const nextRaw = others.length > 0 ? others[Math.floor(Math.random() * others.length)] : availableQuotes[0];
-          const next = parseQuote(nextRaw);
-          setAuthor(next.author);
-          return next.text;
-        });
-      }, 300000); 
-    }
-
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => {
-      clearInterval(timer);
-      if (quoteInterval) clearInterval(quoteInterval);
-    };
-  }, [availableQuotes]);
-
-  const [activeStatIndex, setActiveStatIndex] = useState(0);
+  }, [activeStatIndex, availableQuotes]);
   
   const instituteStats = useMemo(() => [
     { 
@@ -205,8 +187,8 @@ export default function Dashboard({ user }: DashboardProps) {
       .filter(r => r.status === 'approved' && r.date >= currentMonthStart)
       .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
     
-    const students = allUsers.filter(u => u.role === 'student' && u.isVerified && u.status === 'Active' && u.admissionNo);
-    const staff = allUsers.filter(u => ['teacher', 'manager', 'superadmin'].includes(u.role));
+    const students = allUsers.filter(u => u.role === 'student' && u.status !== 'Deleted');
+    const staff = allUsers.filter(u => ['teacher', 'manager', 'superadmin'].includes(u.role) && u.status !== 'Deleted');
     
     setStats(prev => ({
       ...prev,
@@ -227,7 +209,7 @@ export default function Dashboard({ user }: DashboardProps) {
   useEffect(() => {
     const timer = setInterval(() => {
       setActiveStatIndex((prev) => (prev + 1) % 4); 
-    }, 10000); 
+    }, 45000); // Very slow rotation (45 seconds) as requested
     return () => clearInterval(timer);
   }, []);
 
@@ -468,8 +450,8 @@ export default function Dashboard({ user }: DashboardProps) {
           borderRadius: { xs: 4, md: 6 }, 
           overflow: 'hidden',
           mb: 0,
-          mt: { xs: 8, md: 16, lg: 20 }, // Increased spacing on top of hero image before nav/dashboard start
-          minHeight: { xs: 580, md: 700, xl: 800 }, // slightly increased height
+          mt: { xs: 8, md: 10, lg: 12 }, // Normalized spacing
+          minHeight: { xs: 400, md: 500, xl: 600 }, // Reduced from 700/800
           display: 'flex',
           bgcolor: isDark ? '#050505' : '#f8fafc', 
           transition: 'all 0.5s ease',
@@ -519,100 +501,123 @@ export default function Dashboard({ user }: DashboardProps) {
           }} />
         </Box>
 
-        {/* Dynamic Data (Time & Date + Quote) - Realigned to Top as requested */}
+        {/* Left Content Stack - TOP LEFT to BOTTOM LEFT */}
         <Box sx={{ 
           position: 'absolute', 
-          top: { xs: 24, md: 48, xl: 64 }, 
-          right: { xs: 12, md: 32, xl: 64 }, 
-          left: { xs: 12, md: 'auto' },
-          zIndex: 10,
+          top: { xs: 24, md: 48, xl: 64 },
+          bottom: { xs: 24, md: 48, xl: 64 },
+          left: { xs: 16, md: 48, xl: 64 },
+          zIndex: 40,
+          width: { xs: 'calc(100% - 32px)', md: '65%' },
           display: 'flex',
           flexDirection: 'column',
-          gap: 2,
-          alignItems: { xs: 'center', md: 'flex-end' }, // Center on mobile
-          width: { xs: 'calc(100% - 24px)', md: 'auto' },
-          textAlign: { xs: 'center', md: 'right' } // Center on mobile
+          justifyContent: 'space-between',
+          pointerEvents: 'none'
         }}>
-           <Box sx={{ 
-             display: 'flex', 
-             alignItems: 'center', 
-             gap: 1.5, 
-             background: 'rgba(0,0,0,0.75)', // slightly more transparent
-             px: 3, 
-             py: 1.2, 
-             borderRadius: 4, 
-             border: '1px solid rgba(255,255,255,0.1)',
-             boxShadow: '0 10px 30px rgba(0,0,0,0.4)', // softer shadow
-             backdropFilter: 'blur(12px)',
-             whiteSpace: 'nowrap',
-             mx: { xs: 'auto', md: 0 } // Center on mobile
-           }}>
-             <Clock size={16} color="#ffffff" />
-             <Typography variant="h6" sx={{ fontWeight: 1000, fontFamily: '"JetBrains Mono", monospace', color: 'white', letterSpacing: 1, fontSize: { xs: '0.9rem', md: '1.1rem' } }}>
-               {format12H(currentTime)}
-             </Typography>
-             <Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.2)', mx: 1 }} />
-             <Typography variant="body1" sx={{ fontWeight: 950, color: 'white', fontSize: { xs: '0.85rem', md: '1rem' }, letterSpacing: 0.5 }}>
-               {jafariDate}
-             </Typography>
-           </Box>
+          {/* Top Section: Date/Time & Quotes */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 1.5, 
+              background: 'rgba(0,0,0,0.6)', 
+              px: 2.5, 
+              py: 1, 
+              borderRadius: 3, 
+              backdropFilter: 'blur(10px)',
+              whiteSpace: 'nowrap'
+            }}>
+              <Clock size={16} color="#ffffff" />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 1000, fontFamily: '"JetBrains Mono", monospace', color: 'white', letterSpacing: 0.5, fontSize: { xs: '0.75rem', md: '1rem' } }}>
+                  {format(currentTime, 'hh:mm:ss a')}
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 1000, fontFamily: '"JetBrains Mono", monospace', color: alpha('#ffffff', 0.6), fontSize: { xs: '0.75rem', md: '0.9rem' } }}>
+                  |
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 1000, fontFamily: '"JetBrains Mono", monospace', color: 'white', letterSpacing: 0.5, fontSize: { xs: '0.75rem', md: '1rem' } }}>
+                  {format(currentTime, 'EEE, MMM d, yyyy')}
+                </Typography>
+              </Box>
+            </Box>
 
-           {/* Top Quote - Follows Date/Time */}
-           <Box sx={{ 
-             background: 'rgba(0,0,0,0.2)', // reduced opacity
-             px: 3, 
-             py: 1.5, 
-             borderRadius: 3, 
-             border: '1px solid rgba(255,255,255,0.05)',
-             backdropFilter: 'blur(2px)', // reduced blur as requested
-             maxWidth: { xs: '100%', md: 500 },
-             display: 'flex',
-             flexDirection: 'column',
-             alignItems: { xs: 'center', md: 'flex-end' },
-             gap: 1,
-             textAlign: { xs: 'center', md: 'right' },
-             mx: { xs: 'auto', md: 0 }
-           }}>
-             <AnimatePresence mode="wait">
-                <motion.div
-                  key={quote}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ duration: 1.2 }}
-                >
-                  <Typography 
-                    variant="h5" 
-                    sx={{ 
-                      fontWeight: 800, 
-                      color: 'white', 
-                      fontStyle: 'italic',
-                      lineHeight: 1.3,
-                      display: 'block',
-                      fontFamily: '"Cinzel Decorative", serif',
-                      fontSize: { xs: '0.8rem', md: '1.2rem' },
-                      textShadow: '0 4px 12px rgba(0,0,0,0.5)'
-                    }}
-                  >
-                    "{quote}"
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 1000, letterSpacing: 2, textTransform: 'uppercase', mt: 1, display: 'block' }}>
-                    — {author}
-                  </Typography>
-                </motion.div>
-             </AnimatePresence>
-           </Box>
+            <Box sx={{ width: '100%', maxWidth: 1000 }}>
+              <AnimatePresence mode="wait">
+                 <motion.div
+                   key={quote}
+                   initial={{ opacity: 0, x: -20 }}
+                   animate={{ opacity: 1, x: 0 }}
+                   exit={{ opacity: 0, x: 20 }}
+                   transition={{ duration: 1.2 }}
+                 >
+                   <Typography 
+                     variant="h5" 
+                     sx={{ 
+                       fontWeight: 800, 
+                       color: 'white', 
+                       fontStyle: 'italic',
+                       lineHeight: 1.4,
+                       display: '-webkit-box',
+                       WebkitLineClamp: 2, // Limit to 2 paragraphs/lines as requested
+                       WebkitBoxOrient: 'vertical',
+                       overflow: 'hidden',
+                       fontFamily: '"Cinzel Decorative", serif',
+                       fontSize: { xs: '0.9rem', md: '1.5rem' },
+                       textAlign: 'left',
+                       textShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                     }}
+                   >
+                     "{quote}"
+                   </Typography>
+                   <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 1000, letterSpacing: 2, textTransform: 'uppercase', mt: 1, display: 'block', textAlign: 'left' }}>
+                     — {author}
+                   </Typography>
+                 </motion.div>
+              </AnimatePresence>
+            </Box>
+          </Box>
+
+          {/* Bottom Section: Welcome Greeting */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.5 }}>
+            <Typography variant="h6" sx={{ 
+              fontWeight: 1000, 
+              color: 'white', 
+              letterSpacing: -0.5, 
+              fontSize: { xs: '1.2rem', md: '2.5rem' },
+              lineHeight: 1.1,
+              fontFamily: '"Cinzel Decorative", serif',
+              mb: 0.5,
+              textAlign: 'left'
+            }}>
+              {instituteData.greeting ? instituteData.greeting.replace('{name}', user.displayName?.split(' ')[0] || '') : `Salaam, ${user.displayName?.split(' ')[0]}`}
+            </Typography>
+            <Typography variant="body2" sx={{ 
+              color: alpha('#fff', 0.9), 
+              fontWeight: 800, 
+              fontFamily: '"Cinzel Decorative", serif',
+              letterSpacing: 2,
+              fontSize: { xs: '0.65rem', md: '0.9rem' },
+              textTransform: 'uppercase',
+              opacity: 0.8,
+              textAlign: 'left'
+            }}>
+              {instituteData.tagline || 'Maktab for Imam Mahdi A.J'}
+            </Typography>
+          </motion.div>
         </Box>
 
-        {/* Stats Overlay - Realigned to Bottom Right */}
+        {/* Stats Card - BOTTOM RIGHT */}
         <Box sx={{ 
           position: 'absolute', 
           bottom: { xs: 24, md: 48, xl: 64 },
-          right: { xs: 16, md: 48, xl: 64 }, 
+          right: { xs: 16, md: 48, xl: 64 },
           zIndex: 40,
-          width: { xs: 'calc(100% - 32px)', sm: 'auto' },
-          display: 'flex',
-          justifyContent: 'flex-end'
+          width: { xs: 180, sm: 280 },
+          display: { xs: 'none', sm: 'flex' }, // Hide on mobile for better greeting space
+          flexDirection: 'column',
+          gap: 2,
+          alignItems: 'flex-end',
+          pointerEvents: 'none'
         }}>
           <AnimatePresence mode="wait">
             <motion.div
@@ -620,108 +625,50 @@ export default function Dashboard({ user }: DashboardProps) {
               initial={{ scale: 0.9, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: -10 }}
-              transition={{ duration: 2.5 }} // Slower, more natural transition
-              style={{ width: '100%' }}
+              transition={{ duration: 1.2 }}
+              style={{ width: '100%', pointerEvents: 'auto' }}
             >
               <Card sx={{ 
-                bgcolor: 'rgba(0,0,0,0.8)', 
+                bgcolor: 'rgba(0,0,0,0.85)', 
                 color: 'white', 
                 borderRadius: 4, 
-                p: { xs: 1.5, md: 2.5 }, 
-                width: { xs: '100%', sm: 220 },
-                boxShadow: '0 15px 30px rgba(0,0,0,0.3)',
+                p: { xs: 1.5, md: 2 }, 
+                width: '100%',
                 border: '1px solid rgba(255,255,255,0.1)',
-                backdropFilter: 'blur(8px)',
+                backdropFilter: 'blur(10px)',
                 display: 'flex',
-                flexDirection: { xs: 'row', md: 'column' },
-                alignItems: { xs: 'center', md: 'flex-start' },
-                gap: { xs: 2, md: 1.5 },
-                justifyContent: { xs: 'space-between', md: 'center' },
-                mx: { xs: 'auto', sm: 0 }
+                alignItems: 'center',
+                gap: 2,
+                justifyContent: 'space-between',
+                boxShadow: 'none', // Removed shadow
+                '&:hover': { transform: 'none', boxShadow: 'none' } // Removed hover
               }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 2 } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Box sx={{ 
                     p: 1, 
                     borderRadius: 2, 
-                    background: alpha(currentStat.color, 0.25),
+                    background: alpha(currentStat.color, 0.2),
                     color: currentStat.color,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: `0 8px 24px ${alpha(currentStat.color, 0.3)}`
+                    justifyContent: 'center'
                   }}>
                     {React.cloneElement(currentStat.icon as React.ReactElement<any>, { size: 16 })}
                   </Box>
                   <Box>
-                    <Typography variant="caption" sx={{ fontWeight: 950, fontSize: { xs: '0.55rem', md: '0.65rem' }, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 2 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 950, fontSize: '0.6rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: 2 }}>
                       {currentStat.label}
                     </Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 1000, letterSpacing: -1, fontSize: { xs: '1.1rem', md: '1.75rem' }, fontFamily: '"Cinzel", serif', lineHeight: 1, mt: 0.5 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 1000, letterSpacing: -0.5, fontSize: '1.2rem', fontFamily: '"Cinzel", serif', lineHeight: 1, mt: 0.2 }}>
                       {currentStat.value}
                     </Typography>
                   </Box>
-                </Box>
-                
-                <Box sx={{ display: { xs: 'none', md: 'block' }, mt: 0.1 }}>
-                   <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 800, fontSize: '0.6rem', letterSpacing: 0.5 }}>{currentStat.unit}</Typography>
-                </Box>
-                
-                {/* Visual Progress indicator */}
-                <Box sx={{ display: 'flex', gap: 0.6, mt: { md: 1.2 } }}>
-                   {instituteStats.slice(0, 4).map((_, i) => (
-                     <Box key={i} sx={{ width: i === activeStatIndex ? { xs: 10, md: 20 } : 4, height: 3, borderRadius: 2, bgcolor: i === activeStatIndex ? currentStat.color : 'rgba(255,255,255,0.15)', transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} />
-                   ))}
                 </Box>
               </Card>
             </motion.div>
           </AnimatePresence>
         </Box>
 
-        {/* Welcome Greeting - MOVED TO BOTTOM LEFT with extreme bottom alignment */}
-        <Box sx={{ 
-          position: 'absolute', 
-          bottom: { xs: 24, md: 48, xl: 64 }, // Extreme bottom align
-          left: { xs: 16, md: 48, xl: 64 },
-          zIndex: 10,
-          width: { xs: 'calc(100% - 32px)', md: 'auto' },
-          textAlign: 'left',
-          pointerEvents: 'none'
-        }}>
-          <Stack spacing={0} alignItems="flex-start">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.5 }}>
-              <Typography variant="h6" sx={{ 
-                fontWeight: 1000, 
-                color: 'white', 
-                letterSpacing: -0.5, 
-                fontSize: { xs: '1.3rem', md: '2.5rem' }, // Larger on desktop
-                lineHeight: 1.1,
-                fontFamily: '"Cinzel Decorative", serif',
-                textShadow: '0 4px 20px rgba(0,0,0,0.8)',
-                mb: 0.8,
-                display: 'block'
-              }}>
-                {instituteData.greeting ? instituteData.greeting.replace('{name}', user.displayName?.split(' ')[0] || '') : `Salaam, ${user.displayName?.split(' ')[0]}`}
-              </Typography>
-              
-              <Typography variant="body2" sx={{ 
-                color: alpha('#fff', 0.9), 
-                fontWeight: 800, 
-                textShadow: '0 4px 16px rgba(0,0,0,1)',
-                fontFamily: '"Cinzel Decorative", serif',
-                letterSpacing: { xs: 1, md: 3 },
-                fontSize: { xs: '0.75rem', md: '1.1rem' },
-                textTransform: 'uppercase',
-                opacity: 0.9,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5
-              }}>
-                <Box sx={{ width: { xs: 20, md: 40 }, height: 2, bgcolor: 'primary.main' }} />
-                {instituteData.tagline || 'Maktab for Imam Mahdi A.J'}
-              </Typography>
-            </motion.div>
-          </Stack>
-        </Box>
       </Box>
 
       {/* Verification or Profile Completion Warning for Students */}
@@ -806,11 +753,11 @@ export default function Dashboard({ user }: DashboardProps) {
                         fontSize: { xs: '0.65rem', sm: '0.85rem' },
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         '&:hover': { 
-                          transform: 'translateY(-4px)',
-                          boxShadow: `0 12px 25px ${alpha('#000', 0.2)}`,
-                          filter: 'brightness(1.1) saturate(1.1)',
+                          filter: 'none',
+                          transform: 'none',
+                          boxShadow: '0 8px 20px rgba(0,0,0,0.15)'
                         },
-                        '&:active': { transform: 'scale(0.95)' }
+                        '&:active': { transform: 'scale(1)' }
                       }}
                     >
                       <Box sx={{ 
@@ -867,11 +814,11 @@ export default function Dashboard({ user }: DashboardProps) {
                         fontSize: { xs: '0.65rem', sm: '0.85rem' },
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         '&:hover': { 
-                          transform: 'translateY(-4px)',
-                          boxShadow: `0 12px 25px ${alpha('#000', 0.2)}`,
-                          filter: 'brightness(1.1) saturate(1.1)'
+                          filter: 'none',
+                          transform: 'none',
+                          boxShadow: '0 8px 20px rgba(0,0,0,0.15)'
                         },
-                        '&:active': { transform: 'scale(0.95)' }
+                        '&:active': { transform: 'scale(1)' }
                       }}
                     >
                       <Box sx={{ 
@@ -932,11 +879,11 @@ export default function Dashboard({ user }: DashboardProps) {
                         fontSize: { xs: '0.65rem', sm: '0.85rem' },
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         '&:hover': { 
-                          transform: 'translateY(-4px)',
-                          boxShadow: `0 12px 25px ${alpha('#000', 0.2)}`,
-                          filter: 'brightness(1.1) saturate(1.1)'
+                          filter: 'none',
+                          transform: 'none',
+                          boxShadow: '0 8px 20px rgba(0,0,0,0.15)'
                         },
-                        '&:active': { transform: 'scale(0.95)' }
+                        '&:active': { transform: 'scale(1)' }
                       }}
                     >
                       <Box sx={{ 

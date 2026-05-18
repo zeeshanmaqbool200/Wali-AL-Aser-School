@@ -32,13 +32,16 @@ interface LayoutProps {
 
 export default function Layout({ children, user, onLogout }: LayoutProps) {
   const theme = useTheme();
-  const { mode, setMode } = useThemeContext();
+  const { mode, setMode, navPreference } = useThemeContext();
   const { isSyncing, notifications: allNotifs, isSaving } = useData();
+  const isXSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
+  const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
   const navigate = useNavigate();
   const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false); 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,6 +49,9 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   const [tagline, setTagline] = useState('Simple Learning for Everyone');
   const [logoUrl, setLogoUrl] = useState('https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png');
   const [bottomNavVisible, setBottomNavVisible] = useState(false);
+  
+  const showBottomNav = !isDesktop;
+  const showHamburger = isDesktop; // Show hamburger on desktop to allow collapsing sidebar
   const [profileAnchorEl, setProfileAnchorEl] = useState<null | HTMLElement>(null);
   const [navLoading, setNavLoading] = useState(false);
   const [headerVisible, setHeaderVisible] = useState(true);
@@ -181,43 +187,48 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default', overflowX: 'hidden' }}>
       <SavingOverlay isSaving={isSaving} />
       
-      {/* Sidebar for Desktop / Drawer for Tablet */}
-      {!isMobile && (
-        isTablet ? (
-          <Drawer
-            variant="temporary"
-            open={sidebarOpen}
-            onClose={() => setSidebarOpen(false)}
-            sx={{
-              '& .MuiDrawer-paper': { width: 280, boxSizing: 'border-box' },
-            }}
-          >
-             <Sidebar 
-                role={user.role} 
-                open={true} 
-                onToggle={() => setSidebarOpen(false)} 
-                onLogout={onLogout}
-                unreadNotifications={unreadCount}
-                instituteName={instituteName}
-                logoUrl={logoUrl}
-                tagline={tagline}
-              />
-          </Drawer>
-        ) : (
-          <Sidebar 
-            role={user.role} 
-            open={sidebarOpen} 
-            onToggle={() => setSidebarOpen(!sidebarOpen)} 
-            onLogout={onLogout}
-            unreadNotifications={unreadCount}
-            instituteName={instituteName}
-            logoUrl={logoUrl}
-            tagline={tagline}
-          />
-        )
-      )}
+      {/* Sidebar / Drawer */}
+      <Drawer
+        variant={isDesktop ? "permanent" : "temporary"}
+        open={isDesktop || sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        sx={{
+          width: isDesktop ? (sidebarCollapsed ? 88 : 280) : 0,
+          flexShrink: 0,
+          '& .MuiDrawer-paper': { 
+            width: isDesktop ? (sidebarCollapsed ? 88 : 280) : 280, 
+            boxSizing: 'border-box',
+            border: 'none',
+            boxShadow: isDesktop ? 'none' : '10px 0 30px rgba(0,0,0,0.1)',
+            borderRight: isDesktop ? `1px solid ${alpha(theme.palette.divider, 0.1)}` : 'none',
+            borderRadius: { xs: 0, md: isDesktop ? 0 : '0 30px 30px 0' },
+            transition: theme.transitions.create(['width', 'transform'], {
+              easing: theme.transitions.easing.sharp,
+              duration: theme.transitions.duration.enteringScreen,
+            }),
+            overflowX: 'hidden'
+          },
+        }}
+      >
+        <Sidebar 
+          role={user.role} 
+          open={!sidebarCollapsed} 
+          onToggle={() => isDesktop ? setSidebarCollapsed(!sidebarCollapsed) : setSidebarOpen(false)} 
+          onLogout={onLogout}
+          unreadNotifications={unreadCount}
+          instituteName={instituteName}
+          logoUrl={logoUrl}
+          tagline={tagline}
+        />
+      </Drawer>
 
-      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <Box sx={{ 
+        flexGrow: 1, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        minWidth: 0,
+        marginLeft: 0 // Drawer variant permanent handles it if using display flex on container
+      }}>
         {/* Top App Bar */}
         <AppBar 
           position="fixed" 
@@ -225,12 +236,13 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           elevation={0} 
           className="no-print"
           sx={{ 
-            zIndex: theme.zIndex.drawer + 2,
-            bgcolor: location.pathname === '/' ? 'transparent' : alpha(theme.palette.background.default, 0.95),
-            backdropFilter: location.pathname === '/' ? 'none' : 'blur(10px)',
-            borderBottom: location.pathname === '/' ? 'none' : `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-            background: location.pathname === '/' ? 'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%)' : undefined,
+            zIndex: theme.zIndex.drawer + 1, 
+            width: isDesktop ? `calc(100% - ${sidebarCollapsed ? '88px' : '280px'})` : '100%',
+            ml: isDesktop ? (sidebarCollapsed ? '88px' : '280px') : 0,
+            transition: 'all 0.3s ease',
+            bgcolor: alpha(theme.palette.background.default, 0.95),
+            backdropFilter: 'blur(10px)',
+            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
             transform: headerVisible ? 'translateY(0)' : 'translateY(-100%)',
           }}
         >
@@ -249,86 +261,73 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
               }} 
             />
           )}
-          <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 60, md: 80 }, px: { xs: 2, md: 4 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {isMobile && !['/', '/dashboard', '/users', '/fees', '/reports', '/settings', '/courses', '/expenses', '/attendance', '/notes', '/exams', '/schedule', '/profile', '/notifications'].includes(location.pathname) && (
-                  <IconButton onClick={() => navigate(-1)} sx={{ color: 'primary.main', mr: 1 }}>
-                    <ArrowLeft size={24} />
-                  </IconButton>
-                )}
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 12, cursor: 'pointer' }}
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
-                >
-                <Box sx={{ 
-                  width: { xs: 45, md: 65 }, 
-                  height: { xs: 45, md: 65 }, 
-                  overflow: 'hidden', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  bgcolor: 'transparent',
-                  borderRadius: 1.5,
-                  p: 0,
-                  flexShrink: 0,
-                  transition: 'all 0.3s ease',
-                  '&:hover': { transform: 'scale(1.05)' }
-                }}>
-                  {logoUrl ? (
-                    <Box 
-                      component="img" 
-                      src={logoUrl} 
-                      alt={`${instituteName} Logo`} 
-                      loading="lazy"
-                      sx={{ 
-                        width: '100%', 
-                        height: '100%', 
-                        objectFit: 'contain',
-                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
-                      }} 
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <School size={isMobile ? 22 : 32} color={theme.palette.primary.main} />
-                  )}
-                </Box>
-                <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-                  <Typography variant="h5" sx={{ 
-                    fontWeight: 950, 
+          <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 60, md: 80 }, px: { xs: 1.5, md: 4 } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              {showHamburger && !sidebarOpen && (
+                <IconButton 
+                  onClick={() => setSidebarOpen(true)}
+                  sx={{ 
                     color: 'primary.main', 
-                    letterSpacing: -0.5, 
-                    fontFamily: 'var(--font-heading)', 
-                    fontSize: { xs: '0.85rem', md: '1.4rem' },
-                    lineHeight: 1,
-                    whiteSpace: 'nowrap',
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden',
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, #fbbf24)`,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                  }}>
-                    {instituteName}
-                  </Typography>
-                  <Typography variant="caption" sx={{ 
-                    fontWeight: 800, 
-                    color: 'text.secondary', 
-                    fontSize: { xs: '0.55rem', md: '0.65rem' }, 
-                    letterSpacing: 0.5,
-                    textTransform: 'uppercase',
-                    opacity: 0.8,
-                    mt: 0.1,
-                    whiteSpace: 'nowrap',
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden'
-                  }}>
-                    {tagline}
-                  </Typography>
-                </Box>
-                </motion.div>
-              </Box>
+                    mr: 1.5,
+                    bgcolor: alpha(theme.palette.primary.main, 0.05),
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
+                  }}
+                >
+                  <MenuIcon size={24} />
+                </IconButton>
+              )}
+
+              {/* Back Button for Deep Pages on Mobile */}
+              {isXSmall && !['/', '/dashboard', '/users', '/fees', '/reports', '/settings', '/courses', '/expenses', '/attendance', '/notes', '/exams', '/schedule', '/profile', '/notifications'].includes(location.pathname) && (
+                <IconButton onClick={() => navigate(-1)} sx={{ color: 'primary.main', mr: 1 }}>
+                  <ArrowLeft size={24} />
+                </IconButton>
+              )}
+              
+              <AnimatePresence>
+                {/* Hide text logo if using Sidebar and it's visible or likely taking up space */}
+                {(showBottomNav && !sidebarOpen) && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: (isDesktop || isXSmall) ? 'pointer' : 'default' }}
+                    onClick={() => (isDesktop || isXSmall) && setSidebarOpen(true)}
+                  >
+                    <Box sx={{ 
+                      width: { xs: 35, md: 45 }, 
+                      height: { xs: 35, md: 45 }, 
+                      borderRadius: 1,
+                      overflow: 'hidden',
+                      flexShrink: 0
+                    }}>
+                      <img 
+                        src={logoUrl} 
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                        alt="Logo" 
+                        referrerPolicy="no-referrer"
+                      />
+                    </Box>
+                    <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                      <Typography variant="subtitle1" sx={{ 
+                        fontWeight: 900, 
+                        color: 'primary.main',
+                        lineHeight: 1
+                      }}>
+                        {instituteName}
+                      </Typography>
+                      <Typography variant="caption" sx={{ 
+                        fontWeight: 700, 
+                        color: 'text.secondary',
+                        fontSize: '0.6rem'
+                      }}>
+                        {tagline}
+                      </Typography>
+                    </Box>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 3 } }}>
@@ -569,8 +568,8 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
         </Box>
       </Box>
 
-      {/* Bottom Nav for Mobile - Fixed position, so can be outside flex */}
-      {isMobile && <Box className="no-print"><BottomNav user={user} unreadNotifications={unreadCount} visible={bottomNavVisible} logoUrl={logoUrl} /></Box>}
+      {/* Bottom Nav */}
+      {showBottomNav && <Box className="no-print"><BottomNav user={user} unreadNotifications={unreadCount} visible={bottomNavVisible} logoUrl={logoUrl} /></Box>}
 
       <style>
         {`

@@ -15,6 +15,8 @@ interface ThemeContextType {
   setReduceMotion: (val: boolean) => void;
   compactLayout: boolean;
   setCompactLayout: (val: boolean) => void;
+  navPreference: 'bottom' | 'side';
+  setNavPreference: (val: 'bottom' | 'side') => void;
   instituteColors: {
     primary: string;
     accent1: string;
@@ -27,6 +29,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProviderWrapper({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [mode, setMode] = useState<ThemeMode>('system');
+  const [navPreference, setNavPreference] = useState<'bottom' | 'side'>('bottom');
   const [instituteColors, setInstituteColors] = useState({ 
     primary: '#0d9488', 
     accent1: '#0d9488',
@@ -53,6 +56,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
         const unsubscribe = onSnapshot(doc(db, 'settings', 'institute'), (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
+            if (data.navPreference) setNavPreference(data.navPreference as 'bottom' | 'side');
             setInstituteColors({
               primary: data.primaryBrandColor || data.primaryColor || '#0d9488',
               accent1: data.accentColors?.[0] || data.primaryBrandColor || data.primaryColor || '#0d9488',
@@ -83,6 +87,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
       highContrast: false,
       reduceMotion: false,
       compactLayout: false,
+      navPreference: 'bottom'
     };
   }, [user?.uiPrefs]);
 
@@ -94,6 +99,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
     setHighContrast(initialUiPrefs.highContrast);
     setReduceMotion(initialUiPrefs.reduceMotion);
     setCompactLayout(initialUiPrefs.compactLayout);
+    if (initialUiPrefs.navPreference) setNavPreference(initialUiPrefs.navPreference as 'bottom' | 'side');
   }, [initialUiPrefs]);
 
   useEffect(() => {
@@ -222,16 +228,16 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
                 borderRadius: 4, // Increased from 0.5
                 background: isDark ? '#050505' : '#ffffff',
                 boxShadow: isDark 
-                  ? '0 4px 12px rgba(0,0,0,0.4)' 
-                  : '0 4px 12px rgba(0,0,0,0.02)',
-                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)'}`,
+                  ? '0 1px 2px rgba(0,0,0,0.1)' 
+                  : '0 1px 2px rgba(0,0,0,0.005)',
+                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)'}`,
                 transition: 'all 0.3s ease',
                 overflow: 'hidden',
                 '&:hover': {
-                  borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
                   boxShadow: isDark 
-                    ? '0 8px 24px rgba(0,0,0,0.6)' 
-                    : '0 8px 24px rgba(0,0,0,0.04)',
+                    ? '0 2px 4px rgba(0,0,0,0.2)' 
+                    : '0 2px 4px rgba(0,0,0,0.01)',
                 },
               },
             },
@@ -241,8 +247,8 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
               root: {
                 borderRadius: 3, // Increased from 0.5
                 boxShadow: isDark 
-                  ? '0 2px 10px rgba(0,0,0,0.3)' 
-                  : '0 2px 10px rgba(0,0,0,0.02)',
+                  ? '0 1px 3px rgba(0,0,0,0.2)' 
+                  : '0 1px 3px rgba(0,0,0,0.01)',
                 border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
                 backgroundImage: 'none',
               },
@@ -330,6 +336,8 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
       setReduceMotion,
       compactLayout,
       setCompactLayout,
+      navPreference,
+      setNavPreference,
       instituteColors
     }}>
       <ThemeProvider theme={theme}>

@@ -146,7 +146,8 @@ export default function Settings() {
     mode, setMode, 
     highContrast, setHighContrast, 
     reduceMotion, setReduceMotion, 
-    compactLayout, setCompactLayout
+    compactLayout, setCompactLayout,
+    navPreference, setNavPreference
   } = useThemeContext()!;
   const { permissions } = useHardwarePermissions();
   const [searchParams] = useSearchParams();
@@ -175,6 +176,7 @@ export default function Settings() {
     highContrast: false,
     reduceMotion: false,
     compactLayout: false,
+    navPreference: 'bottom' as 'bottom' | 'side'
   });
 
   const [passwordDialog, setPasswordDialog] = useState({
@@ -519,11 +521,10 @@ export default function Settings() {
   };
 
   const menuItems = [
-    { id: 'appearance', label: 'Personalization & UI', icon: <Sparkles size={20} />, role: 'all' },
-    { id: 'security', label: 'Account Security', icon: <Lock size={20} />, role: 'all' },
-    { id: 'portals', label: 'Portal Management', icon: <Smartphone size={20} />, role: 'admin' },
-    { id: 'profile_config', label: 'Profile Config & Audit', icon: <User size={20} />, role: 'superadmin' },
-    { id: 'system', label: 'Advanced System', icon: <Terminal size={20} />, role: 'superadmin' },
+    { id: 'appearance', label: 'Appearance & Themes', icon: <Palette size={20} />, role: 'all' },
+    { id: 'security', label: 'Security & Access', icon: <Shield size={20} />, role: 'all' },
+    { id: 'portals', label: 'Feature Settings', icon: <Layout size={20} />, role: 'admin' },
+    { id: 'system', label: 'Administration', icon: <Database size={20} />, role: 'superadmin' },
   ].filter(item => {
     if (item.role === 'all') return true;
     if (item.role === 'admin') return isAdmin;
@@ -704,7 +705,8 @@ export default function Settings() {
                                <Stack spacing={2}>
                                  {[
                                    { label: 'High Contrast', desc: 'Enhanced legibility', value: highContrast, onChange: (v: boolean) => setHighContrast(v), icon: <Zap size={20} /> },
-                                   { label: 'Compact Layout', desc: 'Information density', value: compactLayout, onChange: (v: boolean) => setCompactLayout(v), icon: <Layout size={20} /> }
+                                   { label: 'Compact Layout', desc: 'Information density', value: compactLayout, onChange: (v: boolean) => setCompactLayout(v), icon: <Layout size={20} /> },
+                                   { label: 'Navigation Style', desc: 'Bottom Nav or Sidebar', value: uiPrefs.navPreference === 'side', onChange: (v: boolean) => setUiPrefs({ ...uiPrefs, navPreference: v ? 'side' : 'bottom' }), icon: <Monitor size={20} /> }
                                  ].map((item, idx) => (
                                    <Box key={idx} sx={{ p: 2, px: 3, borderRadius: 3, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.05), bgcolor: 'background.default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -1048,34 +1050,25 @@ export default function Settings() {
                      </CardContent>
                    </Card>
 
-                   <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', border: '1.5px solid', borderColor: 'divider' }}>
+                    <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', border: '1.5px solid', borderColor: 'divider' }}>
                       <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                         <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Active Sessions & Logged Devices</Typography>
-                         <Chip label="2 Devices" size="small" sx={{ fontWeight: 900, borderRadius: 1 }} />
+                         <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Device Access</Typography>
+                         <Chip label="Current" size="small" color="primary" sx={{ fontWeight: 900, borderRadius: 1 }} />
                       </Box>
                       <CardContent sx={{ p: 3 }}>
                          <List disablePadding>
-                            <ListItem sx={{ py: 2, px: 1, borderRadius: 2, '&:hover': { bgcolor: 'action.hover' } }}>
+                            <ListItem sx={{ py: 2, px: 1, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.03) }}>
                                <ListItemIcon sx={{ minWidth: 48 }}><Monitor size={20} color={theme.palette.primary.main} /></ListItemIcon>
                                <ListItemText 
-                                 primary={<Typography variant="body2" sx={{ fontWeight: 800 }}>Chrome on Windows Desktop</Typography>} 
-                                 secondary={<Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>Active Now • Current Session</Typography>} 
+                                 primary={<Typography variant="body2" sx={{ fontWeight: 800 }}>Current Browser Session</Typography>} 
+                                 secondary={<Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>Secure connection active</Typography>} 
                                />
-                               <Chip label="Current" size="small" variant="outlined" color="success" sx={{ fontWeight: 900, height: 20 }} />
-                            </ListItem>
-                            <Divider sx={{ my: 1, opacity: 0.5 }} />
-                            <ListItem sx={{ py: 2, px: 1, borderRadius: 2, '&:hover': { bgcolor: 'action.hover' } }}>
-                               <ListItemIcon sx={{ minWidth: 48 }}><Smartphone size={20} color={theme.palette.text.secondary} /></ListItemIcon>
-                               <ListItemText 
-                                 primary={<Typography variant="body2" sx={{ fontWeight: 800 }}>iPhone 15 Pro (Safari)</Typography>} 
-                                 secondary={<Typography variant="caption" sx={{ fontWeight: 600 }}>Last active: 4 hours ago • Karach, PK</Typography>} 
-                               />
-                               <Button size="small" color="error" sx={{ fontWeight: 900 }}>Revoke</Button>
+                               <Chip label="This Device" size="small" variant="contained" color="success" sx={{ fontWeight: 900, height: 20 }} />
                             </ListItem>
                          </List>
-                         <Box sx={{ mt: 3, bgcolor: alpha(theme.palette.warning.main, 0.05), p: 2, borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette.warning.main, 0.1) }}>
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark', display: 'flex', alignItems: 'center', gap: 1 }}>
-                               <AlertCircle size={14} /> Only your own sessions are visible here for security reasons.
+                         <Box sx={{ mt: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), p: 2, borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.dark', display: 'flex', alignItems: 'center', gap: 1 }}>
+                               <CheckCircle size={14} /> You are safely logged into the institute portal.
                             </Typography>
                          </Box>
                       </CardContent>

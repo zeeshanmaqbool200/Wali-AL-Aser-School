@@ -35,10 +35,34 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
   const [role, setRole] = useState<UserRole>('student');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [emailCheck, setEmailCheck] = useState<{ exists: boolean, checking: boolean }>({ exists: false, checking: false });
   const [institute, setInstitute] = useState<Partial<InstituteSettings>>({
     instituteName: 'Wali Ul Aser Institute',
     tagline: 'Simple Learning for Everyone'
   });
+
+  // Real-time email duplicate check
+  React.useEffect(() => {
+    if (!isSignUp || email.length < 5 || !email.includes('@')) {
+      setEmailCheck({ exists: false, checking: false });
+      return;
+    }
+
+    const checkEmail = async () => {
+      setEmailCheck(prev => ({ ...prev, checking: true }));
+      try {
+        const { collection, query, where, getDocs, limit } = await import('firebase/firestore');
+        const q = query(collection(db, 'users'), where('email', '==', email.toLowerCase().trim()), limit(1));
+        const snap = await getDocs(q);
+        setEmailCheck({ exists: !snap.empty, checking: false });
+      } catch (e) {
+        setEmailCheck(prev => ({ ...prev, checking: false }));
+      }
+    };
+
+    const timer = setTimeout(checkEmail, 800);
+    return () => clearTimeout(timer);
+  }, [email, isSignUp]);
 
   React.useEffect(() => {
     const fetchBranding = async () => {
@@ -78,7 +102,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center',
-        bgcolor: isDark ? '#050505' : '#f8fafc',
+        bgcolor: isDark ? 'background.default' : '#f8fafc',
         backgroundImage: isDark 
           ? `radial-gradient(circle at 0% 0%, ${alpha('#ffffff', 0.015)} 0%, transparent 50%), 
              radial-gradient(circle at 100% 100%, ${alpha('#ffffff', 0.01)} 0%, transparent 50%)`
@@ -153,7 +177,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                   display: 'inline-flex', 
                   p: 1.5, 
                   borderRadius: 4, 
-                  bgcolor: isDark ? alpha('#ffffff', 0.03) : '#ffffff',
+                  bgcolor: isDark ? 'background.paper' : '#ffffff',
                   mb: 2.5,
                   width: { xs: 64, md: 80 },
                   height: { xs: 64, md: 80 },
@@ -169,7 +193,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                 {institute.logoUrl ? (
                   <Box component="img" src={institute.logoUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 ) : (
-                  <GraduationCap size={32} color={isDark ? '#3b82f6' : theme.palette.primary.main} strokeWidth={1.5} />
+                  <GraduationCap size={32} color={theme.palette.primary.main} strokeWidth={1.5} />
                 )}
               </Box>
             </motion.div>
@@ -182,7 +206,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
               <Typography variant="h3" sx={{ 
                 fontWeight: 950, 
                 mb: 0.5, 
-                color: isDark ? 'white' : 'text.primary', 
+                color: 'text.primary', 
                 letterSpacing: -1.5, 
                 fontSize: { xs: '1.75rem', sm: '2.4rem' },
                 fontFamily: 'var(--font-heading)',
@@ -192,7 +216,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
               </Typography>
               <Typography variant="body1" sx={{ 
                 fontWeight: 800, 
-                color: isDark ? alpha('#ffffff', 0.7) : 'text.secondary', 
+                color: 'text.secondary', 
                 letterSpacing: 1.5,
                 fontSize: { xs: '0.75rem', sm: '0.85rem' },
                 textTransform: 'uppercase',
@@ -207,10 +231,10 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
             elevation={0}
             sx={{ 
               borderRadius: 4,
-              bgcolor: isDark ? 'rgba(10, 10, 10, 0.7)' : 'white',
+              bgcolor: isDark ? alpha(theme.palette.background.paper, 0.7) : 'white',
               backdropFilter: 'blur(30px)',
               border: '1px solid',
-              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+              borderColor: 'divider',
               boxShadow: isDark 
                 ? '0 40px 80px rgba(0, 0, 0, 0.9)'
                 : '0 20px 40px rgba(0, 0, 0, 0.05)',
@@ -278,27 +302,36 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                     )}
                   </AnimatePresence>
 
-                  <TextField
-                    fullWidth
-                    label="Email Address"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    sx={{
-                      '& .MuiOutlinedInput-root': { 
-                        borderRadius: 2.5, 
-                        bgcolor: isDark ? alpha('#ffffff', 0.03) : alpha('#000000', 0.02),
-                      }
-                    }}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <Mail size={18} color={isDark ? alpha('#ffffff', 0.3) : alpha('#000000', 0.3)} />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
+                  <Box>
+                    <TextField
+                      fullWidth
+                      label="Email Address"
+                      type="email"
+                      required
+                      error={emailCheck.exists}
+                      helperText={emailCheck.exists ? 'This email is already associated with an account' : ''}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      sx={{
+                        '& .MuiOutlinedInput-root': { 
+                          borderRadius: 2.5, 
+                          bgcolor: isDark ? alpha('#ffffff', 0.03) : alpha('#000000', 0.02),
+                        }
+                      }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Mail size={18} color={isDark ? alpha('#ffffff', 0.3) : alpha('#000000', 0.3)} />
+                          </InputAdornment>
+                        ),
+                        endAdornment: emailCheck.checking ? (
+                          <InputAdornment position="end">
+                            <CircularProgress size={16} />
+                          </InputAdornment>
+                        ) : null
+                      }}
+                    />
+                  </Box>
 
                   <TextField
                     fullWidth
@@ -345,11 +378,11 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                         ? 'divider' 
                         : isDark ? `linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)` : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                       color: 'white',
-                      boxShadow: isDark ? `0 10px 30px ${alpha('#2563eb', 0.4)}` : `0 10px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
+                      boxShadow: isDark ? `0 4px 12px ${alpha('#2563eb', 0.2)}` : `0 4px 12px ${alpha(theme.palette.primary.main, 0.15)}`,
                       transition: 'all 0.4s cubic-bezier(0.2, 1, 0.2, 1)',
                       '&:hover': { 
                         transform: 'translateY(-2px)',
-                        boxShadow: isDark ? `0 15px 40px ${alpha('#2563eb', 0.6)}` : `0 15px 30px ${alpha(theme.palette.primary.main, 0.4)}`,
+                        boxShadow: isDark ? `0 6px 15px ${alpha('#2563eb', 0.3)}` : `0 6px 15px ${alpha(theme.palette.primary.main, 0.2)}`,
                         filter: 'brightness(1.1)'
                       },
                       '&:active': { transform: 'scale(0.97)' }

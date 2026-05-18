@@ -237,9 +237,12 @@ export default function FormBuilder() {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        if (ctx) ctx.drawImage(img, 0, 0, width, height);
+        if (ctx) {
+          ctx.clearRect(0, 0, width, height); // Explicitly clear for transparency
+          ctx.drawImage(img, 0, 0, width, height);
+        }
         
-        const base64 = canvas.toDataURL('image/jpeg', 0.8);
+        const base64 = canvas.toDataURL('image/png');
         setForm(prev => ({ ...prev, [field]: base64 }));
       };
       img.src = event.target?.result as string;
@@ -426,55 +429,64 @@ export default function FormBuilder() {
                <Grid container spacing={2}>
                  <Grid size={{ xs: 6, sm: 3 }}>
                     <Tooltip title="Logo Upload">
-                      <Box sx={{ border: '2px dashed', borderColor: 'divider', borderRadius: 4, p: 1, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'transparent' }}>
-                        {form.logoUrl ? (
-                          <Box sx={{ position: 'relative', height: '100%' }}>
-                              <img src={form.logoUrl} alt="Logo" style={{ height: '100%', objectFit: 'contain' }} />
-                              <IconButton size="small" onClick={() => setForm({ ...form, logoUrl: '' })} sx={{ position: 'absolute', top: -5, right: -5, bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' }, width: 20, height: 20 }}><Trash2 size={10} /></IconButton>
-                          </Box>
-                        ) : (
-                          <IconButton component="label" sx={{ color: 'text.secondary' }}>
-                            <ImageIcon />
-                            <input type="file" hidden accept="image/*" onChange={handleImageUpload('logoUrl')} />
-                          </IconButton>
-                        )}
-                      </Box>
-                    </Tooltip>
-                 </Grid>
-                 <Grid size={{ xs: 6, sm: 3 }}>
-                    <Tooltip title="Header Left Branding">
-                      <Box sx={{ border: '2px dashed', borderColor: 'divider', borderRadius: 4, p: 1, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'transparent' }}>
-                        {form.headerLeftImageUrl ? (
-                          <Box sx={{ position: 'relative', height: '100%' }}>
-                              <img src={form.headerLeftImageUrl} alt="Left" style={{ height: '100%', objectFit: 'contain' }} />
-                              <IconButton size="small" onClick={() => setForm({ ...form, headerLeftImageUrl: '' })} sx={{ position: 'absolute', top: -5, right: -5, bgcolor: 'error.main', color: 'white', width: 20, height: 20 }}><Trash2 size={10} /></IconButton>
-                          </Box>
-                        ) : (
-                          <IconButton component="label" sx={{ color: 'text.secondary' }}>
-                            <ImageIcon />
-                            <input type="file" hidden accept="image/*" onChange={handleImageUpload('headerLeftImageUrl')} />
-                          </IconButton>
-                        )}
-                      </Box>
-                    </Tooltip>
-                 </Grid>
-                 <Grid size={{ xs: 6, sm: 3 }}>
-                    <Tooltip title="Header Right Branding">
-                      <Box sx={{ border: '2px dashed', borderColor: 'divider', borderRadius: 4, p: 1, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'transparent' }}>
-                        {form.headerRightImageUrl ? (
-                          <Box sx={{ position: 'relative', height: '100%' }}>
-                              <img src={form.headerRightImageUrl} alt="Right" style={{ height: '100%', objectFit: 'contain' }} />
-                              <IconButton size="small" onClick={() => setForm({ ...form, headerRightImageUrl: '' })} sx={{ position: 'absolute', top: -5, right: -5, bgcolor: 'error.main', color: 'white', width: 20, height: 20 }}><Trash2 size={10} /></IconButton>
-                          </Box>
-                        ) : (
-                          <IconButton component="label" sx={{ color: 'text.secondary' }}>
-                            <ImageIcon />
-                            <input type="file" hidden accept="image/*" onChange={handleImageUpload('headerRightImageUrl')} />
-                          </IconButton>
-                        )}
-                      </Box>
-                    </Tooltip>
-                 </Grid>
+                      <Box sx={{ width: { xs: 80, md: 100 }, height: { xs: 80, md: 100 }, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), borderRadius: 4, p: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'transparent', transition: 'all 0.3s ease', '&:hover': { transform: 'scale(1.02)', boxShadow: '0 8px 24px rgba(0,0,0,0.05)' } }}>
+                {form.logoUrl ? (
+                  <Box sx={{ position: 'relative', height: '100%', display: 'flex', alignItems: 'center' }}>
+                      <img src={form.logoUrl} alt="Logo" style={{ height: '100%', maxWidth: '100%', objectFit: 'contain', backgroundColor: 'transparent' }} />
+                      <IconButton size="small" onClick={() => setForm({ ...form, logoUrl: '' })} sx={{ position: 'absolute', top: -12, right: -12, bgcolor: alpha(theme.palette.error.main, 0.9), color: 'white', '&:hover': { bgcolor: 'error.dark' }, width: 22, height: 22, boxShadow: 2 }}><Trash2 size={12} /></IconButton>
+                  </Box>
+                ) : (
+                  <IconButton component="label" sx={{ color: 'text.secondary', width: '100%', height: '100%' }}>
+                    <Stack spacing={0.5} alignItems="center">
+                      <ImageIcon size={24} />
+                      <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>LOGO</Typography>
+                    </Stack>
+                    <input type="file" hidden accept="image/*" onChange={handleImageUpload('logoUrl')} />
+                  </IconButton>
+                )}
+              </Box>
+            </Tooltip>
+         </Grid>
+         <Grid size={{ xs: 6, sm: 3 }}>
+            <Tooltip title="Header Left Branding">
+              <Box sx={{ border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), borderRadius: 4, p: 1, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'transparent', transition: 'all 0.3s ease', '&:hover': { transform: 'scale(1.02)', boxShadow: '0 8px 24px rgba(0,0,0,0.05)' } }}>
+                {form.headerLeftImageUrl ? (
+                  <Box sx={{ position: 'relative', height: '100%', display: 'flex', alignItems: 'center' }}>
+                      <img src={form.headerLeftImageUrl} alt="Left" style={{ height: '100%', maxWidth: '100%', objectFit: 'contain', backgroundColor: 'transparent' }} />
+                      <IconButton size="small" onClick={() => setForm({ ...form, headerLeftImageUrl: '' })} sx={{ position: 'absolute', top: -12, right: -12, bgcolor: alpha(theme.palette.error.main, 0.9), color: 'white', width: 22, height: 22, boxShadow: 2 }}><Trash2 size={12} /></IconButton>
+                  </Box>
+                ) : (
+                  <IconButton component="label" sx={{ color: 'text.secondary', width: '100%', height: '100%' }}>
+                    <Stack spacing={0.5} alignItems="center">
+                      <ImageIcon size={24} />
+                      <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>LEFT BRAND</Typography>
+                    </Stack>
+                    <input type="file" hidden accept="image/*" onChange={handleImageUpload('headerLeftImageUrl')} />
+                  </IconButton>
+                )}
+              </Box>
+            </Tooltip>
+         </Grid>
+         <Grid size={{ xs: 6, sm: 3 }}>
+            <Tooltip title="Header Right Branding">
+              <Box sx={{ border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), borderRadius: 4, p: 1, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'transparent', transition: 'all 0.3s ease', '&:hover': { transform: 'scale(1.02)', boxShadow: '0 8px 24px rgba(0,0,0,0.05)' } }}>
+                {form.headerRightImageUrl ? (
+                  <Box sx={{ position: 'relative', height: '100%', display: 'flex', alignItems: 'center' }}>
+                      <img src={form.headerRightImageUrl} alt="Right" style={{ height: '100%', maxWidth: '100%', objectFit: 'contain', backgroundColor: 'transparent' }} />
+                      <IconButton size="small" onClick={() => setForm({ ...form, headerRightImageUrl: '' })} sx={{ position: 'absolute', top: -12, right: -12, bgcolor: alpha(theme.palette.error.main, 0.9), color: 'white', width: 22, height: 22, boxShadow: 2 }}><Trash2 size={12} /></IconButton>
+                  </Box>
+                ) : (
+                  <IconButton component="label" sx={{ color: 'text.secondary', width: '100%', height: '100%' }}>
+                    <Stack spacing={0.5} alignItems="center">
+                      <ImageIcon size={24} />
+                      <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.6rem' }}>RIGHT BRAND</Typography>
+                    </Stack>
+                    <input type="file" hidden accept="image/*" onChange={handleImageUpload('headerRightImageUrl')} />
+                  </IconButton>
+                )}
+              </Box>
+            </Tooltip>
+         </Grid>
                  <Grid size={{ xs: 12, sm: 3 }}>
                     <Tooltip title="Form Accent Color">
                        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 4, p: 1, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>

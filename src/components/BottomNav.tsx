@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Paper, BottomNavigation, BottomNavigationAction, Badge, Avatar, Tooltip } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { LayoutDashboard, Users, CreditCard, Bell, Terminal, Settings as SettingsIcon, Calendar, BarChart3, BookOpen, IndianRupee, FileText } from 'lucide-react';
+import { 
+  LayoutDashboard, Users, CreditCard, Bell, Terminal, 
+  Settings as SettingsIcon, Calendar, BarChart3, BookOpen, 
+  IndianRupee, FileText, User, ClipboardCheck 
+} from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
@@ -109,14 +113,15 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   const isStaff = isAdmin || isTeacherRole;
 
   const menuItems = [
-    { label: 'Home', icon: <LayoutDashboard size={20} />, path: '/', roles: ['student', 'teacher', 'pending_teacher', 'superadmin', 'manager'] },
-    { label: 'Courses', icon: <BookOpen size={20} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: 'Students', icon: <Users size={20} />, path: '/users', roles: ['superadmin', 'manager'] },
-    { label: 'Expenses', icon: <CreditCard size={20} />, path: '/expenses', roles: ['superadmin', 'manager'] },
-    { label: 'Forms', icon: <FileText size={20} />, path: '/forms', roles: ['superadmin', 'manager'] },
-    { label: 'Fees', icon: <IndianRupee size={20} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['superadmin'] },
-    { label: 'Settings', icon: <SettingsIcon size={20} />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Home', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'teacher', 'pending_teacher', 'superadmin', 'manager'] },
+    { label: 'Users', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'manager'] },
+    { label: 'Courses', icon: <BookOpen size={22} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Attendance', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['teacher', 'superadmin', 'manager'] },
+    { label: 'Fees', icon: <CreditCard size={22} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Expenses', icon: <IndianRupee size={22} />, path: '/expenses', roles: ['superadmin', 'manager'] },
+    { label: 'Forms', icon: <FileText size={22} />, path: '/forms', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['superadmin'] },
+    { label: 'Settings', icon: <SettingsIcon size={22} />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(role));

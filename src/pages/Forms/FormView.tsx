@@ -192,9 +192,10 @@ export default function FormView() {
             // Validation: Access Control
             if (formData.status !== 'published' && !(user?.role === 'superadmin' || user?.uid === formData.createdBy)) {
               setError('This form is currently in draft or closed.');
-            } else if (!formData.allowNonStudents && !user) {
+            } else if (formData.allowNonStudents !== true && !user) {
               setError('Student Access Only. Please sign in to your institutional account to view this form.');
             } else {
+              setForm(formData);
               // Fetch user's existing submission if logged in
               if (user) {
                 try {
@@ -209,7 +210,6 @@ export default function FormView() {
                   }
                 } catch (e) { console.error('Sub fetch err:', e); }
               }
-              setForm(formData);
             }
           } else {
             setError('The requested form does not exist or has been removed.');
@@ -791,8 +791,8 @@ export default function FormView() {
         px: { xs: 2, md: 6 },
         bgcolor: 'transparent'
       }}>
-        <Stack direction="row" spacing={2} alignItems="center" sx={{ width: { xs: '100%', md: 'auto' } }}>
-          <Box sx={{ width: { xs: 60, md: 100 }, height: { xs: 60, md: 100 }, bgcolor: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack direction="row" spacing={3} alignItems="center" sx={{ width: { xs: '100%', md: 'auto' } }}>
+          <Box sx={{ width: { xs: 80, md: 120 }, height: { xs: 80, md: 120 }, bgcolor: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {(form?.logoUrl || instituteSettings?.logoUrl) && (
               <Box 
                 component="img" 
@@ -801,22 +801,25 @@ export default function FormView() {
               />
             )}
           </Box>
-          <Box sx={{ display: { xs: 'block', md: 'none' } }}>
-            <Typography variant="h5" sx={{ fontWeight: 1000, fontFamily: '"Cinzel Decorative", serif' }}>
-              {form?.department ||'MAKTAB'}
+          <Box sx={{ display: { xs: 'block', md: 'none' }, textAlign: 'left' }}>
+            <Typography variant="h5" sx={{ fontWeight: 1000, fontFamily: '"Cinzel Decorative", serif', color: 'text.primary' }}>
+              {form?.department || instituteSettings?.instituteName || 'MAKTAB'}
+            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 900, color: primaryColor, fontSize: '0.9rem' }}>
+              {form?.title}
             </Typography>
           </Box>
         </Stack>
         
-        <Box sx={{ textAlign: 'center', flex: 1, px: 2, bgcolor: 'transparent', display: { xs: 'none', md: 'block' } }}>
+        <Box sx={{ textAlign: 'center', flex: 1, px: 4, bgcolor: 'transparent', display: { xs: 'none', md: 'block' } }}>
           <Typography variant="h1" sx={{ 
             fontWeight: 1000, 
             fontFamily: '"Cinzel Decorative", serif', 
             color: 'text.primary', 
-            letterSpacing: -2, 
-            fontSize: { xs: '1.2rem', sm: '2rem', md: '3rem' },
+            letterSpacing: -1.5, 
+            fontSize: { xs: '1.2rem', sm: '2rem', md: '2.8rem' },
             lineHeight: 1,
-            mb: 1
+            mb: 1.5
           }}>
             {form?.department || instituteSettings?.instituteName || 'MAKTAB WALI UL ASR'}
           </Typography>
@@ -824,25 +827,32 @@ export default function FormView() {
             fontWeight: 950, 
             color: primaryColor, 
             letterSpacing: -1, 
-            fontSize: { xs: '1.4rem', sm: '2.5rem', md: '3.5rem' },
+            fontSize: { xs: '1.4rem', sm: '2.2rem', md: '3.2rem' },
             lineHeight: 1.1,
-            mb: 0.5
+            mb: 1
           }}>
             {form?.title}
           </Typography>
-          <Typography variant="subtitle1" sx={{ 
-            fontWeight: 900, 
-            letterSpacing: '0.3rem', 
-            textTransform: 'uppercase',
-            color: 'text.secondary',
-            mt: 2,
-            fontSize: { xs: '0.6rem', md: '0.8rem' }
-          }}>
-            Official Institutional assessment
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Typography variant="subtitle1" sx={{ 
+              fontWeight: 900, 
+              letterSpacing: '0.4rem', 
+              textTransform: 'uppercase',
+              color: 'text.secondary',
+              mt: 2,
+              px: 4,
+              py: 0.5,
+              borderTop: '2px solid',
+              borderBottom: '2px solid',
+              borderColor: alpha(theme.palette.divider, 0.1),
+              fontSize: '0.75rem'
+            }}>
+              Official Institutional Assessment Portal
+            </Typography>
+          </Box>
         </Box>
 
-        <Box sx={{ width: { xs: '100%', md: 140 }, height: { xs: 40, md: 140 }, bgcolor: 'transparent', display: 'flex', alignItems: 'center', justifyContent: { xs: 'flex-start', md: 'center' } }}>
+        <Box sx={{ width: { xs: '100%', md: 120 }, height: { xs: 50, md: 120 }, bgcolor: 'transparent', display: 'flex', alignItems: 'center', justifyContent: { xs: 'flex-start', md: 'center' } }}>
           {(form?.headerRightImageUrl || instituteSettings?.receiptRightImageUrl) && (
             <Box 
               component="img" 

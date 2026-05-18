@@ -165,6 +165,8 @@ export default function Users() {
     if ((window as any)._usersLoaded) return false;
     return true;
   });
+  const [emailError, setEmailError] = useState('');
+  const [admissionError, setAdmissionError] = useState('');
   const [searchQuery, setSearchQuery] = useState(() => sessionStorage.getItem('users_search') || '');
   const [tabValue, setTabValue] = useState(() => Number(sessionStorage.getItem('users_tab')) || 0);
   const [openDialog, setOpenDialog] = useState(false);
@@ -707,13 +709,36 @@ export default function Users() {
     sessionStorage.setItem('users_view', viewMode);
   }, [searchQuery, tabValue, viewMode]);
 
+  // Real-time duplicate check
   useEffect(() => {
-    if (allUsers.length > 0) {
+    if (openDialog && !editingUser) {
+      const emailTrim = formData.email?.trim().toLowerCase();
+      const admTrim = formData.admissionNo?.trim().toUpperCase();
+
+      if (emailTrim && allUsers.some(u => u.email?.toLowerCase() === emailTrim)) {
+        setEmailError('Member with this email already exists!');
+      } else {
+        setEmailError('');
+      }
+
+      if (admTrim && allUsers.some(u => u.admissionNo?.toUpperCase() === admTrim)) {
+        setAdmissionError('Admission Number already assigned!');
+      } else {
+        setAdmissionError('');
+      }
+    } else {
+      setEmailError('');
+      setAdmissionError('');
+    }
+  }, [formData.email, formData.admissionNo, allUsers, openDialog, editingUser]);
+
+  useEffect(() => {
+    if (!globalLoading) {
       setUsers(allUsers);
       setLoading(false);
       (window as any)._usersLoaded = true;
     }
-  }, [allUsers]);
+  }, [allUsers, globalLoading]);
 
   useEffect(() => {
     // Only fetch if global data is empty as a fallback
@@ -928,6 +953,17 @@ export default function Users() {
       setSnackbar({ open: true, message: `User ${editingUser ? 'updated' : 'registered'} successfully`, severity: 'success' });
       setOpenDialog(false);
       setEditingUser(null);
+      
+      // Auto-switch tab and reset filters to show newly added user
+      if (!editingUser) {
+        if (finalFormData.role === 'student') setTabValue(0);
+        else if (['teacher', 'manager', 'superadmin'].includes(finalFormData.role)) setTabValue(1);
+        setStatusFilter('All');
+        setLevelFilter('All');
+        setGenderFilter('All');
+        setSearchQuery('');
+      }
+
       confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to save user details.', severity: 'error' });
@@ -984,11 +1020,41 @@ export default function Users() {
     try {
       if (userToDelete.status === 'Archived' || tabValue === 3) {
         // PERMANENT PURGE FROM DATABASE
+        // 1. Delete user document
         await deleteDoc(doc(db, 'users', id));
-        setSnackbar({ open: true, message: `${userToDelete.displayName} has been vanished from database`, severity: 'success' });
+        
+        // 2. Delete associated receipts
+        const receiptsQuery = query(collection(db, 'receipts'), where('studentId', '==', id));
+        const receiptsSnap = await getDocs(receiptsQuery);
+        for (const r of receiptsSnap.docs) {
+          await deleteDoc(r.ref);
+        }
+        
+        // 3. Delete associated attendance
+        const attendanceQuery = query(collection(db, 'attendance'), where('studentId', '==', id));
+        const attendanceSnap = await getDocs(attendanceQuery);
+        for (const a of attendanceSnap.docs) {
+          await deleteDoc(a.ref);
+        }
+
+        // 4. Delete associated quiz results
+        const resultsQuery = query(collection(db, 'quiz_results'), where('userId', '==', id));
+        const resultsSnap = await getDocs(resultsQuery);
+        for (const res of resultsSnap.docs) {
+          await deleteDoc(res.ref);
+        }
+
+        // 5. Delete notifications
+        const notifsQuery = query(collection(db, 'notifications'), where('userId', '==', id));
+        const notifsSnap = await getDocs(notifsQuery);
+        for (const n of notifsSnap.docs) {
+          await deleteDoc(n.ref);
+        }
+
+        setSnackbar({ open: true, message: `${userToDelete.displayName} and all associated data purged from system.`, severity: 'success' });
       } else {
         // MOVE TO ARCHIVE
-        await smartUpdateDoc(doc(db, 'users', id), { 
+        await updateDoc(doc(db, 'users', id), { 
           status: 'Archived',
           isVerified: false,
           archivedAt: serverTimestamp(),
@@ -998,6 +1064,7 @@ export default function Users() {
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
+      setSnackbar({ open: true, message: 'Failed to complete deletion', severity: 'error' });
     } finally { 
       setUserToDeleteRef(null); 
       setLoading(false);
@@ -1556,91 +1623,87 @@ export default function Users() {
             </Stack>
           </Toolbar>
         </AppBar>
-        <DialogContent sx={{ bgcolor: 'background.default', p: 0 }}>
+        <DialogContent sx={{ bgcolor: theme.palette.mode === 'dark' ? '#0a0a0a' : 'background.default', p: 0 }}>
            {profileToView && (
              <Box sx={{ pb: 10 }}>
                 {/* Hero Header */}
                 <Box sx={{ 
-                  height: 200, 
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                  height: { xs: 200, md: 300 }, 
+                  background: profileToView.role === 'teacher' 
+                    ? `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url(https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=2070&auto=format&fit=crop)`
+                    : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
                   position: 'relative',
-                  mb: -10
-                }} />
+                  mb: -10,
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  p: 6
+                }}>
+                   {profileToView.role === 'teacher' && (
+                     <Box sx={{ animate: 'fadeInUp 1s' }}>
+                        <Typography variant="h2" sx={{ color: 'white', fontWeight: 950, letterSpacing: -3 }}>{profileToView.displayName?.split(' ')[0]}</Typography>
+                        <Chip label="Distinguished Faculty" sx={{ bgcolor: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)', color: 'white', fontWeight: 900, border: '1px solid rgba(255,255,255,0.3)' }} />
+                     </Box>
+                   )}
+                </Box>
                 
                 <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1, px: { xs: 2, md: 4 } }}>
                   <Grid container spacing={4}>
                     {/* Left Panel */}
                     <Grid size={{ xs: 12, md: 4 }}>
-                      <Card className="ios-card" sx={{ p: 4, textAlign: 'center' }}>
+                      <Card className="ios-card" sx={{ p: 4, textAlign: 'center', bgcolor: theme.palette.mode === 'dark' ? '#111' : 'white', borderRadius: 8 }}>
                         <Avatar 
                           src={profileToView.photoURL} 
-                          sx={{ width: 160, height: 160, mx: 'auto', mb: 3, border: `6px solid ${theme.palette.background.paper}`, boxShadow: '0 8px 30px rgba(0,0,0,0.1)' }} 
+                          sx={{ width: 180, height: 180, mx: 'auto', mb: 3, border: `6px solid ${theme.palette.background.paper}`, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }} 
                         />
-                        <Typography variant="h5" id="profile-name" sx={{ 
+                        <Typography variant="h4" id="profile-name" sx={{ 
                           fontWeight: 950, 
                           mb: 1, 
-                          letterSpacing: -1, 
+                          letterSpacing: -1.5, 
                           fontFamily: 'var(--font-heading)', 
                           color: 'text.primary',
-                          fontSize: { xs: '1.4rem', md: '1.8rem' },
-                          lineHeight: 1.1,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxDirection: 'vertical'
+                          fontSize: { xs: '1.8rem', md: '2.2rem' },
+                          lineHeight: 1.1
                         }}>
                           {profileToView.displayName}
                         </Typography>
-                        <Typography variant="body1" id="profile-email" sx={{ fontWeight: 700, mb: 3, color: 'text.secondary' }}>
-                          {profileToView.email}
-                        </Typography>
                         
-                        <Stack spacing={1} direction="row" justifyContent="center">
-                          <Chip label={profileToView.classLevel || 'Unassigned'} size="small" sx={{ fontWeight: 800, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }} />
-                          <Chip label={profileToView.status || 'Active'} size="small" variant="outlined" sx={{ fontWeight: 800 }} />
+                        <Stack spacing={1} direction="row" justifyContent="center" sx={{ mb: 4 }}>
+                          <Chip label={profileToView.role?.toUpperCase()} size="small" sx={{ fontWeight: 900, bgcolor: 'primary.main', color: 'white' }} />
+                          {profileToView.isVerified && <Chip icon={<CheckCircle size={14} />} label="Verified" size="small" variant="outlined" color="success" sx={{ fontWeight: 800 }} />}
                         </Stack>
 
-                        <Divider sx={{ my: 4 }} />
+                        <Divider sx={{ my: 4, borderColor: alpha(theme.palette.divider, 0.1) }} />
 
                         <Box sx={{ textAlign: 'left', mb: 4 }}>
-                           <Typography className="ui-label" sx={{ mb: 1.5, display: 'block' }}>CONTACT DETAILS</Typography>
-                           <Stack spacing={2}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Phone size={18} className="text-zinc-400" />
-                                <Typography sx={{ fontWeight: 700 }}>{profileToView.phone || 'No phone'}</Typography>
+                           <Typography className="ui-label" sx={{ mb: 2, display: 'block', opacity: 0.6 }}>COMMUNICATION</Typography>
+                           <Stack spacing={2.5}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, p: 2, bgcolor: alpha(theme.palette.divider, 0.05), borderRadius: 4 }}>
+                                <Phone size={20} className="text-primary" />
+                                <Box>
+                                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 800, opacity: 0.5 }}>PHONE</Typography>
+                                  <Typography sx={{ fontWeight: 800 }}>{profileToView.phone || 'N/A'}</Typography>
+                                </Box>
                               </Box>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Mail size={18} className="text-zinc-400" />
-                                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{profileToView.email}</Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, p: 2, bgcolor: alpha(theme.palette.divider, 0.05), borderRadius: 4 }}>
+                                <Mail size={20} className="text-primary" />
+                                <Box>
+                                  <Typography variant="caption" sx={{ display: 'block', fontWeight: 800, opacity: 0.5 }}>EMAIL</Typography>
+                                  <Typography sx={{ fontWeight: 800, fontSize: '0.85rem' }}>{profileToView.email}</Typography>
+                                </Box>
                               </Box>
-                              {profileToView.phone && (
-                                <Button
-                                  fullWidth
-                                  variant="contained"
-                                  startIcon={<MessageCircle size={18} />}
-                                  onClick={() => window.open(`https://wa.me/${profileToView.phone.replace(/\D/g, '')}`, '_blank')}
-                                  sx={{ 
-                                    mt: 1, 
-                                    fontWeight: 900, 
-                                    borderRadius: 3,
-                                    bgcolor: '#25D366',
-                                    color: 'white',
-                                    '&:hover': { bgcolor: '#128C7E' }
-                                  }}
-                                >
-                                  WhatsApp Now
-                                </Button>
-                              )}
                            </Stack>
                         </Box>
-
-                        <Box sx={{ p: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 5 }}>
-                           <Typography className="ui-label" sx={{ mb: 1.5, display: 'block', textAlign: 'center' }}>PROFILE VERIFICATON</Typography>
-                           <Box sx={{ p: 1, bgcolor: theme.palette.mode === 'dark' ? 'white' : 'white', display: 'inline-block', borderRadius: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                            <QRCodeSVG value={`${window.location.origin}/verify/profile/${profileToView.uid}`} size={140} bgColor="white" fgColor="#000000" />
-                           </Box>
-                        </Box>
+                        
+                        {profileToView.role === 'student' && (
+                          <Box sx={{ p: 4, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 6, border: '1px dashed', borderColor: alpha(theme.palette.primary.main, 0.2) }}>
+                            <Typography className="ui-label" sx={{ mb: 2, display: 'block', textAlign: 'center' }}>ID VERIFICATION</Typography>
+                            <Box sx={{ p: 1, bgcolor: 'white', display: 'inline-block', borderRadius: 4, boxShadow: '0 8px 30px rgba(0,0,0,0.1)' }}>
+                              <QRCodeSVG value={`${window.location.origin}/verify/profile/${profileToView.uid}`} size={160} bgColor="white" fgColor="#000000" />
+                            </Box>
+                          </Box>
+                        )}
                       </Card>
                     </Grid>
 
@@ -2072,10 +2135,26 @@ export default function Users() {
             </Box>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField fullWidth label="Full Name" name="displayName" value={formData.displayName} onChange={handleFormChange} required />
+                <TextField 
+                  fullWidth 
+                  label="Full Name" 
+                  name="displayName" 
+                  value={formData.displayName} 
+                  onChange={handleFormChange} 
+                  required 
+                />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField fullWidth label="Email Address" type="email" name="email" value={formData.email} onChange={handleFormChange} />
+                <TextField 
+                  fullWidth 
+                  label="Email Address" 
+                  type="email" 
+                  name="email" 
+                  value={formData.email} 
+                  onChange={handleFormChange}
+                  error={!!emailError}
+                  helperText={emailError || "Optional: For login and notifications"}
+                />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth>
@@ -2087,6 +2166,18 @@ export default function Users() {
                     {isSuperAdmin && <MenuItem value="superadmin">Super Admin</MenuItem>}
                   </Select>
                 </FormControl>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField 
+                  fullWidth 
+                  label={formData.role === 'student' ? "Admission No" : "Staff ID"} 
+                  name="admissionNo" 
+                  value={formData.admissionNo} 
+                  onChange={handleFormChange}
+                  placeholder="Auto-generated if empty"
+                  error={!!admissionError}
+                  helperText={admissionError || "Unique identifier"}
+                />
               </Grid>
               {formData.role === 'student' && (
                 <>
@@ -2195,7 +2286,7 @@ export default function Users() {
           <Button 
             variant="contained" 
             onClick={handleSave} 
-            disabled={!formData.displayName || loading}
+            disabled={!formData.displayName || loading || !!emailError || !!admissionError}
             sx={{ 
               fontWeight: 950, 
               px: 5, 
