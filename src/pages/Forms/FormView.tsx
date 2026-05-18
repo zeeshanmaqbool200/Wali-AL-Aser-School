@@ -8,15 +8,16 @@ import {
 import { 
   Send, AlertCircle, CheckCircle2, Clock, Calendar, 
   MapPin, User, Mail, Hash, FileDown, ArrowLeft, Globe,
-  ShieldCheck, Info
+  ShieldCheck, Info, Share2, Award
 } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { FormSchema, FormResponse } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
+import { safelyFormatDate } from '../../lib/dateUtils';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import confetti from 'canvas-confetti';
@@ -32,20 +33,133 @@ export default function FormView() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [lastSubmission, setLastSubmission] = useState<any>(null);
+  const [userSubmission, setUserSubmission] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   
   const [responses, setResponses] = useState<Record<string, any>>({});
   const [ipAddress, setIpAddress] = useState('');
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [timerActive, setTimerActive] = useState(false);
+
+  // Autofill Details for Members
+  useEffect(() => {
+    // Priority 1: Logged In User
+    if (user && form && Object.keys(responses).length === 0) {
+      const autoFilled: Record<string, any> = {};
+      form.questions.forEach(q => {
+        const labelLower = q.label.toLowerCase();
+        if (labelLower.includes('name')) autoFilled[q.id] = user.displayName;
+        if (labelLower.includes('email')) autoFilled[q.id] = user.email;
+        if (labelLower.includes('roll') || labelLower.includes('id') || labelLower.includes('admission')) {
+          autoFilled[q.id] = user.rollNo || user.admissionNo;
+        }
+        if (labelLower.includes('phone') || labelLower.includes('mobile')) autoFilled[q.id] = user.phone;
+        if (labelLower.includes('class') || labelLower.includes('level')) autoFilled[q.id] = user.classLevel;
+        if (labelLower.includes('father')) autoFilled[q.id] = user.fatherName;
+      });
+      if (Object.keys(autoFilled).length > 0) {
+        setResponses(prev => ({ ...autoFilled, ...prev }));
+      }
+    }
+  }, [user, form]);
+
+  const handleSmartAutofill = async (questionId: string, value: string) => {
+    if (!value || value.length < 3) return;
+    
+    const question = form?.questions.find(q => q.id === questionId);
+    if (!question) return;
+    
+    const isIdentityField = ['roll', 'id', 'admission', 'enrollment'].some(key => question.label.toLowerCase().includes(key));
+    if (!isIdentityField) return;
+
+    try {
+      // 1. Check local users cache if available in context/session
+      const usersCacheStr = sessionStorage.getItem('users_list');
+      let foundUser: any = null;
+      
+      if (usersCacheStr) {
+        const cachedUsers = JSON.parse(usersCacheStr);
+        foundUser = cachedUsers.find((u: any) => 
+          u.admissionNo === value || u.rollNo === value || u.email === value
+        );
+      }
+
+      // 2. Fallback to Firestore if not in cache and looks like a valid pattern
+      if (!foundUser && value.length >= 8) {
+        const qUsers = query(collection(db, 'users'), where('admissionNo', '==', value), limit(1));
+        const snap = await getDocs(qUsers);
+        if (!snap.empty) {
+          foundUser = snap.docs[0].data();
+        } else {
+          // Try email
+          const qEmail = query(collection(db, 'users'), where('email', '==', value), limit(1));
+          const snapEmail = await getDocs(qEmail);
+          if (!snapEmail.empty) foundUser = snapEmail.docs[0].data();
+        }
+      }
+
+      if (foundUser) {
+        const extraFields: Record<string, any> = {};
+        form?.questions.forEach(q => {
+          if (q.id === questionId) return; // Don't overwrite the field we typed in
+          const l = q.label.toLowerCase();
+          if (l.includes('name')) extraFields[q.id] = foundUser.displayName;
+          if (l.includes('email')) extraFields[q.id] = foundUser.email;
+          if (l.includes('phone') || l.includes('mobile')) extraFields[q.id] = foundUser.phone;
+          if (l.includes('father')) extraFields[q.id] = foundUser.fatherName;
+          if (l.includes('class') || l.includes('level')) extraFields[q.id] = foundUser.classLevel;
+        });
+        setResponses(prev => ({ ...prev, ...extraFields }));
+      }
+    } catch (e) {
+      console.error('Smart autofill failed', e);
+    }
+  };
 
   const primaryColor = form?.primaryColor || instituteSettings?.primaryColor || theme.palette.primary.main;
   const instituteLogo = form?.logoUrl || instituteSettings?.logoUrl;
   const instituteBanner = form?.bannerUrl || instituteSettings?.bannerUrl;
 
+  // Timer Effect
+  useEffect(() => {
+    if (form?.durationLimit && !timeLeft && !submitted && !loading) {
+      // Start Timer
+      setTimeLeft(form.durationLimit * 60);
+      setTimerActive(true);
+    }
+  }, [form, timeLeft, submitted, loading]);
+
+  useEffect(() => {
+    let interval: any;
+    if (timerActive && timeLeft && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft(prev => (prev !== null ? prev - 1 : null));
+      }, 1000);
+    } else if (timeLeft === 0 && timerActive) {
+      // Auto Submit - fill mandatory questions with "Out of Time"
+      const finalAnswers = { ...responses };
+      form?.questions?.forEach(q => {
+        if (q.required && !finalAnswers[q.id]) {
+          finalAnswers[q.id] = 'Out of Time';
+        }
+      });
+      handleSubmit(new Event('submit') as any, true, finalAnswers);
+      setTimerActive(false);
+    }
+    return () => clearInterval(interval);
+  }, [timerActive, timeLeft]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
   useEffect(() => {
     fetch('https://api.ipify.org?format=json')
       .then(res => res.json())
       .then(data => setIpAddress(data.ip))
-      .catch(() => setIpAddress('unknown'));
+      .catch(() => setIpAddress(''));
 
     if (id) {
       const fetchForm = async () => {
@@ -81,6 +195,20 @@ export default function FormView() {
             } else if (!formData.allowNonStudents && !user) {
               setError('Student Access Only. Please sign in to your institutional account to view this form.');
             } else {
+              // Fetch user's existing submission if logged in
+              if (user) {
+                try {
+                  const qSub = query(
+                    collection(db, 'form_responses'), 
+                    where('formId', '==', id),
+                    where('userId', '==', user.uid)
+                  );
+                  const subSnap = await getDocs(qSub);
+                  if (!subSnap.empty) {
+                    setUserSubmission({ id: subSnap.docs[0].id, ...subSnap.docs[0].data() });
+                  }
+                } catch (e) { console.error('Sub fetch err:', e); }
+              }
               setForm(formData);
             }
           } else {
@@ -112,34 +240,38 @@ export default function FormView() {
     
     // Left Branding
     const left = form?.headerLeftImageUrl || instituteSettings?.receiptLeftImageUrl;
-    if (left) try { doc.addImage(left, 'JPEG', 10, 5, 30, 35); } catch(e) {}
+    if (left) try { doc.addImage(left, 'PNG', 10, 5, 30, 35, undefined, 'FAST'); } catch(e) {}
 
     // Right Branding
     const right = form?.headerRightImageUrl || instituteSettings?.receiptRightImageUrl;
-    if (right) try { doc.addImage(right, 'JPEG', 170, 5, 30, 35); } catch(e) {}
+    if (right) try { doc.addImage(right, 'PNG', 170, 5, 30, 35, undefined, 'FAST'); } catch(e) {}
 
     // Center Logo
     const logo = form?.logoUrl || instituteSettings?.logoUrl;
-    if (logo) try { doc.addImage(logo, 'PNG', 95, 5, 20, 20); } catch(e) {}
+    if (logo) try { doc.addImage(logo, 'PNG', 95, 5, 20, 20, undefined, 'FAST'); } catch(e) {}
 
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
+    doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text('Submission Receipt', 105, 30, { align: 'center' });
+    doc.text(form?.department || instituteSettings?.instituteName || 'MAKTAB WALI UL ASR', 105, 30, { align: 'center' });
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${instituteSettings?.instituteName || 'Institutional'} Form Solution`, 105, 38, { align: 'center' });
+    doc.text(form?.title || 'Official Submission Record', 105, 38, { align: 'center' });
 
     doc.setTextColor(50, 50, 50);
     doc.setFontSize(14);
-    doc.text(form?.title || 'Form Submission', 20, 60);
+    doc.text('Submission Receipt', 20, 60);
     
+    const totalPoints = form?.questions.reduce((acc, q) => acc + (q.points || 0), 0);
+    const score = data.totalScore !== undefined ? data.totalScore : 0;
+    const percentage = totalPoints && totalPoints > 0 ? Math.round((score / totalPoints) * 100) : 0;
+
     const tableData = [
       ['Submission ID', data.id.substring(0, 8).toUpperCase()],
       ['Name', data.userName],
-      ['Email', data.userEmail],
       ['Roll No', data.userRollNo || 'External'],
-      ['Time', format(data.submittedAt, 'PPP p')],
+      ['Score Achieved', `${score} / ${totalPoints || 'N/A'} (${percentage}%)`],
+      ['Time', safelyFormatDate(data.submittedAt, 'PPP p')],
       ['IP Address', data.ipAddress]
     ];
 
@@ -154,14 +286,18 @@ export default function FormView() {
     doc.save(`${form?.title}_Receipt.pdf`);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent, isAutoSubmit = false, customResponses?: any) => {
+    if (e) e.preventDefault();
     if (!form || !id) return;
 
-    const missing = form.questions.filter(q => q.required && !responses[q.id]);
-    if (missing.length > 0) {
-      alert('Please fill all required fields: ' + missing.map(m => m.label).join(', '));
-      return;
+    const currentResponses = customResponses || responses;
+
+    if (!isAutoSubmit) {
+      const missing = form.questions.filter(q => q.required && !currentResponses[q.id]);
+      if (missing.length > 0) {
+        alert('Please fill all required fields: ' + missing.map(m => m.label).join(', '));
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -175,21 +311,47 @@ export default function FormView() {
       
       if (userMatch || ipMatch) isDuplicate = true;
 
+      // Handle External ID Generation
+      let externalId = currentResponses['rollNo'] || localStorage.getItem(`ext_id_${id}`);
+      if (!user && !externalId) {
+        externalId = 'EXT-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+        localStorage.setItem(`ext_id_${id}`, externalId);
+      }
+
       const payload: any = {
         formId: id,
         userId: user?.uid || null,
-        userEmail: user?.email || (responses['email'] || ''),
-        userName: user?.displayName || (responses['name'] || 'Guest'),
-        userRollNo: user?.rollNo || (responses['rollNo'] || ''),
+        userEmail: user?.email || (currentResponses['email'] || 'anonymous@institution.com'),
+        userName: user?.displayName || (currentResponses['name'] || 'Guest Participant'),
+        userRollNo: user?.rollNo || externalId,
         ipAddress,
         responses: form.questions.map(q => ({
           questionId: q.id,
-          answer: responses[q.id]
+          answer: currentResponses[q.id] || (isAutoSubmit ? 'Out of Time / Auto-filled' : '')
         })),
         submittedAt: Date.now(),
         isDuplicate,
+        isAutoSubmit,
         browserInfo: navigator.userAgent
       };
+
+      // Auto-grading if it's an exam and questions have correctAnswers
+      if (form.type === 'exam') {
+        let totalScore = 0;
+        payload.responses = payload.responses.map((r: any) => {
+          const question = form.questions.find(fq => fq.id === r.questionId);
+          if (question?.correctAnswer) {
+            const isCorrect = Array.isArray(question.correctAnswer) 
+              ? JSON.stringify(question.correctAnswer.sort()) === JSON.stringify((r.answer || []).sort())
+              : r.answer === question.correctAnswer;
+            
+            if (isCorrect) totalScore += (question.points || 0);
+            return { ...r, isCorrect, score: isCorrect ? (question.points || 0) : 0 };
+          }
+          return r;
+        });
+        payload.totalScore = totalScore;
+      }
 
       const docRef = await addDoc(collection(db, 'form_responses'), payload);
       setLastSubmission({ id: docRef.id, ...payload });
@@ -307,7 +469,11 @@ export default function FormView() {
             inputProps={{
               inputMode: q.label.toLowerCase().includes('phone') || q.label.toLowerCase().includes('roll') || q.label.toLowerCase().includes('number') ? 'numeric' : 'text',
             }}
-            onChange={(e) => setResponses({ ...responses, [q.id]: e.target.value })}
+            onChange={(e) => {
+              const val = e.target.value;
+              setResponses({ ...responses, [q.id]: val });
+              handleSmartAutofill(q.id, val);
+            }}
             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, height: 48 } }}
           />
         );
@@ -315,6 +481,10 @@ export default function FormView() {
   };
 
   const isStaffView = user?.role === 'superadmin' || user?.uid === form?.createdBy || user?.role === 'manager';
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   if (loading) return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', gap: 2 }}>
@@ -342,6 +512,72 @@ export default function FormView() {
             </Button>
           </Box>
         </Card>
+      </Container>
+    );
+  }
+
+  if (form?.resultsPublished && (userSubmission || lastSubmission)) {
+    const data = userSubmission || lastSubmission;
+    const totalPoints = form.questions.reduce((acc, q) => acc + (q.points || 0), 0);
+    const score = data.totalScore !== undefined ? data.totalScore : 0;
+    const percentage = totalPoints > 0 ? Math.round((score / totalPoints) * 100) : 0;
+
+    return (
+      <Container maxWidth="md" sx={{ py: 8 }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <Card sx={{ borderRadius: 8, boxShadow: '0 25px 60px rgba(0,0,0,0.1)', overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ bgcolor: primaryColor, p: 4, color: 'white', textAlign: 'center' }}>
+              <Award size={64} style={{ marginBottom: 16 }} />
+              <Typography variant="h4" sx={{ fontWeight: 1000, mb: 1, fontFamily: '"Cinzel Decorative", serif' }}>Exam Results Declared</Typography>
+              <Typography variant="body1" sx={{ opacity: 0.9 }}>Congratulations on completing the assessment!</Typography>
+            </Box>
+            <CardContent sx={{ p: 6, textAlign: 'center' }}>
+              <Typography variant="h6" sx={{ fontWeight: 800, mb: 4, color: 'text.secondary' }}>{form.title}</Typography>
+              
+              <Grid container spacing={4} justifyContent="center" sx={{ mb: 6 }}>
+                <Grid size={{ xs: 6, sm: 4 }}>
+                  <Paper elevation={0} sx={{ p: 3, borderRadius: 4, bgcolor: alpha(primaryColor, 0.05), border: '1px solid', borderColor: alpha(primaryColor, 0.1) }}>
+                    <Typography variant="caption" sx={{ fontWeight: 900, color: primaryColor, letterSpacing: 1.5 }}>SCORE</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 1000, color: primaryColor }}>{score}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>Out of {totalPoints}</Typography>
+                  </Paper>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 4 }}>
+                  <Paper elevation={0} sx={{ p: 3, borderRadius: 4, bgcolor: alpha(primaryColor, 0.05), border: '1px solid', borderColor: alpha(primaryColor, 0.1) }}>
+                    <Typography variant="caption" sx={{ fontWeight: 900, color: primaryColor, letterSpacing: 1.5 }}>PERCENTAGE</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 1000, color: primaryColor }}>{percentage}%</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>Overall Performance</Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              <Divider sx={{ mb: 4 }} />
+
+              <Stack direction="row" spacing={2} justifyContent="center" sx={{ flexWrap: 'wrap', gap: 2 }}>
+                <Button 
+                  variant="contained" 
+                  startIcon={<FileDown size={20} />}
+                  onClick={() => generateReceiptPDF(data)}
+                  sx={{ 
+                    borderRadius: 3, fontWeight: 900, px: 4, py: 1.5,
+                    bgcolor: primaryColor,
+                    '&:hover': { bgcolor: alpha(primaryColor, 0.9) }
+                  }}
+                >
+                  Download Result Card (PDF)
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  startIcon={<ArrowLeft size={18} />}
+                  onClick={() => navigate('/forms')}
+                  sx={{ borderRadius: 3, fontWeight: 900, px: 3 }}
+                >
+                  Back to Portal
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        </motion.div>
       </Container>
     );
   }
@@ -375,7 +611,7 @@ export default function FormView() {
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 2, bgcolor: 'action.hover', borderRadius: 3 }}>
                   <Typography variant="body2" color="text.secondary">Date</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{format(lastSubmission.submittedAt, 'MMM d, p')}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{safelyFormatDate(lastSubmission.submittedAt, 'MMM d, p')}</Typography>
                 </Box>
               </Stack>
               
@@ -408,40 +644,82 @@ export default function FormView() {
   }
 
   return (
-    <Box sx={{ bgcolor: alpha(primaryColor, 0.02), minHeight: '100vh', pb: 10 }}>
-      {/* Staff Preview Banner (Sticky) */}
-      {isStaffView && form?.status === 'published' && (
-        <Box sx={{ 
-          bgcolor: 'primary.main', 
-          color: 'white', 
-          py: 1, 
-          textAlign: 'center',
-          position: 'sticky',
-          top: 0,
-          zIndex: 1400,
-          boxShadow: 3,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 1
-        }}>
-          <ShieldCheck size={16} />
-          <Typography variant="caption" sx={{ fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1 }}>
-            Staff Preview Mode - Administrator View
-          </Typography>
-        </Box>
-      )}
+    <Box sx={{ 
+      bgcolor: 'transparent', 
+      minHeight: '100vh', 
+      pb: 10,
+      width: '100vw',
+      position: 'relative',
+      overflow: 'hidden',
+      '@media print': {
+        bgcolor: 'white !important',
+        p: 0,
+        width: '210mm',
+        '& .no-print': { display: 'none' }
+      }
+    }}>
+      {/* Dynamic Progress Bar & Timer (Sticky) - No Print */}
+      <Box className="no-print" sx={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        zIndex: 1500,
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {isStaffView && form?.status === 'published' && (
+          <Box sx={{ 
+            bgcolor: 'primary.main', 
+            color: 'white', 
+            py: 0.5, 
+            textAlign: 'center',
+            boxShadow: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 1
+          }}>
+            <ShieldCheck size={14} />
+            <Typography variant="caption" sx={{ fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.65rem' }}>
+              Staff Preview Mode
+            </Typography>
+          </Box>
+        )}
+        
+        {timeLeft !== null && (
+          <Box sx={{ 
+            bgcolor: timeLeft < 120 ? 'error.main' : 'background.paper', 
+            color: timeLeft < 120 ? 'white' : 'text.primary',
+            py: 1,
+            px: 3,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 1.5,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            boxShadow: 2,
+            transition: 'all 0.3s ease'
+          }}>
+            <Clock size={18} className={timeLeft < 120 ? 'animate-pulse' : ''} />
+            <Typography variant="h6" sx={{ fontWeight: 1000, fontFamily: 'monospace' }}>
+              {formatTime(timeLeft)}
+            </Typography>
+            <Typography variant="caption" sx={{ fontWeight: 900, textTransform: 'uppercase', opacity: 0.8 }}>
+              {timeLeft < 120 ? 'STRICT DEADLINE: HURRY' : 'TIME REMAINING'}
+            </Typography>
+          </Box>
+        )}
 
-      {/* Dynamic Progress Bar (Sticky) */}
-      {form?.showProgressBar && (
-        <Box sx={{ position: 'fixed', top: (isStaffView && form?.status === 'published') ? 40 : 0, left: 0, right: 0, zIndex: 1300 }}>
+        {form?.showProgressBar && (
           <LinearProgress 
             variant="determinate" 
             value={calculateProgress()} 
-            sx={{ height: 6, bgcolor: alpha(form.primaryColor || theme.palette.primary.main, 0.1) }}
+            sx={{ height: 4, bgcolor: alpha(form.primaryColor || theme.palette.primary.main, 0.1) }}
           />
-        </Box>
-      )}
+        )}
+      </Box>
 
       {/* Standalone Branding Banner */}
       {instituteBanner && (
@@ -452,140 +730,247 @@ export default function FormView() {
           backgroundImage: `url(${instituteBanner})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          mb: { xs: -4, md: -6 }
+          mb: { xs: 2, md: 4 },
+          '@media print': {
+            height: 120,
+            mb: 2
+          }
         }}>
           <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0))' }} />
         </Box>
       )}
 
-      <Container maxWidth="md" sx={{ pt: instituteBanner ? 2 : 6 }}>
-        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Container maxWidth="lg" sx={{ pt: instituteBanner ? 4 : 8 }}>
+        <Box className="no-print" sx={{ mb: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Button 
-            startIcon={<ArrowLeft size={18} />} 
+            startIcon={<ArrowLeft size={22} />} 
             onClick={() => navigate(-1)}
-            sx={{ fontWeight: 800, borderRadius: 2, color: 'text.secondary', minHeight: 44, bgcolor: 'background.paper', boxShadow: 1 }}
+            sx={{ fontWeight: 900, borderRadius: 4, color: 'text.secondary', minHeight: 48, px: 3, bgcolor: 'background.paper', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
           >
-            Go Back
+            Exit Preview
           </Button>
-          {form?.showProgressBar && (
-             <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', bgcolor: 'background.paper', px: 2, py: 0.5, borderRadius: 5, boxShadow: 1 }}>
-               {calculateProgress()}% Complete
-             </Typography>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Button 
+                variant="outlined" 
+                startIcon={<Share2 size={18} />}
+                onClick={() => {
+                  const url = window.location.href;
+                  navigator.clipboard.writeText(url);
+                  alert('Shareable link copied to clipboard!');
+                }}
+                sx={{ fontWeight: 900, borderRadius: 4, px: 3, height: 48 }}
+              >
+                Share
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={handlePrint}
+              startIcon={<FileDown size={20} />}
+              sx={{ fontWeight: 900, borderRadius: 4, px: 3, height: 48 }}
+            >
+              Print A4
+            </Button>
+            {form?.showProgressBar && (
+              <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', bgcolor: 'background.paper', px: 3, py: 1, borderRadius: 5, boxShadow: 2, fontSize: '0.8rem' }}>
+                {calculateProgress()}% Ready
+              </Typography>
+            )}
+          </Stack>
+        </Box>
+
+        <motion.div initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6 }}>
+          {/* Header Section - Transparent with Logo */}
+          <Box sx={{ mb: 8, textAlign: 'center', position: 'relative', bgcolor: 'transparent' }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', md: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'flex-start', md: 'center' }, 
+        mb: 6,
+        gap: { xs: 2, md: 6 },
+        px: { xs: 2, md: 6 },
+        bgcolor: 'transparent'
+      }}>
+        <Stack direction="row" spacing={2} alignItems="center" sx={{ width: { xs: '100%', md: 'auto' } }}>
+          <Box sx={{ width: { xs: 60, md: 100 }, height: { xs: 60, md: 100 }, bgcolor: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {(form?.logoUrl || instituteSettings?.logoUrl) && (
+              <Box 
+                component="img" 
+                src={form?.logoUrl || instituteSettings?.logoUrl} 
+                sx={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', bgcolor: 'transparent' }} 
+              />
+            )}
+          </Box>
+          <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+            <Typography variant="h5" sx={{ fontWeight: 1000, fontFamily: '"Cinzel Decorative", serif' }}>
+              {form?.department ||'MAKTAB'}
+            </Typography>
+          </Box>
+        </Stack>
+        
+        <Box sx={{ textAlign: 'center', flex: 1, px: 2, bgcolor: 'transparent', display: { xs: 'none', md: 'block' } }}>
+          <Typography variant="h1" sx={{ 
+            fontWeight: 1000, 
+            fontFamily: '"Cinzel Decorative", serif', 
+            color: 'text.primary', 
+            letterSpacing: -2, 
+            fontSize: { xs: '1.2rem', sm: '2rem', md: '3rem' },
+            lineHeight: 1,
+            mb: 1
+          }}>
+            {form?.department || instituteSettings?.instituteName || 'MAKTAB WALI UL ASR'}
+          </Typography>
+          <Typography variant="h3" sx={{ 
+            fontWeight: 950, 
+            color: primaryColor, 
+            letterSpacing: -1, 
+            fontSize: { xs: '1.4rem', sm: '2.5rem', md: '3.5rem' },
+            lineHeight: 1.1,
+            mb: 0.5
+          }}>
+            {form?.title}
+          </Typography>
+          <Typography variant="subtitle1" sx={{ 
+            fontWeight: 900, 
+            letterSpacing: '0.3rem', 
+            textTransform: 'uppercase',
+            color: 'text.secondary',
+            mt: 2,
+            fontSize: { xs: '0.6rem', md: '0.8rem' }
+          }}>
+            Official Institutional assessment
+          </Typography>
+        </Box>
+
+        <Box sx={{ width: { xs: '100%', md: 140 }, height: { xs: 40, md: 140 }, bgcolor: 'transparent', display: 'flex', alignItems: 'center', justifyContent: { xs: 'flex-start', md: 'center' } }}>
+          {(form?.headerRightImageUrl || instituteSettings?.receiptRightImageUrl) && (
+            <Box 
+              component="img" 
+              src={form?.headerRightImageUrl || instituteSettings?.receiptRightImageUrl} 
+              sx={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', bgcolor: 'transparent' }} 
+            />
           )}
         </Box>
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
-          <Card sx={{ 
-            borderRadius: 6, 
-            mb: 4, 
-            overflow: 'hidden', 
-            boxShadow: '0 20px 40px rgba(0,0,0,0.08)',
-            borderTop: !instituteBanner ? `12px solid ${primaryColor}` : 'none',
-            background: 'white',
-            position: 'relative'
-          }}>
-            {/* Logo and Header Images Overlay on Card */}
-            <Box sx={{ 
-              p: { xs: 2.5, md: 4 }, 
-              pb: 0,
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'flex-start'
-            }}>
-              <Box sx={{ width: { xs: 60, md: 100 }, height: { xs: 60, md: 100 }, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                {(form?.logoUrl || instituteSettings?.logoUrl) && (
-                  <Box 
-                    component="img" 
-                    src={form?.logoUrl || instituteSettings?.logoUrl} 
-                    sx={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} 
-                  />
-                )}
-              </Box>
-              <Box sx={{ width: { xs: 60, md: 100 }, height: { xs: 60, md: 100 }, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                {(form?.headerRightImageUrl || instituteSettings?.receiptRightImageUrl) && (
-                  <Box 
-                    component="img" 
-                    src={form?.headerRightImageUrl || instituteSettings?.receiptRightImageUrl} 
-                    sx={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} 
-                  />
-                )}
-              </Box>
-            </Box>
+      </Box>
 
-            <Box sx={{ p: { xs: 3, md: 5 }, pt: { xs: 1, md: 2 }, textAlign: 'center' }}>
-              <Typography variant="h2" sx={{ 
-                fontWeight: 950, 
-                fontFamily: '"Cinzel Decorative", serif', 
-                color: 'text.primary', 
-                letterSpacing: -1, 
-                mb: 2,
-                fontSize: { xs: '1.8rem', sm: '2.5rem', md: '3rem' }
-              }}>
-                {form?.title}
-              </Typography>
-              
+            <Box sx={{ maxWidth: '850px', mx: 'auto', px: 3 }}>
               <Typography variant="body1" sx={{ 
                 color: 'text.secondary', 
-                lineHeight: 1.8, 
-                fontSize: '1.1rem',
-                maxWidth: '700px',
-                mx: 'auto'
+                lineHeight: 2, 
+                fontSize: { xs: '1rem', md: '1.25rem' },
+                fontWeight: 500,
+                mb: 4
               }}>
                 {form?.description}
               </Typography>
               
-              <Divider sx={{ my: 3 }} />
-              
-              <Stack direction="row" spacing={3} flexWrap="wrap" justifyContent="center">
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
-                  <ShieldCheck size={16} />
-                  <Typography variant="caption" sx={{ fontWeight: 700 }}>Verified Institution Form</Typography>
+              <Stack direction="row" spacing={4} flexWrap="wrap" justifyContent="center">
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'text.secondary' }}>
+                  <ShieldCheck size={18} />
+                  <Typography variant="body2" sx={{ fontWeight: 900, letterSpacing: 1 }}>VERIFIED PROTOCOL</Typography>
                 </Box>
                 {form?.anonymous && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'primary.main' }}>
-                    <Globe size={16} />
-                    <Typography variant="caption" sx={{ fontWeight: 700 }}>Anonymous Mode Enabled</Typography>
-                  </Box>
-                )}
-                {form?.endDate && (
-                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
-                    <Clock size={16} />
-                    <Typography variant="caption" sx={{ fontWeight: 700 }}>Due: {format(form.endDate, 'MMM d, p')}</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'primary.main' }}>
+                    <Globe size={18} />
+                    <Typography variant="body2" sx={{ fontWeight: 900, letterSpacing: 1 }}>OPEN ACCESS PORTAL</Typography>
                   </Box>
                 )}
               </Stack>
             </Box>
-            
-            {!form?.anonymous && user && (
-              <Box sx={{ py: 2, px: { xs: 3, md: 5 }, bgcolor: alpha(theme.palette.primary.main, 0.03), borderTop: '1px solid', borderColor: 'divider' }}>
-                <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <Avatar sx={{ width: 24, height: 24, fontSize: '0.7rem', bgcolor: 'primary.main' }}>{user.displayName?.charAt(0)}</Avatar>
-                    <Typography variant="caption" sx={{ fontWeight: 800 }}>{user.displayName}</Typography>
-                  </Box>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>| {user.email}</Typography>
-                </Stack>
-              </Box>
-            )}
-          </Card>
+          </Box>
 
           <form onSubmit={handleSubmit}>
             <Stack spacing={3}>
+              {/* Identity Section if Non-Student/Anonymous */}
+              {form?.allowNonStudents && !user && !form?.anonymous && (
+                <Card sx={{ 
+                  borderRadius: 5, 
+                  bgcolor: alpha(theme.palette.info.main, 0.05),
+                  border: '1px dashed',
+                  borderColor: 'info.main'
+                }}>
+                  <CardContent sx={{ p: { xs: 3, md: 4 } }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+                      <User size={20} color={theme.palette.info.main} />
+                      <Typography variant="h6" sx={{ fontWeight: 900 }}>Guest Identification</Typography>
+                    </Box>
+                    <Grid container spacing={3}>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField 
+                          fullWidth 
+                          required 
+                          label="Your Full Name" 
+                          value={responses['name'] || ''}
+                          onChange={(e) => setResponses({ ...responses, name: e.target.value })}
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField 
+                          fullWidth 
+                          required 
+                          type="email"
+                          label="Email Address" 
+                          value={responses['email'] || ''}
+                          onChange={(e) => setResponses({ ...responses, email: e.target.value })}
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                        />
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Logged in User Badge */}
+              {!form?.anonymous && user && (
+                <Paper elevation={0} sx={{ py: 1.5, px: 3, borderRadius: 4, bgcolor: alpha(theme.palette.primary.main, 0.05), border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }}>
+                  <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                    <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', bgcolor: 'primary.main', fontWeight: 900 }}>{user.displayName?.charAt(0)}</Avatar>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 900, display: 'block', lineHeight: 1 }}>Submitting as {user.displayName}</Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>{user.email}</Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
+              )}
+
               {form?.questions.map((q, index) => (
-                <motion.div key={q.id} initial={{ x: -10, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: index * 0.1 }}>
+                <motion.div key={q.id} initial={{ x: -10, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: index * 0.05 }}>
                   <Card sx={{ 
-                    borderRadius: 5, 
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.04)', 
+                    borderRadius: 8, 
+                    bgcolor: alpha(theme.palette.background.paper, 0.95),
+                    backdropFilter: 'blur(30px)',
+                    boxShadow: `0 20px 60px ${alpha(theme.palette.common.black, 0.04)}`, 
                     border: '1px solid', 
-                    borderColor: 'transparent',
-                    transition: 'all 0.3s ease',
-                    '&:focus-within': { borderColor: alpha(theme.palette.primary.main, 0.3), boxShadow: '0 12px 40px rgba(0,0,0,0.08)' }
+                    borderColor: alpha(theme.palette.primary.main, 0.08),
+                    position: 'relative',
+                    overflow: 'visible',
+                    '@media print': { 
+                      boxShadow: 'none', 
+                      border: '1px solid #eee', 
+                      breakInside: 'avoid', 
+                      mb: 4,
+                      bgcolor: 'white'
+                    }
                   }}>
-                    <CardContent sx={{ p: { xs: 3, md: 4 } }}>
-                      <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 900, color: 'text.primary', fontSize: { xs: '1.1rem', md: '1.2rem' } }}>
-                          {q.label}
+                    <CardContent sx={{ p: { xs: 4, md: 8 } }}>
+                      <Stack direction="row" spacing={3} sx={{ mb: 4 }}>
+                        <Box sx={{ 
+                          width: 44, 
+                          height: 44, 
+                          borderRadius: 3, 
+                          bgcolor: alpha(primaryColor, 0.1), 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          boxShadow: `0 4px 10px ${alpha(primaryColor, 0.15)}`
+                        }}>
+                          <Typography variant="h6" sx={{ fontWeight: 1000, color: primaryColor }}>{index + 1}</Typography>
+                        </Box>
+                        <Typography variant="h5" sx={{ fontWeight: 1000, color: 'text.primary', fontSize: { xs: '1.25rem', md: '1.6rem' }, letterSpacing: -0.5, lineHeight: 1.2 }}>
+                          {q.label} {q.required && <Typography component="span" color="error" variant="h4" sx={{ fontWeight: 1000, position: 'relative', top: 4 }}>*</Typography>}
                         </Typography>
-                        {q.required && <Typography color="error" variant="h5" sx={{ mt: -0.5 }}>*</Typography>}
                       </Stack>
                       {renderQuestion(q)}
                     </CardContent>
@@ -593,18 +978,18 @@ export default function FormView() {
                 </motion.div>
               ))}
               
-              <Paper elevation={0} sx={{ p: 3, borderRadius: 5, bgcolor: alpha(theme.palette.success.main, 0.05), border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.1), display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Paper className="no-print" elevation={0} sx={{ p: 3, borderRadius: 5, bgcolor: alpha(theme.palette.success.main, 0.05), border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.1), display: 'flex', alignItems: 'center', gap: 2 }}>
                 <ShieldCheck size={20} color={theme.palette.success.main} />
-                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                  Your response is being submitted to the secure institutional database. Your privacy is our priority.
+                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                  Secure Submission: Your data is protected by industry-standard encryption.
                 </Typography>
               </Paper>
 
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column-reverse', sm: 'row' }, justifyContent: 'flex-end', pt: 3, gap: 2 }}>
+              <Box className="no-print" sx={{ display: 'flex', flexDirection: { xs: 'column-reverse', sm: 'row' }, justifyContent: 'flex-end', pt: 3, gap: 2 }}>
                 <Button 
                    variant="text" 
                    sx={{ borderRadius: 3, fontWeight: 900, color: 'text.secondary', minHeight: 48 }}
-                   onClick={() => navigate(-1)}
+                   onClick={() => window.location.reload()}
                 >
                   Clear Form
                 </Button>
@@ -624,7 +1009,7 @@ export default function FormView() {
                     boxShadow: `0 12px 24px ${alpha(form?.primaryColor || theme.palette.primary.main, 0.3)}`
                   }}
                 >
-                  {submitting ? 'Verifying...' : 'Submit Response'}
+                  {submitting ? 'Authenticating...' : 'Submit Final Response'}
                 </Button>
               </Box>
             </Stack>

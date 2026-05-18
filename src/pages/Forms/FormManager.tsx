@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Container, Typography, Box, Button, Card, CardContent, Grid, 
-  Chip, IconButton, Stack, alpha, useTheme 
+  Chip, IconButton, Stack, alpha, useTheme, Snackbar, Alert,
+  Dialog, DialogTitle, DialogContent, DialogActions, Zoom
 } from '@mui/material';
 import { 
   Plus, FileText, BarChart3, Clock, Lock, Globe, Edit, Trash2, 
-  ExternalLink, FileDown, Eye
+  ExternalLink, FileDown, Eye, Share2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -14,8 +15,8 @@ import {
 import { db } from '../../firebase';
 import { useAuth } from '../../context/AuthContext';
 import { FormSchema } from '../../types';
-import { motion } from 'motion/react';
-import { format } from 'date-fns';
+import { motion, AnimatePresence } from 'motion/react';
+import { safelyFormatDate } from '../../lib/dateUtils';
 
 export default function FormManager() {
   const theme = useTheme();
@@ -23,6 +24,14 @@ export default function FormManager() {
   const { user } = useAuth();
   const [forms, setForms] = useState<FormSchema[]>([]);
   const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
+
+  const handleShare = (id: string) => {
+    const url = `${window.location.origin}/forms/view/${id}`;
+    navigator.clipboard.writeText(url);
+    setSnackbar({ open: true, message: 'Share link copied to clipboard!', severity: 'success' });
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -42,9 +51,17 @@ export default function FormManager() {
     return () => unsub();
   }, [user]);
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this form? All responses will remain but the form definition will be gone.')) {
-      await deleteDoc(doc(db, 'forms', id));
+  const handleDelete = async () => {
+    const idToDelete = deleteDialog.id;
+    if (!idToDelete) return;
+    
+    setDeleteDialog({ open: false, id: null });
+    try {
+      await deleteDoc(doc(db, 'forms', idToDelete));
+      setSnackbar({ open: true, message: 'Form deleted successfully!', severity: 'success' });
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      setSnackbar({ open: true, message: `Failed to delete form: ${error.message}`, severity: 'error' });
     }
   };
 
@@ -104,47 +121,57 @@ export default function FormManager() {
       </Stack>
 
       <Grid container spacing={3}>
-        {forms.map((form) => (
-          <Grid key={form.id} size={{ xs: 12, sm: 6, md: 4 }}>
-            <motion.div whileHover={{ y: -5 }}>
-              <Card sx={{ 
-                height: '100%', 
-                borderRadius: 4, 
-                border: '1px solid',
-                borderColor: 'divider',
-                position: 'relative',
-                overflow: 'visible',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  boxShadow: `0 12px 24px ${alpha(theme.palette.primary.main, 0.1)}`
-                }
-              }}>
-                {/* Visual Accent */}
-                <Box sx={{ 
-                  position: 'absolute', top: 0, left: 0, right: 0, height: 4, 
-                  bgcolor: form.primaryColor || 'primary.main',
-                  borderRadius: '4px 4px 0 0'
-                }} />
+        <AnimatePresence mode="popLayout">
+          {forms.map((form) => (
+            <Grid key={form.id} size={{ xs: 12, sm: 6, md: 4 }}>
+              <motion.div 
+                layout
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
+                whileHover={{ y: -5 }}
+              >
+                <Card sx={{ 
+                  height: '100%', 
+                  borderRadius: 4, 
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  position: 'relative',
+                  overflow: 'visible',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    boxShadow: `0 12px 24px ${alpha(form.primaryColor || theme.palette.primary.main, 0.1)}`
+                  }
+                }}>
+                  {/* Visual Accent */}
+                  <Box sx={{ 
+                    position: 'absolute', top: 0, left: 0, right: 0, height: 4, 
+                    bgcolor: form.primaryColor || 'primary.main',
+                    borderRadius: '4px 4px 0 0'
+                  }} />
 
-                <CardContent sx={{ pt: 3 }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1.5 }}>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      {getStatusChip(form.status)}
-                      {getTypeChip(form.type)}
-                    </Box>
-                    {isStaff && (
-                      <Stack direction="row" spacing={0.5}>
-                        <IconButton size="small" onClick={() => navigate(`/forms/build?id=${form.id}`)} sx={{ color: 'text.secondary' }}>
-                          <Edit size={16} />
-                        </IconButton>
-                        {isSuperAdmin && (
-                          <IconButton size="small" onClick={() => handleDelete(form.id)} color="error" sx={{ opacity: 0.6 }}>
-                            <Trash2 size={16} />
+                  <CardContent sx={{ pt: 3 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1.5 }}>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {getStatusChip(form.status)}
+                        {getTypeChip(form.type)}
+                      </Box>
+                      {isStaff && (
+                        <Stack direction="row" spacing={0.5}>
+                          <IconButton size="small" onClick={() => handleShare(form.id)} color="primary">
+                            <Share2 size={16} />
                           </IconButton>
-                        )}
-                      </Stack>
-                    )}
-                  </Stack>
+                          <IconButton size="small" onClick={() => navigate(`/forms/build?id=${form.id}`)} sx={{ color: 'text.secondary' }}>
+                            <Edit size={16} />
+                          </IconButton>
+                          {(isSuperAdmin || (user?.role === 'teacher' && form.createdBy === user.uid)) && (
+                            <IconButton size="small" onClick={() => setDeleteDialog({ open: true, id: form.id })} color="error" sx={{ opacity: 0.6 }}>
+                              <Trash2 size={16} />
+                            </IconButton>
+                          )}
+                        </Stack>
+                      )}
+                    </Stack>
 
                   <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, letterSpacing: -0.5 }}>
                     {form.title}
@@ -160,7 +187,7 @@ export default function FormManager() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
                       <Clock size={14} />
                       <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                        {form.startDate ? format(form.startDate, 'MMM d, h:mm a') : 'No Start Date'}
+                        {safelyFormatDate(form.startDate, 'MMM d, h:mm a') || 'No Start Date'}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
@@ -234,6 +261,7 @@ export default function FormManager() {
             </motion.div>
           </Grid>
         ))}
+        </AnimatePresence>
 
         {forms.length === 0 && !loading && (
           <Grid size={12}>
@@ -245,6 +273,48 @@ export default function FormManager() {
           </Grid>
         )}
       </Grid>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} variant="filled" sx={{ borderRadius: 3, fontWeight: 800 }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      <Dialog 
+        open={deleteDialog.open} 
+        onClose={() => setDeleteDialog({ open: false, id: null })}
+        TransitionComponent={Zoom}
+        PaperProps={{ sx: { borderRadius: 4, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, pb: 1 }}>Confirm Deletion</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            Are you sure you want to delete this form? This action is permanent and cannot be undone. 
+            Responses already submitted will be preserved in the database.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button 
+            onClick={() => setDeleteDialog({ open: false, id: null })} 
+            sx={{ fontWeight: 800, borderRadius: 2 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDelete} 
+            color="error" 
+            variant="contained" 
+            sx={{ fontWeight: 900, borderRadius: 2, px: 3 }}
+          >
+            Delete Permanently
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }

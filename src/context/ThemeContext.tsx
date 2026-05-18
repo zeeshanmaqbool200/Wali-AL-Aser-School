@@ -170,15 +170,19 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           caption: { letterSpacing: '0.02em' }
         },
         shape: {
-          borderRadius: 0.25,
+          borderRadius: 2, // Increased from 0.25 to 2 (16px base)
         },
         components: {
           MuiButton: {
             styleOverrides: {
               root: {
-                borderRadius: 0.5,
-                padding: '8px 16px', // Standardized padding
-                minHeight: 40, // Touch target optimization
+                borderRadius: 4, // Increased to 16px (assuming theme spacing is 4? No, theme spacing is 8 if compactLayout is false)
+                // Actually spacing is: spacing: compactLayout ? 4 : 8 (line 155)
+                // borderRadius: 2 means 2 * 4px = 8px if that's how MUI calculates it, 
+                // but usually it's just a number. 
+                // Given the user wants it NOT shrinked, I'll use 16px.
+                padding: '10px 24px', 
+                minHeight: 44, 
                 boxShadow: 'none',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 '@media (max-width: 600px)': {
@@ -215,7 +219,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiCard: {
             styleOverrides: {
               root: {
-                borderRadius: 0.5,
+                borderRadius: 4, // Increased from 0.5
                 background: isDark ? '#050505' : '#ffffff',
                 boxShadow: isDark 
                   ? '0 4px 12px rgba(0,0,0,0.4)' 
@@ -235,7 +239,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiPaper: {
             styleOverrides: {
               root: {
-                borderRadius: 0.5,
+                borderRadius: 3, // Increased from 0.5
                 boxShadow: isDark 
                   ? '0 2px 10px rgba(0,0,0,0.3)' 
                   : '0 2px 10px rgba(0,0,0,0.02)',
@@ -248,7 +252,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
             styleOverrides: {
               root: {
                 '& .MuiOutlinedInput-root': {
-                  borderRadius: 0.5,
+                  borderRadius: 3, // Increased from 0.5
                   background: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
                   '& fieldset': {
                     borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
@@ -289,7 +293,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiChip: {
             styleOverrides: {
               root: {
-                borderRadius: 0.25,
+                borderRadius: 1.5, // Increased from 0.25
                 fontWeight: 700,
                 fontSize: '0.75rem',
               },

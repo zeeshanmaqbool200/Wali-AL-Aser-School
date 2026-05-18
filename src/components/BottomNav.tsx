@@ -186,10 +186,10 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: 48,
-                    height: 48,
+                    width: { xs: 44, sm: 48 },
+                    height: { xs: 44, sm: 48 },
                     cursor: 'pointer',
-                    borderRadius: '999px',
+                    borderRadius: '50%',
                     color: isActive ? 'primary.main' : 'text.secondary',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:hover': {
@@ -204,9 +204,10 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                       style={{
                         position: 'absolute',
                         inset: 0,
-                        borderRadius: '999px',
-                        backgroundColor: alpha(theme.palette.primary.main, 0.08),
-                        border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                        borderRadius: '50%',
+                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                        border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                        boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.15)}`,
                         zIndex: -1
                       }}
                       transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}

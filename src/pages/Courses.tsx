@@ -7,7 +7,8 @@ import {
   Divider, InputAdornment, Paper, Tooltip,
   useMediaQuery, Stack, Zoom, Fade, Slide,
   FormControl, InputLabel, Select, MenuItem,
-  AppBar, Toolbar, Container, LinearProgress, Skeleton
+  AppBar, Toolbar, Container, LinearProgress, Skeleton,
+  AvatarGroup
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { 
@@ -17,7 +18,7 @@ import {
   Star, Share2, Bookmark, Layout, Layers, X,
   ImageIcon, Paperclip, Zap, FileText, Globe,
   Music, Trophy, HelpCircle, ChevronRight, ChevronLeft,
-  RotateCcw, Info, Headphones, ArrowLeft, Save, ExternalLink, ClipboardList, Eye, Award, Calendar
+  RotateCcw, Info, Headphones, ArrowLeft, Save, ExternalLink, ClipboardList, Eye, Award, Calendar, AlertTriangle
 } from 'lucide-react';
 import { 
   db, collection, query, onSnapshot, doc, orderBy, where, or, and, limit, increment, OperationType, handleFirestoreError,
@@ -26,6 +27,7 @@ import {
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import { Course, CourseSection, UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { CLASS_LEVELS } from '../constants';
@@ -43,6 +45,7 @@ const isRTL = (text: string) => {
 
 export default function Courses() {
   const { user: currentUser } = useAuth();
+  const { users: allUsers } = useData();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -62,9 +65,15 @@ export default function Courses() {
   const [openTeacherProfile, setOpenTeacherProfile] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<UserProfile | null>(null);
 
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
   const ReaderTeacher = React.useMemo(() => {
     return allTeachers.find(m => m.uid === viewingCourse?.teacherId);
   }, [allTeachers, viewingCourse?.teacherId]);
+
+  const studentCount = React.useMemo(() => {
+    return allUsers.filter(u => u.role === 'student' && (u.isVerified || u.status === 'Active')).length;
+  }, [allUsers]);
   
   useEffect(() => {
     const q = query(
@@ -118,6 +127,7 @@ export default function Courses() {
   const [classLevelFilter, setClassLevelFilter] = useState<string>('all');
   const [isUploading, setIsUploading] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+  const [localDeletedIds, setLocalDeletedIds] = useState<Set<string>>(new Set());
 
   const [formData, setFormData] = useState({
     name: '',
@@ -168,8 +178,10 @@ export default function Courses() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 200 * 1024) {
-      alert('File too large. Please use an image smaller than 200KB or host it elsewhere and paste the URL.');
+    // Use specific limits: 2MB for thumbnails (logo), 10MB for sections (images/audio/banners)
+    const limitMB = target === 'thumbnail' ? 2 : 10;
+    if (file.size > limitMB * 1024 * 1024) {
+      alert(`File too large. Please use an file smaller than ${limitMB}MB.`);
       return;
     }
 
@@ -194,7 +206,7 @@ export default function Courses() {
 
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
 
-  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const isSuperAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'super_admin' || currentUser?.email === 'zeeshanmaqbool200@gmail.com';
   const isManagerRole = currentUser?.role === 'manager';
   const isTeacherRole = currentUser?.role === 'teacher';
   const isAdmin = isSuperAdmin || isManagerRole;
@@ -365,12 +377,37 @@ export default function Courses() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this subject? This action cannot be undone.')) return;
+    setDeleteConfirmId(id);
+  };
+
+  const performDelete = async () => {
+    if (!deleteConfirmId) return;
+    
+    const courseToDelete = courses.find(c => c.id === deleteConfirmId);
+    if (!courseToDelete) return;
+    
+    if (!isAdmin && currentUser?.uid !== courseToDelete.teacherId) {
+      setSnackbar({ open: true, message: 'You can only delete your own subjects.', severity: 'error' });
+      setDeleteConfirmId(null);
+      return;
+    }
+
+    // Optimistic Deletion
+    const idToDelete = deleteConfirmId;
+    setLocalDeletedIds(prev => new Set([...prev, idToDelete]));
+    setDeleteConfirmId(null);
+    setSnackbar({ open: true, message: 'Subject removed from library instantly.', severity: 'success' });
+
     try {
-      await smartDeleteDoc(doc(db, 'courses', id));
-      setSnackbar({ open: true, message: 'Subject deleted successfully.', severity: 'success' });
+      await smartDeleteDoc(doc(db, 'courses', idToDelete));
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `courses/${id}`);
+      // Revert if failed
+      setLocalDeletedIds(prev => {
+        const next = new Set(prev);
+        next.delete(idToDelete);
+        return next;
+      });
+      handleFirestoreError(error, OperationType.DELETE, `courses/${idToDelete}`);
       setSnackbar({ open: true, message: 'Failed to delete subject.', severity: 'error' });
     }
   };
@@ -395,12 +432,15 @@ export default function Courses() {
     setOpenDialog(true);
   };
 
-  const filteredCourses = courses.filter(c => {
-    const matchesSearch = (c.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
-                         (c.code?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-    const matchesClassLevel = classLevelFilter === 'all' || c.classLevelId === classLevelFilter;
-    return matchesSearch && matchesClassLevel;
-  });
+  const filteredCourses = useMemo(() => {
+    return courses.filter(c => {
+      if (localDeletedIds.has(c.id)) return false;
+      const matchesSearch = (c.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
+                           (c.code?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+      const matchesClassLevel = classLevelFilter === 'all' || c.classLevelId === classLevelFilter;
+      return matchesSearch && matchesClassLevel;
+    });
+  }, [courses, localDeletedIds, searchQuery, classLevelFilter]);
 
   if (loading) return (
     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
@@ -423,39 +463,181 @@ export default function Courses() {
         pb: 2,
         display: 'flex',
         flexDirection: 'column',
-        gap: 3
+        gap: { xs: 3, md: 6 }
       }}>
+        {/* Refined Library Header */}
+        {!searchQuery && (
+          <Box 
+            component={motion.div}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            sx={{ 
+              position: 'relative',
+              textAlign: 'center',
+              mt: { xs: 2, md: 4 },
+              mb: { xs: 0, md: 2 },
+              pb: 6,
+              background: isDark 
+                ? 'radial-gradient(circle at center, rgba(255,193,7,0.05) 0%, transparent 70%)' 
+                : 'radial-gradient(circle at center, rgba(255,193,7,0.1) 0%, transparent 70%)'
+            }}
+          >
+            <Box sx={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              mb: 2,
+              p: 2,
+              borderRadius: '50%',
+              bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'white',
+              boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.05)',
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`
+            }}>
+              <GraduationCap size={48} strokeWidth={1.5} color={theme.palette.primary.main} />
+            </Box>
+            <Typography 
+              variant="h3" 
+              sx={{ 
+                fontFamily: '"Cinzel Decorative", serif',
+                fontWeight: 1000,
+                fontSize: { xs: '2rem', md: '3.5rem' },
+                letterSpacing: -1,
+                mb: 1,
+                color: isDark ? 'white' : 'black',
+                lineHeight: 1
+              }}
+            >
+              Academic Library
+            </Typography>
+            <Typography 
+              variant="subtitle1" 
+              sx={{ 
+                fontWeight: 800, 
+                letterSpacing: '0.2rem', 
+                textTransform: 'uppercase',
+                color: 'text.secondary',
+                fontSize: { xs: '0.7rem', md: '0.9rem' },
+                opacity: 0.7
+              }}
+            >
+              مکتب ولی العصر • Educational Resources
+            </Typography>
+          </Box>
+        )}
+
+        {/* Useful Stats / Info Section */}
+        {!searchQuery && (
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 6, md: 3 }}>
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 3, 
+                  borderRadius: 6, 
+                  bgcolor: isDark ? 'rgba(255,193,7,0.03)' : '#FFFBF0', 
+                  border: `1px solid ${isDark ? 'rgba(255,193,7,0.1)' : '#FFEAA7'}`,
+                  transition: 'all 0.3s ease',
+                  '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(255,193,7,0.08)' }
+                }}
+              >
+                <Stack spacing={2}>
+                  <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: '#FFC107', color: 'black', width: 'fit-content', display: 'flex' }}>
+                    <BookOpen size={22} strokeWidth={2.5} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 950, lineHeight: 1, fontFamily: 'var(--font-heading)' }}>{courses.length}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1 }}>Total Books</Typography>
+                  </Box>
+                </Stack>
+              </Paper>
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 3, 
+                  borderRadius: 6, 
+                  bgcolor: isDark ? 'rgba(33,150,243,0.03)' : '#F0F7FF', 
+                  border: `1px solid ${isDark ? 'rgba(33,150,243,0.1)' : '#D6EAFF'}`,
+                  transition: 'all 0.3s ease',
+                  '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(33,150,243,0.08)' }
+                }}
+              >
+                <Stack spacing={2}>
+                  <Box sx={{ p: 1.2, borderRadius: 2, bgcolor: '#2196F3', color: 'white', width: 'fit-content', display: 'flex' }}>
+                    <Users size={22} strokeWidth={2.5} />
+                  </Box>
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 950, lineHeight: 1, fontFamily: 'var(--font-heading)' }}>{allTeachers.length}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1 }}>Instructors</Typography>
+                  </Box>
+                </Stack>
+              </Paper>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 3, 
+                  borderRadius: 6, 
+                  bgcolor: isDark ? 'rgba(76,175,80,0.03)' : '#F0FFF4', 
+                  border: `1px solid ${isDark ? 'rgba(76,175,80,0.1)' : '#C6F6D5'}`,
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                 <Stack direction="row" spacing={3} alignItems="center" justifyContent="space-between" sx={{ width: '100%' }}>
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'success.main', letterSpacing: -0.5 }}>Active Community</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary', opacity: 0.8 }}>
+                        Join <Box component="span" sx={{ color: 'text.primary', fontWeight: 900 }}>{studentCount > 0 ? studentCount : 'Our growing'}</Box> students learning and growing today.
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                      <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 34, height: 34, fontSize: '0.8rem', border: '2px solid white' } }}>
+                        {allUsers.filter(u => u.role === 'student' && u.photoURL).slice(0, 8).map(u => (
+                          <Avatar key={u.uid} src={u.photoURL} imgProps={{ referrerPolicy: 'no-referrer' }}>{u.displayName?.[0]}</Avatar>
+                        ))}
+                      </AvatarGroup>
+                    </Box>
+                 </Stack>
+              </Paper>
+            </Grid>
+          </Grid>
+        )}
+
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ p: 1, borderRadius: 2, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              <Book size={20} />
+              <Book size={isMobile ? 18 : 20} />
             </Box>
-            <Typography variant="h6" sx={{ fontWeight: 900, fontFamily: '"Outfit", sans-serif', display: { xs: 'none', sm: 'block' } }}>Library</Typography>
+            <Typography variant={isMobile ? "subtitle1" : "h6"} sx={{ fontWeight: 900, fontFamily: '"Outfit", sans-serif', display: { xs: 'none', sm: 'block' } }}>Library</Typography>
           </Box>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'center' }}>
              <Paper 
                elevation={0} 
                sx={{ 
                  display: 'flex', 
                  alignItems: 'center', 
-                 px: 2, 
+                 px: { xs: 1.5, sm: 2 }, 
                  py: 0.8,
                  borderRadius: '50px', 
                  bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'white',
                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`,
-                 width: { xs: '160px', sm: '300px' },
+                 width: { xs: '140px', sm: '300px' },
                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                  '&:focus-within': {
-                   width: { xs: '180px', sm: '350px' },
+                   width: { xs: '160px', sm: '350px' },
                    borderColor: 'primary.main',
                    boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.08)}`
                  }
                }}
              >
-               <Search size={18} style={{ opacity: 0.5, marginRight: 8 }} />
+               <Search size={isMobile ? 16 : 18} style={{ opacity: 0.5, marginRight: 8 }} />
                <Box 
                  component="input" 
-                 placeholder="Search a book..." 
+                 placeholder="Search..." 
                  value={searchQuery}
                  onChange={(e: any) => setSearchQuery(e.target.value)}
                  sx={{ 
@@ -463,7 +645,7 @@ export default function Courses() {
                    outline: 'none', 
                    width: '100%', 
                    fontWeight: 600,
-                   fontSize: '0.85rem',
+                   fontSize: isMobile ? '0.75rem' : '0.85rem',
                    bgcolor: 'transparent',
                    color: 'text.primary',
                    '&::placeholder': { color: 'text.disabled' }
@@ -473,7 +655,7 @@ export default function Courses() {
              <Avatar 
                src={currentUser?.photoURL} 
                imgProps={{ referrerPolicy: 'no-referrer' }}
-               sx={{ width: 40, height: 40, bgcolor: 'primary.main', fontWeight: 900, cursor: 'pointer', border: `2px solid ${isDark ? '#333' : '#fff'}` }}
+               sx={{ width: { xs: 32, sm: 40 }, height: { xs: 32, sm: 40 }, bgcolor: 'primary.main', fontWeight: 900, cursor: 'pointer', border: `2px solid ${isDark ? '#333' : '#fff'}` }}
              >
                {currentUser?.displayName?.[0]}
               </Avatar>
@@ -482,11 +664,11 @@ export default function Courses() {
 
         {/* Library Stats Row */}
         {!searchQuery && (
-          <Stack direction="row" spacing={2} sx={{ overflowX: 'auto', pb: 1, mt: 1, '&::-webkit-scrollbar': { display: 'none' } }}>
+          <Stack direction="row" spacing={1.5} sx={{ overflowX: 'auto', pb: 1, mt: 1, '&::-webkit-scrollbar': { display: 'none' } }}>
             {[
-              { label: 'Books', value: courses.length, icon: <Book size={18} />, color: '#E9C46A' },
-              { label: 'Classes', value: new Set(courses.map(c => c.classLevelId)).size, icon: <GraduationCap size={18} />, color: '#2A9D8F' },
-              { label: 'Total Read', value: courses.reduce((sum, c) => sum + (c.views || 0), 0), icon: <Eye size={18} />, color: '#F4A261' }
+              { label: 'Books', value: courses.length, icon: <Book size={16} />, color: '#E9C46A' },
+              { label: 'Classes', value: new Set(courses.map(c => c.classLevelId)).size, icon: <GraduationCap size={16} />, color: '#2A9D8F' },
+              { label: 'Total Read', value: courses.reduce((sum, c) => sum + (c.views || 0), 0), icon: <Eye size={16} />, color: '#F4A261' }
             ].map((stat, i) => (
               <Box 
                 key={i}
@@ -495,11 +677,11 @@ export default function Courses() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.1 }}
                 sx={{ 
-                  p: 2, 
-                  borderRadius: 4, 
+                  p: { xs: 1.5, sm: 2 }, 
+                  borderRadius: 3, 
                   bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'white',
                   border: `1px solid ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.05)'}`,
-                  minWidth: 120,
+                  minWidth: { xs: 100, sm: 120 },
                   flex: { xs: '0 0 auto', sm: 1 },
                   display: 'flex',
                   flexDirection: 'column',
@@ -508,8 +690,8 @@ export default function Courses() {
                 }}
               >
                 <Box sx={{ color: stat.color, mb: 0.5 }}>{stat.icon}</Box>
-                <Typography variant="h6" sx={{ fontWeight: 950, lineHeight: 1 }}>{stat.value}</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: '0.65rem' }}>{stat.label}</Typography>
+                <Typography variant={isMobile ? "body1" : "h6"} sx={{ fontWeight: 950, lineHeight: 1 }}>{stat.value}</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: { xs: '0.6rem', sm: '0.65rem' } }}>{stat.label}</Typography>
               </Box>
             ))}
           </Stack>
@@ -517,23 +699,28 @@ export default function Courses() {
       </Box>
 
       {filteredCourses.length > 0 && !searchQuery && (
-        <Box sx={{ px: { xs: 2, md: 4 }, mb: 6 }}>
+        <Box sx={{ px: { xs: 2, md: 4 }, mb: 8 }}>
           <Box sx={{ 
             bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'white',
-            borderRadius: 8,
-            p: { xs: 3, md: 4 },
+            borderRadius: 10,
+            p: { xs: 4, md: 6 },
             display: 'flex',
             flexDirection: { xs: 'column', md: 'row' },
-            gap: 4,
+            gap: 6,
             alignItems: 'center',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.05)',
+            boxShadow: '0 40px 100px rgba(0,0,0,0.08)',
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`
           }}>
+            {/* Background elements */}
+            <Box sx={{ position: 'absolute', top: -100, right: -100, width: 300, height: 300, borderRadius: '50%', background: alpha(theme.palette.primary.main, 0.05), filter: 'blur(60px)' }} />
+            
             <Box sx={{ 
-              width: { xs: '120px', md: '140px' }, 
+              width: { xs: '160px', md: '200px' }, 
               position: 'relative',
-              perspective: '1000px'
+              perspective: '1000px',
+              flexShrink: 0
             }}>
               <Box 
                 component="img"
@@ -543,42 +730,65 @@ export default function Courses() {
                   width: '100%', 
                   aspectRatio: '2/3', 
                   objectFit: 'cover', 
-                  borderRadius: 2.5,
-                  boxShadow: '10px 10px 30px rgba(0,0,0,0.2)',
-                  transform: 'rotateY(-8deg)',
-                  transition: 'all 0.5s',
-                  '&:hover': { transform: 'rotateY(0deg) scale(1.02)' }
+                  borderRadius: 3,
+                  boxShadow: '20px 20px 60px rgba(0,0,0,0.3)',
+                  transform: 'rotateY(-15deg) rotateX(5deg)',
+                  transition: 'all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                  '&:hover': { transform: 'rotateY(0deg) rotateX(0deg) scale(1.05)' }
                 }}
               />
             </Box>
-            <Box sx={{ flex: 1, textAlign: { xs: 'center', md: 'left' } }}>
-              <Typography variant="h5" sx={{ fontWeight: 900, mb: 0.5, fontFamily: '"Outfit", sans-serif', letterSpacing: -0.5 }}>
+            <Box sx={{ flex: 1, textAlign: { xs: 'center', md: 'left' }, zIndex: 1 }}>
+              <Chip 
+                label="Featured Material" 
+                size="small" 
+                sx={{ 
+                  bgcolor: alpha(theme.palette.primary.main, 0.1), 
+                  color: 'primary.main', 
+                  fontWeight: 900, 
+                  mb: 2, 
+                  textTransform: 'uppercase', 
+                  letterSpacing: 1.5,
+                  fontSize: '0.65rem'
+                }} 
+              />
+              <Typography variant={isMobile ? "h6" : "h4"} sx={{ fontWeight: 950, mb: 1, fontFamily: 'var(--font-heading)', letterSpacing: -1, lineHeight: 1.1 }}>
                 {filteredCourses[0].name}
               </Typography>
               {filteredCourses[0].teacherName && !filteredCourses[0].teacherName.toLowerCase().includes('admin') && (
-                <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 800, mb: 1.5, display: 'block' }}>
-                  Author: {filteredCourses[0].teacherName}
-                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'center', md: 'flex-start' }} sx={{ mb: 2 }}>
+                  <Avatar src={allTeachers.find(t => t.uid === filteredCourses[0].teacherId)?.photoURL} sx={{ width: 20, height: 20 }} />
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 800 }}>
+                    By {filteredCourses[0].teacherName}
+                  </Typography>
+                </Stack>
               )}
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5, lineHeight: 1.5, maxWidth: 600, fontSize: '0.85rem' }}>
-                {filteredCourses[0].description || "Explore this unique curriculum designed for excellence."}
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 4, lineHeight: 1.6, maxWidth: 650, fontSize: { xs: '0.85rem', md: '1rem' }, opacity: 0.8 }}>
+                {filteredCourses[0].description || "Dive into this comprehensive learning path curated for serious students of knowledge. Contains advanced modules and interactive resources."}
               </Typography>
               <Stack direction="row" spacing={2} justifyContent={{ xs: 'center', md: 'flex-start' }}>
                 <Button 
                   variant="contained" 
+                  size="large"
                   onClick={() => handleReadCourse(filteredCourses[0])}
+                  startIcon={<Zap size={18} fill="currentColor" />}
                   sx={{ 
-                    bgcolor: '#E9C46A', 
-                    color: '#000', 
+                    bgcolor: 'primary.main', 
+                    color: 'white', 
                     fontWeight: 900, 
-                    px: 4, 
-                    py: 1.2, 
-                    borderRadius: 2.5,
-                    fontSize: '0.9rem',
-                    '&:hover': { bgcolor: '#D9B45A' } 
+                    px: 5, 
+                    py: 1.8, 
+                    borderRadius: '100px',
+                    boxShadow: `0 15px 35px ${alpha(theme.palette.primary.main, 0.3)}`,
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': { 
+                      transform: 'translateY(-2px)',
+                      boxShadow: `0 20px 45px ${alpha(theme.palette.primary.main, 0.4)}`,
+                      bgcolor: 'primary.dark'
+                    } 
                   }}
                 >
-                  Start Learning
+                  Explore Now
                 </Button>
               </Stack>
             </Box>
@@ -586,13 +796,27 @@ export default function Courses() {
         </Box>
       )}
 
-      <Box sx={{ px: { xs: 2, md: 4 }, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: '"Outfit", sans-serif' }}>
-          {searchQuery ? 'Search Results' : 'New Library'}
-        </Typography>
+      <Box sx={{ px: { xs: 2, md: 4 }, mt: 4, mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid', borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', pb: 2 }}>
+        <Box>
+          <Typography 
+            variant={isMobile ? "subtitle1" : "h6"} 
+            sx={{ 
+              fontWeight: 950, 
+              fontFamily: 'var(--font-heading)', 
+              letterSpacing: -1,
+              color: isDark ? 'white' : 'black'
+            }}
+          >
+            {searchQuery ? 'Search Results' : 'Complete Library'}
+          </Typography>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: 'primary.main', textTransform: 'uppercase', letterSpacing: 2 }}>
+            {filteredCourses.length} Materials Available
+          </Typography>
+        </Box>
         {isStaff && (
           <Button 
             variant="text" 
+            size="small"
             startIcon={<Plus size={18} />} 
             onClick={() => {
               setEditingCourse(null);
@@ -613,9 +837,9 @@ export default function Courses() {
               });
               setOpenDialog(true);
             }}
-            sx={{ fontWeight: 800, textTransform: 'none', color: 'primary.main' }}
+            sx={{ fontWeight: 900, textTransform: 'none', color: 'primary.main', borderRadius: '50px', px: 2 }}
           >
-            Add Subject
+            Add New
           </Button>
         )}
       </Box>
@@ -636,6 +860,7 @@ export default function Courses() {
                     course={course} 
                     onRead={() => handleReadCourse(course)}
                     onEdit={() => handleEdit(course)}
+                    onDelete={() => handleDelete(course.id)}
                     isAdmin={isAdmin}
                     teacherPhoto={allTeachers.find(m => m.uid === course.teacherId)?.photoURL}
                   />
@@ -653,6 +878,35 @@ export default function Courses() {
           <Typography variant="body2" color="text.secondary">Try adjusting your search query or add a new subject</Typography>
         </Box>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog 
+        open={Boolean(deleteConfirmId)} 
+        onClose={() => setDeleteConfirmId(null)}
+        PaperProps={{ sx: { borderRadius: 4, width: '100%', maxWidth: 400 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, pb: 1, display: 'flex', alignItems: 'center', gap: 1.5, color: 'error.main' }}>
+          <AlertTriangle size={24} />
+          Confirm Deletion
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+            Are you sure you want to delete this subject? This action is permanent and will remove all modules and quizzes associated with it.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, pt: 1 }}>
+          <Button onClick={() => setDeleteConfirmId(null)} sx={{ fontWeight: 800, color: 'text.secondary' }}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            color="error"
+            onClick={performDelete}
+            disabled={submitting}
+            sx={{ borderRadius: 2, fontWeight: 900, px: 3 }}
+          >
+            {submitting ? 'Deleting...' : 'Delete Permanently'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog 
         open={snackbar.open} 
@@ -984,12 +1238,12 @@ export default function Courses() {
                   <motion.div key={activeSection} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                       {(viewingCourse?.sections?.[activeSection]?.type === 'audio') && (
                         <Paper sx={{ mb: 6, p: 0, borderRadius: 6, overflow: 'hidden', maxWidth: 500, mx: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}>
-                           <Box sx={{ position: 'relative', height: 400 }}>
+                           <Box sx={{ position: 'relative', height: { xs: 260, md: 400 } }}>
                              <Box component="img" src={viewingCourse?.sections?.[activeSection]?.mediaUrl || viewingCourse?.thumbnailUrl || `https://picsum.photos/seed/${viewingCourse.id}/500/800`} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                              <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.7))' }} />
                              <Box sx={{ position: 'absolute', bottom: 20, left: 0, right: 0, textAlign: 'center', color: 'white', p: 2 }}>
-                               <Typography variant="h5" sx={{ fontWeight: 900, mb: 1 }}>{viewingCourse.sections[activeSection].title}</Typography>
-                               <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>Now Playing • Audiobook</Typography>
+                               <Typography variant={isMobile ? "subtitle1" : "h5"} sx={{ fontWeight: 900, mb: 1 }}>{viewingCourse.sections[activeSection].title}</Typography>
+                               <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontSize: { xs: '0.6rem', sm: '0.75rem' } }}>Now Playing • Audiobook</Typography>
                              </Box>
                            </Box>
                            <Box sx={{ p: 4, textAlign: 'center', bgcolor: 'background.paper', borderTop: '4px solid', borderColor: 'primary.main' }}>
@@ -1005,8 +1259,28 @@ export default function Courses() {
                       )}
 
                       {viewingCourse?.sections?.[activeSection]?.type === 'video' && viewingCourse?.sections?.[activeSection]?.mediaUrl && (
-                        <Box sx={{ mb: 6, borderRadius: 4, overflow: 'hidden', aspectRatio: '16/9', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
-                           <iframe width="100%" height="100%" src={viewingCourse.sections[activeSection].mediaUrl.replace('watch?v=', 'embed/')} frameBorder="0" allowFullScreen />
+                        <Box sx={{ mb: 6, borderRadius: 4, overflow: 'hidden', aspectRatio: '16/9', boxShadow: '0 20px 40px rgba(0,0,0,0.15)', bgcolor: 'black' }}>
+                           <iframe 
+                             width="100%" 
+                             height="100%" 
+                             src={(() => {
+                               const url = viewingCourse.sections[activeSection].mediaUrl || '';
+                               if (url.includes('youtube.com/watch?v=') || url.includes('youtube.com/embed/')) {
+                                 const videoId = url.includes('watch?v=') ? url.split('watch?v=')[1].split('&')[0] : url.split('embed/')[1].split('?')[0];
+                                 return `https://www.youtube.com/embed/${videoId}`;
+                               }
+                               if (url.includes('youtu.be/')) {
+                                 return `https://www.youtube.com/embed/${url.split('youtu.be/')[1].split('?')[0]}`;
+                               }
+                               if (url.includes('youtube.com/shorts/')) {
+                                 return `https://www.youtube.com/embed/${url.split('/shorts/')[1].split('?')[0]}`;
+                               }
+                               return url;
+                             })()} 
+                             frameBorder="0" 
+                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                             allowFullScreen 
+                           />
                         </Box>
                       )}
 
@@ -1060,6 +1334,7 @@ export default function Courses() {
 }
 
 function QuizViewer({ quiz, sectionId, courseId, currentUser }: any) {
+  const theme = useTheme();
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [showResults, setShowResults] = useState(false);
@@ -1070,26 +1345,55 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: any) {
       setCurrentStep(currentStep + 1);
     } else {
       let correct = 0;
-      quiz.questions.forEach((q: any, i: number) => { if (selectedAnswers[i] === q.correctAnswer) correct++; });
+      quiz.questions.forEach((q: any, i: number) => { 
+        if (selectedAnswers[i] === q.correctAnswer) correct++; 
+      });
+      
+      const percentage = (correct / quiz.questions.length) * 100;
       setScore(correct);
       setShowResults(true);
+
+      if (percentage >= (quiz.passingScore || 70)) {
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.6 }
+        });
+      }
+
       if (currentUser) {
         try {
           await smartAddDoc(collection(db, 'quiz_results'), {
-            studentId: currentUser.uid, studentName: currentUser.displayName, courseId, sectionId,
-            score: correct, totalQuestions: quiz.questions.length, timestamp: Date.now()
+            studentId: currentUser.uid, 
+            studentName: currentUser.displayName, 
+            courseId, 
+            sectionId,
+            score: correct, 
+            percentage,
+            totalQuestions: quiz.questions.length, 
+            timestamp: Date.now()
           });
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+          console.error("Failed to save quiz result", e); 
+        }
       }
     }
   };
 
   if (showResults) return (
-    <Box sx={{ p: 3, textAlign: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 4, bgcolor: 'background.paper' }}>
-       <Trophy size={48} style={{ opacity: 0.8 }} />
+    <Box sx={{ p: 4, textAlign: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 4, bgcolor: 'background.paper', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+       <Trophy size={48} color={theme.palette.primary.main} style={{ opacity: 0.8, marginBottom: 16 }} />
        <Typography variant="h5" sx={{ mt: 2, fontWeight: 900 }}>Score: {score} / {quiz.questions.length}</Typography>
-       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{score >= (quiz.passingScore || 70) ? 'Congratulations! You passed.' : 'Keep practicing to improve.'}</Typography>
-       <Button variant="contained" size="small" sx={{ borderRadius: 2, fontWeight: 800 }} onClick={() => { setShowResults(false); setCurrentStep(0); setSelectedAnswers([]); }}>Try Again</Button>
+       <Typography variant="h6" color="primary" sx={{ mb: 1, fontWeight: 850 }}>{Math.round((score / quiz.questions.length) * 100)}%</Typography>
+       <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontWeight: 600 }}>
+         {((score / quiz.questions.length) * 100) >= (quiz.passingScore || 70) 
+           ? 'Congratulations! You passed this module quiz. ✨' 
+           : 'Keep practicing to improve your score. 📚'}
+       </Typography>
+       <Stack direction="row" spacing={2} justifyContent="center">
+         <Button variant="outlined" size="small" sx={{ borderRadius: 2, fontWeight: 800 }} onClick={() => { setShowResults(false); setCurrentStep(0); setSelectedAnswers([]); }}>Retake Quiz</Button>
+         <Button variant="contained" size="small" sx={{ borderRadius: 2, fontWeight: 800 }} onClick={() => setShowResults(false)}>Close Results</Button>
+       </Stack>
     </Box>
   );
 
@@ -1121,7 +1425,8 @@ function QuizViewer({ quiz, sectionId, courseId, currentUser }: any) {
   );
 }
 
-function BookCard({ course, onRead, onEdit, isAdmin }: any) {
+function BookCard({ course, onRead, onEdit, onDelete, isAdmin }: any) {
+  const theme = useTheme();
   return (
     <Box sx={{ textAlign: 'center' }}>
       <Box 
@@ -1141,34 +1446,46 @@ function BookCard({ course, onRead, onEdit, isAdmin }: any) {
         <Box 
           className="overlay" 
           sx={{ 
-            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', opacity: 0, transition: '0.4s', 
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5,
-            pointerEvents: 'none', '& > *': { pointerEvents: 'auto' }
+            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', opacity: 0, transition: '0.4s', 
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
+            pointerEvents: 'none', '& > *': { pointerEvents: 'auto' },
+            backdropFilter: 'blur(2px)'
           }}
         >
            <Button 
              variant="contained" 
              size="small" 
              onClick={onRead}
-             startIcon={<BookOpen size={16} />}
-             sx={{ bgcolor: 'white', color: 'black', fontWeight: 900, borderRadius: 2, '&:hover': { bgcolor: '#f0f0f0' } }}
+             startIcon={<BookOpen size={14} />}
+             sx={{ 
+               bgcolor: 'white', color: 'black', fontWeight: 900, borderRadius: '50px', 
+               px: 3, py: 0.8, fontSize: '0.7rem',
+               '&:hover': { bgcolor: '#f0f0f0' } 
+             }}
            >
              Read
            </Button>
            {isAdmin && (
-             <Button 
-               variant="contained" 
-               size="small" 
-               onClick={(e) => { e.stopPropagation(); onEdit?.(); }}
-               startIcon={<Edit2 size={16} />}
-               sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 900, borderRadius: 2 }}
-             >
-               Edit
-             </Button>
+             <Stack direction="row" spacing={1}>
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => { e.stopPropagation(); onEdit?.(); }}
+                  sx={{ bgcolor: 'primary.main', color: 'white', '&:hover': { bgcolor: 'primary.dark' } }}
+                >
+                  <Edit2 size={14} />
+                </IconButton>
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
+                  sx={{ bgcolor: 'error.main', color: 'white', '&:hover': { bgcolor: 'error.dark' } }}
+                >
+                  <Trash2 size={14} />
+                </IconButton>
+             </Stack>
            )}
         </Box>
       </Box>
-      <Typography noWrap variant="body2" sx={{ mt: 1.5, fontWeight: 900, fontSize: '0.8rem' }}>{course.name}</Typography>
+      <Typography noWrap variant="body2" sx={{ mt: 1.5, fontWeight: 900, fontSize: '0.85rem', color: theme.palette.mode === 'dark' ? 'white' : 'black' }}>{course.name}</Typography>
       {course.teacherName && 
        !course.teacherName.toLowerCase().includes('admin') && 
        !course.teacherName.toLowerCase().includes('maqbool') && (

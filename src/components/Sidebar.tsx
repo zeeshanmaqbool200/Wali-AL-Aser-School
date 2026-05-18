@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   Box, List, ListItem, ListItemButton, ListItemIcon, 
   ListItemText, Typography, Divider, Drawer, IconButton, 
-  Tooltip, Badge
+  Tooltip, Badge, useMediaQuery
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { 
@@ -10,7 +10,7 @@ import {
   Settings, CreditCard, Bell, LogOut, ChevronLeft, 
   ChevronRight, GraduationCap, ClipboardList, MessageSquare,
   Award, BarChart2, FileText, BarChart3, ClipboardCheck,
-  IndianRupee, Terminal, Shield
+  IndianRupee, Terminal, Shield, X
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserRole } from '../types';
@@ -33,6 +33,7 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
   const location = useLocation();
   const theme = useTheme();
   const { permissions } = useAuth();
+  const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
 
   const isSuperAdmin = role === 'superadmin';
 
@@ -90,6 +91,22 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
           },
         }}
       >
+        {isTablet && open && (
+          <IconButton 
+            onClick={onToggle}
+            sx={{ 
+              position: 'absolute', 
+              top: 10, 
+              right: 10, 
+              zIndex: 10,
+              bgcolor: alpha(theme.palette.error.main, 0.1),
+              color: 'error.main',
+              '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) }
+            }}
+          >
+            <X size={20} />
+          </IconButton>
+        )}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: open ? 'space-between' : 'center', mb: 4, height: 64, px: open ? 1 : 0 }}>
           <motion.div
             initial={false}

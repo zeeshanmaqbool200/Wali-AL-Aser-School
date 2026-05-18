@@ -16,7 +16,7 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isSignedIn() && (
         request.auth.uid == 'sZUiAgoSF8MTPBQAOtj6jbFkot93' ||
-        (isEmailVerified() && request.auth.token.email == 'zeeshanmaqbool200@gmail.com') ||
+        request.auth.token.email == 'zeeshanmaqbool200@gmail.com' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          (getUserData(request.auth.uid).role == 'super_admin' || getUserData(request.auth.uid).role == 'superadmin'))
       );
@@ -133,7 +133,8 @@ service cloud.firestore {
 
     // EXPENSES
     match /expenses/{expenseId} {
-      allow read, write: if isManager();
+      allow read: if isStaff();
+      allow write: if isManager();
     }
 
     // SETTINGS
@@ -158,7 +159,7 @@ service cloud.firestore {
 
     // FORMS
     match /forms/{formId} {
-      allow read: if isSignedIn() || (exists(/databases/$(database)/documents/forms/$(formId)) && get(/databases/$(database)/documents/forms/$(formId)).data.allowNonStudents == true);
+      allow read: if isSignedIn() || resource.data.allowNonStudents == true;
       allow create, update, delete: if isStaff();
     }
 

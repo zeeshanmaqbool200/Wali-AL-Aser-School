@@ -23,8 +23,8 @@ import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { logger } from '../lib/logger';
-
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
+import { safelyFormatDate } from '../lib/dateUtils';
 
 interface Exam {
   id: string;
@@ -131,16 +131,27 @@ export default function Exams() {
   };
 
   const handleDelete = async (id: string) => {
-    setDeleteConfirm({ open: true, id });
+    const examToDelete = exams.find(e => e.id === id);
+    if (!examToDelete) return;
+
+    if (!isAdmin && currentUser?.uid !== examToDelete.teacherId) {
+      alert('You can only delete exams you created.');
+      return;
+    }
+
+    // Gmail-like fast deletion
+    setExams(prev => prev.filter(e => e.id !== id));
+    try {
+      await deleteDoc(doc(db, 'exams', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `exams/${id}`);
+    }
   };
 
-  const confirmDelete = async () => {
-    if (!deleteConfirm.id) return;
-    try {
-      await deleteDoc(doc(db, 'exams', deleteConfirm.id));
+  const confirmDelete = () => {
+    if (deleteConfirm.id) {
+      handleDelete(deleteConfirm.id);
       setDeleteConfirm({ open: false, id: '' });
-    } catch (error) {
-      logger.error('Error deleting exam', error as Error);
     }
   };
 
@@ -394,7 +405,7 @@ export default function Exams() {
                           </TableCell>
                           <TableCell>
                             <Stack spacing={0.5}>
-                              <Typography variant="body2" sx={{ fontWeight: 700 }}>{format(new Date(exam.date), 'dd MM yyyy')}</Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>{safelyFormatDate(exam.date)}</Typography>
                               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>10:00 AM - 12:00 PM</Typography>
                             </Stack>
                           </TableCell>
@@ -415,7 +426,7 @@ export default function Exams() {
                                     icon: <Trash2 size={16} />, 
                                     color: 'error.main',
                                     onClick: () => handleDelete(exam.id),
-                                    disabled: !isStaff
+                                    disabled: !isAdmin && currentUser?.uid !== exam.teacherId
                                   }
                                 ]} 
                               />
@@ -465,68 +476,16 @@ export default function Exams() {
 
         <Grid size={{ xs: 12, lg: 4 }}>
           <Stack spacing={3}>
+            {/* Real Stats can be added here once data is available */}
             <Card sx={{ borderRadius: 5, bgcolor: 'primary.main', color: 'white', position: 'relative', overflow: 'hidden' }}>
               <Box sx={{ position: 'absolute', top: -20, right: -20, opacity: 0.1 }}>
                 <TrendingUp size={120} />
               </Box>
               <CardContent sx={{ p: 3, position: 'relative' }}>
-                <Typography variant="h6" sx={{ fontWeight: 900, mb: 2.5 }}>Performance Insights</Typography>
-                <Stack spacing={2.5}>
-                  <Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>Average Class Score</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 900 }}>78.5%</Typography>
-                    </Box>
-                    <LinearProgress variant="determinate" value={78.5} sx={{ height: 8, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
-                  </Box>
-                  <Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>Completion Rate</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 900 }}>94%</Typography>
-                    </Box>
-                    <LinearProgress variant="determinate" value={94} sx={{ height: 8, borderRadius: 4, bgcolor: 'rgba(255,255,255,0.2)', '& .MuiLinearProgress-bar': { bgcolor: 'white' } }} />
-                  </Box>
-                  <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)', my: 1 }} />
-                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                    <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.1)' }}>
-                      <AlertCircle size={20} />
-                    </Box>
-                    <Typography variant="caption" sx={{ fontWeight: 600, lineHeight: 1.4 }}>
-                      Class performance has improved by 5.2% compared to the previous semester assessments.
-                    </Typography>
-                  </Box>
-                </Stack>
-              </CardContent>
-            </Card>
-
-            <Card sx={{ borderRadius: 5 }}>
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Recent Results</Typography>
-                  <Button size="small" sx={{ fontWeight: 800 }}>View All</Button>
-                </Box>
-                <List disablePadding>
-                  {[
-                    { title: 'Mathematics Midterm', date: 'Oct 12', grade: 'A+', color: 'success' },
-                    { title: 'Physics Quiz #4', date: 'Oct 08', grade: 'B', color: 'primary' },
-                    { title: 'English Literature', date: 'Oct 05', grade: 'A', color: 'success' }
-                  ].map((result, i) => (
-                    <ListItem key={i} disableGutters sx={{ py: 1.5, borderBottom: i < 2 ? '1px solid' : 'none', borderColor: 'divider' }}>
-                      <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: alpha(theme.palette[result.color as 'success' | 'primary'].main, 0.1), color: `${result.color}.main`, borderRadius: 2 }}>
-                          <Award size={20} />
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText 
-                        primary={result.title}
-                        primaryTypographyProps={{ variant: 'body2', sx: { fontWeight: 800 } }}
-                        secondary={`Published on ${result.date}`}
-                        secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary', sx: { fontWeight: 600 } }}
-                      />
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900, color: `${result.color}.main` }}>{result.grade}</Typography>
-                    </ListItem>
-                  ))}
-                </List>
+                <Typography variant="h6" sx={{ fontWeight: 900, mb: 1 }}>Exam Stats</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.8, fontWeight: 700 }}>
+                  Total Scheduled Exams: {exams.length}
+                </Typography>
               </CardContent>
             </Card>
           </Stack>
@@ -662,9 +621,12 @@ export default function Exams() {
   );
 }
 
-function ExamCard({ exam, isTeacher, onDelete }: any) {
+function ExamCard({ exam, onDelete }: any) {
+  const { user: currentUser } = useAuth();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'manager';
+  const isTeacher = currentUser?.role === 'teacher';
   
   return (
     <Card sx={{ 
@@ -704,7 +666,7 @@ function ExamCard({ exam, isTeacher, onDelete }: any) {
               size="small" 
               sx={{ fontWeight: 900, fontSize: '0.7rem', bgcolor: 'background.default', borderRadius: 2.5, border: 'none' }} 
             />
-            {isTeacher && (
+            {(isAdmin || (isTeacher && currentUser?.uid === exam.teacherId)) && (
               <ActionMenu 
                 items={[
                   { label: 'Edit Details', icon: <FileText size={16} />, onClick: () => {} },

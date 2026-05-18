@@ -48,7 +48,32 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   const [bottomNavVisible, setBottomNavVisible] = useState(false);
   const [profileAnchorEl, setProfileAnchorEl] = useState<null | HTMLElement>(null);
   const [navLoading, setNavLoading] = useState(false);
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const scrollTracker = useRef({ lastY: 0, ticking: false });
   const mainRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      const { lastY, ticking } = scrollTracker.current;
+
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          if (currentY > lastY && currentY > 100) {
+            setHeaderVisible(false);
+          } else {
+            setHeaderVisible(true);
+          }
+          scrollTracker.current.lastY = currentY;
+          scrollTracker.current.ticking = false;
+        });
+        scrollTracker.current.ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const isArchived = user?.status === 'Archived' || user?.status === 'Deleted';
 
@@ -195,15 +220,18 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
       <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {/* Top App Bar */}
         <AppBar 
-          position="sticky" 
+          position="fixed" 
           color="inherit" 
           elevation={0} 
           className="no-print"
           sx={{ 
             zIndex: theme.zIndex.drawer + 2,
-            bgcolor: alpha(theme.palette.background.default, 0.9),
-            backdropFilter: 'blur(10px)',
-            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            bgcolor: location.pathname === '/' ? 'transparent' : alpha(theme.palette.background.default, 0.95),
+            backdropFilter: location.pathname === '/' ? 'none' : 'blur(10px)',
+            borderBottom: location.pathname === '/' ? 'none' : `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            background: location.pathname === '/' ? 'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%)' : undefined,
+            transform: headerVisible ? 'translateY(0)' : 'translateY(-100%)',
           }}
         >
           {navLoading && (
@@ -236,8 +264,8 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                   onClick={() => setSidebarOpen(!sidebarOpen)}
                 >
                 <Box sx={{ 
-                  width: { xs: 28, md: 45 }, 
-                  height: { xs: 28, md: 45 }, 
+                  width: { xs: 45, md: 65 }, 
+                  height: { xs: 45, md: 65 }, 
                   overflow: 'hidden', 
                   display: 'flex', 
                   alignItems: 'center', 
@@ -465,7 +493,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             flexGrow: 1,
             p: { xs: 2, sm: 3, md: 4 },
             pb: { xs: 16, md: 4 }, 
-            pt: { xs: 9, sm: 10, md: 4 }, // Added top padding for fixed AppBar
+            pt: location.pathname === '/' ? 0 : { xs: 11, sm: 12, md: 14 }, 
             overflowY: 'visible',
             overflowX: 'hidden',
             WebkitOverflowScrolling: 'touch',

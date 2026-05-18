@@ -131,7 +131,8 @@ export default function Notes() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, uploadedBy: string) => {
+    if (!isAdmin && currentUser?.uid !== uploadedBy) return;
     try {
       await deleteDoc(doc(db, 'notes', id));
     } catch (error) {
@@ -306,7 +307,7 @@ export default function Notes() {
                   <NoteCard 
                     note={note} 
                     isTeacher={isStaff} 
-                    onDelete={() => handleDelete(note.id)} 
+                    onDelete={() => handleDelete(note.id, note.uploadedBy)} 
                     getFileIcon={getFileIcon}
                     getFileColor={getFileColor}
                   />
@@ -314,7 +315,7 @@ export default function Notes() {
                   <NoteListItem 
                     note={note} 
                     isTeacher={isStaff} 
-                    onDelete={() => handleDelete(note.id)} 
+                    onDelete={() => handleDelete(note.id, note.uploadedBy)} 
                     getFileIcon={getFileIcon}
                     getFileColor={getFileColor}
                   />
@@ -438,8 +439,10 @@ export default function Notes() {
   );
 }
 
-function NoteCard({ note, isTeacher, onDelete, getFileIcon, getFileColor }: any) {
+function NoteCard({ note, onDelete, getFileIcon, getFileColor }: any) {
+  const { user: currentUser } = useAuth();
   const theme = useTheme();
+  const isAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'manager';
   
   return (
     <Card sx={{ 
@@ -500,7 +503,7 @@ function NoteCard({ note, isTeacher, onDelete, getFileIcon, getFileColor }: any)
                 icon: <Trash2 size={16} />, 
                 color: 'error.main',
                 onClick: onDelete,
-                disabled: !isTeacher
+                disabled: !isAdmin && currentUser?.uid !== note.uploadedBy
               }
             ]} 
           />
@@ -556,8 +559,10 @@ function NoteCard({ note, isTeacher, onDelete, getFileIcon, getFileColor }: any)
   );
 }
 
-function NoteListItem({ note, isTeacher, onDelete, getFileIcon, getFileColor }: any) {
+function NoteListItem({ note, onDelete, getFileIcon, getFileColor }: any) {
+  const { user: currentUser } = useAuth();
   const theme = useTheme();
+  const isAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'manager';
   
   return (
     <Card sx={{ 
@@ -614,16 +619,16 @@ function NoteListItem({ note, isTeacher, onDelete, getFileIcon, getFileColor }: 
               <ActionMenu 
                 items={[
                   { 
-                    label: 'Parhein', 
-                    icon: <ExternalLink size={16} />, 
+                    label: 'Zakhira Karein', 
+                    icon: <Download size={16} />, 
                     onClick: () => window.open(note.fileUrl, '_blank') 
                   },
                   { 
-                    label: 'Zaiy karein', 
+                    label: 'Munsukh Karein', 
                     icon: <Trash2 size={16} />, 
                     color: 'error.main',
                     onClick: onDelete,
-                    disabled: !isTeacher
+                    disabled: !isAdmin && currentUser?.uid !== note.uploadedBy
                   }
                 ]} 
               />

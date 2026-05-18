@@ -252,8 +252,12 @@ export interface FormSchema {
   // Logic
   showProgressBar?: boolean;
   limitOneResponse?: boolean;
+  collectEmail?: boolean;
+  collectRollNo?: boolean;
+  collectName?: boolean;
   
   questions: FormQuestion[];
+  resultsPublished?: boolean;
   
   createdBy: string;
   createdByName: string;
@@ -281,6 +285,7 @@ export interface FormResponse {
   submittedAt: number;
   isDuplicate?: boolean; // System flagged
   browserInfo?: string;
+  isAutoSubmit?: boolean;
 }
 
 export interface InstituteSettings {

@@ -546,7 +546,7 @@ export default function Settings() {
       >
         <Box sx={{ mb: isMobile ? 4 : 6, textAlign: 'center' }}>
           <Typography 
-            variant={isMobile ? "h4" : "h3"} 
+            variant={isMobile ? "h6" : "h5"} 
             sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 1 }}
           >
             Settings
@@ -674,7 +674,7 @@ export default function Settings() {
                             <Grid size={{ xs: 12, md: 6 }}>
                                <Box sx={{ p: 2, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.4), border: '1px solid', borderColor: 'divider' }}>
                                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>Theme Mode</Typography>
-                                 <Stack direction="row" spacing={1}>
+                                 <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
                                     {[
                                       { id: 'light', label: 'Light', icon: <Sun size={18} /> },
                                       { id: 'dark', label: 'Dark', icon: <Moon size={18} /> },
@@ -686,7 +686,13 @@ export default function Settings() {
                                         variant={mode === m.id ? 'contained' : 'outlined'}
                                         startIcon={m.icon}
                                         size="small"
-                                        sx={{ borderRadius: 2, fontWeight: 800, flex: 1 }}
+                                        sx={{ 
+                                          borderRadius: 2, 
+                                          fontWeight: 800, 
+                                          flex: { xs: '1 1 auto', sm: 1 },
+                                          minWidth: { xs: '90px', sm: 'auto' },
+                                          fontSize: { xs: '0.7rem', sm: '0.8125rem' }
+                                        }}
                                       >
                                         {m.label}
                                       </Button>

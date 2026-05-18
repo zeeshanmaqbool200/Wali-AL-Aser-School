@@ -27,6 +27,7 @@ import { UserProfile, FeeReceipt, Notification as NotificationType, Course, Inst
 import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { format, subDays } from 'date-fns';
+import { safelyFormatDate } from '../lib/dateUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import gsap from 'gsap';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
@@ -77,6 +78,7 @@ export default function Dashboard({ user }: DashboardProps) {
   const [jafariDate, setJafariDate] = useState<string>('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [quote, setQuote] = useState('');
+  const [author, setAuthor] = useState('');
   const [showVerificationAlert, setShowVerificationAlert] = useState(true);
 
   const format12H = (date: Date) => {
@@ -117,19 +119,37 @@ export default function Dashboard({ user }: DashboardProps) {
   }, [instituteData.quotes, quotes]);
 
   useEffect(() => {
+    const parseQuote = (q: string) => {
+      const parts = q.split('—');
+      let authorPart = parts[1]?.trim() || '';
+      if (authorPart.toLowerCase() === 'unknown') authorPart = '';
+      return {
+        text: parts[0]?.trim() || '',
+        author: authorPart
+      };
+    };
+
     if (availableQuotes.length > 0) {
-      setQuote(availableQuotes[Math.floor(Math.random() * availableQuotes.length)]);
+      const initial = parseQuote(availableQuotes[Math.floor(Math.random() * availableQuotes.length)]);
+      setQuote(initial.text);
+      setAuthor(initial.author);
     }
 
-    // Auto-rotate quotes if there are multiple
+    // Auto-rotate quotes if there are multiple - Much slower (5 minutes)
     let quoteInterval: NodeJS.Timeout;
     if (availableQuotes.length > 1) {
       quoteInterval = setInterval(() => {
         setQuote(prev => {
-          const others = availableQuotes.filter(q => q !== prev);
-          return others.length > 0 ? others[Math.floor(Math.random() * others.length)] : prev;
+          const others = availableQuotes.filter(q => {
+            const parsed = parseQuote(q);
+            return parsed.text !== prev;
+          });
+          const nextRaw = others.length > 0 ? others[Math.floor(Math.random() * others.length)] : availableQuotes[0];
+          const next = parseQuote(nextRaw);
+          setAuthor(next.author);
+          return next.text;
         });
-      }, 300000); // Rotate every 300 seconds (5 minutes) - Very slow as requested
+      }, 300000); 
     }
 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -141,7 +161,7 @@ export default function Dashboard({ user }: DashboardProps) {
 
   const [activeStatIndex, setActiveStatIndex] = useState(0);
   
-  const instituteStats = [
+  const instituteStats = useMemo(() => [
     { 
       label: 'Total Students', 
       value: stats.totalStudents || 0, 
@@ -174,18 +194,18 @@ export default function Dashboard({ user }: DashboardProps) {
       color: instituteData.accentColors?.[3] || '#f87171', 
       chart: [80, 90, 85, 100, 95, 98, 99] 
     }
-  ];
+  ], [stats, collectionTrendData, instituteData.accentColors]);
 
   useEffect(() => {
     if (!allUsers && !allReceipts) return;
 
     const currentMonthStart = format(new Date(), 'yyyy-MM-01');
-    const filteredReceipts = allReceipts.filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount)));
+    const filteredReceipts = allReceipts;
     const monthAmount = filteredReceipts
       .filter(r => r.status === 'approved' && r.date >= currentMonthStart)
       .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
     
-    const students = allUsers.filter(u => u.role === 'student');
+    const students = allUsers.filter(u => u.role === 'student' && u.isVerified && u.status === 'Active' && u.admissionNo);
     const staff = allUsers.filter(u => ['teacher', 'manager', 'superadmin'].includes(u.role));
     
     setStats(prev => ({
@@ -206,8 +226,8 @@ export default function Dashboard({ user }: DashboardProps) {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setActiveStatIndex((prev) => (prev + 1) % 4); // Use 4 instead of instituteStats.length if it's constant
-    }, 5000);
+      setActiveStatIndex((prev) => (prev + 1) % 4); 
+    }, 10000); 
     return () => clearInterval(timer);
   }, []);
 
@@ -234,18 +254,9 @@ export default function Dashboard({ user }: DashboardProps) {
     const unsubscribes: (() => void)[] = [];
 
     const handleSnapshotError = (error: any, path: string) => {
-      console.error(`Snapshot error for ${path}:`, error);
-      // We log but don't strictly throw to avoid "Assertion Failed: Unexpected state" in Firebase SDK
-      // which can happen if errors bubble up from snapshot callbacks in certain versions.
-      const errInfo = {
-        error: error instanceof Error ? error.message : String(error),
-        path,
-        operation: 'onSnapshot'
-      };
-      console.warn('Dashboard Firestore Warning: ', JSON.stringify(errInfo));
+      console.warn(`Snapshot warning for ${path}:`, error);
     };
 
-    // Real-time listener for institute settings to ensure branding photo is always up to date
     unsubscribes.push(onSnapshot(doc(db, 'settings', 'institute'), (docSnap) => {
       if (docSnap.exists() && isMounted) {
         setInstituteData(docSnap.data());
@@ -254,215 +265,112 @@ export default function Dashboard({ user }: DashboardProps) {
 
     const fetchData = async () => {
       try {
-        let offset = instituteSettings?.jafariOffset || 0;
+        const offset = instituteSettings?.jafariOffset || 0;
 
+        // 1. Hijri Date
         try {
           const adjustedDate = new Date();
-          if (offset !== 0) {
-            adjustedDate.setDate(adjustedDate.getDate() + offset);
-          }
+          if (offset !== 0) adjustedDate.setDate(adjustedDate.getDate() + offset);
           const dateStr = format(adjustedDate, 'dd-MM-yyyy');
-          const response = await fetch(`https://api.aladhan.com/v1/gToH/${dateStr}?method=0`); 
+          const response = await fetch(`https://api.aladhan.com/v1/gToH/${dateStr}?method=0`);
           const jDate = await response.json();
           if (isMounted && jDate?.data?.hijri) {
             const h = jDate.data.hijri;
             setJafariDate(`${h.day} ${h.month.en} ${h.year} AH`);
           }
-        } catch (e) {
-          console.error('Failed to fetch Jafari date', e);
-        }
+        } catch (e) { console.error('Hijri fetch error', e); }
 
         if (!isMounted) return;
 
-        // Sequence listeners
-        if (isStaff) {
-          const studentsQuery = isAdmin 
-            ? query(collection(db, 'users'), where('role', '==', 'student'))
-            : query(collection(db, 'users'), 
-                and(
-                  where('role', '==', 'student'), 
-                  where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__'])
-                )
-              );
-            
-          unsubscribes.push(onSnapshot(studentsQuery, (studentsSnap) => {
-            if (!isMounted) return;
-            setStats(prev => ({ ...prev, totalStudents: studentsSnap.size }));
-          }, (err) => handleSnapshotError(err, 'stats/students')));
-
-          if (isAdmin) {
-            unsubscribes.push(onSnapshot(query(collection(db, 'receipts'), where('status', '==', 'pending')), (snap) => {
-              if (!isMounted) return;
-              setStats(prev => ({ ...prev, pendingFees: snap.size }));
-            }, (err) => handleSnapshotError(err, 'stats/pendingFees')));
-
-            unsubscribes.push(onSnapshot(query(collection(db, 'receipts'), where('status', '==', 'approved')), (snap) => {
-              if (!isMounted) return;
-              const currentMonthStart = format(new Date(), 'yyyy-MM-01');
-              const receipts = snap.docs.map(doc => doc.data()).filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount)));
-              const totalAllTime = receipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-              const monthAmount = receipts.filter(r => r.date >= currentMonthStart).reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-              setStats(prev => ({ ...prev, totalFeesMonth: monthAmount, totalFeesAllTime: totalAllTime }));
-
-              // Calculate trend for last 7 days
-              const last7DaysDates = Array.from({ length: 7 }, (_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - (6 - i));
-                return format(d, 'yyyy-MM-dd');
-              });
-
-              const trend = last7DaysDates.map(date => {
-                const dayAmount = receipts
-                  .filter(r => r.date === date)
-                  .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-                return { name: date, value: dayAmount };
-              });
-              setCollectionTrendData(trend);
-            }, (err) => handleSnapshotError(err, 'stats/approvedFees')));
-
-            unsubscribes.push(onSnapshot(collection(db, 'expenses'), (snap) => {
-              if (!isMounted) return;
-              const exps = snap.docs.map(doc => doc.data()).filter((e: any) => ![10000, 20000, 30000, 50000].includes(Number(e.amount)));
-              const totalDebit = exps.filter(e => e.type === 'debit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-              const totalCredit = exps.filter(e => e.type === 'credit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-              setStats(prev => ({ ...prev, totalExpenses: totalDebit, totalCredits: totalCredit }));
-            }, (err) => handleSnapshotError(err, 'stats/expenses')));
-          }
-
-          unsubscribes.push(onSnapshot(isAdmin 
-            ? query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present'))
-            : query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present'), where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__'])), 
-            (snap) => {
-              if (!isMounted) return;
-              setStats(prev => ({ ...prev, todayAttendance: snap.size }));
-            }, (err) => handleSnapshotError(err, 'stats/todayAttendance')
-          ));
-        } else {
-          unsubscribes.push(onSnapshot(query(collection(db, 'attendance'), where('studentId', '==', user.uid)), (snap) => {
-            if (!isMounted) return;
-            const totalAt = snap.docs.length;
-            const presentAt = snap.docs.filter(d => d.data().status === 'present').length;
-            setStats(prev => ({ ...prev, attendanceRate: totalAt > 0 ? Math.round((presentAt / totalAt) * 100) : 0 }));
-          }, (err) => handleSnapshotError(err, 'stats/studentAttendance')));
+        // 2. Global Context Data Sync
+        if (allUsers.length > 0) {
+          const students = allUsers.filter(u => u.role === 'student' && u.status === 'Active');
+          const staff = allUsers.filter(u => ['teacher', 'manager', 'superadmin'].includes(u.role));
+          setStaffMembers(staff as UserProfile[]);
+          setStats(prev => ({ ...prev, totalStudents: students.length, recentAdmissions: students.slice(0, 5) }));
         }
 
-        // 2. Trend Data for Admin
-        if (isAdmin) {
-          const last7Days = Array.from({ length: 7 }, (_, i) => {
+        if (allReceipts.length > 0) {
+          const receipts = allReceipts.filter(r => r.status === 'approved');
+          const now = new Date();
+          const monthAmount = receipts
+            .filter(r => {
+              const rDate = new Date(r.date);
+              return rDate.getMonth() === now.getMonth() && rDate.getFullYear() === now.getFullYear();
+            })
+            .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+          
+          setStats(prev => ({ 
+            ...prev, 
+            totalFeesMonth: monthAmount, 
+            pendingFees: allReceipts.filter(r => r.status === 'pending').length 
+          }));
+
+          const last7DaysDates = Array.from({ length: 7 }, (_, i) => {
             const d = new Date();
-            d.setDate(d.getDate() - i);
+            d.setDate(d.getDate() - (6 - i));
             return format(d, 'yyyy-MM-dd');
-          }).reverse();
+          });
 
-          const qTrend = query(
-            collection(db, 'receipts'), 
-            where('status', '==', 'approved'),
-            where('date', '>=', last7Days[0])
-          );
-
-          unsubscribes.push(onSnapshot(qTrend, (snap) => {
-            if (!isMounted) return;
-            const receipts = snap.docs.map(doc => doc.data()).filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount)));
-            const trend = last7Days.map(day => {
-              const dayAmount = receipts
-                .filter(r => r.date === day)
-                .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
-              return { name: format(new Date(day), 'EEE'), value: dayAmount };
-            });
-            setCollectionTrendData(trend);
-          }, (err) => handleSnapshotError(err, 'stats/trend')));
+          const trend = last7DaysDates.map(date => {
+            const dayAmount = allReceipts
+              .filter(r => r.date === date && r.status === 'approved')
+              .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+            return { name: safelyFormatDate(date, 'EEE'), value: dayAmount };
+          });
+          setCollectionTrendData(trend);
         }
 
-        // 3. Notifications
-        const notifQuery = isStaff 
-          ? query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(10))
-          : query(
-              collection(db, 'notifications'), 
-              or(
-                where('targetType', '==', 'all'),
-                where('targetId', '==', user.uid),
-                where('targetId', '==', user.classLevel || 'none')
-              ),
-              orderBy('createdAt', 'desc'), 
-              limit(10)
-            );
-        
-        unsubscribes.push(onSnapshot(notifQuery, (snapshot) => {
-          if (!isMounted) return;
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
-          setRecentNotifications(data);
-        }, (err) => handleSnapshotError(err, 'notifications')));
-
-        // 4. Events
-        const todayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
-        unsubscribes.push(onSnapshot(query(collection(db, 'events'), where('date', '>=', todayStr), orderBy('date', 'asc'), limit(10)), (snapshot) => {
-          if (!isMounted) return;
-          const allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setUpcomingEvents(allEvents);
-        }, (err) => handleSnapshotError(err, 'events')));
-
-        // 5. Staff & Admissions
+        // 3. Attendance & Staff Logic
         if (isStaff) {
-          unsubscribes.push(onSnapshot(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(50)), (snap) => {
+          unsubscribes.push(onSnapshot(query(collection(db, 'attendance'), where('date', '==', format(new Date(), 'yyyy-MM-dd')), where('status', '==', 'present')), (snap) => {
             if (!isMounted) return;
-            const allUsers = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
-            let admissions = allUsers.filter((u: any) => u.role === 'student');
-            if (!isAdmin) {
-              const classes = user.assignedClasses || [];
-              admissions = admissions.filter((u: any) => classes.includes(u.classLevel));
-            }
-            setStats(prev => ({ ...prev, recentAdmissions: admissions.slice(0, 5) }));
-          }, (err) => handleSnapshotError(err, 'users/admissions')));
+            setStats(prev => ({ ...prev, todayAttendance: snap.size }));
+            const totalActiveStudents = allUsers.filter(u => u.role === 'student' && u.status === 'Active').length;
+            const rate = totalActiveStudents > 0 ? Math.round((snap.size / totalActiveStudents) * 100) : 0;
+            setStats(prev => ({ ...prev, attendanceRate: rate }));
+          }));
 
-          unsubscribes.push(onSnapshot(query(collection(db, 'users'), where('role', 'in', ['teacher', 'manager', 'superadmin'])), (snap) => {
-            if (!isMounted) return;
-            setStaffMembers(snap.docs.map(d => ({ uid: d.id, ...d.data() })) as UserProfile[]);
-            setLoading(false);
-            (window as any)._dashboardLoaded = true;
-          }, (err) => handleSnapshotError(err, 'users/staff')));
-        }
-
-        // 6. Lessons & Queues
-        const lessonsSnap = await getDocs(query(collection(db, 'courses'), where('isPublished', '==', true), orderBy('createdAt', 'desc'), limit(6)));
-        if (isMounted) {
-          setStats(prev => ({ ...prev, availableCourses: lessonsSnap.docs.map(d => ({ id: d.id, ...d.data() })) }));
-          if (!isStaff) {
-            setLoading(false);
-            (window as any)._dashboardLoaded = true;
-          }
-        }
-
-        if (isStaff) {
+          // Pending Receipts & Students for Staff View
           const receiptsQuery = isAdmin 
             ? query(collection(db, 'receipts'), where('status', '==', 'pending'), limit(5))
             : query(collection(db, 'receipts'), and(where('status', '==', 'pending'), where('classLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__'])), limit(5));
           
-          unsubscribes.push(onSnapshot(receiptsQuery, (snapshot) => {
-            if (!isMounted) return;
-            setPendingReceipts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
-          }, (err) => handleSnapshotError(err, 'receipts/pending')));
+          unsubscribes.push(onSnapshot(receiptsQuery, (snap) => {
+            if (isMounted) setPendingReceipts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[]);
+          }));
 
-          const pendingQuery = isAdmin 
+          const pendingStudentsQuery = isAdmin 
             ? query(collection(db, 'users'), where('pendingClassLevel', '!=', null))
             : query(collection(db, 'users'), and(where('pendingClassLevel', '!=', null), where('pendingClassLevel', 'in', (user.assignedClasses && user.assignedClasses.length > 0) ? user.assignedClasses : ['__none__'])));
           
-          unsubscribes.push(onSnapshot(pendingQuery, (snapshot) => {
-            if (!isMounted) return;
-            setPendingStudents(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
-          }, (err) => handleSnapshotError(err, 'users/pendingClasses')));
+          unsubscribes.push(onSnapshot(pendingStudentsQuery, (snap) => {
+            if (isMounted) setPendingStudents(snap.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[]);
+          }));
         }
+
+        // 4. Lessons & Events
+        const lessonsSnap = await getDocs(query(collection(db, 'courses'), where('isPublished', '==', true), orderBy('createdAt', 'desc'), limit(6)));
+        if (isMounted) {
+          setStats(prev => ({ ...prev, availableCourses: lessonsSnap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+          setLoading(false);
+          (window as any)._dashboardLoaded = true;
+        }
+
+        const todayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+        unsubscribes.push(onSnapshot(query(collection(db, 'events'), where('date', '>=', todayStr), orderBy('date', 'asc'), limit(10)), (snap) => {
+          if (isMounted) setUpcomingEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }));
+
       } catch (error) {
         if (isMounted) setLoading(false);
+        console.error('fetchData error', error);
       }
     };
 
     fetchData();
-
-    return () => {
-      isMounted = false;
-      unsubscribes.forEach(unsub => unsub());
-    };
-  }, [user?.uid, isStaff, isAdmin]);
+    return () => { isMounted = false; unsubscribes.forEach(u => u()); };
+  }, [user?.uid, isStaff, isAdmin, allUsers, allReceipts]);
 
   const handleApproveFee = async (id: string) => {
     try {
@@ -557,15 +465,18 @@ export default function Dashboard({ user }: DashboardProps) {
       <Box 
         sx={{ 
           position: 'relative',
-          borderRadius: { xs: 1, md: 2 }, 
+          borderRadius: { xs: 4, md: 6 }, 
           overflow: 'hidden',
           mb: 0,
-          minHeight: { xs: 340, md: 400 }, 
+          mt: { xs: 8, md: 16, lg: 20 }, // Increased spacing on top of hero image before nav/dashboard start
+          minHeight: { xs: 580, md: 700, xl: 800 }, // slightly increased height
           display: 'flex',
           bgcolor: isDark ? '#050505' : '#f8fafc', 
           transition: 'all 0.5s ease',
           boxShadow: '0 30px 60px rgba(0,0,0,0.12)',
-          border: isDark ? '1px solid rgba(255,255,255,0.03)' : 'none'
+          border: isDark ? '1px solid rgba(255,255,255,0.03)' : 'none',
+          maxWidth: '1440px',
+          mx: 'auto'
         }}
       >
         {/* Banner Image with better scaling and presence */}
@@ -597,7 +508,7 @@ export default function Dashboard({ user }: DashboardProps) {
           <Box sx={{ 
             position: 'absolute', 
             inset: 0, 
-            background: `linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.2) 40%, rgba(0,0,0,0.7) 100%)`,
+            background: `linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.8) 100%)`,
             zIndex: 2 
           }} />
           <Box sx={{ 
@@ -608,49 +519,100 @@ export default function Dashboard({ user }: DashboardProps) {
           }} />
         </Box>
 
-        {/* Dynamic Data (Time & Date) - ALIGNED TOP LEFT ONE LINE */}
+        {/* Dynamic Data (Time & Date + Quote) - Realigned to Top as requested */}
         <Box sx={{ 
           position: 'absolute', 
-          top: { xs: 20, md: 32 }, 
-          left: { xs: 16, md: 48 }, 
+          top: { xs: 24, md: 48, xl: 64 }, 
+          right: { xs: 12, md: 32, xl: 64 }, 
+          left: { xs: 12, md: 'auto' },
           zIndex: 10,
           display: 'flex',
-          flexDirection: 'row',
-          gap: 1.5,
-          alignItems: 'center'
+          flexDirection: 'column',
+          gap: 2,
+          alignItems: { xs: 'center', md: 'flex-end' }, // Center on mobile
+          width: { xs: 'calc(100% - 24px)', md: 'auto' },
+          textAlign: { xs: 'center', md: 'right' } // Center on mobile
         }}>
            <Box sx={{ 
              display: 'flex', 
              alignItems: 'center', 
              gap: 1.5, 
-             background: 'rgba(0,0,0,0.85)',
-             px: 2, 
-             py: 0.8, 
-             borderRadius: 2, 
-             border: '1px solid rgba(255,255,255,0.2)',
-             boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
-             backdropFilter: 'blur(10px)'
+             background: 'rgba(0,0,0,0.75)', // slightly more transparent
+             px: 3, 
+             py: 1.2, 
+             borderRadius: 4, 
+             border: '1px solid rgba(255,255,255,0.1)',
+             boxShadow: '0 10px 30px rgba(0,0,0,0.4)', // softer shadow
+             backdropFilter: 'blur(12px)',
+             whiteSpace: 'nowrap',
+             mx: { xs: 'auto', md: 0 } // Center on mobile
            }}>
-             <Clock size={14} color="#ffffff" />
-             <Typography variant="body2" sx={{ fontWeight: 950, fontFamily: '"JetBrains Mono", monospace', color: 'white', letterSpacing: 0.5, fontSize: { xs: '0.7rem', md: '0.85rem' } }}>
+             <Clock size={16} color="#ffffff" />
+             <Typography variant="h6" sx={{ fontWeight: 1000, fontFamily: '"JetBrains Mono", monospace', color: 'white', letterSpacing: 1, fontSize: { xs: '0.9rem', md: '1.1rem' } }}>
                {format12H(currentTime)}
              </Typography>
              <Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.2)', mx: 1 }} />
-             <Typography variant="body2" sx={{ fontWeight: 950, color: 'white', fontSize: { xs: '0.65rem', md: '0.85rem' }, letterSpacing: 0.5 }}>
-               {jafariDate || 'Islamic Date'}
+             <Typography variant="body1" sx={{ fontWeight: 950, color: 'white', fontSize: { xs: '0.85rem', md: '1rem' }, letterSpacing: 0.5 }}>
+               {jafariDate}
              </Typography>
+           </Box>
+
+           {/* Top Quote - Follows Date/Time */}
+           <Box sx={{ 
+             background: 'rgba(0,0,0,0.2)', // reduced opacity
+             px: 3, 
+             py: 1.5, 
+             borderRadius: 3, 
+             border: '1px solid rgba(255,255,255,0.05)',
+             backdropFilter: 'blur(2px)', // reduced blur as requested
+             maxWidth: { xs: '100%', md: 500 },
+             display: 'flex',
+             flexDirection: 'column',
+             alignItems: { xs: 'center', md: 'flex-end' },
+             gap: 1,
+             textAlign: { xs: 'center', md: 'right' },
+             mx: { xs: 'auto', md: 0 }
+           }}>
+             <AnimatePresence mode="wait">
+                <motion.div
+                  key={quote}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 1.2 }}
+                >
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
+                      fontWeight: 800, 
+                      color: 'white', 
+                      fontStyle: 'italic',
+                      lineHeight: 1.3,
+                      display: 'block',
+                      fontFamily: '"Cinzel Decorative", serif',
+                      fontSize: { xs: '0.8rem', md: '1.2rem' },
+                      textShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                    }}
+                  >
+                    "{quote}"
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 1000, letterSpacing: 2, textTransform: 'uppercase', mt: 1, display: 'block' }}>
+                    — {author}
+                  </Typography>
+                </motion.div>
+             </AnimatePresence>
            </Box>
         </Box>
 
-        {/* Stats Overlay - Refined for bottom right alignment */}
+        {/* Stats Overlay - Realigned to Bottom Right */}
         <Box sx={{ 
           position: 'absolute', 
-          bottom: { xs: 20, md: 50 },
-          right: { xs: 16, md: 48 }, 
+          bottom: { xs: 24, md: 48, xl: 64 },
+          right: { xs: 16, md: 48, xl: 64 }, 
           zIndex: 40,
           width: { xs: 'calc(100% - 32px)', sm: 'auto' },
           display: 'flex',
-          justifyContent: { xs: 'center', md: 'flex-end' }
+          justifyContent: 'flex-end'
         }}>
           <AnimatePresence mode="wait">
             <motion.div
@@ -658,41 +620,43 @@ export default function Dashboard({ user }: DashboardProps) {
               initial={{ scale: 0.9, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: -10 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 2.5 }} // Slower, more natural transition
               style={{ width: '100%' }}
             >
               <Card sx={{ 
-                bgcolor: 'rgba(0,0,0,0.7)', 
+                bgcolor: 'rgba(0,0,0,0.8)', 
                 color: 'white', 
-                borderRadius: 1, 
-                p: { xs: 1.2, md: 1.5 }, 
-                width: { xs: '100%', md: 180 },
-                boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: 4, 
+                p: { xs: 1.5, md: 2.5 }, 
+                width: { xs: '100%', sm: 220 },
+                boxShadow: '0 15px 30px rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                backdropFilter: 'blur(8px)',
                 display: 'flex',
                 flexDirection: { xs: 'row', md: 'column' },
                 alignItems: { xs: 'center', md: 'flex-start' },
-                gap: { xs: 2, md: 0.8 },
-                justifyContent: { xs: 'space-between', md: 'center' }
+                gap: { xs: 2, md: 1.5 },
+                justifyContent: { xs: 'space-between', md: 'center' },
+                mx: { xs: 'auto', sm: 0 }
               }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 1 } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 2 } }}>
                   <Box sx={{ 
-                    p: 0.7, 
-                    borderRadius: 1.5, 
-                    background: alpha(currentStat.color, 0.2),
+                    p: 1, 
+                    borderRadius: 2, 
+                    background: alpha(currentStat.color, 0.25),
                     color: currentStat.color,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: `0 4px 12px ${alpha(currentStat.color, 0.2)}`
+                    boxShadow: `0 8px 24px ${alpha(currentStat.color, 0.3)}`
                   }}>
-                    {React.cloneElement(currentStat.icon as React.ReactElement<any>, { size: 12 })}
+                    {React.cloneElement(currentStat.icon as React.ReactElement<any>, { size: 16 })}
                   </Box>
                   <Box>
-                    <Typography variant="caption" sx={{ fontWeight: 900, fontSize: { xs: '0.45rem', md: '0.55rem' }, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 1.2 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 950, fontSize: { xs: '0.55rem', md: '0.65rem' }, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 2 }}>
                       {currentStat.label}
                     </Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 1000, letterSpacing: -0.5, fontSize: { xs: '0.85rem', md: '1.25rem' }, fontFamily: 'var(--font-heading)', lineHeight: 1, mt: 0.1 }}>
+                    <Typography variant="h4" sx={{ fontWeight: 1000, letterSpacing: -1, fontSize: { xs: '1.1rem', md: '1.75rem' }, fontFamily: '"Cinzel", serif', lineHeight: 1, mt: 0.5 }}>
                       {currentStat.value}
                     </Typography>
                   </Box>
@@ -713,87 +677,48 @@ export default function Dashboard({ user }: DashboardProps) {
           </AnimatePresence>
         </Box>
 
-        {/* Welcome Text Content - Align below time/date left */}
+        {/* Welcome Greeting - MOVED TO BOTTOM LEFT with extreme bottom alignment */}
         <Box sx={{ 
           position: 'absolute', 
-          top: { xs: 65, md: 95 },
-          left: { xs: 16, md: 48 },
+          bottom: { xs: 24, md: 48, xl: 64 }, // Extreme bottom align
+          left: { xs: 16, md: 48, xl: 64 },
           zIndex: 10,
-          width: { xs: 'calc(100% - 32px)', md: '600px' },
+          width: { xs: 'calc(100% - 32px)', md: 'auto' },
           textAlign: 'left',
           pointerEvents: 'none'
         }}>
-          <Stack spacing={0.5} alignItems="flex-start">
-            <motion.div initial={{ opacity: 0, x: -15 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
-              <Typography variant="h5" sx={{ 
+          <Stack spacing={0} alignItems="flex-start">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.5 }}>
+              <Typography variant="h6" sx={{ 
                 fontWeight: 1000, 
                 color: 'white', 
                 letterSpacing: -0.5, 
-                fontSize: { xs: '1.5rem', md: '3rem' }, 
+                fontSize: { xs: '1.3rem', md: '2.5rem' }, // Larger on desktop
                 lineHeight: 1.1,
                 fontFamily: '"Cinzel Decorative", serif',
                 textShadow: '0 4px 20px rgba(0,0,0,0.8)',
-                mb: 0.5,
+                mb: 0.8,
                 display: 'block'
               }}>
                 {instituteData.greeting ? instituteData.greeting.replace('{name}', user.displayName?.split(' ')[0] || '') : `Salaam, ${user.displayName?.split(' ')[0]}`}
               </Typography>
-              {instituteData.tagline && (
-                <Typography variant="body2" sx={{ 
-                  color: 'rgba(255,255,255,0.95)', 
-                  fontWeight: 800, 
-                  textShadow: '0 4px 16px rgba(0,0,0,1)',
-                  mb: { xs: 1, md: 3 },
-                  fontFamily: '"Cinzel Decorative", serif',
-                  letterSpacing: { xs: 1, md: 2 },
-                  fontSize: { xs: '0.65rem', md: '1.1rem' },
-                  textTransform: 'uppercase'
-                }}>
-                  {instituteData.tagline}
-                </Typography>
-              )}
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, x: -15 }} 
-              animate={{ opacity: 1, x: 0 }} 
-              transition={{ delay: 0.8 }}
-              style={{ width: '100%', maxWidth: '600px' }}
-            >
-              <Box sx={{ 
-                bgcolor: 'transparent', 
-                p: 0, 
-                width: '100%',
-                pointerEvents: 'none',
-                borderLeft: '4px solid',
-                borderColor: alpha(theme.palette.primary.main, 0.6),
-                pl: 3
+              
+              <Typography variant="body2" sx={{ 
+                color: alpha('#fff', 0.9), 
+                fontWeight: 800, 
+                textShadow: '0 4px 16px rgba(0,0,0,1)',
+                fontFamily: '"Cinzel Decorative", serif',
+                letterSpacing: { xs: 1, md: 3 },
+                fontSize: { xs: '0.75rem', md: '1.1rem' },
+                textTransform: 'uppercase',
+                opacity: 0.9,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5
               }}>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={quote}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 10 }}
-                    transition={{ duration: 1.5, ease: "easeInOut" }}
-                  >
-                    <Typography 
-                      sx={{ 
-                        fontSize: { xs: '0.75rem', sm: '1.1rem', md: '1.4rem' }, 
-                        fontWeight: 700, 
-                        color: 'rgba(255,255,255,1)', 
-                        lineHeight: 1.4,
-                        fontStyle: 'italic',
-                        fontFamily: '"Cinzel", serif',
-                        textAlign: 'left',
-                        textShadow: '0 4px 12px rgba(0,0,0,0.8)'
-                      }}
-                    >
-                      "{quote}"
-                    </Typography>
-                  </motion.div>
-                </AnimatePresence>
-              </Box>
+                <Box sx={{ width: { xs: 20, md: 40 }, height: 2, bgcolor: 'primary.main' }} />
+                {instituteData.tagline || 'Maktab for Imam Mahdi A.J'}
+              </Typography>
             </motion.div>
           </Stack>
         </Box>
@@ -878,7 +803,7 @@ export default function Dashboard({ user }: DashboardProps) {
                         border: '1px solid rgba(255,255,255,0.2)',
                         boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
                         textShadow: '0 1px 3px rgba(0,0,0,0.4)',
-                        fontSize: { xs: '0.6rem', sm: '0.85rem' },
+                        fontSize: { xs: '0.65rem', sm: '0.85rem' },
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         '&:hover': { 
                           transform: 'translateY(-4px)',
@@ -889,7 +814,7 @@ export default function Dashboard({ user }: DashboardProps) {
                       }}
                     >
                       <Box sx={{ 
-                        p: { xs: 0.8, sm: 1 }, 
+                        p: { xs: 0.6, sm: 1 }, 
                         borderRadius: 1, 
                         bgcolor: 'rgba(255,255,255,0.25)',
                         display: 'flex',
@@ -897,7 +822,7 @@ export default function Dashboard({ user }: DashboardProps) {
                         justifyContent: 'center',
                         color: 'white'
                        }}>
-                         {getActionIcon(action.icon, isMobile ? 16 : 18)}
+                         {getActionIcon(action.icon, isMobile ? 14 : 18)}
                       </Box>
                       {action.label}
                     </Button>
@@ -939,7 +864,7 @@ export default function Dashboard({ user }: DashboardProps) {
                         border: '1px solid rgba(255,255,255,0.2)',
                         boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
                         textShadow: '0 1px 3px rgba(0,0,0,0.4)',
-                        fontSize: { xs: '0.6rem', sm: '0.85rem' },
+                        fontSize: { xs: '0.65rem', sm: '0.85rem' },
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         '&:hover': { 
                           transform: 'translateY(-4px)',
@@ -950,7 +875,7 @@ export default function Dashboard({ user }: DashboardProps) {
                       }}
                     >
                       <Box sx={{ 
-                        p: { xs: 0.8, sm: 1 }, 
+                        p: { xs: 0.6, sm: 1 }, 
                         borderRadius: 1, 
                         bgcolor: 'rgba(255,255,255,0.25)',
                         display: 'flex',
@@ -958,7 +883,7 @@ export default function Dashboard({ user }: DashboardProps) {
                         justifyContent: 'center',
                         color: 'white'
                        }}>
-                         {getActionIcon(action.icon, isMobile ? 16 : 18)}
+                         {getActionIcon(action.icon, isMobile ? 14 : 18)}
                       </Box>
                       {action.label}
                     </Button>
@@ -1004,7 +929,7 @@ export default function Dashboard({ user }: DashboardProps) {
                         border: '1px solid rgba(255,255,255,0.2)',
                         boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
                         textShadow: '0 1px 3px rgba(0,0,0,0.4)',
-                        fontSize: { xs: '0.6rem', sm: '0.85rem' },
+                        fontSize: { xs: '0.65rem', sm: '0.85rem' },
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         '&:hover': { 
                           transform: 'translateY(-4px)',
@@ -1015,7 +940,7 @@ export default function Dashboard({ user }: DashboardProps) {
                       }}
                     >
                       <Box sx={{ 
-                        p: { xs: 0.8, sm: 1 }, 
+                        p: { xs: 0.6, sm: 1 }, 
                         borderRadius: 1, 
                         bgcolor: 'rgba(255,255,255,0.25)',
                         display: 'flex',
@@ -1023,7 +948,7 @@ export default function Dashboard({ user }: DashboardProps) {
                         justifyContent: 'center',
                         color: 'white'
                        }}>
-                         {getActionIcon(action.icon, isMobile ? 16 : 18)}
+                         {getActionIcon(action.icon, isMobile ? 14 : 18)}
                       </Box>
                       {action.label}
                     </Button>
@@ -1039,7 +964,7 @@ export default function Dashboard({ user }: DashboardProps) {
       {/* Institutional Financial Health (Moved to Top as per user request) */}
       {isAdmin && collectionTrendData.length > 0 && (
         <Container maxWidth="lg" sx={{ mb: 6, mt: 4 }}>
-          <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="h6" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <TrendingUp size={28} />
             Financial Health
           </Typography>
@@ -1103,7 +1028,7 @@ export default function Dashboard({ user }: DashboardProps) {
       <Container maxWidth="lg" sx={{ mb: 6 }}>
         {isStaff && (isAdmin || (instituteSettings?.portalSettings?.teacher?.showPendingActions ?? true)) && (pendingReceipts.length > 0 || pendingStudents.length > 0) && (
           <Box sx={{ mb: 6 }}>
-            <Typography variant="h5" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'warning.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Typography variant="h6" sx={{ fontFamily: 'var(--font-serif)', fontWeight: 800, mb: 4, color: 'warning.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <AlertTriangle size={28} />
               Reports & Pending Actions
             </Typography>
@@ -1120,7 +1045,7 @@ export default function Dashboard({ user }: DashboardProps) {
                     <ListItem key={receipt.id} divider sx={{ py: 2.5, px: 4 }}>
                       <ListItemText 
                         primary={`${receipt.studentName} - Fee Request`}
-                        secondary={`Rs.${receipt.amount} • ${format(new Date(receipt.date), 'MMMM yyyy')}`}
+                        secondary={`Rs.${receipt.amount} • ${safelyFormatDate(receipt.date, 'MMMM yyyy')}`}
                         primaryTypographyProps={{ fontWeight: 800, fontSize: '1rem' }}
                         secondaryTypographyProps={{ fontWeight: 600 }}
                       />
@@ -1218,8 +1143,8 @@ export default function Dashboard({ user }: DashboardProps) {
       <Container maxWidth="lg" sx={{ mb: 6 }}>
         {isStaff && stats.recentAdmissions && stats.recentAdmissions.length > 0 && (
           <Box>
-            <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <UserPlus size={28} />
+            <Typography variant="h6" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <UserPlus size={24} />
               Recent Registrations
             </Typography>
             <Paper 
@@ -1271,8 +1196,8 @@ export default function Dashboard({ user }: DashboardProps) {
       <Container maxWidth="lg" sx={{ mb: 6 }}>
         {isTeacherRole && user.assignedClasses && user.assignedClasses.length > 0 && (
           <Box sx={{ mb: 6 }}>
-            <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Layout size={28} />
+            <Typography variant="h6" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Layout size={24} />
               My Assigned Classes
             </Typography>
             <Grid container spacing={2}>
@@ -1306,8 +1231,8 @@ export default function Dashboard({ user }: DashboardProps) {
 
         {!isStaff && (instituteSettings?.portalSettings?.student?.showEnrolledSubjects ?? true) && user.subjectsEnrolled && user.subjectsEnrolled.length > 0 && (
           <Box sx={{ mb: 6 }}>
-            <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <BookOpen size={28} />
+            <Typography variant="h6" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <BookOpen size={24} />
               My Enrolled Subjects
             </Typography>
             <Grid container spacing={2}>
@@ -1338,8 +1263,8 @@ export default function Dashboard({ user }: DashboardProps) {
 
         {stats.availableCourses.length > 0 && (
           <Box>
-            <Typography variant="h5" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 4, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <BookOpen size={28} />
+            <Typography variant="h6" sx={{ fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <BookOpen size={24} />
               Subject Resources
             </Typography>
             <Grid container spacing={3}>
@@ -1393,7 +1318,7 @@ export default function Dashboard({ user }: DashboardProps) {
           <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
               <Typography variant="h6" sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Calendar size={20} className="text-teal-600" /> Upcoming Events
+                <Calendar size={20} className="text-teal-600" /> Upcoming Events ({upcomingEvents.length})
               </Typography>
               <Button 
                 size="small" 
@@ -1440,7 +1365,7 @@ export default function Dashboard({ user }: DashboardProps) {
                   >
                     <CardContent sx={{ p: 3 }}>
                       <Chip 
-                        label={event.date} 
+                        label={safelyFormatDate(event.date)} 
                         size="small" 
                         color="secondary" 
                         sx={{ 
@@ -1468,22 +1393,22 @@ export default function Dashboard({ user }: DashboardProps) {
             <>
               {(isAdmin || (instituteSettings?.portalSettings?.teacher?.showRevenueStats ?? true) || permissions.manage_fees) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <StatBox title="Revenue" value={`INR ${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0)).toLocaleString()}`} icon={<ArrowUpRight size={32} />} color={instituteData.accentColors?.[0] || "#10b981"} />
+                  <StatBox isMobile={isMobile} title="Revenue" value={`INR ${(stats.totalCredits || 0).toLocaleString()}`} icon={<ArrowUpRight size={32} />} color={instituteData.accentColors?.[0] || "#10b981"} />
                 </Grid>
               )}
               {(isAdmin || permissions.manage_expenses) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <StatBox title="Total Expenses" value={`INR ${(stats.totalExpenses || 0).toLocaleString()}`} icon={<ArrowDownRight size={32} />} color={instituteData.accentColors?.[3] || "#ef4444"} />
+                  <StatBox isMobile={isMobile} title="Total Expenses" value={`INR ${(stats.totalExpenses || 0).toLocaleString()}`} icon={<ArrowDownRight size={32} />} color={instituteData.accentColors?.[3] || "#ef4444"} />
                 </Grid>
               )}
               {(isAdmin || (instituteSettings?.portalSettings?.teacher?.showRevenueStats ?? true) || permissions.manage_fees) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <StatBox title="Net Balance" value={`INR ${((stats.totalFeesAllTime || 0) + (stats.totalCredits || 0) - (stats.totalExpenses || 0)).toLocaleString()}`} icon={<Wallet size={32} />} color={instituteData.accentColors?.[2] || "#8b5cf6"} />
+                  <StatBox isMobile={isMobile} title="Net Balance" value={`INR ${((stats.totalCredits || 0) - (stats.totalExpenses || 0)).toLocaleString()}`} icon={<Wallet size={32} />} color={instituteData.accentColors?.[2] || "#8b5cf6"} />
                 </Grid>
               )}
               {(isAdmin || (instituteSettings?.portalSettings?.teacher?.showAttendanceStats ?? true) || permissions.manage_attendance) && (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <StatBox title="Attendance Today" value={stats.todayAttendance} icon={<UserCheck size={32} />} color={instituteData.accentColors?.[1] || "#06b6d4"} />
+                  <StatBox isMobile={isMobile} title="Attendance Today" value={stats.todayAttendance} icon={<UserCheck size={32} />} color={instituteData.accentColors?.[1] || "#06b6d4"} />
                 </Grid>
               )}
             </>
@@ -1491,14 +1416,14 @@ export default function Dashboard({ user }: DashboardProps) {
             <>
               {(instituteSettings?.portalSettings?.student?.showDashboardStats ?? true) && (
                 <Grid size={{ xs: 12, md: 4 }}>
-                  <StatBox title="My Attendance" value={`${stats.attendanceRate}%`} icon={<TrendingUp size={32} />} color={instituteData.accentColors?.[0] || "#10b981"} subtitle="Regularity Score" />
+                  <StatBox isMobile={isMobile} title="My Attendance" value={`${stats.attendanceRate}%`} icon={<TrendingUp size={32} />} color={instituteData.accentColors?.[0] || "#10b981"} subtitle="Regularity Score" />
                 </Grid>
               )}
               <Grid size={{ xs: 12, md: 4 }}>
-                <StatBox title="Active Lessons" value={user.subjectsEnrolled?.length || 0} icon={<BookOpen size={32} />} color={instituteData.accentColors?.[1] || "#3b82f6"} subtitle="Current Topics" />
+                <StatBox isMobile={isMobile} title="Active Lessons" value={user.subjectsEnrolled?.length || 0} icon={<BookOpen size={32} />} color={instituteData.accentColors?.[1] || "#3b82f6"} subtitle="Current Topics" />
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
-                <StatBox title="My Class Level" value={user.classLevel || 'Intermediate'} icon={<Check size={32} />} color={instituteData.accentColors?.[2] || "#f59e0b"} subtitle="Level of Study" />
+                <StatBox isMobile={isMobile} title="My Class Level" value={user.classLevel || 'Intermediate'} icon={<Check size={32} />} color={instituteData.accentColors?.[2] || "#f59e0b"} subtitle="Level of Study" />
               </Grid>
             </>
           )}
@@ -1549,7 +1474,7 @@ export default function Dashboard({ user }: DashboardProps) {
                 {selectedTeacher.displayName?.charAt(0)}
               </Avatar>
             </motion.div>
-            <Typography variant="h4" sx={{ fontWeight: 950, mb: 1, letterSpacing: -1.5 }}>{selectedTeacher.displayName}</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 950, mb: 1, letterSpacing: -1.5 }}>{selectedTeacher.displayName}</Typography>
             <Chip 
               icon={<Award size={16} />}
               label={selectedTeacher.role === 'superadmin' ? 'Head of Institute' : (selectedTeacher.role === 'teacher' ? 'Teacher' : 'Manager')} 
@@ -1621,16 +1546,15 @@ function StatCard({ title, value, icon, color }: any) {
             {icon}
           </Box>
         </Box>
-        <Typography variant="h4" sx={{ fontWeight: 800, mb: 0.5 }}>{value}</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5 }}>{value}</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase' }}>{title}</Typography>
       </CardContent>
     </Card>
   );
 }
 
-function StatBox({ title, value, icon, color, subtitle }: any) {
+function StatBox({ title, value, icon, color, subtitle, isMobile }: any) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   return (
     <Card 
       elevation={0}
@@ -1678,7 +1602,7 @@ function StatBox({ title, value, icon, color, subtitle }: any) {
         }}>
           {React.cloneElement(icon, { size: isMobile ? 18 : 22 })}
         </Box>
-        <Typography variant={isMobile ? "h6" : "h4"} sx={{ 
+        <Typography variant={isMobile ? "subtitle1" : "h5"} sx={{ 
           fontWeight: 950, 
           letterSpacing: -0.5, 
           mb: 0.1,
@@ -1722,9 +1646,8 @@ function ProfileItem({ label, value, icon }: any) {
     </Box>
   );
 }
-function FabAction({ label, icon, color, onClick, delay }: any) {
+function FabAction({ label, icon, color, onClick, delay, isMobile }: any) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   return (
     <motion.div
       initial={{ opacity: 0, x: 20, scale: 0.8 }}

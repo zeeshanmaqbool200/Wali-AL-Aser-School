@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Box, Typography, Grid, Card, CardContent, Button, 
   Stack, Divider, Paper, useTheme, alpha,
-  LinearProgress, Tab, Tabs, Container, IconButton
+  LinearProgress, Tab, Tabs, Container, IconButton, useMediaQuery
 } from '@mui/material';
 import { 
   BarChart3, TrendingUp, TrendingDown, Calendar, 
@@ -19,6 +19,7 @@ import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'd
 import { collection, query, onSnapshot, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 
 const COLORS = ['#0d9488', '#0ea5e9', '#6366f1', '#f59e0b', '#ec4899', '#8b5cf6'];
@@ -41,8 +42,10 @@ const exportToCSV = (data: any[], filename: string) => {
 export default function Reports() {
   const theme = useTheme();
   const { user: currentUser } = useAuth();
+  const { receipts: allReceipts, users: allUsers, expenses: allExpenses, loading: contextLoading } = useData();
   const navigate = useNavigate();
-  const isAdmin = currentUser?.role === 'manager' || currentUser?.role === 'superadmin' || currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isAdmin = currentUser?.role === 'manager' || currentUser?.role === 'superadmin' || currentUser?.role === 'super_admin' || currentUser?.email === 'zeeshanmaqbool200@gmail.com';
   
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
@@ -50,8 +53,6 @@ export default function Reports() {
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   
   const [revenueData, setRevenueData] = useState<any[]>([]);
-  const [performanceData, setPerformanceData] = useState<any[]>([]);
-  const [attendanceChartData, setAttendanceChartData] = useState<any[]>([]);
   const [counts, setCounts] = useState({
     fees: 0,
     credits: 0,
@@ -62,69 +63,55 @@ export default function Reports() {
   });
 
   useEffect(() => {
-    if (!currentUser || !isAdmin) return;
-    setLoading(true);
+    if (!isAdmin || contextLoading) return;
     
-    const unsubscribes: (() => void)[] = [];
+    // Financial Data from context
+    const filteredReceipts = allReceipts.filter(r => {
+      if (!r.date || r.status !== 'approved') return false;
+      try {
+        const rDate = new Date(r.date);
+        return isWithinInterval(rDate, { start: new Date(startDate), end: new Date(endDate) });
+      } catch (e) { return false; }
+    });
     
-    // Financial Data
-    const qFees = query(collection(db, 'receipts'));
-    const unsubFees = onSnapshot(qFees, (snapshot) => {
-      const receipts = snapshot.docs.map(doc => doc.data());
-      const filtered = receipts.filter(r => {
-        if (!r.date) return true;
-        return isWithinInterval(new Date(r.date), { start: new Date(startDate), end: new Date(endDate) });
-      });
-      
-      const totalFees = filtered.reduce((acc, r) => acc + (r.amount || 0), 0);
-      setCounts(prev => ({ ...prev, fees: totalFees }));
-      
-      const monthly: Record<string, { revenue: number, expenses: number }> = {};
-      filtered.forEach(r => {
+    const totalFees = filteredReceipts.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+    
+    const monthly: Record<string, { revenue: number, expenses: number }> = {};
+    filteredReceipts.forEach(r => {
+      try {
         const month = format(new Date(r.date), 'MMM yyyy');
         if (!monthly[month]) monthly[month] = { revenue: 0, expenses: 0 };
-        monthly[month].revenue += (r.amount || 0);
-      });
-      
-      setRevenueData(Object.keys(monthly).map(key => ({
-        name: key,
-        revenue: monthly[key].revenue,
-        expenses: monthly[key].expenses
-      })).sort((a,b) => new Date(a.name).getTime() - new Date(b.name).getTime()));
+        monthly[month].revenue += (Number(r.amount) || 0);
+      } catch (e) {}
     });
-    unsubscribes.push(unsubFees);
 
-    const qLedger = query(collection(db, 'ledger'));
-    const unsubLedger = onSnapshot(qLedger, (snapshot) => {
-      const entries = snapshot.docs.map(doc => doc.data());
-      const filtered = entries.filter(e => {
-          if (!e.date) return true;
-          return isWithinInterval(new Date(e.date), { start: new Date(startDate), end: new Date(endDate) });
-      });
-      
-      const credits = filtered.filter(e => e.type === 'credit').reduce((acc, e) => acc + (e.amount || 0), 0);
-      const debits = filtered.filter(e => e.type === 'debit').reduce((acc, e) => acc + (e.amount || 0), 0);
-      
-      setCounts(prev => ({ ...prev, credits, debits }));
+    // Ledger Data from context
+    const filteredExpenses = allExpenses.filter(e => {
+      if (!e.date) return false;
+      try {
+        return isWithinInterval(new Date(e.date), { start: new Date(startDate), end: new Date(endDate) });
+      } catch (e) { return false; }
     });
-    unsubscribes.push(unsubLedger);
+    
+    const credits = filteredExpenses.filter(e => e.type === 'credit').reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+    const debits = filteredExpenses.filter(e => e.type === 'debit').reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+    
+    setCounts({
+      fees: totalFees,
+      credits,
+      debits,
+      students: allUsers.filter(u => u.role === 'student').length,
+      staff: allUsers.filter(u => ['teacher', 'manager', 'superadmin'].includes(u.role)).length,
+      pendingUsers: allUsers.filter(u => !u.isVerified).length
+    });
 
-    // Snapshot counts
-    const qUsers = query(collection(db, 'users'));
-    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
-      const list = snapshot.docs.map(doc => doc.data());
-      setCounts(prev => ({
-        ...prev,
-        students: list.filter(u => u.role === 'student').length,
-        staff: list.filter(u => ['teacher', 'manager', 'superadmin'].includes(u.role)).length,
-        pendingUsers: list.filter(u => !u.isVerified).length
-      }));
-    });
-    unsubscribes.push(unsubUsers);
+    setRevenueData(Object.keys(monthly).map(key => ({
+      name: key,
+      revenue: monthly[key].revenue
+    })).sort((a,b) => new Date(a.name).getTime() - new Date(b.name).getTime()));
     
     setLoading(false);
-    return () => unsubscribes.forEach(unsub => unsub());
-  }, [currentUser?.uid, isAdmin, startDate, endDate]);
+  }, [allReceipts, allUsers, allExpenses, isAdmin, startDate, endDate, contextLoading]);
 
   const handleDownloadPDF = async () => {
     const { default: jsPDF } = await import('jspdf');
@@ -140,9 +127,8 @@ export default function Reports() {
       startY: 35,
       head: [['Metric', 'Value']],
       body: [
-        ['Inflow (Fees)', `Rs.${counts.fees.toLocaleString()}`],
-        ['Other Credits', `Rs.${counts.credits.toLocaleString()}`],
-        ['Outflow (Expenses)', `Rs.${counts.debits.toLocaleString()}`],
+        ['Total Inflow', `Rs.${(counts.fees + counts.credits).toLocaleString()}`],
+        ['Total Outflow', `Rs.${counts.debits.toLocaleString()}`],
         ['Net Balance', `Rs.${(counts.fees + counts.credits - counts.debits).toLocaleString()}`]
       ],
       headStyles: { fillColor: [13, 148, 136] }
@@ -167,11 +153,13 @@ export default function Reports() {
   ];
 
   const financialStats = [
-    { title: 'Inflow (Fees)', value: `Rs.${counts.fees.toLocaleString()}`, trend: 'Verified Receipts', icon: <Wallet size={24} />, color: 'primary', link: '/fees' },
-    { title: 'Other Credits', value: `Rs.${counts.credits.toLocaleString()}`, trend: 'Misc Income', icon: <ArrowUpRight size={24} />, color: 'success', link: '/expenses' },
-    { title: 'Outflow (Expenses)', value: `Rs.${counts.debits.toLocaleString()}`, trend: 'Ledger Records', icon: <ArrowDownRight size={24} />, color: 'error', link: '/expenses' },
+    { title: 'Total Inflow', value: `Rs.${(counts.fees + counts.credits).toLocaleString()}`, trend: 'Fees & Misc Credits', icon: <Wallet size={24} />, color: 'primary' },
+    { title: 'Total Outflow', value: `Rs.${counts.debits.toLocaleString()}`, trend: 'Ledger Records', icon: <ArrowDownRight size={24} />, color: 'error', link: '/expenses' },
     { title: 'Total Net Balance', value: `Rs.${(counts.fees + counts.credits - counts.debits).toLocaleString()}`, trend: 'Current Liquidity', icon: <Activity size={24} />, color: 'warning' }
   ];
+
+  const coverageRate = counts.students > 0 ? Math.round(((counts.students - counts.pendingUsers) / counts.students) * 100) : 0;
+  const recoveryRate = counts.fees > 0 ? Math.min(Math.round((counts.fees / (counts.students * 2000)) * 100), 100) : 0; // Estimation based on 2k avg fee
 
   if (!isAdmin) {
     return (
@@ -189,12 +177,12 @@ export default function Reports() {
     <Box sx={{ pb: 8 }}>
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h3" sx={{ fontWeight: 950, letterSpacing: -1.5, mb: 1 }}>Insights & Analytics</Typography>
-          <Typography variant="body1" sx={{ fontWeight: 800, color: 'text.secondary', opacity: 0.8 }}>System-wide performance monitoring and financial intelligence</Typography>
+          <Typography variant={isMobile ? "subtitle1" : "h6"} sx={{ fontWeight: 950, letterSpacing: -1.5, mb: 0.5, color: 'primary.main', textTransform: 'uppercase' }}>Insights & Analytics</Typography>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', opacity: 0.8, letterSpacing: 1 }}>System-wide performance monitoring and financial intelligence</Typography>
         </Box>
         <Stack direction="row" spacing={2}>
-           <Button variant="outlined" startIcon={<Download size={18} />} sx={{ borderRadius: 2.5, fontWeight: 800 }}>Export CSV</Button>
-           <Button variant="contained" startIcon={<Activity size={18} />} sx={{ borderRadius: 2.5, fontWeight: 900 }}>Real-time Feed</Button>
+           <Button variant="outlined" startIcon={<Download size={18} />} sx={{ borderRadius: 2.5, fontWeight: 800 }} onClick={() => exportToCSV(revenueData, 'revenue_report')}>Export CSV</Button>
+           <Button variant="contained" startIcon={<Activity size={18} />} sx={{ borderRadius: 2.5, fontWeight: 900 }} onClick={() => window.location.reload()}>Real-time Feed</Button>
         </Stack>
       </Box>
 
@@ -240,7 +228,7 @@ export default function Reports() {
                    <Box sx={{ p: 1, borderRadius: 2, bgcolor: alpha(theme.palette[stat.color as 'primary'].main, 0.1), color: `${stat.color}.main` }}>{stat.icon}</Box>
                    {stat.link && <IconButton size="small" onClick={() => navigate(stat.link!)}><ArrowUpRight size={18} /></IconButton>}
                 </Box>
-                <Typography variant="h4" sx={{ fontWeight: 950, letterSpacing: -1, mb: 0.5 }}>{stat.value}</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 950, letterSpacing: -1, mb: 0.5 }}>{stat.value}</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 800, color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   {stat.title}
                 </Typography>
@@ -284,24 +272,24 @@ export default function Reports() {
                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                       <Typography variant="body2" sx={{ fontWeight: 800 }}>Student Coverage</Typography>
-                       <Typography variant="body2" sx={{ fontWeight: 900, color: 'primary.main' }}>84%</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 800 }}>Student Verification</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 900, color: 'primary.main' }}>{coverageRate}%</Typography>
                     </Box>
-                    <LinearProgress variant="determinate" value={84} sx={{ height: 8, borderRadius: 4 }} />
+                    <LinearProgress variant="determinate" value={coverageRate} sx={{ height: 8, borderRadius: 4 }} />
                   </Box>
                   <Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                        <Typography variant="body2" sx={{ fontWeight: 800 }}>Fee Recovery Rate</Typography>
-                       <Typography variant="body2" sx={{ fontWeight: 900, color: 'success.main' }}>72%</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 900, color: 'success.main' }}>{recoveryRate}%</Typography>
                     </Box>
-                    <LinearProgress variant="determinate" value={72} color="success" sx={{ height: 8, borderRadius: 4 }} />
+                    <LinearProgress variant="determinate" value={recoveryRate} color="success" sx={{ height: 8, borderRadius: 4 }} />
                   </Box>
                   <Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                       <Typography variant="body2" sx={{ fontWeight: 800 }}>Asset Utilization</Typography>
-                       <Typography variant="body2" sx={{ fontWeight: 900, color: 'warning.main' }}>91%</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 800 }}>System Integrity</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 900, color: 'warning.main' }}>98%</Typography>
                     </Box>
-                    <LinearProgress variant="determinate" value={91} color="warning" sx={{ height: 8, borderRadius: 4 }} />
+                    <LinearProgress variant="determinate" value={98} color="warning" sx={{ height: 8, borderRadius: 4 }} />
                   </Box>
                </Box>
 

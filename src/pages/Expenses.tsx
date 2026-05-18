@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Box, Typography, TextField, Button, Paper, Grid, MenuItem, 
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Chip, Stack, alpha, useTheme, Card, CardContent,
   CircularProgress, Alert, Tooltip, InputAdornment, Menu, Skeleton,
-  Dialog, Checkbox
+  Dialog, Checkbox, Snackbar
 } from '@mui/material';
 import { 
   Plus, Trash2, Download, FileText, PieChart as PieIcon, 
@@ -53,13 +53,12 @@ export default function Expenses() {
   const role = user?.role || 'student';
   const isManagerRole = role === 'manager';
   const isAdmin = isSuperAdmin || isManagerRole;
-  const { expenses: allExpenses, loading: globalLoading, isSyncing } = useData();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const { expenses: allExpenses, loading: globalLoading, isSyncing, setIsSaving } = useData();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setExpenses(allExpenses);
+  const expenses = useMemo(() => {
+    return allExpenses;
   }, [allExpenses]);
 
   useEffect(() => {
@@ -87,17 +86,6 @@ export default function Expenses() {
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [monthlyFeeTotal, setMonthlyFeeTotal] = useState(0);
-
-  useEffect(() => {
-    const start = format(startOfMonth(new Date()), 'yyyy-MM-dd');
-    const q = query(collection(db, 'receipts'), where('status', '==', 'approved'), where('date', '>=', start));
-    const unsubscribe = onSnapshot(q, (snap) => {
-      const total = snap.docs.reduce((sum, doc) => sum + (Number(doc.data().amount) || 0), 0);
-      setMonthlyFeeTotal(total);
-    }, (err) => console.error(err));
-    return () => unsubscribe();
-  }, []);
 
   useEffect(() => {
     // Rely on useData sync
@@ -107,9 +95,10 @@ export default function Expenses() {
     e.preventDefault();
     if (!itemName || !category || !amount) return;
 
+    setIsSaving(true);
     setSubmitting(true);
     try {
-      await addDoc(collection(db, 'expenses'), {
+      const dataToSave = {
         itemName,
         category,
         type,
@@ -118,8 +107,11 @@ export default function Expenses() {
         date: entryDate,
         spentBy: user?.displayName || 'Authorized Admin',
         spentById: user?.uid || auth.currentUser?.uid,
-        createdAt: serverTimestamp()
-      });
+        createdAt: serverTimestamp(),
+        instituteId: (user as any).instituteId || 'default'
+      };
+
+      await addDoc(collection(db, 'expenses'), dataToSave);
 
       setItemName('');
       setCategory('');
@@ -127,82 +119,109 @@ export default function Expenses() {
       setAmount('');
       setDescription('');
     } catch (err) {
-      console.error("Error adding expense:", err);
+      handleFirestoreError(err, OperationType.WRITE, 'expenses');
       setError("Failed to add record. Check permissions.");
     } finally {
       setSubmitting(false);
+      setIsSaving(false);
     }
   };
 
+  const [localDeletedIds, setLocalDeletedIds] = useState<Set<string>>(new Set());
+  const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
+
   const handleDelete = async (id: string) => {
+    // Gmail-like: Instant removal from UI
+    setLocalDeletedIds(prev => new Set([...prev, id]));
+    setSnackbar({ open: true, message: 'Expense record removed', severity: 'success' });
+    
     try {
-      setDeletingId(id);
       await smartDeleteDoc(doc(db, 'expenses', id));
-      setExpenses(prev => prev.filter(e => e.id !== id));
-      setDeleteDialogOpen(false);
-      setItemToDelete(null);
     } catch (err) {
       console.error("Delete error:", err);
-      setError("Failed to delete record.");
-    } finally {
-      setDeletingId(null);
+      // Revert if it fails
+      setLocalDeletedIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      setError("Failed to delete record. Please check your permissions.");
     }
   };
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
-  const totalDebits = expenses.filter(e => e.type === 'debit').reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
-  const totalCredits = expenses.filter(e => e.type === 'credit').reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter(exp => {
+      if (localDeletedIds.has(exp.id)) return false;
+      
+      const isDateInRange = exp.date >= startDate && exp.date <= endDate;
+      const s = searchQuery.toLowerCase();
+      const matchesSearch = (exp.itemName?.toLowerCase() || '').includes(s) || 
+                            (exp.category?.toLowerCase() || '').includes(s) ||
+                            (exp.description?.toLowerCase() || '').includes(s) ||
+                            (exp.spentBy?.toLowerCase() || '').includes(s);
+      const matchesType = typeFilter === 'all' || exp.type === typeFilter;
+      return isDateInRange && matchesSearch && matchesType;
+    });
+  }, [expenses, localDeletedIds, startDate, endDate, searchQuery, typeFilter]);
+
+  const totalDebits = useMemo(() => filteredExpenses.filter(e => e.type === 'debit').reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0), [filteredExpenses]);
+  const totalCredits = useMemo(() => filteredExpenses.filter(e => e.type === 'credit').reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0), [filteredExpenses]);
   const netBalance = totalCredits - totalDebits;
 
   // Monthly stats
   const now = new Date();
-  const currentMonthExpenses = expenses.filter(e => {
+  const currentMonthExpenses = useMemo(() => filteredExpenses.filter(e => {
     const expDate = new Date(e.date);
     return expDate.getMonth() === now.getMonth() && expDate.getFullYear() === now.getFullYear();
-  });
+  }), [filteredExpenses, now]);
 
-  const monthCredits = currentMonthExpenses.filter(e => e.type === 'credit').reduce((sum, e) => sum + e.amount, 0);
-  const monthDebits = currentMonthExpenses.filter(e => e.type === 'debit').reduce((sum, e) => sum + e.amount, 0);
+  const monthCredits = useMemo(() => currentMonthExpenses.filter(e => e.type === 'credit').reduce((sum, e) => sum + e.amount, 0), [currentMonthExpenses]);
+  const monthDebits = useMemo(() => currentMonthExpenses.filter(e => e.type === 'debit').reduce((sum, e) => sum + e.amount, 0), [currentMonthExpenses]);
   const monthNet = monthCredits - monthDebits;
 
-  const filteredExpenses = expenses.filter(exp => {
-    const expDate = new Date(exp.date);
-    // Use ISO string for safer comparison
-    const isDateInRange = exp.date >= startDate && exp.date <= endDate;
-    
-    const s = searchQuery.toLowerCase();
-    const matchesSearch = (exp.itemName?.toLowerCase() || '').includes(s) || 
-                          (exp.category?.toLowerCase() || '').includes(s) ||
-                          (exp.description?.toLowerCase() || '').includes(s) ||
-                          (exp.spentBy?.toLowerCase() || '').includes(s);
-    const matchesType = typeFilter === 'all' || exp.type === typeFilter;
-    return isDateInRange && matchesSearch && matchesType;
-  });
-
   // Chart Data
-  const pieData = CATEGORIES.map(cat => ({
-    name: cat.label,
-    value: filteredExpenses.filter(e => e.category === cat.value).reduce((sum, e) => sum + e.amount, 0),
-    color: cat.color
-  })).filter(d => d.value > 0);
+  const pieData = useMemo(() => {
+    return CATEGORIES.map(cat => ({
+      name: cat.label,
+      value: filteredExpenses
+        .filter(e => e.category === cat.value && e.type === 'debit')
+        .reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
+      color: cat.color
+    })).filter(d => d.value > 0);
+  }, [filteredExpenses]);
 
   // Monthly trend (last 6 months)
-  const monthlyTrend = Array.from({ length: 6 }).map((_, i) => {
-    const d = subMonths(new Date(), 5 - i);
-    const monthStr = format(d, 'MM yyyy');
-    
-    const monthData = expenses.filter(e => {
-        const expDate = new Date(e.date);
-        return expDate.getMonth() === d.getMonth() && expDate.getFullYear() === d.getFullYear();
-    });
+  const monthlyTrend = useMemo(() => {
+    return Array.from({ length: 6 }).map((_, i) => {
+      const d = subMonths(new Date(), 5 - i);
+      const monthStart = startOfMonth(d);
+      const monthEnd = endOfMonth(d);
+      const monthStr = format(d, 'MMM yyyy');
+      
+      const monthData = expenses.filter(e => {
+          if (!e.date || localDeletedIds.has(e.id)) return false;
+          
+          // Robust date parsing for "YYYY-MM-DD"
+          const dateParts = e.date.split('-');
+          if (dateParts.length !== 3) return false;
+          
+          const year = parseInt(dateParts[0], 10);
+          const month = parseInt(dateParts[1], 10) - 1;
+          const day = parseInt(dateParts[2], 10);
+          const expDate = new Date(year, month, day);
+          
+          return isWithinInterval(expDate, { start: monthStart, end: monthEnd });
+      });
 
-    return {
-      name: monthStr,
-      debits: monthData.filter(e => e.type === 'debit').reduce((sum, e) => sum + e.amount, 0),
-      credits: monthData.filter(e => e.type === 'credit').reduce((sum, e) => sum + e.amount, 0)
-    };
-  });
+      return {
+        name: monthStr,
+        debits: monthData.filter(e => e.type === 'debit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
+        credits: monthData.filter(e => e.type === 'credit').reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
+      };
+    });
+  }, [expenses, localDeletedIds]);
 
   const exportCSV = () => {
     const data = filteredExpenses.map(exp => ({
@@ -346,7 +365,7 @@ export default function Expenses() {
         {/* Header Section */}
         <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 4 }} spacing={2}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, fontFamily: 'var(--font-heading)', color: 'text.primary', mb: 0.5, letterSpacing: -1 }}>
+            <Typography variant="h6" sx={{ fontWeight: 900, fontFamily: 'var(--font-heading)', color: 'text.primary', mb: 0.5, letterSpacing: -1 }}>
               Institute Finance
             </Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
@@ -469,29 +488,23 @@ export default function Expenses() {
           }}
         >
           <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 3 }}>
-              <Box sx={{ textAlign: 'center', borderRight: { md: '1px solid' }, borderColor: 'divider', px: 1 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5 }}>Monthly Collection (Receipts)</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 950, color: 'primary.main' }}>₹{monthlyFeeTotal.toLocaleString()}</Typography>
-              </Box>
-            </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ textAlign: 'center', borderRight: { md: '1px solid' }, borderColor: 'divider', px: 1 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5 }}>Monthly Operational Income</Typography>
                 <Typography variant="h6" sx={{ fontWeight: 900, color: 'success.main' }}>₹{monthCredits.toLocaleString()}</Typography>
               </Box>
             </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ textAlign: 'center', borderRight: { md: '1px solid' }, borderColor: 'divider', px: 1 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5 }}>Monthly Expenditure</Typography>
                 <Typography variant="h6" sx={{ fontWeight: 900, color: 'error.main' }}>₹{monthDebits.toLocaleString()}</Typography>
               </Box>
             </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ textAlign: 'center', px: 1 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5 }}>Net Savings (Sum Total)</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 950, color: (monthlyFeeTotal + monthNet) >= 0 ? 'success.main' : 'error.main' }}>
-                  ₹{(monthlyFeeTotal + monthNet).toLocaleString()}
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5 }}>Net Operational Savings</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 950, color: monthNet >= 0 ? 'success.main' : 'error.main' }}>
+                  ₹{monthNet.toLocaleString()}
                 </Typography>
               </Box>
             </Grid>
@@ -1015,6 +1028,22 @@ export default function Expenses() {
             </Stack>
           </Box>
         </Dialog>
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={4000}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert 
+            onClose={() => setSnackbar({ ...snackbar, open: false })} 
+            severity={snackbar.severity as any} 
+            sx={{ width: '100%', borderRadius: 3, fontWeight: 800, border: '1px solid', borderColor: alpha(theme.palette[snackbar.severity as 'success' | 'error' | 'info'].main, 0.2) }}
+            variant="filled"
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Box>
     </motion.div>
   );

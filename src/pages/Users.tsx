@@ -122,6 +122,8 @@ import { CLASS_LEVELS, SUBJECT_OPTIONS } from '../constants';
 import ActionMenu, { ActionMenuItem } from '../components/ActionMenu';
 import FeeReceiptModal from '../components/FeeReceiptModal';
 
+const MotionTableRow = motion.create(TableRow);
+
 // Types
 
 const exportToCSV = (data: any[], filename: string) => {
@@ -147,12 +149,12 @@ import { cache, CACHE_KEYS } from '../lib/cache';
 
 export default function Users() {
   const { user: currentUser } = useAuth();
-  const { users: allUsers, loading: globalLoading, isSyncing, setIsSaving } = useData();
+  const { users: allUsers, receipts: allReceipts, loading: globalLoading, isSyncing, setIsSaving } = useData();
   const theme = useTheme();
   const navigate = useNavigate();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
-  const isSuperAdmin = currentUser?.role === 'superadmin' || currentUser?.email === 'zeeshanmaqbool200@gmail.com';
+  const isSuperAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'super_admin' || currentUser?.email === 'zeeshanmaqbool200@gmail.com';
   const isManagerRole = currentUser?.role === 'manager';
   const isTeacherRole = currentUser?.role === 'teacher';
   const isAdmin = isSuperAdmin || isManagerRole;
@@ -354,9 +356,10 @@ export default function Users() {
         </head>
         <body class="urdu-text">
           ${selectedDocs.map(u => {
+            const uReceipts = (allReceipts || []).filter(r => r.studentId === u.uid).slice(0, 5);
             const dob = u.dob ? new Date(u.dob) : null;
-            return `
-              <div class="admission-container">
+            let admissionPage = `
+              <div class="admission-container" style="page-break-after: always; position: relative;">
                  <img class="watermark" src="${instituteSettings.logoUrl || 'https://raw.githubusercontent.com/zeeshanmaqbool/waliulaser/main/public/img/logo.png'}" crossorigin="anonymous" referrerpolicy="no-referrer">
                  
                  <div class="header">
@@ -480,6 +483,27 @@ export default function Users() {
                  </div>
               </div>
             `;
+
+            let receiptPage = uReceipts.length > 0 ? `
+              <div style="page-break-after: always; direction: ltr; text-align: left; padding: 15mm; border-top: 1pt solid #eee;">
+                 <h2 style="text-align: center; border-bottom: 2px solid #0d9488; padding-bottom: 4mm;">FEE RECORDS: ${u.displayName.toUpperCase()}</h2>
+                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 8mm;">
+                    ${uReceipts.map(r => `
+                       <div style="border: 1pt solid #000; padding: 4mm; border-radius: 4mm; min-height: 45mm;">
+                          <div style="border-bottom: 0.5pt solid #000; margin-bottom: 2mm; font-weight: 900; display: flex; justify-content: space-between;">
+                            <span>#${r.receiptNo}</span><span>${r.date}</span>
+                          </div>
+                          <div style="margin-bottom: 1mm;"><b>Head:</b> ${r.feeHead}</div>
+                          <div style="margin-bottom: 1mm;"><b>Amount:</b> ₹${r.amount}</div>
+                          <div style="margin-bottom: 1mm;"><b>Status:</b> ${r.status}</div>
+                          <div style="margin-bottom: 1mm;"><b>Mode:</b> ${r.paymentMode}</div>
+                       </div>
+                    `).join('')}
+                 </div>
+              </div>
+            ` : '';
+
+            return admissionPage + receiptPage;
           }).join('')}
           <script>
             window.onload = () => {
@@ -1063,8 +1087,8 @@ export default function Users() {
           borderColor: 'divider'
         }}>
           <Box id="users-directory-header">
-            <Typography variant={isMobile ? "h4" : "h3"} sx={{ fontWeight: 950, color: 'text.primary', mb: 0.5, letterSpacing: -1.5 }}>Member Directory</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800, display: 'block', opacity: 0.8 }}>Manage students, staff and administrators with precision</Typography>
+            <Typography variant={isMobile ? "h6" : "h5"} sx={{ fontWeight: 950, color: 'text.primary', mb: 0.5, letterSpacing: -1.0 }}>Member Directory</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800, display: 'block', opacity: 0.8, fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>Manage records with precision</Typography>
           </Box>
           <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}>
             <Stack direction="row" spacing={1}>
@@ -1308,21 +1332,30 @@ export default function Users() {
 
         {viewMode === 'grid' ? (
           <Grid container spacing={3}>
-            {filteredUsers.map(u => (
-              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={u.uid}>
-                <UserCard 
-                  user={u} 
-                  actionMenu={<UserActionMenu user={u} />}
-                  onOpenProfile={handleOpenProfile}
-                  onSelect={(selected: boolean) => {
-                    if (selected) setSelectedUsers(prev => [...prev, u.uid]);
-                    else setSelectedUsers(prev => prev.filter(id => id !== u.uid));
-                  }}
-                  isSelected={selectedUsers.includes(u.uid)}
-                  selectionMode={selectionMode}
-                />
-              </Grid>
-            ))}
+            <AnimatePresence mode="popLayout">
+              {filteredUsers.map(u => (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={u.uid}>
+                  <motion.div
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+                  >
+                    <UserCard 
+                      user={u} 
+                      actionMenu={<UserActionMenu user={u} />}
+                      onOpenProfile={handleOpenProfile}
+                      onSelect={(selected: boolean) => {
+                        if (selected) setSelectedUsers(prev => [...prev, u.uid]);
+                        else setSelectedUsers(prev => prev.filter(id => id !== u.uid));
+                      }}
+                      isSelected={selectedUsers.includes(u.uid)}
+                      selectionMode={selectionMode}
+                    />
+                  </motion.div>
+                </Grid>
+              ))}
+            </AnimatePresence>
           </Grid>
         ) : (
           <TableContainer component={Paper} sx={{ borderRadius: 6, boxShadow: theme.shadows[2], overflow: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
@@ -1350,67 +1383,73 @@ export default function Users() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredUsers.map((u) => (
-                  <TableRow 
-                    key={u.uid} 
-                    hover 
-                    onClick={() => handleOpenProfile(u)} 
-                    sx={{ cursor: 'pointer', transition: 'background 0.2s', '&:selected': { bgcolor: alpha(theme.palette.primary.main, 0.08) } }}
-                    selected={selectedUsers.includes(u.uid)}
-                  >
-                    {selectionMode && (
-                      <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={selectedUsers.includes(u.uid)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedUsers(prev => [...prev, u.uid]);
-                            else setSelectedUsers(prev => prev.filter(id => id !== u.uid));
-                          }}
+                <AnimatePresence mode="popLayout">
+                  {filteredUsers.map((u) => (
+                    <MotionTableRow
+                      key={u.uid}
+                      layout
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      hover 
+                      onClick={() => handleOpenProfile(u)} 
+                      sx={{ cursor: 'pointer', transition: 'background 0.2s', '&:selected': { bgcolor: alpha(theme.palette.primary.main, 0.08) } }}
+                      selected={selectedUsers.includes(u.uid)}
+                    >
+                      {selectionMode && (
+                        <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedUsers.includes(u.uid)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedUsers(prev => [...prev, u.uid]);
+                              else setSelectedUsers(prev => prev.filter(id => id !== u.uid));
+                            }}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell sx={{ py: 1.5 }}>
+                        <Stack direction="row" spacing={2} alignItems="center">
+                          <Avatar src={u.photoURL} imgProps={{ loading: 'lazy' }} sx={{ width: 42, height: 42, border: '2px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }} />
+                          <Box>
+                            <Typography variant="body1" sx={{ fontWeight: 800, lineHeight: 1.2 }}>{u.displayName}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{u.email}</Typography>
+                            <Typography variant="caption" sx={{ display: 'block', color: u.gender === 'male' ? '#007AFF' : u.gender === 'female' ? '#FF2D55' : 'text.secondary', fontWeight: 800, textTransform: 'capitalize', mt: 0.2 }}>
+                              {u.gender || 'N/A'}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.9rem', color: 'primary.main' }}>{u.admissionNo || 'N/A'}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Stack spacing={0.5}>
+                          <Chip label={u.role} size="small" sx={{ fontWeight: 800, textTransform: 'uppercase', width: 'fit-content', px: 1, height: 20, fontSize: '0.65rem' }} />
+                          {u.classLevel && (
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              {u.classLevel}
+                            </Typography>
+                          )}
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={u.status || (u.isVerified ? 'Active' : 'Pending')} 
+                          color={u.status === 'Active' || (u.status !== 'Archived' && u.isVerified) ? 'success' : 'warning'}
+                          size="small"
+                          variant={u.status === 'Active' ? 'filled' : 'outlined'}
+                          sx={{ fontWeight: 800, fontSize: '0.7rem' }}
                         />
                       </TableCell>
-                    )}
-                    <TableCell sx={{ py: 1.5 }}>
-                      <Stack direction="row" spacing={2} alignItems="center">
-                        <Avatar src={u.photoURL} imgProps={{ loading: 'lazy' }} sx={{ width: 42, height: 42, border: '2px solid', borderColor: alpha(theme.palette.primary.main, 0.1) }} />
-                        <Box>
-                          <Typography variant="body1" sx={{ fontWeight: 800, lineHeight: 1.2 }}>{u.displayName}</Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{u.email}</Typography>
-                          <Typography variant="caption" sx={{ display: 'block', color: u.gender === 'male' ? '#007AFF' : u.gender === 'female' ? '#FF2D55' : 'text.secondary', fontWeight: 800, textTransform: 'capitalize', mt: 0.2 }}>
-                            {u.gender || 'N/A'}
-                          </Typography>
-                        </Box>
-                      </Stack>
-                    </TableCell>
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.9rem', color: 'primary.main' }}>{u.admissionNo || 'N/A'}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Stack spacing={0.5}>
-                        <Chip label={u.role} size="small" sx={{ fontWeight: 800, textTransform: 'uppercase', width: 'fit-content', px: 1, height: 20, fontSize: '0.65rem' }} />
-                        {u.classLevel && (
-                          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            {u.classLevel}
-                          </Typography>
-                        )}
-                      </Stack>
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={u.status || (u.isVerified ? 'Active' : 'Pending')} 
-                        color={u.status === 'Active' || (u.status !== 'Archived' && u.isVerified) ? 'success' : 'warning'}
-                        size="small"
-                        variant={u.status === 'Active' ? 'filled' : 'outlined'}
-                        sx={{ fontWeight: 800, fontSize: '0.7rem' }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 600, color: 'text.secondary' }}>{u.phone || 'N/A'}</Typography>
-                    </TableCell>
-                    <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                      <UserActionMenu user={u} />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 600, color: 'text.secondary' }}>{u.phone || 'N/A'}</Typography>
+                      </TableCell>
+                      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                        <UserActionMenu user={u} />
+                      </TableCell>
+                    </MotionTableRow>
+                  ))}
+                </AnimatePresence>
                 {filteredUsers.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} align="center" sx={{ py: 10 }}>
@@ -1537,13 +1576,13 @@ export default function Users() {
                           src={profileToView.photoURL} 
                           sx={{ width: 160, height: 160, mx: 'auto', mb: 3, border: `6px solid ${theme.palette.background.paper}`, boxShadow: '0 8px 30px rgba(0,0,0,0.1)' }} 
                         />
-                        <Typography variant="h4" id="profile-name" sx={{ 
+                        <Typography variant="h5" id="profile-name" sx={{ 
                           fontWeight: 950, 
                           mb: 1, 
                           letterSpacing: -1, 
                           fontFamily: 'var(--font-heading)', 
                           color: 'text.primary',
-                          fontSize: { xs: '1.8rem', md: '2.4rem' },
+                          fontSize: { xs: '1.4rem', md: '1.8rem' },
                           lineHeight: 1.1,
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
@@ -1811,11 +1850,11 @@ export default function Users() {
                     referrerPolicy="no-referrer"
                     crossOrigin="anonymous"
                   />
-                  <Typography variant="h3" sx={{ fontWeight: 950, color: 'success.main', mt: 0.5, fontSize: '2.4rem', lineHeight: 1.1, fontFamily: 'var(--font-urdu)' }}>مکتب ولی العصر</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 950, color: 'success.main', mt: 0.5, fontSize: '1.8rem', lineHeight: 1.1, fontFamily: 'var(--font-urdu)' }}>مکتب ولی العصر</Typography>
                   <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#64748b', mt: 0, opacity: 0.8 }}>زیر نگران ادارہ ولی العصر چھترگام</Typography>
                 </Box>
 
-                <Typography sx={{ textAlign: 'center', fontSize: '3.5rem', fontWeight: 950, my: 2, lineHeight: 0.8, fontFamily: 'var(--font-urdu)' }}>تحریرِ داخلہ</Typography>
+                <Typography sx={{ textAlign: 'center', fontSize: '2.5rem', fontWeight: 950, my: 2, lineHeight: 0.8, fontFamily: 'var(--font-urdu)' }}>تحریرِ داخلہ</Typography>
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4, borderBottom: '2px solid', borderColor: 'success.main', pb: 1 }}>
                   <Typography sx={{ fontSize: '1.2rem', fontWeight: 900 }}>داخلہ نمبر: <span style={{ fontFamily: 'Inter, sans-serif' }}>{profileToView?.admissionNo || profileToView?.uid.slice(0,8)}</span></Typography>
@@ -2197,7 +2236,7 @@ const UserCard = ({ user, actionMenu, onOpenProfile, onSelect, isSelected, selec
     <Card 
       onClick={() => onOpenProfile(user)} 
       sx={{ 
-        borderRadius: 4, 
+        borderRadius: { xs: 6, sm: 4 }, 
         cursor: 'pointer', 
         transition: 'all 0.2s ease', 
         '&:hover': { boxShadow: theme.palette.mode === 'dark' ? '0 8px 30px rgba(0,0,0,0.4)' : '0 8px 30px rgba(0,0,0,0.06)' },
@@ -2205,7 +2244,10 @@ const UserCard = ({ user, actionMenu, onOpenProfile, onSelect, isSelected, selec
         borderColor: isSelected ? 'primary.main' : alpha(theme.palette.divider, 0.1),
         position: 'relative',
         overflow: 'hidden',
-        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.5) : 'white'
+        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.5) : 'white',
+        '& .MuiTypography-root': {
+          fontFamily: theme.palette.mode === 'dark' ? '"Outfit", sans-serif' : 'inherit'
+        }
       }}
     >
       <CardContent sx={{ p: 2.5 }}>

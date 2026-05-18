@@ -246,7 +246,7 @@ export default function AttendancePage() {
       >
         <Box sx={{ mb: 6, textAlign: 'center' }}>
           <Typography 
-            variant="h3" 
+            variant={isMobile ? "h6" : "h5"} 
             sx={{ 
               fontFamily: 'var(--font-display)',
               fontWeight: 900, 
@@ -610,62 +610,16 @@ export default function AttendancePage() {
       {!isStaff && (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" sx={{ fontWeight: 800, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Clock size={20} color={theme.palette.primary.main} /> Your Attendance History
+            <Clock size={20} color={theme.palette.primary.main} /> Attendance Overview
           </Typography>
           <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 8 }}>
-              <Card sx={{ borderRadius: 5, p: 3 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 3 }}>Monthly Overview</Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1 }}>
-                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-                    <Typography key={i} variant="caption" align="center" sx={{ fontWeight: 800, color: 'text.disabled' }}>{day}</Typography>
-                  ))}
-                  {Array.from({ length: 31 }).map((_, i) => (
-                    <Box 
-                      key={i} 
-                      sx={{ 
-                        aspectRatio: '1/1', 
-                        borderRadius: 2, 
-                        bgcolor: i % 5 === 0 ? 'error.light' : 'success.light',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        '&:hover': { transform: 'scale(1.1)' }
-                      }}
-                    >
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: i % 5 === 0 ? 'error.dark' : 'success.dark' }}>{i + 1}</Typography>
-                    </Box>
-                  ))}
-                </Box>
-              </Card>
-            </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <Card sx={{ borderRadius: 5, p: 3, height: '100%', bgcolor: 'primary.main', color: 'white' }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 2 }}>Quick Stats</Typography>
-                <Stack spacing={3}>
-                  <Box>
-                    <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 700 }}>Total Working Days</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 900 }}>24</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 700 }}>Days Present</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 900 }}>22</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 700 }}>Days Absent</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 900 }}>2</Typography>
-                  </Box>
-                </Stack>
-                  <Button 
-                    fullWidth 
-                    variant="contained" 
-                    sx={{ mt: 4, bgcolor: theme.palette.mode === 'dark' ? 'primary.main' : 'white', color: theme.palette.mode === 'dark' ? 'white' : 'primary.main', fontWeight: 800, '&:hover': { bgcolor: theme.palette.mode === 'dark' ? 'primary.dark' : 'grey.100' } }}
-                    startIcon={<FileText size={18} />}
-                  >
-                  Download Summary
-                </Button>
+            <Grid size={12}>
+              <Card sx={{ borderRadius: 5, p: 4, textAlign: 'center' }}>
+                <Calendar size={48} color={theme.palette.divider} style={{ marginBottom: 16 }} />
+                <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>Your History</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Detailed attendance history and monthly trends are currently being synchronized.
+                </Typography>
               </Card>
             </Grid>
           </Grid>
@@ -728,7 +682,7 @@ const SummaryCard = React.memo(({ title, value, icon, color, progress }: any) =>
             <MoreVertical size={18} />
           </IconButton>
         </Box>
-        <Typography variant="h3" sx={{ fontWeight: 900, mb: 1, letterSpacing: -2 }}>{value}</Typography>
+        <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, letterSpacing: -2 }}>{value}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.75rem', mb: progress !== undefined ? 2.5 : 0 }}>{title}</Typography>
         
         {progress !== undefined && (

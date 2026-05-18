@@ -17,30 +17,37 @@ import {
   Chip, 
   Avatar, 
   Dialog, 
-  DialogTitle, 
-  DialogContent, 
-  DialogActions, 
-  TextField, 
-  MenuItem, 
-  FormControl, 
-  InputLabel, 
-  Select, 
-  Stack, 
-  alpha, 
-  useTheme, 
-  useMediaQuery, 
-  Skeleton, 
-  Alert, 
-  Snackbar, 
-  Checkbox, 
-  Divider,
-  Popover,
-  Tooltip,
+  DialogTitle,
+  ListItemIcon,
+  ListItemText,
   Menu,
+  MenuItem,
+  Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  Popover,
+  CircularProgress,
+  Alert,
+  Tooltip,
+  InputAdornment,
+  Skeleton,
+  Checkbox,
   Tabs,
   Tab,
-  ListItemIcon,
-  ListItemText
+  Divider,
+  AvatarGroup,
+  Autocomplete,
+  Fade,
+  Grow,
+  Slide,
+  Snackbar,
+  useMediaQuery,
+  TextField,
+  DialogContent, 
+  DialogActions, 
+  alpha, 
+  useTheme
 } from '@mui/material';
 import { 
   Plus, 
@@ -105,6 +112,13 @@ export default function Fees() {
   const [selectedReceiptIds, setSelectedReceiptIds] = useState<string[]>([]);
   const [isBulkPrinting, setIsBulkPrinting] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [mainMenuAnchor, setMainMenuAnchor] = useState<null | HTMLElement>(null);
+
+  const handleDeselectAll = () => {
+    setSelectedReceiptIds([]);
+    setIsSelectionMode(false);
+    setMainMenuAnchor(null);
+  };
   const [longPressTimer, setLongPressTimer] = useState<any>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -156,7 +170,7 @@ export default function Fees() {
   }, [tabValue, searchQuery, feeHeadFilter, paymentModeFilter, startDate, endDate]);
 
   useEffect(() => {
-    setReceipts(allReceipts.filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount))));
+    setReceipts(allReceipts);
     if (allStudents.length > 0) {
       setStudents(allStudents.filter(u => u.role === 'student'));
     }
@@ -185,8 +199,7 @@ export default function Fees() {
 
       const unsubscribeReceipts = onSnapshot(q, (snapshot) => {
         const data = snapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() }))
-            .filter((r: any) => ![10000, 20000, 30000, 50000].includes(Number(r.amount))) as FeeReceipt[];
+            .map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[];
         setReceipts(data);
         cache.set(CACHE_KEYS.FEES, data);
         setLoading(false);
@@ -327,6 +340,27 @@ export default function Fees() {
     });
   }, [receipts, searchQuery, feeHeadFilter, paymentModeFilter, startDate, endDate, tabValue]);
 
+  const handlePrintAllFiltered = () => {
+    if (filteredReceipts.length === 0) {
+      setSnackbar({ open: true, message: 'No receipts found in the current view to print.', severity: 'info' });
+      return;
+    }
+    
+    // Select all currently filtered receipts and set bulk print mode
+    const idsToPrint = filteredReceipts.map(r => r.id);
+    setSelectedReceiptIds(idsToPrint);
+    setIsSelectionMode(true);
+    
+    setTimeout(() => {
+      setIsBulkPrinting(true);
+      setTimeout(() => {
+        window.print();
+        // Exit bulk print mode but keep selection so user can deselect if they want
+        setIsBulkPrinting(false);
+      }, 500);
+    }, 100);
+  };
+
   const [openAddDialog, setOpenAddDialog] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<FeeReceipt | null>(null);
   const [openReceiptModal, setOpenReceiptModal] = useState(false);
@@ -441,7 +475,7 @@ export default function Fees() {
         }} className="no-print">
           <Box>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: isMobile ? 0.5 : 0, flexWrap: 'wrap' }}>
-              <Typography variant={isMobile ? "h5" : "h3"} sx={{ fontWeight: 950, letterSpacing: -1, color: 'primary.main', textTransform: 'uppercase' }}>Maliat & Fees</Typography>
+              <Typography variant={isMobile ? "subtitle1" : "h6"} sx={{ fontWeight: 950, letterSpacing: -1, color: 'primary.main', textTransform: 'uppercase' }}>Maliat & Fees</Typography>
               <IconButton 
                 size="small" 
                 onClick={() => {
@@ -678,7 +712,7 @@ export default function Fees() {
           <Stack direction="row" spacing={1} alignItems="center" sx={{ overflowX: 'auto', pb: { xs: 1, md: 0 } }}>
             <IconButton 
               size="small"
-              onClick={() => setIsSelectionMode(!isSelectionMode)} 
+              onClick={(e) => setMainMenuAnchor(e.currentTarget)} 
               color={isSelectionMode ? "primary" : "default"}
               sx={{ 
                 bgcolor: isSelectionMode ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
@@ -687,6 +721,34 @@ export default function Fees() {
             >
               <MoreVertical size={isMobile ? 16 : 20} />
             </IconButton>
+
+            <Menu
+              anchorEl={mainMenuAnchor}
+              open={Boolean(mainMenuAnchor)}
+              onClose={() => setMainMenuAnchor(null)}
+              PaperProps={{ sx: { borderRadius: 3, minWidth: 180, mt: 1, boxShadow: theme.shadows[10] } }}
+            >
+              <MenuItem onClick={() => { setIsSelectionMode(!isSelectionMode); setMainMenuAnchor(null); }}>
+                <ListItemIcon><MoreVertical size={18} /></ListItemIcon>
+                <ListItemText primary={isSelectionMode ? "Exit Select Mode" : "Enter Select Mode"} primaryTypographyProps={{ fontWeight: 800 }} />
+              </MenuItem>
+              <MenuItem onClick={() => { handlePrintAllFiltered(); setMainMenuAnchor(null); }}>
+                <ListItemIcon><Printer size={18} /></ListItemIcon>
+                <ListItemText primary="Print Current View" primaryTypographyProps={{ fontWeight: 800 }} />
+              </MenuItem>
+              {isSelectionMode && (
+                <>
+                  <MenuItem onClick={() => handleSelectAll(true)}>
+                    <ListItemIcon><CheckCircle size={18} /></ListItemIcon>
+                    <ListItemText primary="Select All" />
+                  </MenuItem>
+                  <MenuItem onClick={handleDeselectAll}>
+                    <ListItemIcon><X size={18} /></ListItemIcon>
+                    <ListItemText primary="Deselect All" />
+                  </MenuItem>
+                </>
+              )}
+            </Menu>
 
             <Tabs 
               value={tabValue} 
@@ -938,13 +1000,22 @@ export default function Fees() {
           </Typography>
         </Box>
         <MenuItem 
+          onClick={() => { handlePrintAllFiltered(); setBulkMenuAnchor(null); }}
+          sx={{ borderRadius: 2, mb: 0.5 }}
+        >
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Printer size={18} />
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>Print Current View ({filteredReceipts.length})</Typography>
+          </Stack>
+        </MenuItem>
+        <MenuItem 
           onClick={() => { handleBulkPrint(); setBulkMenuAnchor(null); }}
           disabled={!isSelectionMode || selectedReceiptIds.length === 0}
           sx={{ borderRadius: 2, mb: 0.5 }}
         >
           <Stack direction="row" spacing={2} alignItems="center">
-            <Printer size={18} />
-            <Typography variant="body2" sx={{ fontWeight: 700 }}>Print ({selectedReceiptIds.length}) Receipts</Typography>
+            <CheckCircle size={18} />
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>Print Selected ({selectedReceiptIds.length})</Typography>
           </Stack>
         </MenuItem>
         <Divider sx={{ my: 1 }} />
@@ -1104,64 +1175,87 @@ export default function Fees() {
 
       {/* Bulk Print Layout (4x3 on A4 for 12 receipts) */}
       {isBulkPrinting && (
-        <Box sx={{ display: 'none', '@media print': { display: 'block', position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', bgcolor: 'white', zIndex: 9999 } }}>
+        <Box sx={{ 
+          display: 'none', 
+          '@media print': { 
+            display: 'block', 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100%', 
+            height: '100%', 
+            background: 'white !important', 
+            color: 'black !important',
+            zIndex: 99999,
+            overflow: 'visible'
+          } 
+        }}>
+          <style>
+            {`
+              @media print {
+                @page { size: auto; margin: 5mm; }
+                * { 
+                  background-color: white !important; 
+                  color: black !important; 
+                  box-shadow: none !important;
+                  text-shadow: none !important;
+                }
+                body { background: white !important; }
+                .no-print { display: none !important; }
+                .print-only { display: block !important; }
+              }
+            `}
+          </style>
           <Box sx={{ 
             display: 'grid', 
             gridTemplateColumns: 'repeat(3, 1fr)', 
-            gridTemplateRows: 'repeat(4, 1fr)', 
-            width: '210mm', 
-            height: '297mm', 
-            margin: '0 auto', 
+            width: '100%', 
             p: '5mm', 
             boxSizing: 'border-box',
-            gap: '2mm'
+            gap: '3mm',
+            bgcolor: 'white'
           }}>
             {receipts.filter(r => selectedReceiptIds.includes(r.id)).map((receipt) => (
               <Box key={receipt.id} sx={{ 
                 width: '100%', 
-                height: '70mm', 
-                border: '0.1px solid #ddd', 
+                height: '71mm', 
+                border: '0.5pt solid black', 
                 p: 2, 
-                borderRadius: 2,
+                borderRadius: 1,
                 overflow: 'hidden', 
                 pageBreakInside: 'avoid', 
                 display: 'flex', 
                 flexDirection: 'column', 
                 boxSizing: 'border-box',
-                position: 'relative'
+                position: 'relative',
+                bgcolor: 'white',
+                color: 'black'
               }}>
-                <Box sx={{ borderBottom: '1.5px solid black', pb: 0.5, mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography sx={{ fontWeight: 950, fontSize: '8px', color: 'black' }}>OFFICIAL RECORD</Typography>
-                    <Typography sx={{ fontWeight: 950, fontSize: '8px', color: 'black' }}>#{receipt.receiptNo}</Typography>
+                <Box sx={{ borderBottom: '1pt solid black', pb: 0.5, mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography sx={{ fontWeight: 900, fontSize: '9px', color: 'black' }}>OFFICIAL RECEIPT</Typography>
+                    <Typography sx={{ fontWeight: 900, fontSize: '9px', color: 'black' }}>#{receipt.receiptNo}</Typography>
                 </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                  {settings?.logoUrl && (
-                    <Box 
-                      component="img" 
-                      src={settings.logoUrl} 
-                      sx={{ width: 18, height: 18, objectFit: 'contain', bgcolor: 'transparent' }} 
-                    />
-                  )}
-                  <Typography sx={{ fontWeight: 950, fontSize: '12px', color: 'black', textAlign: 'center', lineHeight: 1.1, textTransform: 'uppercase' }}>
-                    {settings?.instituteName || 'WUA INSTITUTE'}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1.5 }}>
+                  <Typography sx={{ fontWeight: 950, fontSize: '13px', color: 'black', textAlign: 'center', lineHeight: 1.1, textTransform: 'uppercase' }}>
+                    {settings?.instituteName || 'WALI UL ASER'}
                   </Typography>
                 </Box>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                    <PrintField label="Student" value={receipt.studentName} />
-                   <PrintField label="Admission No" value={receipt.studentOfficialId || 'N/A'} />
-                   <PrintField label="Head" value={receipt.feeHead} />
-                   <PrintField label="Amount" value={`INR ${receipt.amount}`} />
+                   <PrintField label="Reg ID" value={receipt.studentOfficialId || 'N/A'} />
+                   <PrintField label="Fee Head" value={receipt.feeHead} />
+                   <PrintField label="Amount" value={`₹${receipt.amount}`} />
                    <PrintField label="Date" value={receipt.date} />
-                   <PrintField label="Payment" value={receipt.paymentMode} />
+                   <PrintField label="Method" value={receipt.paymentMode} />
                 </div>
-                <Box sx={{ mt: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                    <Box sx={{ textAlign: 'center' }}>
-                      <Box sx={{ width: 40, borderTop: '1px solid black', mb: 0.2 }} />
-                      <Typography sx={{ fontSize: '6px', color: 'black', fontWeight: 800 }}>SIGNATURE</Typography>
+                      <Box sx={{ width: 40, borderTop: '0.5pt solid black', mb: 0.2 }} />
+                      <Typography sx={{ fontSize: '6pt', color: 'black', fontWeight: 800 }}>SIGNATURE</Typography>
                    </Box>
                    <Box sx={{ textAlign: 'right' }}>
-                     <Typography sx={{ fontSize: '6px', color: 'grey.600', fontWeight: 600 }}>TID: {receipt.id.slice(0, 10)}</Typography>
-                     <Typography sx={{ fontSize: '5px', color: 'grey.400' }}>{new Date().toLocaleString()}</Typography>
+                      <Typography sx={{ fontSize: '5pt', color: 'black', fontWeight: 600 }}>ID: {receipt.id.slice(0, 8)}</Typography>
+                      <Typography sx={{ fontSize: '4pt', color: 'black' }}>{new Date().toLocaleDateString()}</Typography>
                    </Box>
                 </Box>
               </Box>
@@ -1175,9 +1269,9 @@ export default function Fees() {
 
 function PrintField({ label, value }: { label: string, value: string }) {
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '0.1px solid #f0f0f0' }}>
-       <Typography sx={{ fontSize: '7px', fontWeight: 900, color: 'black' }}>{label}:</Typography>
-       <Typography sx={{ fontSize: '7px', fontWeight: 600, color: 'black' }}>{value}</Typography>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '0.5pt solid #eee' }}>
+       <Typography sx={{ fontSize: '8px', fontWeight: 900, color: 'black', fontFamily: 'monospace' }}>{label}:</Typography>
+       <Typography sx={{ fontSize: '8px', fontWeight: 700, color: 'black', textAlign: 'right' }}>{value}</Typography>
     </Box>
   );
 }
