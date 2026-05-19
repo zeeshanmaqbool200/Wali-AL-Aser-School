@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Paper, BottomNavigation, BottomNavigationAction, Badge, Avatar, Tooltip } from '@mui/material';
+import { Box, Paper, Badge, Typography, Popover, MenuItem, ListItemIcon, ListItemText, Divider } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { 
   LayoutDashboard, Users, CreditCard, Bell, Terminal, 
   Settings as SettingsIcon, Calendar, BarChart3, BookOpen, 
-  IndianRupee, FileText, User, ClipboardCheck 
+  IndianRupee, FileText, User, ClipboardCheck, MoreHorizontal,
+  ChevronUp
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,17 +25,16 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   const [internalVisible, setInternalVisible] = useState(true);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [moreAnchorEl, setMoreAnchorEl] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
     const handleViewportChange = () => {
       if (window.visualViewport) {
-        // If the viewport height is significantly less than the screen height, keyboard is probably open
         const isKeyboard = window.visualViewport.height < window.innerHeight * 0.85;
         setKeyboardOpen(isKeyboard);
       }
     };
 
-    // Observer for detecting dialogs (Adding/Editing mode)
     const observer = new MutationObserver(() => {
       const isDialogOpen = !!document.querySelector('.MuiDialog-root');
       setInternalVisible(!isDialogOpen);
@@ -81,11 +81,9 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
     };
 
     const handleClick = (e: MouseEvent | TouchEvent) => {
-      // Ignore clicks on the bottom nav itself
       const navElement = document.querySelector('[data-testid="bottom-nav-paper"]');
       if (navElement && navElement.contains(e.target as Node)) return;
 
-      // Don't hide/show nav purely because of a click wiggling the scroll
       isRecentlyClicked = true;
       if (clickTimeout) clearTimeout(clickTimeout);
       clickTimeout = setTimeout(() => {
@@ -106,29 +104,38 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   }, [lastScrollY, internalVisible]);
 
   const role = user.role || 'student';
-  const isSuperAdmin = user.email?.toLowerCase() === 'zeeshanmaqbool200@gmail.com' || user.uid === 'sZUiAgoSF8MTPBQAOtj6jbFkot93';
-  const isManagerRole = role === 'manager';
-  const isTeacherRole = role === 'teacher';
-  const isAdmin = isSuperAdmin || isManagerRole;
-  const isStaff = isAdmin || isTeacherRole;
-
+  
   const menuItems = [
-    { label: 'Home', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'teacher', 'pending_teacher', 'superadmin', 'manager'] },
-    { label: 'Users', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'manager'] },
-    { label: 'Courses', icon: <BookOpen size={22} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: 'Attendance', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['teacher', 'superadmin', 'manager'] },
-    { label: 'Fees', icon: <CreditCard size={22} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: 'Expenses', icon: <IndianRupee size={22} />, path: '/expenses', roles: ['superadmin', 'manager'] },
-    { label: 'Forms', icon: <FileText size={22} />, path: '/forms', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['superadmin'] },
-    { label: 'Settings', icon: <SettingsIcon size={22} />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Home', icon: <LayoutDashboard />, path: '/', roles: ['student', 'teacher', 'pending_teacher', 'superadmin', 'manager'] },
+    { label: 'Users', icon: <Users />, path: '/users', roles: ['superadmin', 'manager'] },
+    { label: 'Courses', icon: <BookOpen />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Settings', icon: <SettingsIcon />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Attendance', icon: <ClipboardCheck />, path: '/attendance', roles: ['teacher', 'superadmin', 'manager'] },
+    { label: 'Fees', icon: <CreditCard />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Expenses', icon: <IndianRupee />, path: '/expenses', roles: ['superadmin', 'manager'] },
+    { label: 'Forms', icon: <FileText />, path: '/forms', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Reports', icon: <BarChart3 />, path: '/reports', roles: ['superadmin'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(role));
   
-  const activeIndex = filteredMenu.findIndex(item => item.path === location.pathname);
+  // Define primary items based on user request: dashboard users courses settings more
+  const primaryPaths = ['/', '/users', '/courses', '/settings'];
+  const primaryItems = filteredMenu.filter(item => primaryPaths.includes(item.path));
+  const moreItems = filteredMenu.filter(item => !primaryPaths.includes(item.path));
+
+  const isMoreActive = moreItems.some(item => item.path === location.pathname);
+  const activePath = location.pathname;
 
   const isActuallyVisible = controlledVisible && internalVisible && !keyboardOpen;
+
+  const handleMoreClick = (event: React.MouseEvent<HTMLElement>) => {
+    setMoreAnchorEl(event.currentTarget);
+  };
+
+  const handleMoreClose = () => {
+    setMoreAnchorEl(null);
+  };
 
   if (filteredMenu.length === 0) return null;
 
@@ -136,112 +143,237 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
     <Box>
       <Box 
         component={motion.div}
-            initial={{ y: 100, x: '-50%', opacity: 0 }}
-            animate={{ 
-              y: isActuallyVisible ? 0 : 100, 
-              x: '-50%', 
-              opacity: isActuallyVisible ? 1 : 0,
-              scale: isActuallyVisible ? 1 : 0.95
-            }}
-            transition={{ 
-              type: 'spring', 
-              stiffness: 260, 
-              damping: 20 
-            }}
-            sx={{ 
-              position: 'fixed', 
-              bottom: { xs: 16, sm: 24 }, 
-              left: '50%', 
-              transform: 'translateX(-50%)',
-              zIndex: 1200, 
-              width: { xs: 'calc(100% - 32px)', sm: 'auto' },
-              maxWidth: { xs: 450, sm: 'none' },
-              pointerEvents: isActuallyVisible ? 'auto' : 'none',
-              pb: { xs: 'env(safe-area-inset-bottom)', sm: 0 },
-            }}
-          >
-          <Paper 
-            elevation={0}
-            data-testid="bottom-nav-paper"
-            sx={{ 
-              borderRadius: '999px',
-              p: 0.5,
-              width: '100%',
-              bgcolor: theme.palette.mode === 'dark' ? alpha('#111111', 0.95) : alpha('#ffffff', 0.95),
-              backdropFilter: 'blur(15px)',
-              border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
-              boxShadow: theme.palette.mode === 'dark' 
-                ? '0 15px 50px rgba(0,0,0,0.8)' 
-                : '0 15px 50px rgba(0,0,0,0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: { xs: 0, sm: 0.25 },
-              pointerEvents: 'auto',
-            }} 
-          >
-            {filteredMenu.map((item, index) => {
-              const isActive = activeIndex === index;
-              return (
-                <Box
-                  key={item.path}
-                  onClick={() => navigate(item.path)}
-                  sx={{
-                    position: 'relative',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: { xs: 44, sm: 48 },
-                    height: { xs: 44, sm: 48 },
-                    cursor: 'pointer',
-                    borderRadius: '50%',
-                    color: isActive ? 'primary.main' : 'text.secondary',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    '&:hover': {
-                      color: 'primary.main',
-                      bgcolor: alpha(theme.palette.primary.main, 0.05),
-                    }
-                  }}
-                >
+        initial={{ y: 100, x: '-50%', opacity: 0 }}
+        animate={{ 
+          y: isActuallyVisible ? 0 : 100, 
+          x: '-50%', 
+          opacity: isActuallyVisible ? 1 : 0,
+          scale: isActuallyVisible ? 1 : 0.95
+        }}
+        transition={{ 
+          type: 'spring', 
+          stiffness: 260, 
+          damping: 20 
+        }}
+        sx={{ 
+          position: 'fixed', 
+          bottom: { xs: 20, sm: 32 }, 
+          left: '50%', 
+          transform: 'translateX(-50%)',
+          zIndex: 1200, 
+          width: { xs: 'calc(100% - 32px)', sm: 'auto' },
+          maxWidth: { xs: 450, sm: 500 },
+          pointerEvents: isActuallyVisible ? 'auto' : 'none',
+          pb: { xs: 'env(safe-area-inset-bottom)', sm: 0 },
+        }}
+      >
+        <Paper 
+          elevation={0}
+          data-testid="bottom-nav-paper"
+          sx={{ 
+            borderRadius: '24px', // More modern rounded rectangle than 999px pill for these larger buttons
+            p: 1,
+            width: '100%',
+            bgcolor: theme.palette.mode === 'dark' ? alpha('#111111', 0.9) : alpha('#ffffff', 0.9),
+            backdropFilter: 'blur(20px)',
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            boxShadow: theme.palette.mode === 'dark' 
+              ? '0 20px 40px rgba(0,0,0,0.6)' 
+              : '0 20px 40px rgba(0,0,0,0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-around',
+            gap: 1,
+            pointerEvents: 'auto',
+          }} 
+        >
+          {primaryItems.map((item) => {
+            const isActive = activePath === item.path;
+            return (
+              <Box
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                sx={{
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flex: 1,
+                  height: 60,
+                  cursor: 'pointer',
+                  borderRadius: '16px',
+                  color: isActive ? 'primary.main' : 'text.secondary',
+                  transition: 'all 0.2s ease',
+                  '&:active': { transform: 'scale(0.95)' }
+                }}
+              >
+                <AnimatePresence>
                   {isActive && (
                     <motion.div
-                      layoutId="nav-pill"
+                      layoutId="active-nav-pill"
                       style={{
                         position: 'absolute',
-                        inset: 0,
-                        borderRadius: '50%',
+                        inset: '4px',
+                        borderRadius: '12px',
                         backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                        border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                        boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.15)}`,
                         zIndex: -1
                       }}
                       transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                     />
                   )}
-                  {React.cloneElement(item.icon as React.ReactElement<any>, { size: 22 })}
+                </AnimatePresence>
+                
+                <Box sx={{ position: 'relative' }}>
+                  {React.cloneElement(item.icon as React.ReactElement<any>, { 
+                    size: 24,
+                    strokeWidth: isActive ? 2.5 : 2
+                  })}
                   {item.label === 'Home' && unreadNotifications > 0 && (
-                     <Badge 
-                       badgeContent={unreadNotifications} 
-                       color="error" 
-                       sx={{ 
-                         position: 'absolute', 
-                         top: 10, 
-                         right: 10,
-                         '& .MuiBadge-badge': {
-                           fontSize: '0.6rem',
-                           height: 16,
-                           minWidth: 16,
-                           animation: 'pulse 2s infinite',
-                           fontWeight: 900
-                         }
-                       }} 
-                     />
+                    <Badge 
+                      badgeContent={unreadNotifications} 
+                      color="error" 
+                      sx={{ 
+                        position: 'absolute', 
+                        top: -5, 
+                        right: -10,
+                        '& .MuiBadge-badge': {
+                          fontSize: '0.65rem',
+                          height: 18,
+                          minWidth: 18,
+                          fontWeight: 900
+                        }
+                      }} 
+                    />
                   )}
                 </Box>
-              );
-            })}
-          </Paper>
+                <Typography variant="caption" sx={{ 
+                  fontSize: '0.65rem', 
+                  fontWeight: isActive ? 800 : 500,
+                  mt: 0.5,
+                  opacity: isActive ? 1 : 0.7 
+                }}>
+                  {item.label}
+                </Typography>
+              </Box>
+            );
+          })}
+
+          {moreItems.length > 0 && (
+            <Box
+              onClick={handleMoreClick}
+              sx={{
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: 1,
+                height: 60,
+                cursor: 'pointer',
+                borderRadius: '16px',
+                color: isMoreActive ? 'primary.main' : 'text.secondary',
+                transition: 'all 0.2s ease',
+                '&:active': { transform: 'scale(0.95)' }
+              }}
+            >
+              <AnimatePresence>
+                {isMoreActive && (
+                  <motion.div
+                    layoutId="active-nav-pill"
+                    style={{
+                      position: 'absolute',
+                      inset: '4px',
+                      borderRadius: '12px',
+                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                      zIndex: -1
+                    }}
+                    transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+              </AnimatePresence>
+              <MoreHorizontal size={24} strokeWidth={isMoreActive ? 2.5 : 2} />
+              <Typography variant="caption" sx={{ 
+                fontSize: '0.65rem', 
+                fontWeight: isMoreActive ? 800 : 500,
+                mt: 0.5,
+                opacity: isMoreActive ? 1 : 0.7 
+              }}>
+                More
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      </Box>
+
+      <Popover
+        open={Boolean(moreAnchorEl)}
+        anchorEl={moreAnchorEl}
+        onClose={handleMoreClose}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+        PaperProps={{
+          sx: {
+            mb: 2,
+            borderRadius: '20px',
+            width: 200,
+            overflow: 'hidden',
+            bgcolor: theme.palette.mode === 'dark' ? '#111111' : '#ffffff',
+            backgroundImage: 'none',
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            boxShadow: theme.palette.mode === 'dark' 
+              ? '0 10px 30px rgba(0,0,0,0.5)' 
+              : '0 10px 30px rgba(0,0,0,0.1)',
+          }
+        }}
+      >
+        <Box sx={{ p: 1 }}>
+          <Typography variant="overline" sx={{ px: 2, py: 1, display: 'block', fontWeight: 900, opacity: 0.5 }}>
+            More Actions
+          </Typography>
+          <Divider sx={{ mb: 1, opacity: 0.5 }} />
+          {moreItems.map((item) => {
+            const isActive = activePath === item.path;
+            return (
+              <MenuItem 
+                key={item.path} 
+                onClick={() => {
+                  navigate(item.path);
+                  handleMoreClose();
+                }}
+                sx={{
+                  borderRadius: '12px',
+                  mb: 0.5,
+                  py: 1.5,
+                  color: isActive ? 'primary.main' : 'text.primary',
+                  bgcolor: isActive ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
+                  '&:hover': {
+                    bgcolor: alpha(theme.palette.primary.main, 0.08)
+                  }
+                }}
+              >
+                <ListItemIcon sx={{ color: isActive ? 'primary.main' : 'text.secondary', minWidth: 40 }}>
+                  {React.cloneElement(item.icon as React.ReactElement<any>, { size: 20 })}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={item.label} 
+                  primaryTypographyProps={{ 
+                    variant: 'body2', 
+                    fontWeight: isActive ? 800 : 500 
+                  }} 
+                />
+              </MenuItem>
+            );
+          })}
         </Box>
+      </Popover>
+
       <style>
         {`
           @keyframes pulse {
@@ -254,3 +386,4 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
     </Box>
   );
 }
+
