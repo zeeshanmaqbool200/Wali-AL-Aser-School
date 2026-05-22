@@ -20,7 +20,7 @@ import SavingOverlay from './SavingOverlay';
 import ImportantNotificationBanner from './ImportantNotificationBanner';
 import { collection, query, onSnapshot, orderBy, limit, updateDoc, doc, arrayUnion, getDoc, where, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { InstituteSettings } from '../types';
 import { useThemeContext } from '../context/ThemeContext';
 
@@ -134,7 +134,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
         const data = docSnap.data();
         if (data.instituteName !== undefined) {
           setInstituteName(data.instituteName || '');
-          document.title = data.instituteName || 'Institute Portal';
+          document.title = data.instituteName || 'Idarah Wali Ul Aser';
         }
         if (data.tagline !== undefined) {
           setTagline(data.tagline || '');

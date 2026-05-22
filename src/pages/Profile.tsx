@@ -6,23 +6,29 @@ import {
   Stack, Snackbar, useMediaQuery, Alert, Divider, Dialog
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { Camera, Save, User, Mail, Phone, MapPin, ChevronLeft, Send, AlertCircle } from 'lucide-react';
+import { Camera, Save, User, Mail, Phone, MapPin, ChevronLeft, Send, AlertCircle, Contact } from 'lucide-react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError, smartUpdateDoc } from '../firebase';
 import { UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { motion } from 'motion/react';
+import { useData } from '../context/DataContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import { logger } from '../lib/logger';
 import ImageCaptureDialog from '../components/ImageCaptureDialog';
+import SavingOverlay from '../components/SavingOverlay';
+import IDCardModal from '../components/IDCardModal';
 
 export default function Profile() {
   const { user: currentUser } = useAuth();
+  const { setIsSaving } = useData();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profileData, setProfileData] = useState<Partial<UserProfile>>({});
+  const [originalData, setOriginalData] = useState<string>('');
   const [openCapture, setOpenCapture] = useState(false);
+  const [idCardOpen, setIdCardOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ 
     open: false, message: '', severity: 'success' 
   });
@@ -61,9 +67,21 @@ export default function Profile() {
     const fetchProfile = async () => {
       if (!currentUser) return;
       try {
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        const userRef = doc(db, 'users', currentUser.uid);
+        const userDoc = await getDoc(userRef);
         if (userDoc.exists()) {
-          setProfileData(userDoc.data() as UserProfile);
+          const data = userDoc.data() as UserProfile;
+          
+          // Auto-generate staffId for superadmin if missing
+          if (data.role === 'superadmin' && !data.staffId) {
+            const generatedId = `ADM-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+            await updateDoc(userRef, { staffId: generatedId });
+            data.staffId = generatedId;
+            logger.info('Generated unique Staff ID for Administrator');
+          }
+
+          setProfileData(data);
+          setOriginalData(JSON.stringify(data));
         }
       } catch (err) {
         logger.error('Failed to load profile', err);
@@ -77,6 +95,7 @@ export default function Profile() {
   const handleSave = async () => {
     if (!currentUser) return;
     setSaving(true);
+    setIsSaving(true);
     try {
       logger.db('Updating Profile', `users/${currentUser.uid}`);
       
@@ -113,12 +132,14 @@ export default function Profile() {
       }
       
       await smartUpdateDoc(doc(db, 'users', currentUser.uid), finalData);
-      setSnackbar({ open: true, message: "Profile updated successfully!", severity: 'success' });
+      setOriginalData(JSON.stringify({ ...profileData, ...finalData }));
+      // Notification removed per user request "dont show notification prompt after saving"
       logger.success('Profile Updated');
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
     } finally {
       setSaving(false);
+      setIsSaving(false);
     }
   };
 
@@ -165,13 +186,26 @@ export default function Profile() {
     );
   }
 
+  const isDirty = originalData !== JSON.stringify(profileData);
+
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', pb: 8, px: { xs: 2, sm: 0 } }}>
+      <SavingOverlay isSaving={saving} message="Updating Secure Profile..." />
+      <IDCardModal open={idCardOpen} user={profileData as any} onClose={() => setIdCardOpen(false)} />
+      
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4, justifyContent: 'space-between' }}>
           <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5 }}>
             Personal Profile
           </Typography>
+          <Button
+            variant="outlined"
+            startIcon={<Contact size={20} />}
+            onClick={() => setIdCardOpen(true)}
+            sx={{ borderRadius: 3, fontWeight: 800, textTransform: 'none' }}
+          >
+            Digital ID Card
+          </Button>
         </Box>
 
         <Card sx={{ 
@@ -253,8 +287,8 @@ export default function Profile() {
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
-                  label={profileData.role === 'student' ? 'Admission No' : 'Staff ID'}
-                  value={profileData.admissionNo || profileData.studentId || profileData.teacherId || 'N/A'}
+                  label={profileData.role === 'student' ? 'Admission No' : (profileData.role === 'superadmin' ? 'Admin ID' : 'Staff ID')}
+                  value={profileData.admissionNo || profileData.staffId || profileData.teacherId || profileData.studentId || 'N/A'}
                   disabled
                   InputProps={{ 
                     sx: { borderRadius: 1.5, bgcolor: alpha(theme.palette.action.disabledBackground, 0.05) }
@@ -408,44 +442,54 @@ export default function Profile() {
               )}
             </Grid>
 
-            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
-              {(profileData.role === 'teacher' || profileData.role === 'manager') && (
-                <Button
-                  variant="outlined"
-                  color="warning"
-                  startIcon={<AlertCircle size={20} />}
-                  onClick={() => setRequestDialogOpen(true)}
-                  sx={{ 
-                    borderRadius: 1.5, 
-                    fontWeight: 800, 
-                    px: 3, 
-                    py: 1.2,
-                    textTransform: 'none',
-                    borderWidth: 2,
-                    '&:hover': { borderWidth: 2 }
-                  }}
+            <AnimatePresence>
+              {isDirty && (
+                <Box 
+                  component={motion.div}
+                  initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                  sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2, flexWrap: 'wrap' }}
                 >
-                  Request Sensitive Edit
-                </Button>
+                  {(profileData.role === 'teacher' || profileData.role === 'manager') && (
+                    <Button
+                      variant="outlined"
+                      color="warning"
+                      startIcon={<AlertCircle size={20} />}
+                      onClick={() => setRequestDialogOpen(true)}
+                      sx={{ 
+                        borderRadius: 1.5, 
+                        fontWeight: 800, 
+                        px: 3, 
+                        py: 1.2,
+                        textTransform: 'none',
+                        borderWidth: 2,
+                        '&:hover': { borderWidth: 2 }
+                      }}
+                    >
+                      Request Sensitive Edit
+                    </Button>
+                  )}
+                  <Button
+                    variant="contained"
+                    startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save size={20} />}
+                    onClick={handleSave}
+                    disabled={saving}
+                    sx={{ 
+                      borderRadius: 1.5, 
+                      fontWeight: 800, 
+                      px: 4, 
+                      py: 1.2,
+                      textTransform: 'none',
+                      boxShadow: 'none',
+                      '&:hover': { boxShadow: 'none' }
+                    }}
+                  >
+                    {saving ? 'Saving...' : 'Save Profile Changes'}
+                  </Button>
+                </Box>
               )}
-              <Button
-                variant="contained"
-                startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save size={20} />}
-                onClick={handleSave}
-                disabled={saving}
-                sx={{ 
-                  borderRadius: 1.5, 
-                  fontWeight: 800, 
-                  px: 4, 
-                  py: 1.2,
-                  textTransform: 'none',
-                  boxShadow: 'none',
-                  '&:hover': { boxShadow: 'none' }
-                }}
-              >
-                {saving ? 'Saving...' : 'Save Profile'}
-              </Button>
-            </Box>
+            </AnimatePresence>
           </CardContent>
         </Card>
       </motion.div>

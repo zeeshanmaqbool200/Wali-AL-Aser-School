@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Paper, Badge, Typography, Popover, MenuItem, ListItemIcon, ListItemText, Divider } from '@mui/material';
+import { Box, Paper, Badge, Typography, Popover, MenuItem, ListItemIcon, ListItemText, Divider, useMediaQuery } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { 
   LayoutDashboard, Users, CreditCard, Bell, Terminal, 
@@ -8,7 +8,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '../types';
 
 interface BottomNavProps {
@@ -22,6 +22,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [internalVisible, setInternalVisible] = useState(true);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -148,21 +149,21 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
           y: isActuallyVisible ? 0 : 100, 
           x: '-50%', 
           opacity: isActuallyVisible ? 1 : 0,
-          scale: isActuallyVisible ? 1 : 0.95
+          scale: isActuallyVisible ? 1 : 0.98
         }}
         transition={{ 
           type: 'spring', 
-          stiffness: 260, 
-          damping: 20 
+          stiffness: 400, 
+          damping: 30 
         }}
         sx={{ 
           position: 'fixed', 
-          bottom: { xs: 20, sm: 32 }, 
+          bottom: { xs: 16, md: 24 }, 
           left: '50%', 
           transform: 'translateX(-50%)',
           zIndex: 1200, 
-          width: { xs: 'calc(100% - 32px)', sm: 'auto' },
-          maxWidth: { xs: 450, sm: 500 },
+          width: { xs: 'calc(100% - 16px)', sm: 'auto' },
+          maxWidth: { xs: 400, sm: 500, md: 800 },
           pointerEvents: isActuallyVisible ? 'auto' : 'none',
           pb: { xs: 'env(safe-area-inset-bottom)', sm: 0 },
         }}
@@ -171,19 +172,19 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
           elevation={0}
           data-testid="bottom-nav-paper"
           sx={{ 
-            borderRadius: '24px', // More modern rounded rectangle than 999px pill for these larger buttons
-            p: 1,
+            borderRadius: { xs: '24px', sm: '28px' },
+            p: { xs: '4px', sm: '8px' },
             width: '100%',
-            bgcolor: theme.palette.mode === 'dark' ? alpha('#111111', 0.9) : alpha('#ffffff', 0.9),
-            backdropFilter: 'blur(20px)',
-            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            bgcolor: theme.palette.mode === 'dark' ? alpha('#050505', 0.85) : alpha('#ffffff', 0.85),
+            backdropFilter: 'blur(30px) saturate(180%)',
+            border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
             boxShadow: theme.palette.mode === 'dark' 
-              ? '0 20px 40px rgba(0,0,0,0.6)' 
-              : '0 20px 40px rgba(0,0,0,0.12)',
+              ? '0 20px 40px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.03)' 
+              : '0 20px 40px -12px rgba(0,0,0,0.12)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-around',
-            gap: 1,
+            justifyContent: 'center',
+            gap: { xs: 0, sm: 2, md: 4 },
             pointerEvents: 'auto',
           }} 
         >
@@ -192,6 +193,8 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
             return (
               <Box
                 key={item.path}
+                component={motion.div}
+                whileTap={{ scale: 0.94 }}
                 onClick={() => navigate(item.path)}
                 sx={{
                   position: 'relative',
@@ -199,35 +202,56 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  flex: 1,
-                  height: 60,
+                  minWidth: { xs: 60, sm: 80, md: 100 },
+                  height: { xs: 48, sm: 60 },
                   cursor: 'pointer',
-                  borderRadius: '16px',
+                  borderRadius: '18px',
                   color: isActive ? 'primary.main' : 'text.secondary',
-                  transition: 'all 0.2s ease',
-                  '&:active': { transform: 'scale(0.95)' }
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  mx: { xs: 0, sm: 0.25 },
+                  '&:hover': {
+                    color: 'primary.main',
+                    '& .nav-icon': {
+                      transform: 'translateY(-1px)',
+                    }
+                  }
                 }}
               >
                 <AnimatePresence>
                   {isActive && (
                     <motion.div
-                      layoutId="active-nav-pill"
+                      layoutId="active-nav-glow"
                       style={{
                         position: 'absolute',
-                        inset: '4px',
-                        borderRadius: '12px',
-                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                        zIndex: -1
+                        inset: 0,
+                        borderRadius: '18px',
+                        backgroundColor: alpha(theme.palette.primary.main, 0.06),
+                        zIndex: -1,
                       }}
-                      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                    />
+                      transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
+                    >
+                      <Box sx={{ 
+                        position: 'absolute', 
+                        bottom: 0, 
+                        left: '50%', 
+                        transform: 'translateX(-50%)', 
+                        width: '24%', 
+                        height: 2.5, 
+                        bgcolor: 'primary.main', 
+                        borderRadius: '4px 4px 0 0',
+                        boxShadow: `0 0 10px ${theme.palette.primary.main}`
+                      }} />
+                    </motion.div>
                   )}
                 </AnimatePresence>
                 
-                <Box sx={{ position: 'relative' }}>
+                <Box className="nav-icon" sx={{ position: 'relative', display: 'flex', mb: { xs: 0, sm: 0.25 }, transition: 'transform 0.3s ease' }}>
                   {React.cloneElement(item.icon as React.ReactElement<any>, { 
-                    size: 24,
-                    strokeWidth: isActive ? 2.5 : 2
+                    size: isMobile ? 18 : 20,
+                    strokeWidth: isActive ? 2.5 : 2,
+                    style: { 
+                      filter: isActive ? `drop-shadow(0 0 6px ${alpha(theme.palette.primary.main, 0.3)})` : 'none',
+                    }
                   })}
                   {item.label === 'Home' && unreadNotifications > 0 && (
                     <Badge 
@@ -235,32 +259,47 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                       color="error" 
                       sx={{ 
                         position: 'absolute', 
-                        top: -5, 
-                        right: -10,
+                        top: -4, 
+                        right: -8,
                         '& .MuiBadge-badge': {
-                          fontSize: '0.65rem',
-                          height: 18,
-                          minWidth: 18,
-                          fontWeight: 900
+                          fontSize: '0.55rem',
+                          height: 14,
+                          minWidth: 14,
+                          fontWeight: 900,
+                          border: `1.5px solid ${theme.palette.mode === 'dark' ? '#050505' : '#fff'}`
                         }
                       }} 
                     />
                   )}
                 </Box>
-                <Typography variant="caption" sx={{ 
-                  fontSize: '0.65rem', 
-                  fontWeight: isActive ? 800 : 500,
-                  mt: 0.5,
-                  opacity: isActive ? 1 : 0.7 
-                }}>
-                  {item.label}
-                </Typography>
+                {!isMobile && (
+                  <Typography variant="caption" sx={{ 
+                    fontSize: '0.6rem', 
+                    fontWeight: isActive ? 800 : 500,
+                    letterSpacing: '0.01em',
+                    opacity: isActive ? 1 : 0.6,
+                  }}>
+                    {item.label}
+                  </Typography>
+                )}
+                {isMobile && isActive && (
+                  <Typography variant="caption" sx={{ 
+                    fontSize: '0.55rem', 
+                    fontWeight: 800,
+                    position: 'absolute',
+                    bottom: 4,
+                  }}>
+                    {item.label}
+                  </Typography>
+                )}
               </Box>
             );
           })}
 
           {moreItems.length > 0 && (
             <Box
+              component={motion.div}
+              whileTap={{ scale: 0.94 }}
               onClick={handleMoreClick}
               sx={{
                 position: 'relative',
@@ -268,111 +307,160 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                flex: 1,
-                height: 60,
+                minWidth: { xs: 60, sm: 80, md: 100 },
+                height: { xs: 48, sm: 60 },
                 cursor: 'pointer',
-                borderRadius: '16px',
+                borderRadius: '18px',
                 color: isMoreActive ? 'primary.main' : 'text.secondary',
-                transition: 'all 0.2s ease',
-                '&:active': { transform: 'scale(0.95)' }
+                transition: 'all 0.3s ease',
+                mx: { xs: 0, sm: 0.25 },
+                '&:hover': {
+                  color: 'primary.main',
+                }
               }}
             >
               <AnimatePresence>
                 {isMoreActive && (
                   <motion.div
-                    layoutId="active-nav-pill"
+                    layoutId="active-nav-glow"
                     style={{
                       position: 'absolute',
-                      inset: '4px',
-                      borderRadius: '12px',
-                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                      zIndex: -1
+                      inset: 0,
+                      borderRadius: '18px',
+                      backgroundColor: alpha(theme.palette.primary.main, 0.06),
+                      zIndex: -1,
                     }}
-                    transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                  />
+                    transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
+                  >
+                    <Box sx={{ 
+                      position: 'absolute', 
+                      bottom: 0, 
+                      left: '50%', 
+                      transform: 'translateX(-50%)', 
+                      width: '24%', 
+                      height: 2.5, 
+                      bgcolor: 'primary.main', 
+                      borderRadius: '4px 4px 0 0',
+                      boxShadow: `0 0 10px ${theme.palette.primary.main}`
+                    }} />
+                  </motion.div>
                 )}
               </AnimatePresence>
-              <MoreHorizontal size={24} strokeWidth={isMoreActive ? 2.5 : 2} />
-              <Typography variant="caption" sx={{ 
-                fontSize: '0.65rem', 
-                fontWeight: isMoreActive ? 800 : 500,
-                mt: 0.5,
-                opacity: isMoreActive ? 1 : 0.7 
-              }}>
-                More
-              </Typography>
+              <MoreHorizontal size={isMobile ? 18 : 20} strokeWidth={isMoreActive ? 2.5 : 2} />
+              {!isMobile && (
+                <Typography variant="caption" sx={{ 
+                  fontSize: '0.6rem', 
+                  fontWeight: isMoreActive ? 800 : 500,
+                  letterSpacing: '0.01em',
+                  opacity: isMoreActive ? 1 : 0.6 
+                }}>
+                  More
+                </Typography>
+              )}
+              {isMobile && isMoreActive && (
+                <Typography variant="caption" sx={{ 
+                  fontSize: '0.55rem', 
+                  fontWeight: 800,
+                  position: 'absolute',
+                  bottom: 4,
+                }}>
+                  More
+                </Typography>
+              )}
             </Box>
           )}
         </Paper>
       </Box>
 
-      <Popover
-        open={Boolean(moreAnchorEl)}
-        anchorEl={moreAnchorEl}
-        onClose={handleMoreClose}
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        transformOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
-        }}
-        PaperProps={{
-          sx: {
-            mb: 2,
-            borderRadius: '20px',
-            width: 200,
-            overflow: 'hidden',
-            bgcolor: theme.palette.mode === 'dark' ? '#111111' : '#ffffff',
-            backgroundImage: 'none',
-            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-            boxShadow: theme.palette.mode === 'dark' 
-              ? '0 10px 30px rgba(0,0,0,0.5)' 
-              : '0 10px 30px rgba(0,0,0,0.1)',
-          }
-        }}
-      >
-        <Box sx={{ p: 1 }}>
-          <Typography variant="overline" sx={{ px: 2, py: 1, display: 'block', fontWeight: 900, opacity: 0.5 }}>
-            More Actions
-          </Typography>
-          <Divider sx={{ mb: 1, opacity: 0.5 }} />
-          {moreItems.map((item) => {
-            const isActive = activePath === item.path;
-            return (
-              <MenuItem 
-                key={item.path} 
-                onClick={() => {
-                  navigate(item.path);
-                  handleMoreClose();
-                }}
-                sx={{
-                  borderRadius: '12px',
-                  mb: 0.5,
-                  py: 1.5,
-                  color: isActive ? 'primary.main' : 'text.primary',
-                  bgcolor: isActive ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
-                  '&:hover': {
-                    bgcolor: alpha(theme.palette.primary.main, 0.08)
-                  }
-                }}
-              >
-                <ListItemIcon sx={{ color: isActive ? 'primary.main' : 'text.secondary', minWidth: 40 }}>
-                  {React.cloneElement(item.icon as React.ReactElement<any>, { size: 20 })}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={item.label} 
-                  primaryTypographyProps={{ 
-                    variant: 'body2', 
-                    fontWeight: isActive ? 800 : 500 
-                  }} 
-                />
-              </MenuItem>
-            );
-          })}
-        </Box>
-      </Popover>
+      <AnimatePresence>
+        {Boolean(moreAnchorEl) && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleMoreClose}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0,0,0,0.3)',
+                backdropFilter: 'blur(8px)',
+                zIndex: 1300,
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 400 }}
+              style={{
+                position: 'fixed',
+                bottom: 100,
+                right: isMobile ? 12 : 'auto',
+                left: isMobile ? 'auto' : 'calc(50% + 140px)',
+                width: 220,
+                backgroundColor: theme.palette.mode === 'dark' ? alpha('#0f0f0f', 0.95) : alpha('#ffffff', 0.95),
+                backdropFilter: 'blur(30px)',
+                borderRadius: 28,
+                padding: 10,
+                zIndex: 1301,
+                boxShadow: theme.palette.mode === 'dark' 
+                  ? '0 20px 50px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05)' 
+                  : '0 20px 50px rgba(0,0,0,0.2)',
+                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                transform: isMobile ? 'none' : 'translateX(-50%)',
+              }}
+            >
+              <Typography variant="overline" sx={{ px: 2, mb: 1, display: 'block', fontWeight: 900, opacity: 0.5, letterSpacing: '0.1em' }}>
+                ADMINISTRATION & TOOLS
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                {moreItems.map((item) => {
+                  const isActive = activePath === item.path;
+                  return (
+                    <Box
+                      key={item.path}
+                      component={motion.div}
+                      whileHover={{ x: 4 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        navigate(item.path);
+                        handleMoreClose();
+                      }}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        p: 1.5,
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        color: isActive ? 'primary.main' : 'text.primary',
+                        bgcolor: isActive ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                        '&:hover': {
+                          bgcolor: alpha(theme.palette.primary.main, 0.05)
+                        }
+                      }}
+                    >
+                      <Box sx={{ 
+                        display: 'flex', 
+                        color: isActive ? 'primary.main' : 'text.secondary',
+                        p: 1,
+                        borderRadius: 1.5,
+                        bgcolor: isActive ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.divider, 0.03)
+                      }}>
+                        {React.cloneElement(item.icon as React.ReactElement<any>, { size: 20, strokeWidth: isActive ? 2.5 : 2 })}
+                      </Box>
+                      <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '0.9rem' }}>
+                        {item.label}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <style>
         {`

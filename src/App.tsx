@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import { NotificationProvider } from './context/NotificationContext';
 import NotificationListener from './components/NotificationListener';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Clock, X, BookOpen } from 'lucide-react';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -112,9 +112,7 @@ function AppContent() {
 
   React.useEffect(() => {
     if (!loading && instituteSettings) {
-      // Small artificial delay for smoother entrance after data is ready
-      const timer = setTimeout(() => setAppReady(true), 800);
-      return () => clearTimeout(timer);
+      setAppReady(true);
     }
   }, [loading, instituteSettings]);
 
@@ -130,10 +128,10 @@ function AppContent() {
   const fullAdminRoles = ['superadmin', 'manager'];
   const staffRoles = ['superadmin', 'manager', 'teacher'];
   const allAuthenticatedRoles = ['superadmin', 'manager', 'teacher', 'pending_teacher', 'student'];
-  const reportRoles = ['superadmin'];
+  const reportRoles = ['superadmin', 'manager'];
   const brandingSettingsRoles = ['superadmin'];
 
-  const isFormView = location.pathname.startsWith('/forms/view/');
+  const isFormView = location.pathname.startsWith('/forms/view/') || location.pathname.startsWith('/verify/');
 
   const routes = (
     <AnimatePresence mode="wait">
@@ -158,7 +156,7 @@ function AppContent() {
               </>
             ) : (
               <>
-                <Route path="/" element={<Dashboard user={user} />} />
+                <Route path="/" element={<Dashboard />} />
                 <Route path="/courses" element={<Courses />} />
                 <Route path="/attendance" element={
                   <ProtectedRoute user={user} allowedRoles={staffRoles}>

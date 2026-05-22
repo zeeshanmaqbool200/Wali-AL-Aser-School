@@ -82,7 +82,7 @@ export default function Verify() {
     return (
       <Box sx={{ p: 4, textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
         <XCircle size={64} color={theme.palette.error.main} style={{ marginBottom: 24 }} />
-        <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, fontFamily: 'var(--font-heading)' }}>Invalid Entry</Typography>
+        <Typography variant="h4" sx={{ fontWeight: 950, mb: 1, fontFamily: 'var(--font-heading)', color: 'error.main' }}>VERIFICATION FAILED</Typography>
         <Typography variant="body1" sx={{ color: 'text.secondary', mb: 4 }}>The scanned document could not be verified.</Typography>
         <Button variant="outlined" onClick={() => window.location.href = '/'} sx={{ borderRadius: 100, px: 4 }}>Back Home</Button>
       </Box>
@@ -138,7 +138,7 @@ export default function Verify() {
                 <Stack spacing={3}>
                   <DataRow icon={<User size={18} />} label="STUDENT NAME" value={data.studentName} />
                   <DataRow icon={<Smartphone size={18} />} label="RECEIPT NO" value={data.receiptNo} highlight />
-                  <DataRow icon={< IndianRupee size={18} />} label="TOTAL AMOUNT" value={`Rs.${data.amount}`} />
+                  <DataRow icon={< IndianRupee size={18} />} label="TOTAL AMOUNT" value={`₹${data.amount}`} />
                   <DataRow icon={<BookOpen size={18} />} label="CATEGORY" value={data.feeHead} />
                   <DataRow icon={<Calendar size={18} />} label="ISSUE DATE" value={data.date} />
                   <DataRow icon={<CheckCircle size={18} />} label="PAYMENT STATUS" value={(data.status || 'Verified').toUpperCase()} color="success.main" />
@@ -186,7 +186,7 @@ export default function Verify() {
                 onClick={() => window.location.href = '/'} 
                 sx={{ borderRadius: 3, fontWeight: 900, py: 1.5, textTransform: 'none' }}
               >
-                Back to Portal
+                Back to Home
               </Button>
               <Button 
                 variant="contained" 
@@ -199,7 +199,7 @@ export default function Verify() {
             </Stack>
           </CardContent>
           <Box sx={{ p: 2, bgcolor: 'success.main', color: 'white', textAlign: 'center' }}>
-             <Typography variant="caption" sx={{ fontWeight: 900, letterSpacing: 1.5 }}>OFFICIAL VERIFICATION PORTAL</Typography>
+             <Typography variant="caption" sx={{ fontWeight: 900, letterSpacing: 1.5 }}>IDARAH WALI UL ASER VERIFICATION</Typography>
           </Box>
         </Card>
       </motion.div>

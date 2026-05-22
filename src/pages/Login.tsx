@@ -290,8 +290,8 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                                 bgcolor: isDark ? alpha('#ffffff', 0.03) : alpha('#000000', 0.02),
                               }}
                             >
-                              <MenuItem value="student">Student Portal</MenuItem>
-                              <MenuItem value="teacher">Teacher Portal</MenuItem>
+                               <MenuItem value="student">Student Identity</MenuItem>
+                              <MenuItem value="teacher">Staff Identity</MenuItem>
                             </Select>
                           </FormControl>
                         </Stack>
@@ -389,7 +389,7 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                       <CircularProgress size={24} color="inherit" />
                     ) : (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        {isSignUp ? 'Activate Portal' : 'Access Portal'}
+                        {isSignUp ? 'Activate Account' : 'Access Wali Ul Aser'}
                         <ArrowRight size={20} />
                       </Box>
                     )}

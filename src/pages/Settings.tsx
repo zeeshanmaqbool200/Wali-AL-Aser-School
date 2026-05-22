@@ -24,13 +24,15 @@ import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { UserProfile, InstituteSettings } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 import { useThemeContext } from '../context/ThemeContext';
 import { useHardwarePermissions } from '../services/hardwareService';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaQuery, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { logger } from '../lib/logger';
 import { saveSessionUser } from '../lib/session';
 
+import SavingOverlay from '../components/SavingOverlay';
 import { styled } from '@mui/material/styles';
 
 const IOSSwitch = styled((props: any) => (
@@ -138,6 +140,7 @@ const BrandingImageItem = ({ label, value, onUpload, onRemove, icon, isBanner }:
 
 export default function Settings() {
   const { user: currentUser, logout } = useAuth();
+  const { setIsSaving } = useData();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -162,6 +165,10 @@ export default function Settings() {
   const [tabValue, setTabValue] = useState(searchParams.get('tab') || 'appearance');
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const [originalPrefs, setOriginalPrefs] = useState<string>('');
+  const [originalInstitute, setOriginalInstitute] = useState<string>('');
+  const [originalProfile, setOriginalProfile] = useState<string>('');
   
   const [profileData, setProfileData] = useState<Partial<UserProfile>>({});
   const [instituteData, setInstituteData] = useState<Partial<InstituteSettings>>({});
@@ -223,13 +230,21 @@ export default function Settings() {
         if (userDoc.exists()) {
           const data = userDoc.data() as UserProfile;
           setProfileData(data);
+          setOriginalProfile(JSON.stringify(data));
           if (data.notificationPrefs) setNotificationPrefs(data.notificationPrefs);
           if (data.uiPrefs) setUiPrefs(prev => ({ ...prev, ...data.uiPrefs }));
+          
+          setOriginalPrefs(JSON.stringify({
+            notificationPrefs: data.notificationPrefs || notificationPrefs,
+            uiPrefs: data.uiPrefs || uiPrefs
+          }));
         }
 
         const instDoc = await getDoc(doc(db, 'settings', 'institute'));
         if (instDoc.exists()) {
-          setInstituteData(instDoc.data() as InstituteSettings);
+          const data = instDoc.data() as InstituteSettings;
+          setInstituteData(data);
+          setOriginalInstitute(JSON.stringify(data));
         }
       } catch (err) {
         logger.error('Error fetching settings', err as Error);
@@ -249,7 +264,7 @@ export default function Settings() {
         ...profileData,
         updatedAt: new Date().toISOString()
       });
-      setSnackbar({ open: true, message: 'Profile updated successfully', severity: 'success' });
+      setOriginalProfile(JSON.stringify(profileData));
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
       setSnackbar({ open: true, message: 'Failed to update profile', severity: 'error' });
@@ -275,6 +290,7 @@ export default function Settings() {
     if (!currentUser) return;
     try {
       setLoading(true);
+      setIsSaving(true);
       await updateDoc(doc(db, 'users', currentUser.uid), {
         ...profileData,
         notificationPrefs,
@@ -283,19 +299,20 @@ export default function Settings() {
       });
       // Update session storage
       saveSessionUser({ ...currentUser, ...profileData });
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      setOriginalPrefs(JSON.stringify({ notificationPrefs, uiPrefs }));
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, 'users');
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
+      setIsSaving(false);
     }
   };
 
   const handleSaveInstitute = async () => {
     try {
       setLoading(true);
+      setIsSaving(true);
       
       // Safety check for Firestore 1MB limit
       const dataToSave = {
@@ -309,13 +326,13 @@ export default function Settings() {
       }
 
       await setDoc(doc(db, 'settings', 'institute'), dataToSave, { merge: true });
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      setOriginalInstitute(JSON.stringify(instituteData));
     } catch (err: any) {
       handleFirestoreError(err, OperationType.UPDATE, 'settings/institute');
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
+      setIsSaving(false);
     }
   };
 
@@ -521,10 +538,10 @@ export default function Settings() {
   };
 
   const menuItems = [
-    { id: 'appearance', label: 'Appearance & Themes', icon: <Palette size={20} />, role: 'all' },
-    { id: 'security', label: 'Security & Access', icon: <Shield size={20} />, role: 'all' },
-    { id: 'portals', label: 'Feature Settings', icon: <Layout size={20} />, role: 'admin' },
-    { id: 'system', label: 'Administration', icon: <Database size={20} />, role: 'superadmin' },
+    { id: 'portals', label: 'Institute Identity', icon: <Sparkles size={20} />, role: 'admin' },
+    { id: 'appearance', label: 'Visual & Theme', icon: <Palette size={20} />, role: 'all' },
+    { id: 'security', label: 'Account Security', icon: <Shield size={20} />, role: 'all' },
+    { id: 'system', label: 'Developer Core', icon: <Terminal size={20} />, role: 'superadmin' },
   ].filter(item => {
     if (item.role === 'all') return true;
     if (item.role === 'admin') return isAdmin;
@@ -538,22 +555,27 @@ export default function Settings() {
     </Box>
   );
 
+  const isPrefsDirty = originalPrefs !== JSON.stringify({ notificationPrefs, uiPrefs });
+  const isInstituteDirty = originalInstitute !== JSON.stringify(instituteData);
+  const isProfileDirty = originalProfile !== JSON.stringify(profileData);
+
   return (
-    <Box sx={{ pb: isMobile ? 12 : 8, px: isSmallMobile ? 1 : 0 }}>
+    <Box sx={{ pb: isMobile ? 12 : 8, px: isSmallMobile ? 0 : 0 }}>
+      <SavingOverlay isSaving={loading && !!profileData.uid} message="Updating System Configuration..." />
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Box sx={{ mb: isMobile ? 4 : 6, textAlign: 'center' }}>
+        <Box sx={{ mb: isMobile ? 3 : 5, textAlign: 'left', px: isMobile ? 2 : 0 }}>
           <Typography 
-            variant={isMobile ? "h6" : "h5"} 
-            sx={{ fontWeight: 900, letterSpacing: -1.5, mb: 1 }}
+            variant={isMobile ? "h4" : "h3"} 
+            sx={{ fontWeight: 950, letterSpacing: -2, mb: 0.5, color: 'text.primary' }}
           >
             Settings
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.5 }}>
-            {isMobile ? 'Manage account & Institute' : 'Manage your personal profile and institute preferences'}
+          <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: -0.2 }}>
+            Personalize your experience and institute management
           </Typography>
         </Box>
       </motion.div>
@@ -665,7 +687,7 @@ export default function Settings() {
                  <Stack spacing={4}>
                    <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
                     <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-                      <Typography variant="h6" sx={{ fontWeight: 900 }}>Appearance & UI Settings</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 900 }}>Visual Identity & Environment</Typography>
                     </Box>
                     <CardContent sx={{ p: 4 }}>
                       <Stack spacing={4}>
@@ -749,19 +771,25 @@ export default function Settings() {
                         </Box>
                       </Stack>
                       <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
-                        <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveSettings} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Save Theme & Alerts</Button>
+                        <AnimatePresence>
+                          {isPrefsDirty && (
+                            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
+                              <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveSettings} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Save Theme & Alerts</Button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </Box>
                     </CardContent>
                   </Card>
 
                   {isAdmin && (
                     <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden', mt: 4 }}>
-                      <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-                        <Typography variant="h6" sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <Sparkles size={22} color={theme.palette.primary.main} /> 
-                          Institute Personalization
-                        </Typography>
-                      </Box>
+                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Sparkles size={22} color={theme.palette.primary.main} /> 
+                      Institutional Branding
+                    </Typography>
+                  </Box>
                       <CardContent sx={{ p: 4 }}>
                         <Stack spacing={4}>
                           <Box>
@@ -911,12 +939,13 @@ export default function Settings() {
                           </Box>
                           <Divider />
                           <Box>
-                            <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>DASHBOARD QUOTES (POOL)</Typography>
+                            <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>DAILY MOTIVATION POOL</Typography>
                              <TextField
                                 fullWidth
                                 multiline
                                 rows={4}
                                 variant="outlined"
+                                label="One quote per line"
                                 placeholder={`Enter one quote per line...`}
                                 value={instituteData.quotes?.join('\n') || ''}
                                 onChange={(e) => setInstituteData({ ...instituteData, quotes: e.target.value.split('\n').filter(q => q.trim().length > 0) })}
@@ -925,21 +954,27 @@ export default function Settings() {
                           </Box>
                         </Stack>
                         <Box sx={{ mt: 5, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                          <Button 
-                            variant="contained" 
-                            size="large"
-                            startIcon={<Save size={20} />} 
-                            onClick={handleSaveInstitute} 
-                            sx={{ 
-                              borderRadius: 3, 
-                              fontWeight: 950, 
-                              px: 6, 
-                              py: 1.5,
-                              boxShadow: `0 10px 20px ${alpha(theme.palette.primary.main, 0.3)}`
-                            }}
-                          >
-                            Publish Identity
-                          </Button>
+                          <AnimatePresence>
+                            {isInstituteDirty && (
+                              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
+                                <Button 
+                                  variant="contained" 
+                                  size="large"
+                                  startIcon={<Save size={20} />} 
+                                  onClick={handleSaveInstitute} 
+                                  sx={{ 
+                                    borderRadius: 3, 
+                                    fontWeight: 950, 
+                                    px: 6, 
+                                    py: 1.5,
+                                    boxShadow: `0 10px 20px ${alpha(theme.palette.primary.main, 0.3)}`
+                                  }}
+                                >
+                                  Update Identity
+                                </Button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </Box>
                       </CardContent>
                     </Card>
@@ -963,7 +998,13 @@ export default function Settings() {
                            <TextField fullWidth label="System Email" value={profileData.email || ''} disabled variant="filled" InputProps={{ disableUnderline: true, sx: { borderRadius: 2, fontWeight: 700, opacity: 0.8 } }} />
                         </Stack>
                         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-                          <Button variant="contained" onClick={handleSaveProfile} startIcon={<Save size={18} />} sx={{ borderRadius: 2, fontWeight: 900, px: 4 }}>Save Identity</Button>
+                          <AnimatePresence>
+                            {isProfileDirty && (
+                              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
+                                <Button variant="contained" onClick={handleSaveProfile} startIcon={<Save size={18} />} sx={{ borderRadius: 2, fontWeight: 900, px: 4 }}>Save Identity</Button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </Box>
                       </Box>
                       
@@ -1077,18 +1118,18 @@ export default function Settings() {
               </motion.div>
             )}
 
-            {/* Portals Section */}
+            {/* Experiences Section */}
             {tabValue === 'portals' && isAdmin && (
               <motion.div key="portals" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
                 <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
                   <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Portal Experiences</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Strategic Access Controls</Typography>
                   </Box>
                   <CardContent sx={{ p: 4 }}>
                     <Stack spacing={4}>
-                      {/* Student Portal Settings */}
+                      {/* Student Gateway Settings */}
                       <Box>
-                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>STUDENT PORTAL</Typography>
+                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>STUDENT PORTAL PERMISSIONS</Typography>
                         <Grid container spacing={2}>
                           {[
                             { key: 'showDashboardStats', label: 'Attendance Stats', desc: 'Allow students to see attendance %' },
@@ -1117,9 +1158,9 @@ export default function Settings() {
                       
                       <Divider />
 
-                      {/* Teacher Portal Settings */}
+                      {/* Staff Gateway Settings */}
                       <Box>
-                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'secondary.main', mb: 2, display: 'block' }}>TEACHER PORTAL</Typography>
+                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'secondary.main', mb: 2, display: 'block' }}>STAFF ACCESS & PERMISSIONS</Typography>
                         <Grid container spacing={2}>
                           {[
                             { key: 'showQuickActions', label: 'Quick Actions', desc: 'Show attendance/course shortcuts' },
@@ -1148,7 +1189,13 @@ export default function Settings() {
                       </Box>
                     </Stack>
                     <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
-                      <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveInstitute} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Save Portal Settings</Button>
+                      <AnimatePresence>
+                        {isInstituteDirty && (
+                          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
+                            <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveInstitute} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Save Management Settings</Button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </Box>
                   </CardContent>
                 </Card>

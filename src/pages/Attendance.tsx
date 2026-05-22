@@ -1,715 +1,86 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Box, Typography, Card, CardContent, Grid, Button, 
-  Table, TableBody, TableCell, TableRow, Avatar, Checkbox, FormControl, InputLabel, 
-  Select, MenuItem, CircularProgress, Chip, IconButton,
-  Paper, Alert, useMediaQuery, Stack,
-  LinearProgress, Tooltip, Zoom, Snackbar, TableHead, TableContainer
-} from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
-import { 
-  CheckCircle, XCircle, Calendar, Users, 
-  Filter, Save, ChevronLeft, ChevronRight,
-  Download, Search, UserCheck, UserMinus,
-  Clock, Info, MoreVertical, FileText, TrendingUp, ArrowLeft
-} from 'lucide-react';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, getDocs, where, setDoc, orderBy, or, and } from '../firebase';
-import { db, OperationType, handleFirestoreError, smartSetDoc } from '../firebase';
-import { UserProfile, Attendance } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Box, Grid, Card, Typography, Button, Avatar, IconButton, TextField, InputAdornment, Stack, useTheme, Skeleton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, alpha } from '@mui/material';
+import { Search, CheckCircle2, XCircle, Clock, ChevronLeft, ChevronRight, Save, Check, X, FileText } from 'lucide-react';
+import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subDays, addDays } from 'date-fns';
-import { motion, AnimatePresence } from 'motion/react';
-import { exportToCSV } from '../lib/exportUtils';
-import { useNavigate } from 'react-router-dom';
+import { db } from '../firebase';
+import { doc, Timestamp, writeBatch } from 'firebase/firestore';
+import { format, startOfDay, endOfDay } from 'date-fns';
+import ConfirmDialog from '../components/ConfirmDialog';
 
-export default function AttendancePage() {
+const Attendance = () => {
+  const theme = useTheme();
+  const { users, attendance, loading: dataLoading, setIsSaving, isSaving } = useData();
   const { user: currentUser } = useAuth();
-  const navigate = useNavigate();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [students, setStudents] = useState<UserProfile[]>(() => {
-    const cached = localStorage.getItem('attendance_students');
-    return cached ? JSON.parse(cached) : [];
-  });
-  const [attendanceData, setAttendanceData] = useState<Attendance[]>([]);
-  const [loading, setLoading] = useState(!(window as any)._attendanceLoaded && students.length === 0);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedClass, setSelectedClass] = useState(localStorage.getItem('last_selected_class') || '');
-  const [classes, setClasses] = useState<string[]>(() => {
-    const cached = localStorage.getItem('attendance_classes');
-    return cached ? JSON.parse(cached) : [];
-  });
   const [searchQuery, setSearchQuery] = useState('');
-  const [markingIds, setMarkingIds] = useState<Set<string>>(new Set());
-  const [bulkMarking, setBulkMarking] = useState<string | null>(null);
+  const [currentAttendance, setCurrentAttendance] = useState<Record<string, 'present' | 'absent' | 'late' | 'excused'>>({});
+  const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
+
+  const students = useMemo(() => {
+    return users.filter(u => (u.role === 'student' || !u.role) && u.status !== 'Archived' && 
+      (u.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) || u.admissionNo?.toLowerCase().includes(searchQuery.toLowerCase())));
+  }, [users, searchQuery]);
 
   useEffect(() => {
-    if (selectedClass) {
-      localStorage.setItem('last_selected_class', selectedClass);
-    }
-  }, [selectedClass]);
-
-  const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
-  const role = currentUser?.role || 'student';
-  const isManagerRole = role === 'manager' || (role === 'superadmin' && !isSuperAdmin);
-  const isTeacherRole = role === 'teacher';
-  const isAdmin = isSuperAdmin || isManagerRole;
-  const isStaff = isAdmin || isTeacherRole;
-
-  useEffect(() => {
-    let isMounted = true;
-    let unsubscribeAttendance = () => {};
-
-    const fetchData = async () => {
-      try {
-        // Fetch students based on role
-        let studentsQuery;
-        if (isAdmin) {
-          studentsQuery = query(collection(db, 'users'), 
-            where('role', '==', 'student'),
-            where('status', '!=', 'Deleted')
-          );
-        } else if (isTeacherRole) {
-          studentsQuery = query(
-            collection(db, 'users'),
-            and(
-              where('role', '==', 'student'), 
-              where('status', '!=', 'Deleted'),
-              where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__'])
-            )
-          );
-        } else {
-          if (isMounted) setLoading(false);
-          return;
-        }
-
-        const studentsSnap = await getDocs(studentsQuery);
-        if (!isMounted) return;
-
-        const studentsList = studentsSnap.docs.map(doc => {
-          const data = doc.data() as any;
-          return { 
-            uid: doc.id, 
-            ...data,
-            classLevel: data.classLevel || 'N/A' 
-          };
-        }) as UserProfile[];
-        
-        setStudents(studentsList);
-        localStorage.setItem('attendance_students', JSON.stringify(studentsList));
-
-        const uniqueClasses = Array.from(new Set(studentsList.map(s => s.classLevel).filter(Boolean))) as string[];
-        setClasses(uniqueClasses);
-        localStorage.setItem('attendance_classes', JSON.stringify(uniqueClasses));
-        
-        if (uniqueClasses.length > 0 && !selectedClass) {
-          const lastClass = localStorage.getItem('last_selected_class');
-          if (lastClass && uniqueClasses.includes(lastClass)) {
-            setSelectedClass(lastClass);
-          } else {
-            setSelectedClass(uniqueClasses[0]);
-          }
-        }
-
-        const dateStr = format(selectedDate, 'yyyy-MM-dd');
-        let attendanceQuery;
-        
-        if (isAdmin) {
-          attendanceQuery = query(collection(db, 'attendance'), where('date', '==', dateStr));
-        } else {
-          attendanceQuery = query(
-            collection(db, 'attendance'), 
-            and(
-              where('date', '==', dateStr),
-              where('classLevel', 'in', (currentUser?.assignedClasses && currentUser.assignedClasses.length > 0) ? currentUser.assignedClasses : ['__none__'])
-            )
-          );
-        }
-
-        unsubscribeAttendance = onSnapshot(attendanceQuery, (snapshot) => {
-          if (!isMounted) return;
-          setAttendanceData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Attendance[]);
-          setLoading(false);
-          (window as any)._attendanceLoaded = true;
-        }, (error) => {
-          if (isMounted) handleFirestoreError(error, OperationType.LIST, 'attendance');
-        });
-      } catch (error) {
-        if (isMounted) {
-          handleFirestoreError(error, OperationType.LIST, 'attendance_init');
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchData();
-    return () => {
-      isMounted = false;
-      unsubscribeAttendance();
-    };
-  }, [selectedDate]);
-
-  const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
-
-  const handleMarkAttendance = async (studentId: string, status: 'present' | 'absent') => {
-    if (!isStaff) return;
-    
-    setMarkingIds(prev => new Set(prev).add(studentId));
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    const attendanceId = `${dateStr}_${studentId}`;
-    const student = students.find(s => s.uid === studentId);
-    
-    try {
-      await smartSetDoc(doc(db, 'attendance', attendanceId), {
-        studentId,
-        studentName: student?.displayName || '',
-        date: dateStr,
-        status,
-        markedBy: currentUser?.uid,
-        markedAt: Date.now(),
-        classLevel: selectedClass
-      });
-      setSnackbar({ open: true, message: `${student?.displayName} marked as ${status}`, severity: 'success' });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `attendance/${attendanceId}`);
-      setSnackbar({ open: true, message: 'Failed to mark attendance', severity: 'error' });
-    } finally {
-      setMarkingIds(prev => {
-        const next = new Set(prev);
-        next.delete(studentId);
-        return next;
-      });
-    }
-  };
-
-  const handleBulkMark = async (status: 'present' | 'absent') => {
-    if (!isStaff || !currentUser) return;
-    setBulkMarking(status);
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    
-    try {
-      const promises = filteredStudents.map(student => {
-        const attendanceId = `${dateStr}_${student.uid}`;
-        return smartSetDoc(doc(db, 'attendance', attendanceId), {
-          studentId: student.uid,
-          studentName: student.displayName,
-          date: dateStr,
-          status,
-          markedBy: currentUser.uid,
-          markedByName: currentUser.displayName,
-          markedAt: Date.now(),
-          classLevel: selectedClass
-        });
-      });
-      await Promise.all(promises);
-      setSnackbar({ open: true, message: `All students marked as ${status}`, severity: 'success' });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'attendance');
-      setSnackbar({ open: true, message: 'Failed to bulk mark attendance', severity: 'error' });
-    } finally {
-      setBulkMarking(null);
-    }
-  };
-
-  const filteredStudents = students.filter(s => 
-    s.classLevel === selectedClass && 
-    ((s.displayName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
-     (s.studentId?.toLowerCase() || '').includes(searchQuery.toLowerCase()))
-  );
-
-  const presentCount = attendanceData.filter(a => a.status === 'present' && filteredStudents.some(s => s.uid === a.studentId)).length;
-  const absentCount = attendanceData.filter(a => a.status === 'absent' && filteredStudents.some(s => s.uid === a.studentId)).length;
-  const attendanceRate = filteredStudents.length > 0 ? Math.round((presentCount / filteredStudents.length) * 100) : 0;
-
-  const handleExport = () => {
-    const dataToExport = filteredStudents.map(student => {
-      const attendance = attendanceData.find(a => a.studentId === student.uid);
-      return {
-        'Student Name': student.displayName,
-        'Class Level': student.classLevel || 'N/A',
-        'Date': format(selectedDate, 'dd MM yyyy'),
-        'Status': attendance ? (attendance.status === 'present' ? 'Present' : 'Absent') : 'Not Marked',
-        'Marked By': attendance?.markedByName || 'N/A'
-      };
+    const dayStart = startOfDay(selectedDate).getTime();
+    const dayEnd = endOfDay(selectedDate).getTime();
+    const records = attendance.filter(a => {
+      const recordDate = a.date instanceof Timestamp ? a.date.toMillis() : a.date;
+      return recordDate >= dayStart && recordDate <= dayEnd;
     });
-    exportToCSV(dataToExport, `Institute_Attendance_${selectedClass}_${format(selectedDate, 'yyyy-MM-dd')}`);
+    const newMap: Record<string, any> = {};
+    records.forEach(r => { if (r.studentId) newMap[r.studentId] = r.status; });
+    setCurrentAttendance(newMap);
+  }, [attendance, selectedDate]);
+
+  const handleSaveAttendance = async () => {
+    setSaveConfirmOpen(false);
+    setIsSaving(true);
+    try {
+      const batch = writeBatch(db);
+      const dateId = format(selectedDate, 'yyyy-MM-dd');
+      Object.entries(currentAttendance).forEach(([studentId, status]) => {
+        const ref = doc(db, 'attendance', `${studentId}_${dateId}`);
+        batch.set(ref, { studentId, date: Timestamp.fromDate(selectedDate), status, markedBy: currentUser?.uid, updatedAt: Timestamp.now() }, { merge: true });
+      });
+      await batch.commit();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  if (loading) return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-      <CircularProgress size={60} thickness={4} />
-    </Box>
-  );
+  if (dataLoading) return <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 4, m: 2 }} />;
 
   return (
-    <Box sx={{ pb: 8, pt: 2 }}>
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <Box sx={{ mb: 6, textAlign: 'center' }}>
-          <Typography 
-            variant={isMobile ? "h6" : "h5"} 
-            sx={{ 
-              fontFamily: 'var(--font-display)',
-              fontWeight: 900, 
-              letterSpacing: -1.5, 
-              mb: 1,
-              color: 'primary.main'
-            }}
-          >
-            Attendance
-          </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: 0.5 }}>
-            Track and manage student daily attendance for {selectedClass}
-          </Typography>
+    <Box sx={{ pb: 16, pt: 2 }}>
+      <ConfirmDialog isOpen={saveConfirmOpen} title="Save Attendance?" message={`Submit records for ${format(selectedDate, 'dd-MM-yyyy')}?`} onConfirm={handleSaveAttendance} onCancel={() => setSaveConfirmOpen(false)} isDestructive={false} />
+      <Stack spacing={3} sx={{ px: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box><Typography variant="h5" sx={{ fontWeight: 950 }}>Attendance</Typography></Box>
+          <Button variant="contained" startIcon={<Save size={18} />} onClick={() => setSaveConfirmOpen(true)} disabled={isSaving}>Submit Records</Button>
         </Box>
-      </motion.div>
-
-      {/* Stats Summary */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 3, mb: 4 }}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <SummaryCard 
-            title="Attendance Rate" 
-            value={`${attendanceRate}%`} 
-            icon={<TrendingUp size={24} />} 
-            color="primary" 
-            progress={attendanceRate}
-          />
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <SummaryCard 
-            title="Present Today" 
-            value={presentCount} 
-            icon={<UserCheck size={24} />} 
-            color="success" 
-          />
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <SummaryCard 
-            title="Absent Today" 
-            value={absentCount} 
-            icon={<UserMinus size={24} />} 
-            color="error" 
-          />
-        </motion.div>
-      </Box>
- 
-      <Card sx={{ 
-        borderRadius: 4, 
-        overflow: 'hidden', 
-        mb: 4,
-        border: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
-        bgcolor: 'background.paper',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
-        transition: 'all 0.3s ease',
-      }}>
-        <CardContent sx={{ p: 0 }}>
-          {/* Filters Bar */}
-          <Box sx={{ 
-            p: 3, 
-            bgcolor: alpha(theme.palette.background.default, 0.5), 
-            borderBottom: '1px solid', 
-            borderColor: 'divider',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <Grid container spacing={3} alignItems="center">
-              <Grid size={{ xs: 12, md: 4 }}>
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 1, 
-                  bgcolor: alpha(theme.palette.background.default, 0.5), 
-                  p: 1, 
-                  borderRadius: 100, 
-                  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                }}>
-                  <IconButton onClick={() => setSelectedDate(subDays(selectedDate, 1))} size="small" sx={{ 
-                    bgcolor: 'background.paper',
-                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                  }}>
-                    <ChevronLeft size={20} />
-                  </IconButton>
-                  <Box sx={{ flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5 }}>
-                    <Calendar size={20} color={theme.palette.primary.main} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
-                      {format(selectedDate, 'dd MM yyyy')}
-                    </Typography>
-                  </Box>
-                  <IconButton onClick={() => setSelectedDate(addDays(selectedDate, 1))} size="small" sx={{ 
-                    bgcolor: 'background.paper',
-                    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                  }}>
-                    <ChevronRight size={20} />
-                  </IconButton>
-                </Box>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel sx={{ fontWeight: 800 }}>Select Class Level</InputLabel>
-                  <Select
-                    value={selectedClass}
-                    label="Select Class Level"
-                    onChange={(e) => setSelectedClass(e.target.value)}
-                    sx={{ 
-                      borderRadius: 2, 
-                      bgcolor: alpha(theme.palette.background.default, 0.5), 
-                      fontWeight: 800,
-                      '& .MuiOutlinedInput-notchedOutline': { border: `1px solid ${alpha(theme.palette.divider, 0.1)}` },
-                    }}
-                  >
-                    {classes.map(c => <MenuItem key={c} value={c} sx={{ fontWeight: 700 }}>{c}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 5 }}>
-                <Box sx={{ display: 'flex', gap: 2.5 }}>
-                  <Paper 
-                    elevation={0} 
-                    sx={{ 
-                      flex: 1, 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      px: 2.5, 
-                      borderRadius: 2, 
-                      border: 'none',
-                      bgcolor: 'background.default',
-                      boxShadow: theme.palette.mode === 'dark'
-                        ? 'inset 4px 4px 8px #000000, inset -4px -4px 8px rgba(255,255,255,0.02)'
-                        : 'inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff',
-                    }}
-                  >
-                    <Search size={20} color={theme.palette.text.secondary} />
-                    <Box 
-                      component="input" 
-                      placeholder="Search Students..." 
-                      value={searchQuery}
-                      onChange={(e: any) => setSearchQuery(e.target.value)}
-                      sx={{ 
-                        border: 'none', 
-                        outline: 'none', 
-                        p: 1.5, 
-                        width: '100%', 
-                        fontWeight: 700,
-                        bgcolor: 'transparent',
-                        color: 'text.primary',
-                        '&::placeholder': { color: 'text.disabled' }
-                      }} 
-                    />
-                  </Paper>
-                  {isStaff && (
-                    <Box sx={{ display: 'flex', gap: 1.5 }}>
-                      <Tooltip title="Export to CSV">
-                        <IconButton 
-                          onClick={handleExport}
-                          sx={{ 
-                            bgcolor: 'background.paper', 
-                            color: 'primary.main', 
-                            boxShadow: theme.palette.mode === 'dark'
-                              ? '4px 4px 8px #000000, -4px -4px 8px rgba(255,255,255,0.01)'
-                              : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
-                            '&:hover': { bgcolor: 'primary.main', color: 'white' } 
-                          }}
-                        >
-                          <Download size={20} />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Mark All Present">
-                        <IconButton 
-                          onClick={() => handleBulkMark('present')}
-                          disabled={bulkMarking !== null}
-                          sx={{ 
-                            bgcolor: 'background.paper', 
-                            color: 'success.main', 
-                            boxShadow: theme.palette.mode === 'dark'
-                              ? '4px 4px 8px #000000, -4px -4px 8px rgba(255,255,255,0.01)'
-                              : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
-                            '&:hover': { bgcolor: 'success.main', color: 'white' } 
-                          }}
-                        >
-                          {bulkMarking === 'present' ? <CircularProgress size={20} color="inherit" /> : <CheckCircle size={22} />}
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Mark All Absent">
-                        <IconButton 
-                          onClick={() => handleBulkMark('absent')}
-                          disabled={bulkMarking !== null}
-                          sx={{ 
-                            bgcolor: 'background.paper', 
-                            color: 'error.main', 
-                            boxShadow: theme.palette.mode === 'dark'
-                              ? '4px 4px 8px #000000, -4px -4px 8px rgba(255,255,255,0.01)'
-                              : '4px 4px 8px #d1d9e6, -4px -4px 8px #ffffff',
-                            '&:hover': { bgcolor: 'error.main', color: 'white' } 
-                          }}
-                        >
-                          {bulkMarking === 'absent' ? <CircularProgress size={20} color="inherit" /> : <XCircle size={22} />}
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  )}
-                </Box>
-              </Grid>
-            </Grid>
-          </Box>
-
-          {/* Attendance Table */}
-          <Box sx={{ overflowX: 'auto', width: '100%' }}>
-            <TableContainer component={Box} sx={{ minWidth: { xs: 800, md: '100%' } }}>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: alpha(theme.palette.background.default, 0.3) }}>
-                    <TableCell sx={{ fontWeight: 800, py: 2.5, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Student Details</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>Roll Number</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }} align="center">Status</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }} align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  <AnimatePresence mode="popLayout">
-                    {filteredStudents.map((student) => {
-                      const record = attendanceData.find(a => a.studentId === student.uid);
-                      return (
-                        <TableRow 
-                          component={motion.tr}
-                          layout
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          key={student.uid} 
-                          hover
-                          sx={{ 
-                            transition: 'all 0.2s',
-                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) },
-                            '& .MuiTableCell-root': { borderBottom: '1px solid', borderColor: 'divider' }
-                          }}
-                        >
-                          <TableCell>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                              <Avatar 
-                                src={student.photoURL} 
-                                imgProps={{ referrerPolicy: 'no-referrer' }}
-                                sx={{ 
-                                  width: 40, 
-                                  height: 40, 
-                                  border: '2px solid', 
-                                  borderColor: record?.status === 'present' ? 'success.light' : record?.status === 'absent' ? 'error.light' : 'divider' 
-                                }}
-                              >
-                                {student.displayName.charAt(0)}
-                              </Avatar>
-                              <Box>
-                                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{student.displayName}</Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{student.classLevel}</Typography>
-                              </Box>
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                              {student.studentId}
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="center">
-                            {record ? (
-                              <Chip 
-                                label={(record.status || 'absent').toUpperCase()} 
-                                color={record.status === 'present' ? 'success' : 'error'} 
-                                size="small" 
-                                sx={{ 
-                                  fontWeight: 900, 
-                                  fontSize: '0.65rem', 
-                                  height: 24,
-                                  px: 1,
-                                  boxShadow: `0 4px 12px ${alpha(record.status === 'present' ? theme.palette.success.main : theme.palette.error.main, 0.2)}`
-                                }}
-                              />
-                            ) : (
-                              <Chip 
-                                label="NOT MARKED" 
-                                size="small" 
-                                variant="outlined" 
-                                sx={{ fontSize: '0.65rem', fontWeight: 800, color: 'text.disabled', borderColor: 'divider' }} 
-                              />
-                            )}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
-                                <Button 
-                                  size="small" 
-                                  variant={record?.status === 'present' ? 'contained' : 'outlined'}
-                                  color="success"
-                                  startIcon={markingIds.has(student.uid) ? null : <CheckCircle size={16} />}
-                                  onClick={() => handleMarkAttendance(student.uid, 'present')}
-                                  disabled={!isStaff || markingIds.has(student.uid) || bulkMarking !== null}
-                                  sx={{ 
-                                    borderRadius: 3, 
-                                    minWidth: { xs: 80, sm: 100 }, 
-                                    fontWeight: 800,
-                                    fontSize: { xs: '0.7rem', sm: '0.8125rem' },
-                                    background: record?.status === 'present' 
-                                      ? `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${alpha(theme.palette.success.main, 0.5)} 100%)` 
-                                      : 'transparent',
-                                    border: record?.status === 'present' ? 'none' : `1px solid ${theme.palette.success.main}`,
-                                    color: record?.status === 'present' ? 'white' : 'success.main',
-                                    boxShadow: record?.status === 'present' ? `0 4px 12px ${alpha(theme.palette.success.main, 0.15)}` : 'none',
-                                    '&:hover': {
-                                      background: record?.status === 'present' 
-                                        ? `linear-gradient(135deg, ${theme.palette.success.dark} 0%, ${alpha(theme.palette.success.dark, 0.8)} 100%)` 
-                                        : alpha(theme.palette.success.main, 0.05),
-                                      border: record?.status === 'present' ? 'none' : `1px solid ${theme.palette.success.main}`,
-                                    }
-                                  }}
-                                >
-                                  {markingIds.has(student.uid) ? <CircularProgress size={16} color="inherit" /> : 'Present'}
-                                </Button>
-                                <Button 
-                                  size="small" 
-                                  variant={record?.status === 'absent' ? 'contained' : 'outlined'}
-                                  color="error"
-                                  startIcon={markingIds.has(student.uid) ? null : <XCircle size={16} />}
-                                  onClick={() => handleMarkAttendance(student.uid, 'absent')}
-                                  disabled={!isStaff || markingIds.has(student.uid) || bulkMarking !== null}
-                                  sx={{ 
-                                    borderRadius: 3, 
-                                    minWidth: { xs: 80, sm: 100 }, 
-                                    fontWeight: 800,
-                                    fontSize: { xs: '0.7rem', sm: '0.8125rem' },
-                                    background: record?.status === 'absent' 
-                                      ? `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${alpha(theme.palette.error.main, 0.5)} 100%)` 
-                                      : 'transparent',
-                                    border: record?.status === 'absent' ? 'none' : `1px solid ${theme.palette.error.main}`,
-                                    color: record?.status === 'absent' ? 'white' : 'error.main',
-                                    boxShadow: record?.status === 'absent' ? `0 4px 12px ${alpha(theme.palette.error.main, 0.15)}` : 'none',
-                                    '&:hover': {
-                                      background: record?.status === 'absent' 
-                                        ? `linear-gradient(135deg, ${theme.palette.error.dark} 0%, ${alpha(theme.palette.error.dark, 0.8)} 100%)` 
-                                        : alpha(theme.palette.error.main, 0.05),
-                                      border: record?.status === 'absent' ? 'none' : `1px solid ${theme.palette.error.main}`,
-                                    }
-                                  }}
-                                >
-                                  {markingIds.has(student.uid) ? <CircularProgress size={16} color="inherit" /> : 'Absent'}
-                                </Button>
-                            </Box>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </AnimatePresence>
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-          
-          {filteredStudents.length === 0 && (
-            <Box sx={{ p: 10, textAlign: 'center' }}>
-              <Users size={64} color={theme.palette.divider} style={{ marginBottom: 16 }} />
-              <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 700 }}>No students found</Typography>
-              <Typography variant="body2" color="text.secondary">Try adjusting your filters or search query</Typography>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
-
-      {!isStaff && (
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, mb: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Clock size={20} color={theme.palette.primary.main} /> Attendance Overview
-          </Typography>
-          <Grid container spacing={3}>
-            <Grid size={12}>
-              <Card sx={{ borderRadius: 5, p: 4, textAlign: 'center' }}>
-                <Calendar size={48} color={theme.palette.divider} style={{ marginBottom: 16 }} />
-                <Typography variant="h6" sx={{ fontWeight: 800, mb: 1 }}>Your History</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Detailed attendance history and monthly trends are currently being synchronized.
-                </Typography>
-              </Card>
-            </Grid>
-          </Grid>
-        </Box>
-      )}
-
-      <Snackbar 
-        open={snackbar.open} 
-        autoHideDuration={4000} 
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
-          severity={snackbar.severity} 
-          sx={{ width: '100%', borderRadius: 3, fontWeight: 700 }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+        <Paper sx={{ p: 2, borderRadius: 4, display: 'flex', gap: 2, alignItems: 'center', border: '1px solid', borderColor: 'divider' }}>
+          <IconButton onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() - 1)))}><ChevronLeft /></IconButton>
+          <Typography sx={{ fontWeight: 900, flex: 1, textAlign: 'center' }}>{format(selectedDate, 'EEEE, d MMM yyyy')}</Typography>
+          <IconButton onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() + 1)))}><ChevronRight /></IconButton>
+          <TextField size="small" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} InputProps={{ startAdornment: <Search size={18} /> }} />
+        </Paper>
+        <TableContainer component={Paper} sx={{ borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
+          <Table><TableHead><TableRow><TableCell>Student</TableCell><TableCell align="center">Action</TableCell></TableRow></TableHead>
+            <TableBody>{students.map(s => (
+              <TableRow key={s.uid} hover><TableCell><Stack direction="row" spacing={2} alignItems="center"><Avatar src={s.photoURL} />
+                <Box><Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{s.displayName}</Typography><Typography variant="caption">{s.classLevel}</Typography></Box></Stack></TableCell>
+                <TableCell align="center"><Stack direction="row" spacing={1} justifyContent="center">{['present', 'absent', 'late'].map(st => (
+                    <Box key={st} onClick={() => setCurrentAttendance(p => ({ ...p, [s.uid]: st as any }))} sx={{ width: 36, height: 36, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px solid', borderColor: currentAttendance[s.uid] === st ? 'primary.main' : 'divider', bgcolor: currentAttendance[s.uid] === st ? alpha(theme.palette.primary.main, 0.1) : 'transparent' }}>
+                      {st === 'present' ? <Check size={18} /> : st === 'absent' ? <X size={18} /> : <Clock size={14} />}
+                    </Box>))}</Stack></TableCell></TableRow>))}</TableBody></Table>
+        </TableContainer>
+      </Stack>
     </Box>
   );
-}
+};
 
-const SummaryCard = React.memo(({ title, value, icon, color, progress }: any) => {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const mainColor = theme.palette[color as 'primary' | 'success' | 'error'].main;
-  
-  return (
-    <Card sx={{ 
-      borderRadius: 2, 
-      height: '100%', 
-      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-      border: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
-      bgcolor: 'background.paper',
-      boxShadow: '0 5px 15px rgba(0,0,0,0.1)',
-      '&:hover': { 
-        transform: 'translateY(-6px)', 
-        borderColor: alpha(mainColor, 0.3),
-        boxShadow: `0 20px 40px ${alpha(mainColor, 0.1)}`,
-      }
-    }}>
-      <CardContent sx={{ p: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3.5 }}>
-          <Box sx={{ 
-            p: 1.5, 
-            borderRadius: 3, 
-            bgcolor: alpha(mainColor, 0.1), 
-            color: mainColor,
-            display: 'flex',
-            border: `1px solid ${alpha(mainColor, 0.15)}`
-          }}>
-            {icon}
-          </Box>
-          <IconButton size="small" sx={{ 
-            bgcolor: alpha(theme.palette.background.default, 0.5),
-            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-          }}>
-            <MoreVertical size={18} />
-          </IconButton>
-        </Box>
-        <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, letterSpacing: -2 }}>{value}</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.75rem', mb: progress !== undefined ? 2.5 : 0 }}>{title}</Typography>
-        
-        {progress !== undefined && (
-          <Box sx={{ mt: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
-              <Typography variant="caption" sx={{ fontWeight: 800, color: mainColor }}>Monthly Target</Typography>
-              <Typography variant="caption" sx={{ fontWeight: 900 }}>85%</Typography>
-            </Box>
-            <LinearProgress 
-              variant="determinate" 
-              value={progress} 
-              sx={{ 
-                height: 10, 
-                borderRadius: 5, 
-                bgcolor: alpha(theme.palette.background.default, 0.5),
-                border: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
-                '& .MuiLinearProgress-bar': { borderRadius: 5, bgcolor: mainColor }
-              }} 
-            />
-          </Box>
-        )}
-      </CardContent>
-    </Card>
-  );
-});
+export default Attendance;

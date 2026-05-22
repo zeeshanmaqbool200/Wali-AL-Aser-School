@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { collection, query, onSnapshot, orderBy, where, limit } from 'firebase/firestore';
 import { db } from '../firebase';
-import { UserProfile, FeeReceipt, Notification as NotificationType, Course, InstituteSettings } from '../types';
+import { UserProfile, FeeReceipt, Notification as NotificationType, Course } from '../types';
 import { useAuth } from './AuthContext';
 
 interface DataContextType {
@@ -10,7 +10,9 @@ interface DataContextType {
   notifications: NotificationType[];
   availableCourses: Course[];
   expenses: any[];
+  attendance: any[];
   loading: boolean;
+  error: string | null;
   isSaving: boolean;
   setIsSaving: (val: boolean) => void;
   isSyncing: boolean;
@@ -26,14 +28,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(Date.now());
   const unsubscribes = useRef<(() => void)[]>([]);
   const lastNotifiedIds = useRef<Set<string>>(new Set());
 
-  // LocalStorage keys
+  // LocalStorage keys for better perceived performance (Initial Load)
   const CACHE_KEYS = {
     USERS: 'institute_cache_users',
     RECEIPTS: 'institute_cache_receipts',
@@ -45,7 +49,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isStaff = user?.role === 'superadmin' || user?.role === 'manager' || user?.role === 'teacher';
   const isAdmin = user?.role === 'superadmin' || user?.role === 'manager';
 
-  // Load from cache initially
+  // Load from cache initially for fast first paint
   useEffect(() => {
     if (user) {
       try {
@@ -53,13 +57,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const cachedReceipts = localStorage.getItem(CACHE_KEYS.RECEIPTS);
         const cachedNotifs = localStorage.getItem(CACHE_KEYS.NOTIFS);
         const cachedCourses = localStorage.getItem(CACHE_KEYS.COURSES);
-        const cachedExpenses = localStorage.getItem(CACHE_KEYS.EXPENSES);
-
+        
         if (cachedUsers) setUsers(JSON.parse(cachedUsers));
         if (cachedReceipts) setReceipts(JSON.parse(cachedReceipts));
         if (cachedNotifs) setNotifications(JSON.parse(cachedNotifs));
         if (cachedCourses) setAvailableCourses(JSON.parse(cachedCourses));
-        if (cachedExpenses) setExpenses(JSON.parse(cachedExpenses));
+        
+        if (cachedUsers || cachedReceipts) {
+          setLoading(false);
+        }
       } catch (e) {
         console.warn('Cache load failed:', e);
       }
@@ -70,11 +76,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!user || notifications.length === 0) return;
 
-    // Filter unread notifications that haven't been notified in this session
     const unread = notifications.filter(n => 
       (!n.readBy || !n.readBy.includes(user.uid)) && 
       !lastNotifiedIds.current.has(n.id) &&
-      (Date.now() - n.createdAt < 300000) // Only notify for ones created in last 5 minutes to avoid flood on load
+      (Date.now() - n.createdAt < 300000)
     );
 
     if (unread.length > 0 && Notification.permission === 'granted') {
@@ -90,13 +95,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.warn('Native notification failed:', e);
         }
       });
-      
-      // Vibrate if available
       if ('vibrate' in navigator) {
         navigator.vibrate([100, 50, 100]);
       }
     } else if (unread.length > 0) {
-      // Just mark as "notified session-wise" so we don't keep checking if permission is denied/default
       unread.forEach(n => lastNotifiedIds.current.add(n.id));
     }
   }, [notifications, user]);
@@ -108,12 +110,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setNotifications([]);
       setAvailableCourses([]);
       setExpenses([]);
+      setAttendance([]);
       setLoading(false);
+      setError(null);
       return;
     }
 
     setLoading(true);
     setIsSyncing(true);
+    setError(null);
 
     const clearUnsubscribes = () => {
       unsubscribes.current.forEach(u => u());
@@ -122,21 +127,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     clearUnsubscribes();
 
-    // 1. Users sync (Staff only)
-    if (isStaff) {
-      const uQuery = query(collection(db, 'users'));
-      const unsubUsers = onSnapshot(uQuery, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[];
-        setUsers(data);
-        localStorage.setItem(CACHE_KEYS.USERS, JSON.stringify(data));
-        setLastUpdate(Date.now());
-        setIsSyncing(false);
-        setLoading(false);
-      });
-      unsubscribes.current.push(unsubUsers);
-    } else {
-      setUsers([user]);
-    }
+    const onSyncError = (err: any, label: string) => {
+      console.error(`${label} sync error:`, err);
+      setError(`Failed to sync ${label.toLowerCase()}. Check permissions.`);
+      setIsSyncing(false);
+      setLoading(false);
+    };
+
+    // 1. Users sync
+    const uQuery = isStaff ? query(collection(db, 'users')) : query(collection(db, 'users'), where('uid', '==', user.uid));
+    const unsubUsers = onSnapshot(uQuery, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[];
+      setUsers(data);
+      if (isStaff) localStorage.setItem(CACHE_KEYS.USERS, JSON.stringify(data));
+      setLastUpdate(Date.now());
+      setIsSyncing(false);
+      setLoading(false);
+    }, (err) => onSyncError(err, 'Users'));
+    unsubscribes.current.push(unsubUsers);
 
     // 2. Receipts sync
     let rQuery = query(collection(db, 'receipts'), orderBy('createdAt', 'desc'));
@@ -147,20 +155,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[];
       setReceipts(data);
       localStorage.setItem(CACHE_KEYS.RECEIPTS, JSON.stringify(data));
-      setLastUpdate(Date.now());
       setIsSyncing(false);
-    });
+    }, (err) => onSyncError(err, 'Receipts'));
     unsubscribes.current.push(unsubReceipts);
 
     // 3. Notifications sync
-    const nQuery = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(50));
+    const nQuery = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(100));
     const unsubNotifs = onSnapshot(nQuery, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
       setNotifications(data);
       localStorage.setItem(CACHE_KEYS.NOTIFS, JSON.stringify(data));
-      setLastUpdate(Date.now());
-      setIsSyncing(false);
-    });
+    }, (err) => onSyncError(err, 'Notifications'));
     unsubscribes.current.push(unsubNotifs);
 
     // 4. Courses sync
@@ -168,22 +173,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubCourses = onSnapshot(cQuery, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[];
       setAvailableCourses(data);
-      localStorage.setItem(CACHE_KEYS.COURSES, JSON.stringify(data));
-      setLastUpdate(Date.now());
-      setIsSyncing(false);
-    });
+    }, (err) => onSyncError(err, 'Courses'));
     unsubscribes.current.push(unsubCourses);
 
-    // 5. Expenses sync (Admin only)
+    // 5. Attendance sync
+    let aQuery = query(collection(db, 'attendance'), orderBy('date', 'desc'), limit(500));
+    if (!isStaff) {
+      aQuery = query(collection(db, 'attendance'), where('studentId', '==', user.uid), orderBy('date', 'desc'), limit(100));
+    }
+    const unsubAttend = onSnapshot(aQuery, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setAttendance(data);
+    }, (err) => onSyncError(err, 'Attendance'));
+    unsubscribes.current.push(unsubAttend);
+
+    // 6. Expenses sync (Admin only)
     if (isAdmin) {
       const eQuery = query(collection(db, 'expenses'), orderBy('date', 'desc'));
       const unsubExpenses = onSnapshot(eQuery, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setExpenses(data);
-        localStorage.setItem(CACHE_KEYS.EXPENSES, JSON.stringify(data));
-        setLastUpdate(Date.now());
-        setIsSyncing(false);
-      });
+      }, (err) => onSyncError(err, 'Expenses'));
       unsubscribes.current.push(unsubExpenses);
     }
 
@@ -197,7 +207,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       notifications,
       availableCourses,
       expenses,
+      attendance,
       loading,
+      error,
       isSaving,
       setIsSaving,
       isSyncing,

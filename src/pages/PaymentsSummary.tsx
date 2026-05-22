@@ -297,7 +297,7 @@ export default function PaymentsSummary() {
                                 <div class="header">
                                   <div style="display: flex; align-items: center; gap: 2mm;">
                                     <div style="width: 8mm; height: 8mm; background: #0d9488; border-radius: 2px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 6px;">WUA</div>
-                                    <span class="title">Institute Portal</span>
+                                    <span class="title">Idarah Wali Ul Aser</span>
                                   </div>
                                   <span class="receipt-no">REF: ${r.receiptNo}</span>
                                 </div>
@@ -328,7 +328,7 @@ export default function PaymentsSummary() {
                                   <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 1mm;">
                                      <div style="font-size: 6px; color: #888; font-family: monospace;">AUTH_ID: ${r.id?.slice(0, 10)}</div>
                                      <div class="amount-box">
-                                       PAID: Rs.${r.amount.toLocaleString()}
+                                       PAID: INR ${r.amount.toLocaleString()}
                                      </div>
                                   </div>
                                 </div>
@@ -383,8 +383,8 @@ export default function PaymentsSummary() {
       {isSuperAdmin && (
         <Grid container spacing={3} sx={{ mb: 4 }}>
         {[
-          { title: 'Total Collected', value: `Rs.${totalCollected.toLocaleString()}`, trend: '+12.5%', icon: <TrendingUp size={24} />, color: 'success', subtitle: 'Approved payments' },
-          { title: 'Pending Amount', value: `Rs.${pendingAmount.toLocaleString()}`, trend: 'Awaiting', icon: <Clock size={24} />, color: 'warning', subtitle: 'Requires review' },
+          { title: 'Total Collected', value: `INR ${totalCollected.toLocaleString()}`, trend: '+12.5%', icon: <TrendingUp size={24} />, color: 'success', subtitle: 'Approved payments' },
+          { title: 'Pending Amount', value: `INR ${pendingAmount.toLocaleString()}`, trend: 'Awaiting', icon: <Clock size={24} />, color: 'warning', subtitle: 'Requires review' },
           { title: 'Approved Receipts', value: approvedCount, trend: 'Success', icon: <CheckCircle size={24} />, color: 'primary', subtitle: 'Completed' },
           { title: 'Pending Receipts', value: pendingCount, trend: 'Review', icon: <FileText size={24} />, color: 'error', subtitle: 'Teacher review needed' }
         ].map((stat, i) => (
@@ -681,14 +681,14 @@ export default function PaymentsSummary() {
                       <Chip label={r.feeHead} size="small" sx={{ fontWeight: 700, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.5) : 'grey.100' }} />
                     </TableCell>
                     <TableCell>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>Rs.{r.amount.toLocaleString()}</Typography>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>INR {r.amount.toLocaleString()}</Typography>
                     </TableCell>
                     <TableCell>
                       <Chip label={r.paymentMode} size="small" variant="outlined" sx={{ fontWeight: 800, borderRadius: 2 }} />
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                        {format(new Date(r.date), 'dd MM yyyy')}
+                        {format(new Date(r.date), 'dd/MM/yyyy')}
                       </Typography>
                     </TableCell>
                     <TableCell align="center">

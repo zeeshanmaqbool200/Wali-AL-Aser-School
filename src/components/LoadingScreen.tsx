@@ -158,7 +158,7 @@ export default function LoadingScreen() {
                     mb: 1
                   }}
                 >
-                  Portal
+                  Idarah Wali Ul Aser
                 </Typography>
               </motion.div>
               

@@ -26,7 +26,7 @@ Font.register({
   src: 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSans/NotoSans-Bold.ttf',
 });
 
-const pdfStyles = StyleSheet.create({
+export const pdfStyles = StyleSheet.create({
   page: {
     padding: 35,
     fontFamily: 'Noto Sans',
@@ -217,7 +217,7 @@ const pdfStyles = StyleSheet.create({
   }
 });
 
-const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, settings: InstituteSettings, qrCodeUrl?: string }) => (
+export const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, settings: InstituteSettings, qrCodeUrl?: string }) => (
   <Document title={`Receipt_${receipt.receiptNo || receipt.receiptNumber}`}>
     <Page size="A4" style={pdfStyles.page}>
       {/* Watermark Logo */}
@@ -282,11 +282,11 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
               </Text>
               <Text style={{ fontSize: 8, color: '#4b5563', marginTop: 4 }}>{receipt.remarks || 'Standard fee payment for the current academic session.'}</Text>
             </View>
-            <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>Rs.{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+            <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>INR {receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
           </View>
         <View style={pdfStyles.tableFooter}>
           <Text style={[pdfStyles.colDesc, { textAlign: 'right', fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>TOTAL PAID AMOUNT</Text>
-          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', color: '#0d9488' }]}>Rs.{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+          <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', color: '#0d9488' }]}>INR {receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
         </View>
       </View>
 
@@ -332,6 +332,110 @@ const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, set
   </Document>
 );
 
+export const BulkReceiptPDF = ({ receipts, settings, qrCodeUrls }: { receipts: FeeReceipt[], settings: InstituteSettings, qrCodeUrls: Record<string, string> }) => (
+  <Document title="Bulk_Receipts">
+    {receipts.map((receipt) => (
+      <Page key={receipt.id} size="A4" style={pdfStyles.page}>
+        <View style={{ position: 'absolute', top: '35%', left: '20%', right: '20%', opacity: 0.05, zIndex: -2 }}>
+          {settings.logoUrl && (
+            <Image src={settings.logoUrl} style={{ width: '100%', height: 'auto' }} />
+          )}
+        </View>
+
+        <View style={pdfStyles.header}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            {settings.receiptLeftImageUrl && (
+              <View style={{ width: 60, height: 60, marginRight: 10, justifyContent: 'center' }}>
+                <Image src={settings.receiptLeftImageUrl} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+              </View>
+            )}
+            <View style={pdfStyles.headerText}>
+              <Text style={pdfStyles.instituteName}>{settings.name}</Text>
+              <Text style={pdfStyles.instituteSubtitle}>{settings.instituteName}</Text>
+              <Text style={pdfStyles.address}>{settings.address}</Text>
+              <Text style={pdfStyles.address}>Ph: {settings.phone} • {settings.email}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10 }}>
+              {settings.receiptRightImageUrl ? (
+                <Image src={settings.receiptRightImageUrl} style={{ width: 60, height: 60, objectFit: 'contain' }} />
+              ) : null}
+            </View>
+          </View>
+          <View style={pdfStyles.receiptMeta}>
+            <Text style={pdfStyles.receiptTitle}>RECEIPT</Text>
+            <Text style={pdfStyles.receiptNo}>No: {receipt.receiptNo || receipt.receiptNumber}</Text>
+            <Text style={pdfStyles.date}>Date: {format(new Date(receipt.date), 'dd/MM/yyyy')}</Text>
+          </View>
+        </View>
+
+        <View style={pdfStyles.detailsGrid}>
+          <View style={pdfStyles.detailColumn}>
+            <Text style={pdfStyles.label}>Student Details</Text>
+            <Text style={[pdfStyles.value, { fontSize: 13 }]}>{receipt.studentName}</Text>
+            <Text style={pdfStyles.subValue}>ID: {receipt.studentOfficialId || receipt.studentId}</Text>
+            <Text style={pdfStyles.subValue}>Class: {receipt.classLevel || 'N/A'}</Text>
+          </View>
+          <View style={[pdfStyles.detailColumn, { textAlign: 'right' }]}>
+            <Text style={pdfStyles.label}>Payment Details</Text>
+            <Text style={[pdfStyles.value, { color: '#0d9488' }]}>{(receipt.status || 'approved').toUpperCase()}</Text>
+            <Text style={pdfStyles.subValue}>TXN ID: {receipt.transactionId || 'CASH'}</Text>
+            <Text style={pdfStyles.subValue}>Mode: {receipt.paymentMode || 'Cash'}</Text>
+          </View>
+        </View>
+
+        <View style={pdfStyles.table}>
+          <View style={pdfStyles.tableHeader}>
+            <Text style={[pdfStyles.colDesc, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>DESCRIPTION</Text>
+            <Text style={[pdfStyles.colAmount, { fontSize: 8, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>AMOUNT</Text>
+          </View>
+          <View style={pdfStyles.tableRow}>
+            <View style={pdfStyles.colDesc}>
+              <Text style={{ fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }}>
+                {receipt.feeHead} {receipt.month ? `(${receipt.month})` : ''}
+              </Text>
+              <Text style={{ fontSize: 8, color: '#4b5563', marginTop: 4 }}>{receipt.remarks || 'Standard fee payment for the current academic session.'}</Text>
+            </View>
+            <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>INR {receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+          </View>
+          <View style={pdfStyles.tableFooter}>
+            <Text style={[pdfStyles.colDesc, { textAlign: 'right', fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold' }]}>TOTAL PAID AMOUNT</Text>
+            <Text style={[pdfStyles.colAmount, { fontSize: 11, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', color: '#0d9488' }]}>INR {receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Text>
+          </View>
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 20 }}>
+          <View style={[pdfStyles.wordsBox, { flex: 1 }]}>
+            <Text style={pdfStyles.label}>Amount in Words</Text>
+            <Text style={{ fontSize: 10, fontWeight: 'bold', fontFamily: 'Noto Sans Bold', textTransform: 'capitalize', marginTop: 4 }}>
+              {numberToIndianWords(receipt.amount)}
+            </Text>
+          </View>
+          {qrCodeUrls[receipt.id || ''] && (
+            <View style={{ alignItems: 'center', marginTop: 10 }}>
+              <Text style={[pdfStyles.label, { marginBottom: 4 }]}>SECURE SCAN</Text>
+              <Image src={qrCodeUrls[receipt.id || '']} style={pdfStyles.qrCodeBox} />
+            </View>
+          )}
+        </View>
+
+        <View style={pdfStyles.footer}>
+          <View style={pdfStyles.signatureBox}>
+            <Text style={pdfStyles.signatureLabel}>Student Signature</Text>
+          </View>
+          <View style={{ alignItems: 'center' }}>
+            <View style={pdfStyles.verifiedStamp}>
+              <Text style={pdfStyles.verifiedText}>DIGITALLY VERIFIED</Text>
+              <Text style={pdfStyles.verifiedBy}>By {receipt.approvedByName || 'System'}</Text>
+            </View>
+            <View style={pdfStyles.signatureBox}>
+              <Text style={pdfStyles.signatureLabel}>Authorized Signature</Text>
+            </View>
+          </View>
+        </View>
+      </Page>
+    ))}
+  </Document>
+);
 interface FeeReceiptModalProps {
   open: boolean;
   onClose: () => void;
@@ -388,15 +492,15 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
     }
   }, [receipt]);
 
-  if (!receipt) return null;
-
-  const receiptNo = receipt.receiptNo || receipt.receiptNumber;
+  const receiptNo = receipt?.receiptNo || receipt?.receiptNumber;
   const contentRef = useRef<HTMLDivElement>(null);
   
   const handlePrint = useReactToPrint({
     contentRef,
     documentTitle: `Receipt_${receiptNo}`,
   });
+
+  if (!receipt) return null;
 
   return (
     <Dialog 
@@ -557,7 +661,7 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
                 No: {receiptNo}
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 700, color: '#6b7280 !important', mt: 0.5 }}>
-                Date: {format(new Date(receipt.date), 'dd MM yyyy')}
+                Date: {format(new Date(receipt.date), 'dd/MM/yyyy')}
               </Typography>
             </Box>
             <Box sx={{ textAlign: 'right' }}>
@@ -601,11 +705,11 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
                   {receipt.remarks || 'Standard fee payment for the current academic session.'}
                 </Typography>
               </Box>
-              <Typography variant="body2" sx={{ flex: 1, textAlign: 'right', fontWeight: 800 }}>Rs.{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
+              <Typography variant="body2" sx={{ flex: 1, textAlign: 'right', fontWeight: 800 }}>INR {receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
             </Box>
             <Box sx={{ display: 'flex', bgcolor: '#f0f9f9', p: 1.5, borderTop: '1px solid #e5e7eb' }}>
               <Typography variant="body2" sx={{ flex: 3, textAlign: 'right', fontWeight: 800 }}>TOTAL PAID AMOUNT</Typography>
-              <Typography variant="subtitle2" sx={{ flex: 1, textAlign: 'right', fontWeight: 900, color: '#0d9488 !important' }}>Rs.{receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
+              <Typography variant="subtitle2" sx={{ flex: 1, textAlign: 'right', fontWeight: 900, color: '#0d9488 !important' }}>INR {receipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
             </Box>
           </Box>
           

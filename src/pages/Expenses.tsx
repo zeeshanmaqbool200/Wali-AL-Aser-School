@@ -265,12 +265,12 @@ export default function Expenses() {
     doc.line(14, 57, 60, 57);
     
     doc.setFontSize(10);
-    doc.text(`Total Credits: Rs.${totalCredits.toLocaleString()}`, 14, 65);
-    doc.text(`Total Debits: Rs.${totalDebits.toLocaleString()}`, 14, 72);
+    doc.text(`Total Credits: INR ${totalCredits.toLocaleString()}`, 14, 65);
+    doc.text(`Total Debits: INR ${totalDebits.toLocaleString()}`, 14, 72);
     
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.text(`NET SETTLEMENT: Rs.${netBalance.toLocaleString()}`, 14, 82);
+    doc.text(`NET SETTLEMENT: INR ${netBalance.toLocaleString()}`, 14, 82);
     doc.setFont("helvetica", "normal");
     
     doc.setFontSize(10);
@@ -305,7 +305,7 @@ export default function Expenses() {
     // Table
     (doc as any).autoTable({
       startY: 140, // Adjust startY based on previous page or content
-      head: [['Date', 'Description', 'Category', 'Type', 'Amount (Rs.)', 'Logged By']],
+      head: [['Date', 'Description', 'Category', 'Type', 'Amount (INR)', 'Logged By']],
       body: filteredExpenses.map(exp => [
         format(new Date(exp.date), 'dd-MM-yyyy'), 
         exp.itemName, 
@@ -491,20 +491,20 @@ export default function Expenses() {
             <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ textAlign: 'center', borderRight: { md: '1px solid' }, borderColor: 'divider', px: 1 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5 }}>Monthly Operational Income</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: 'success.main' }}>₹{monthCredits.toLocaleString()}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: 'success.main' }}>INR {monthCredits.toLocaleString()}</Typography>
               </Box>
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ textAlign: 'center', borderRight: { md: '1px solid' }, borderColor: 'divider', px: 1 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5 }}>Monthly Expenditure</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: 'error.main' }}>₹{monthDebits.toLocaleString()}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: 'error.main' }}>INR {monthDebits.toLocaleString()}</Typography>
               </Box>
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ textAlign: 'center', px: 1 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5 }}>Net Operational Savings</Typography>
                 <Typography variant="h6" sx={{ fontWeight: 950, color: monthNet >= 0 ? 'success.main' : 'error.main' }}>
-                  ₹{monthNet.toLocaleString()}
+                  INR {monthNet.toLocaleString()}
                 </Typography>
               </Box>
             </Grid>
@@ -580,7 +580,7 @@ export default function Expenses() {
                       InputProps={{ 
                         disableUnderline: true, 
                         sx: { borderRadius: 3, fontWeight: 900, fontSize: '1.1rem' },
-                        startAdornment: <InputAdornment position="start"><Typography sx={{ fontWeight: 900, color: 'text.secondary' }}>Rs.</Typography></InputAdornment>
+                        startAdornment: <InputAdornment position="start"><Typography sx={{ fontWeight: 900, color: 'text.secondary' }}>₹</Typography></InputAdornment>
                       }}
                     />
                   </Grid>
@@ -950,7 +950,7 @@ export default function Expenses() {
                           </TableCell>
                           <TableCell align="right">
                             <Typography sx={{ fontWeight: 900, fontSize: '1rem', color: exp.type === 'credit' ? 'success.main' : 'error.main' }}>
-                              {exp.type === 'credit' ? '+' : '-'} Rs.{exp.amount.toLocaleString()}
+                              {exp.type === 'credit' ? '+' : '-'} INR {exp.amount.toLocaleString()}
                             </Typography>
                           </TableCell>
                           <TableCell align="center">

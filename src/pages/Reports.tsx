@@ -100,9 +100,9 @@ export default function Reports() {
       fees: totalFees,
       credits,
       debits,
-      students: allUsers.filter(u => u.role === 'student' && u.status !== 'Deleted').length,
-      staff: allUsers.filter(u => ['teacher', 'manager', 'superadmin'].includes(u.role) && u.status !== 'Deleted').length,
-      pendingUsers: allUsers.filter(u => !u.isVerified && u.status !== 'Deleted').length
+      students: allUsers.filter(u => (u.role === 'student' || !u.role) && u.status !== 'Archived').length,
+      staff: allUsers.filter(u => ['teacher', 'manager', 'superadmin', 'admin'].includes(u.role || '')).length,
+      pendingUsers: allUsers.filter(u => !u.isVerified && u.status !== 'Deleted' && u.status !== 'Archived').length
     });
 
     setRevenueData(Object.keys(monthly).map(key => ({
@@ -127,9 +127,9 @@ export default function Reports() {
       startY: 35,
       head: [['Metric', 'Value']],
       body: [
-        ['Total Inflow', `Rs.${(counts.fees + counts.credits).toLocaleString()}`],
-        ['Total Outflow', `Rs.${counts.debits.toLocaleString()}`],
-        ['Net Balance', `Rs.${(counts.fees + counts.credits - counts.debits).toLocaleString()}`]
+        ['Total Inflow', `INR ${(counts.fees + counts.credits).toLocaleString()}`],
+        ['Total Outflow', `INR ${counts.debits.toLocaleString()}`],
+        ['Net Balance', `INR ${(counts.fees + counts.credits - counts.debits).toLocaleString()}`]
       ],
       headStyles: { fillColor: [13, 148, 136] }
     });
@@ -153,13 +153,13 @@ export default function Reports() {
   ];
 
   const financialStats = [
-    { title: 'Total Inflow', value: `Rs.${(counts.fees + counts.credits).toLocaleString()}`, trend: 'Fees & Misc Credits', icon: <Wallet size={24} />, color: 'primary' },
-    { title: 'Total Outflow', value: `Rs.${counts.debits.toLocaleString()}`, trend: 'Ledger Records', icon: <ArrowDownRight size={24} />, color: 'error', link: '/expenses' },
-    { title: 'Total Net Balance', value: `Rs.${(counts.fees + counts.credits - counts.debits).toLocaleString()}`, trend: 'Current Liquidity', icon: <Activity size={24} />, color: 'warning' }
+    { title: 'Total Inflow', value: `INR ${(counts.fees + counts.credits).toLocaleString()}`, trend: 'Fees & Misc Credits', icon: <Wallet size={24} />, color: 'primary' },
+    { title: 'Total Outflow', value: `INR ${counts.debits.toLocaleString()}`, trend: 'Ledger Records', icon: <ArrowDownRight size={24} />, color: 'error', link: '/expenses' },
+    { title: 'Total Net Balance', value: `INR ${(counts.fees + counts.credits - counts.debits).toLocaleString()}`, trend: 'Current Liquidity', icon: <Activity size={24} />, color: 'warning' }
   ];
 
   const coverageRate = counts.students > 0 ? Math.round(((counts.students - counts.pendingUsers) / counts.students) * 100) : 0;
-  const recoveryRate = counts.fees > 0 ? Math.min(Math.round((counts.fees / (counts.students * 2000)) * 100), 100) : 0; // Estimation based on 2k avg fee
+  const recoveryRate = counts.students > 0 ? Math.min(Math.round((counts.fees / (counts.students * 1000)) * 100), 100) : 0; // Revised estimate 1k/student
 
   if (!isAdmin) {
     return (
@@ -287,9 +287,9 @@ export default function Reports() {
                   <Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                        <Typography variant="body2" sx={{ fontWeight: 800 }}>System Integrity</Typography>
-                       <Typography variant="body2" sx={{ fontWeight: 900, color: 'warning.main' }}>98%</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 900, color: 'warning.main' }}>100%</Typography>
                     </Box>
-                    <LinearProgress variant="determinate" value={98} color="warning" sx={{ height: 8, borderRadius: 4 }} />
+                    <LinearProgress variant="determinate" value={100} color="warning" sx={{ height: 8, borderRadius: 4 }} />
                   </Box>
                </Box>
 

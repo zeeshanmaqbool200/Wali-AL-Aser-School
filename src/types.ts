@@ -11,6 +11,7 @@ export interface UserProfile {
   gender?: 'male' | 'female' | 'other';
   dob?: string;
   createdAt: number;
+  updatedAt?: number;
   phone?: string;
   whatsapp?: string;
   address?: string;
@@ -35,6 +36,7 @@ export interface UserProfile {
   // Teacher specific
   teacherId?: string;
   subject?: string;
+  staffId?: string;
   profession?: string;
   expertise?: string[];
   pendingProfileChanges?: {
