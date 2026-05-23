@@ -17,9 +17,12 @@ import { logger } from '../lib/logger';
 import ImageCaptureDialog from '../components/ImageCaptureDialog';
 import SavingOverlay from '../components/SavingOverlay';
 import IDCardModal from '../components/IDCardModal';
+import AdmissionFormPrint from '../components/AdmissionFormPrint';
+import { useReactToPrint } from 'react-to-print';
+import { Printer } from 'lucide-react';
 
 export default function Profile() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, instituteSettings } = useAuth();
   const { setIsSaving } = useData();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -29,6 +32,11 @@ export default function Profile() {
   const [originalData, setOriginalData] = useState<string>('');
   const [openCapture, setOpenCapture] = useState(false);
   const [idCardOpen, setIdCardOpen] = useState(false);
+  const printRef = React.useRef<HTMLDivElement>(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+  });
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ 
     open: false, message: '', severity: 'success' 
   });
@@ -192,20 +200,35 @@ export default function Profile() {
     <Box sx={{ maxWidth: 800, mx: 'auto', pb: 8, px: { xs: 2, sm: 0 } }}>
       <SavingOverlay isSaving={saving} message="Updating Secure Profile..." />
       <IDCardModal open={idCardOpen} user={profileData as any} onClose={() => setIdCardOpen(false)} />
+      <AdmissionFormPrint ref={printRef} user={profileData as any} settings={instituteSettings} />
       
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4, justifyContent: 'space-between' }}>
-          <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 4, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 900, letterSpacing: -1.5 }}>
             Personal Profile
           </Typography>
-          <Button
-            variant="outlined"
-            startIcon={<Contact size={20} />}
-            onClick={() => setIdCardOpen(true)}
-            sx={{ borderRadius: 3, fontWeight: 800, textTransform: 'none' }}
-          >
-            Digital ID Card
-          </Button>
+          <Stack direction="row" spacing={1}>
+            {profileData.role === 'student' && (
+              <Button
+                variant="contained"
+                size={isMobile ? "small" : "medium"}
+                startIcon={<Printer size={isMobile ? 16 : 20} />}
+                onClick={() => handlePrint()}
+                sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
+              >
+                Admission Form
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              size={isMobile ? "small" : "medium"}
+              startIcon={<Contact size={isMobile ? 16 : 20} />}
+              onClick={() => setIdCardOpen(true)}
+              sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none' }}
+            >
+              Digital ID
+            </Button>
+          </Stack>
         </Box>
 
         <Card sx={{ 

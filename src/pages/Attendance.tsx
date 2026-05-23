@@ -7,15 +7,24 @@ import { db } from '../firebase';
 import { doc, Timestamp, writeBatch } from 'firebase/firestore';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import ConfirmDialog from '../components/ConfirmDialog';
+import PrintableAttendanceSheet from '../components/PrintableAttendanceSheet';
+import { useReactToPrint } from 'react-to-print';
+import { Printer } from 'lucide-react';
 
 const Attendance = () => {
   const theme = useTheme();
   const { users, attendance, loading: dataLoading, setIsSaving, isSaving } = useData();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, instituteSettings } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
   const [currentAttendance, setCurrentAttendance] = useState<Record<string, 'present' | 'absent' | 'late' | 'excused'>>({});
   const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
+
+  const printRef = React.useRef<HTMLDivElement>(null);
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Attendance_${format(selectedDate, 'yyyy-MM-dd')}`,
+  });
 
   const students = useMemo(() => {
     return users.filter(u => (u.role === 'student' || !u.role) && u.status !== 'Archived' && 
@@ -56,11 +65,21 @@ const Attendance = () => {
 
   return (
     <Box sx={{ pb: 16, pt: 2 }}>
+      <PrintableAttendanceSheet 
+        ref={printRef} 
+        students={students} 
+        attendance={currentAttendance} 
+        selectedDate={selectedDate} 
+        settings={instituteSettings} 
+      />
       <ConfirmDialog isOpen={saveConfirmOpen} title="Save Attendance?" message={`Submit records for ${format(selectedDate, 'dd-MM-yyyy')}?`} onConfirm={handleSaveAttendance} onCancel={() => setSaveConfirmOpen(false)} isDestructive={false} />
       <Stack spacing={3} sx={{ px: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box><Typography variant="h5" sx={{ fontWeight: 950 }}>Attendance</Typography></Box>
-          <Button variant="contained" startIcon={<Save size={18} />} onClick={() => setSaveConfirmOpen(true)} disabled={isSaving}>Submit Records</Button>
+          <Stack direction="row" spacing={1}>
+            <Button variant="outlined" startIcon={<Printer size={18} />} onClick={() => handlePrint()} sx={{ display: { xs: 'none', sm: 'flex' } }}>Print Sheet</Button>
+            <Button variant="contained" startIcon={<Save size={18} />} onClick={() => setSaveConfirmOpen(true)} disabled={isSaving}>Submit Records</Button>
+          </Stack>
         </Box>
         <Paper sx={{ p: 2, borderRadius: 4, display: 'flex', gap: 2, alignItems: 'center', border: '1px solid', borderColor: 'divider' }}>
           <IconButton onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() - 1)))}><ChevronLeft /></IconButton>

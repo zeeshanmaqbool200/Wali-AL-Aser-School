@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700;800;900&family=Noto+Serif:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -7,6 +7,8 @@
   --font-heading: "Outfit", sans-serif;
   --font-decorative: "Cinzel Decorative", serif;
   --font-urdu: "Noto Nastaliq Urdu", serif;
+  --font-ebook: "Noto Serif", serif;
+  --font-display: "Playfair Display", serif;
 }
 
 @layer base {
@@ -36,9 +38,24 @@
     font-family: var(--font-urdu), "Inter", sans-serif;
     line-height: 2.5;
   }
+
+  .ebook-text {
+    font-family: var(--font-ebook), serif;
+    line-height: 1.8;
+  }
+
+  .display-text {
+    font-family: var(--font-display), serif;
+    letter-spacing: -0.01em;
+  }
 }
 
 @layer base {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
   @media print {
     .no-print, 
     .no-print *,
@@ -75,12 +92,25 @@
       background-color: white !important;
       color: black !important;
     }
+    
+    /* Strict A4 Container for Page Content */
+    .a4-print-container {
+      width: 210mm !important;
+      min-height: 297mm !important;
+      padding: 15mm 20mm !important;
+      margin: 0 auto !important;
+      background: white !important;
+      box-sizing: border-box !important;
+      page-break-after: always !important;
+      position: relative !important;
+      overflow: hidden !important;
+    }
+
     /* Specific overrides for Receipt and Admission Forms */
     .receipt-container {
       width: 100% !important; 
       max-width: 190mm !important;
-      min-height: 140mm !important; /* Roughly half A4 height (297mm / 2 = 148.5mm) */
-      margin: 0 auto !important;
+      margin: 10mm auto !important;
       padding: 10mm !important;
       box-shadow: none !important;
       border: 1px solid #ddd !important;
@@ -88,25 +118,7 @@
       display: flex !important;
       flex-direction: column !important;
     }
-    .admission-page {
-      width: 210mm !important;
-      height: 297mm !important;
-      margin: 0 !important;
-      padding: 10mm 15mm !important;
-      box-sizing: border-box !important;
-      background: white !important;
-      overflow: hidden !important;
-      position: relative !important;
-      page-break-after: always !important;
-    }
-    .admission-page * {
-      font-size: 11pt !important;
-      line-height: 1.4 !important;
-    }
-    .admission-page h1, .admission-page h2 {
-      font-size: 16pt !important;
-      margin-bottom: 5mm !important;
-    }
+    
     .MuiDialog-root {
       position: absolute !important;
       left: 0 !important;
@@ -123,22 +135,6 @@
       width: 100% !important;
       max-width: 100% !important;
       height: auto !important;
-    }
-    .admission-page {
-      width: 210mm !important; 
-      height: 297mm !important; 
-      margin: 0 auto !important;
-      padding: 10mm !important;
-      box-sizing: border-box !important;
-      page-break-after: always !important;
-      overflow: visible !important;
-      background: white !important;
-    }
-    .admission-page > div {
-      height: 100% !important;
-      display: flex !important;
-      flex-direction: column !important;
-      justify-content: space-between !important;
     }
     .MuiDialog-paper {
       overflow: visible !important;
@@ -372,6 +368,11 @@
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  
   .no-print, 
   header, 
   nav, 
@@ -393,6 +394,8 @@
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   .MuiDialog-root {
@@ -427,34 +430,30 @@
     padding: 0 !important;
   }
 
+  /* Universal Print Utility for A4 */
+  .a4-print-page {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    padding: 15mm 20mm !important;
+    margin: 0 auto !important;
+    box-sizing: border-box !important;
+    background: white !important;
+    page-break-after: always !important;
+    position: relative !important;
+    overflow: hidden !important;
+    color: black !important;
+  }
+
   .receipt-container {
     width: 100% !important; 
     max-width: 190mm !important;
-    min-height: 140mm !important;
-    margin: 0 auto !important;
+    margin: 10mm auto !important;
     padding: 10mm !important;
     box-shadow: none !important;
     border: 1px solid #eee !important;
     page-break-inside: avoid !important;
     display: flex !important;
     flex-direction: column !important;
-  }
-
-  .admission-page {
-    width: 100% !important;
-    max-width: 210mm !important;
-    margin: 0 auto !important;
-    padding: 10mm !important;
-    box-sizing: border-box !important;
-    page-break-after: always !important;
-    overflow: visible !important;
-    background: white !important;
-    display: block !important;
-  }
-
-  .admission-page > div {
-    height: auto !important;
-    border: 2px solid black !important;
   }
   
   /* Ensure logo containment and word wrap */

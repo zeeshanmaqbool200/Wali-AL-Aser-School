@@ -1,15 +1,15 @@
 import React from 'react';
-import { Box, Typography, LinearProgress, CircularProgress } from '@mui/material';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Box, Typography } from '@mui/material';
+import { motion, AnimatePresence } from 'motion/react';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Save } from 'lucide-react';
+import { CloudUpload } from 'lucide-react';
 
 interface SavingOverlayProps {
   isSaving: boolean;
   message?: string;
 }
 
-export default function SavingOverlay({ isSaving, message = 'Saving to Database...' }: SavingOverlayProps) {
+export default function SavingOverlay({ isSaving, message = 'Syncing Changes...' }: SavingOverlayProps) {
   const theme = useTheme();
 
   return (
@@ -19,106 +19,69 @@ export default function SavingOverlay({ isSaving, message = 'Saving to Database.
           component={motion.div}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 1, transition: { delay: 0.5 } }} // Hold a bit before vanishing
           sx={{
             position: 'fixed',
             inset: 0,
             zIndex: 9999,
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: alpha(theme.palette.background.default, 0.7),
-            backdropFilter: 'blur(8px)',
+            bgcolor: alpha(theme.palette.background.default, 0.4),
+            backdropFilter: 'blur(4px)',
           }}
         >
           <Box
             component={motion.div}
-            initial={{ scale: 0.8, opacity: 0, y: 30 }}
+            initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.8, opacity: 0, y: 30 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            exit={{ scale: 1.05, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 400 }}
             sx={{
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              gap: 2,
-              p: 4,
-              borderRadius: 6,
-              bgcolor: theme.palette.mode === 'dark' ? alpha('#111', 0.95) : alpha('#fff', 0.95),
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+              gap: 2.5,
+              px: 3,
+              py: 1.5,
+              borderRadius: 4,
+              bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
               boxShadow: theme.palette.mode === 'dark' 
-                ? '0 20px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)' 
-                : '0 20px 40px rgba(0,0,0,0.1)',
-              textAlign: 'center',
-              maxWidth: 280,
-              width: '90%',
+                ? '0 10px 30px rgba(0,0,0,0.5), 0 0 20px rgba(0,224,255,0.05)' 
+                : '0 10px 30px rgba(0,0,0,0.08)',
               backdropFilter: 'blur(20px)',
             }}
           >
-            <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+            <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <motion.div
                 animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
-              >
-                <CircularProgress 
-                  size={64} 
-                  thickness={1.5} 
-                  sx={{ color: alpha(theme.palette.primary.main, 0.1) }} 
-                />
-              </motion.div>
-              <CircularProgress
-                variant="indeterminate"
-                size={64}
-                thickness={3}
-                sx={{
-                  color: theme.palette.primary.main,
-                  position: 'absolute',
-                  left: 0,
-                  [`& .MuiCircularProgress-circle`]: {
-                    strokeLinecap: 'round',
-                    animationDuration: '1.5s',
-                  },
+                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  border: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                  borderTopColor: theme.palette.primary.main,
                 }}
               />
-              <Box
-                sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <motion.div
-                  animate={{ scale: [1, 1.1, 1] }}
-                  transition={{ repeat: Infinity, duration: 2 }}
-                >
-                  <Save size={24} color={theme.palette.primary.main} />
-                </motion.div>
+              <Box sx={{ position: 'absolute' }}>
+                <CloudUpload size={14} color={theme.palette.primary.main} />
               </Box>
             </Box>
 
-            <Box sx={{ width: '100%', mt: 1 }}>
-              <Typography variant="h6" sx={{ fontWeight: 950, mb: 1, color: 'text.primary', letterSpacing: -0.5 }}>
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 900, color: 'text.primary', letterSpacing: -0.2 }}>
                 {message}
               </Typography>
-              <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 2, opacity: 0.8 }}>
-                Synchronizing secure data nodes
-              </Typography>
-              <Box sx={{ position: 'relative', height: 6, width: '100%', bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 3, overflow: 'hidden' }}>
+              <Box sx={{ mt: 0.5, height: 2, width: '100%', bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 1, overflow: 'hidden' }}>
                 <motion.div
                   initial={{ x: '-100%' }}
                   animate={{ x: '100%' }}
-                  transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                  transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
                   style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    bottom: 0,
-                    width: '50%',
+                    height: '100%',
+                    width: '40%',
                     background: `linear-gradient(90deg, transparent, ${theme.palette.primary.main}, transparent)`,
-                    borderRadius: 3,
                   }}
                 />
               </Box>

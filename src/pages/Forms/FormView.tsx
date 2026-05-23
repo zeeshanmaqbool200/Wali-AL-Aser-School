@@ -367,7 +367,7 @@ export default function FormView() {
       });
     } catch (err) {
       console.error(err);
-      alert('Failed to submit. Please check your internet connection.');
+      setError('Failed to submit. Please check your internet connection or try again.');
     } finally {
       setSubmitting(false);
     }

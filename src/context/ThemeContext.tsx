@@ -124,100 +124,89 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
 
       const secondaryMain = highContrast
         ? (isDark ? '#cbd5e1' : '#334155')
-        : (instituteColors.accent1 || instituteColors.primary);
+        : (instituteColors.accent2 || '#0284c7');
 
       const baseFontSize = isMobileSub ? 14 : 16;
+      const radius = 0.5; // Subtle 1% feel, roughly 4px
       
       return createTheme({
         palette: {
           mode: isDark ? 'dark' : 'light',
           primary: {
             main: primaryMain,
-            light: lighten(primaryMain, 0.1),
-            dark: darken(primaryMain, 0.1),
+            light: lighten(primaryMain, 0.2),
+            dark: darken(primaryMain, 0.2),
             contrastText: '#ffffff',
           },
           secondary: {
             main: secondaryMain,
-            light: lighten(secondaryMain, 0.1),
-            dark: darken(secondaryMain, 0.1),
+            light: lighten(secondaryMain, 0.2),
+            dark: darken(secondaryMain, 0.2),
             contrastText: '#ffffff',
           },
           background: {
-            default: isDark ? '#070707' : '#f8fafc',
-            paper: isDark ? '#0f0f0f' : '#ffffff',
+            default: isDark ? '#050505' : '#f8fafc',
+            paper: isDark ? '#0c0c0c' : '#ffffff',
           },
           text: {
-            primary: isDark ? '#ffffff' : '#0f172a',
-            secondary: isDark ? '#a1a1aa' : '#64748b',
+            primary: isDark ? '#f8fafc' : '#0f172a',
+            secondary: isDark ? '#94a3b8' : '#64748b',
           },
-          divider: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.08)',
+          divider: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
         },
+        shadows: isDark 
+          ? [
+              'none', '0 2px 4px rgba(0,0,0,0.4)', '0 4px 8px rgba(0,0,0,0.5)', 
+              '0 8px 16px rgba(0,0,0,0.6)', '0 12px 24px rgba(0,0,0,0.7)', 
+              '0 16px 32px rgba(0,0,0,0.8)', ...Array(19).fill('none')
+            ] as any
+          : [
+              'none', '0 1px 3px rgba(0,0,0,0.01)', '0 4px 12px rgba(0,0,0,0.02)', 
+              '0 8px 24px rgba(0,0,0,0.03)', '0 12px 32px rgba(0,0,0,0.04)', 
+              '0 16px 48px rgba(0,0,0,0.05)', ...Array(19).fill('none')
+            ] as any,
         // Custom colors available via theme.accent1/accent2
         ...( {
           accent1: instituteColors.accent1,
           accent2: instituteColors.accent2
         } as any),
-        spacing: compactLayout ? 4 : 8,
+        spacing: compactLayout ? 6 : 8,
         typography: {
           fontSize: baseFontSize,
-          fontFamily: '"Inter", "SF Pro Display", -apple-system, blinkmacsystemfont, "Segoe UI", roboto, sans-serif',
-          h1: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 1000, letterSpacing: '-0.02em' },
-          h2: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 1000, letterSpacing: '-0.02em' },
-          h3: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, letterSpacing: '-0.02em' },
-          h4: { fontFamily: '"Cinzel Decorative", serif', fontWeight: 900, letterSpacing: '-0.02em' },
-          h5: { fontFamily: '"Inter", sans-serif', fontWeight: 600 },
-          h6: { fontFamily: '"Inter", sans-serif', fontWeight: 600 },
-          subtitle1: { fontWeight: 500, letterSpacing: '-0.01em' },
-          subtitle2: { fontWeight: 500, letterSpacing: '-0.01em' },
+          fontFamily: '"Inter", "Outfit", sans-serif',
+          h1: { fontWeight: 900, letterSpacing: '-0.04em' },
+          h2: { fontWeight: 900, letterSpacing: '-0.04em' },
+          h3: { fontWeight: 800, letterSpacing: '-0.03em' },
+          h4: { fontWeight: 800, letterSpacing: '-0.03em' },
+          h5: { fontWeight: 700, letterSpacing: '-0.02em' },
+          h6: { fontWeight: 700, letterSpacing: '-0.01em' },
+          subtitle1: { fontWeight: 600, letterSpacing: '-0.01em' },
+          subtitle2: { fontWeight: 600, letterSpacing: '-0.01em' },
           body1: { lineHeight: 1.6, fontSize: `${baseFontSize / 16}rem`, letterSpacing: '-0.011em' },
           body2: { lineHeight: 1.5, fontSize: `${(baseFontSize * 14 / 16) / 16}rem`, letterSpacing: '-0.01em' },
-          button: { textTransform: 'none', fontWeight: 700, letterSpacing: '0.01em' },
-          caption: { letterSpacing: '0.02em' }
+          button: { textTransform: 'none', fontWeight: 800, letterSpacing: '0.01em' },
+          caption: { letterSpacing: '0.03em', fontWeight: 600 }
         },
         shape: {
-          borderRadius: 2, // Increased from 0.25 to 2 (16px base)
+          borderRadius: 4, // 4px fixed for that 1% look
         },
         components: {
           MuiButton: {
             styleOverrides: {
               root: {
-                borderRadius: 4, // Increased to 16px (assuming theme spacing is 4? No, theme spacing is 8 if compactLayout is false)
-                // Actually spacing is: spacing: compactLayout ? 4 : 8 (line 155)
-                // borderRadius: 2 means 2 * 4px = 8px if that's how MUI calculates it, 
-                // but usually it's just a number. 
-                // Given the user wants it NOT shrinked, I'll use 16px.
-                padding: '10px 24px', 
-                minHeight: 44, 
+                borderRadius: 6, // Slightly more for buttons
+                padding: '8px 20px', 
+                minHeight: 38, 
                 boxShadow: 'none',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                fontSize: isMobileSub ? '0.75rem' : '0.9rem',
+                transition: 'all 0.2s ease-in-out',
                 '@media (max-width: 600px)': {
-                  minHeight: 36, // Scaled compact for mobile
-                  padding: '6px 14px',
-                  fontSize: '0.8rem',
+                  minHeight: 32,
+                  padding: '4px 12px',
                 },
                 '&:hover': {
                   transform: 'translateY(-1px)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                  opacity: 0.9,
-                },
-                '&:active': {
-                  transform: 'scale(0.98)',
-                },
-              },
-              containedPrimary: {
-                boxShadow: 'none',
-                '&:hover': {
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                },
-              },
-              outlined: {
-                borderWidth: '1.5px',
-                borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-                '&:hover': {
-                  borderWidth: '1.5px',
-                  background: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
-                  borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+                  boxShadow: isDark ? '0 4px 12px rgba(0,0,0,0.3)' : '0 4px 12px rgba(0,0,0,0.08)',
                 },
               },
             },
@@ -225,19 +214,21 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiCard: {
             styleOverrides: {
               root: {
-                borderRadius: 4, // Increased from 0.5
-                background: isDark ? '#050505' : '#ffffff',
+                borderRadius: 8, 
+                background: isDark ? alpha('#0f172a', 0.4) : '#ffffff',
+                backdropFilter: isDark ? 'blur(10px)' : 'none',
                 boxShadow: isDark 
-                  ? '0 1px 2px rgba(0,0,0,0.1)' 
-                  : '0 1px 2px rgba(0,0,0,0.005)',
-                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)'}`,
-                transition: 'all 0.3s ease',
+                  ? '0 4px 20px rgba(0,0,0,0.4)' 
+                  : '0 2px 10px rgba(0,0,0,0.01)',
+                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)'}`,
+                transition: 'all 0.2s ease-in-out',
                 overflow: 'hidden',
                 '&:hover': {
-                  borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+                  transform: 'translateY(-1px)',
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)',
                   boxShadow: isDark 
-                    ? '0 2px 4px rgba(0,0,0,0.2)' 
-                    : '0 2px 4px rgba(0,0,0,0.01)',
+                    ? '0 10px 30px rgba(0,0,0,0.5)' 
+                    : '0 4px 16px rgba(0,0,0,0.03)',
                 },
               },
             },
@@ -245,11 +236,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiPaper: {
             styleOverrides: {
               root: {
-                borderRadius: 3, // Increased from 0.5
-                boxShadow: isDark 
-                  ? '0 1px 3px rgba(0,0,0,0.2)' 
-                  : '0 1px 3px rgba(0,0,0,0.01)',
-                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
+                borderRadius: radius,
                 backgroundImage: 'none',
               },
             },
@@ -258,10 +245,10 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
             styleOverrides: {
               root: {
                 '& .MuiOutlinedInput-root': {
-                  borderRadius: 3, // Increased from 0.5
-                  background: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
+                  borderRadius: 1, 
+                  background: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.9)',
                   '& fieldset': {
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.1)',
                     transition: 'border-color 0.2s ease',
                   },
                   '&:hover fieldset': {
@@ -279,7 +266,7 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
               root: {
                 boxShadow: 'none',
                 border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`,
-                borderRadius: '50%',
+                borderRadius: 1,
                 transition: 'all 0.2s ease',
                 '&:hover': {
                   background: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
@@ -299,12 +286,13 @@ export function ThemeProviderWrapper({ children }: { children: React.ReactNode }
           MuiChip: {
             styleOverrides: {
               root: {
-                borderRadius: 1.5, // Increased from 0.25
+                borderRadius: 0.5, 
                 fontWeight: 700,
                 fontSize: '0.75rem',
               },
             },
           },
+
           MuiTabs: {
             styleOverrides: {
               indicator: {

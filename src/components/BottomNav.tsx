@@ -8,7 +8,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
 
 interface BottomNavProps {
@@ -247,7 +247,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                 
                 <Box className="nav-icon" sx={{ position: 'relative', display: 'flex', mb: { xs: 0, sm: 0.25 }, transition: 'transform 0.3s ease' }}>
                   {React.cloneElement(item.icon as React.ReactElement<any>, { 
-                    size: isMobile ? 18 : 20,
+                    size: isMobile ? 16 : 18,
                     strokeWidth: isActive ? 2.5 : 2,
                     style: { 
                       filter: isActive ? `drop-shadow(0 0 6px ${alpha(theme.palette.primary.main, 0.3)})` : 'none',
@@ -346,7 +346,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                   </motion.div>
                 )}
               </AnimatePresence>
-              <MoreHorizontal size={isMobile ? 18 : 20} strokeWidth={isMoreActive ? 2.5 : 2} />
+              <MoreHorizontal size={isMobile ? 16 : 18} strokeWidth={isMoreActive ? 2.5 : 2} />
               {!isMobile && (
                 <Typography variant="caption" sx={{ 
                   fontSize: '0.6rem', 

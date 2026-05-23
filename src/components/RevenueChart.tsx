@@ -1,50 +1,85 @@
 import React from 'react';
-import { Box, Typography } from '@mui/material';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { Box, useTheme, alpha } from '@mui/material';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const data = [
-  { name: 'Jan', revenue: 4000 },
-  { name: 'Feb', revenue: 3000 },
-  { name: 'Mar', revenue: 2000 },
-  { name: 'Apr', revenue: 2780 },
-  { name: 'May', revenue: 1890 },
-  { name: 'Jun', revenue: 2390 },
-  { name: 'Jul', revenue: 3490 },
-];
+interface RevenueChartProps {
+  data?: any[];
+}
 
-const COLORS = ['#1976d2', '#9c27b0', '#2e7d32', '#ed6c02', '#d32f2f', '#0288d1', '#7b1fa2'];
+export default function RevenueChart({ data: propData }: RevenueChartProps) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
 
-export default function RevenueChart() {
+  // Fallback to empty array if no data
+  const chartData = propData || [];
+
   return (
-    <Box sx={{ width: '100%', height: 300 }}>
+    <Box sx={{ width: '100%', height: 350, pt: 2 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={data}
-          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+        <AreaChart
+          data={chartData}
+          margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
         >
-          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <defs>
+            <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.3}/>
+              <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
+            </linearGradient>
+            <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={theme.palette.secondary.main} stopOpacity={0.3}/>
+              <stop offset="95%" stopColor={theme.palette.secondary.main} stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid 
+            strokeDasharray="3 3" 
+            vertical={false} 
+            stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} 
+          />
           <XAxis
             dataKey="name"
             axisLine={false}
             tickLine={false}
-            tick={{ fill: '#666', fontSize: 12 }}
+            tick={{ fill: theme.palette.text.secondary, fontSize: 12, fontWeight: 600 }}
+            dy={10}
           />
           <YAxis
             axisLine={false}
             tickLine={false}
-            tick={{ fill: '#666', fontSize: 12 }}
-            tickFormatter={(value) => `$${value}`}
+            tick={{ fill: theme.palette.text.secondary, fontSize: 12, fontWeight: 600 }}
+            tickFormatter={(value) => `₹${value/1000}k`}
           />
           <Tooltip
-            cursor={{ fill: 'transparent' }}
-            contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+            contentStyle={{ 
+              backgroundColor: isDark ? '#111' : '#fff',
+              borderRadius: 16,
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+              padding: '12px'
+            }}
+            formatter={(value) => [`₹${value}`, '']}
+            itemStyle={{ fontWeight: 700 }}
           />
-          <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Bar>
-        </BarChart>
+          <Area 
+            type="monotone" 
+            dataKey="revenue" 
+            name="Revenue"
+            stroke={theme.palette.primary.main} 
+            strokeWidth={4}
+            fillOpacity={1} 
+            fill="url(#colorRevenue)" 
+            animationDuration={2000}
+          />
+          <Area 
+            type="monotone" 
+            dataKey="expense" 
+            name="Expenses"
+            stroke={theme.palette.secondary.main} 
+            strokeWidth={4}
+            fillOpacity={1} 
+            fill="url(#colorExpenses)" 
+            animationDuration={2500}
+          />
+        </AreaChart>
       </ResponsiveContainer>
     </Box>
   );

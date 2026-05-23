@@ -10,14 +10,30 @@ service cloud.firestore {
     function isSuperAdmin() { 
       return isSignedIn() && (
         request.auth.token.email == 'zeeshanmaqbool200@gmail.com' || 
-        getUserData().role == 'superadmin'
+        getUserData().role == 'superadmin' ||
+        getUserData().role == 'admin'
       ); 
     }
-    function isManager() { return isSuperAdmin() || (isSignedIn() && getUserData().role == 'manager'); }
+    function isManager() { return isSuperAdmin() || (isSignedIn() && (getUserData().role == 'manager' || getUserData().role == 'muntazim')); }
     function isTeacher() { return isManager() || (isSignedIn() && getUserData().role == 'teacher'); }
     function isStaff() { return isTeacher(); }
 
     // Collection specific rules
+    match /forms/{formId} {
+      allow get: if true; // Public access for viewing
+      allow list: if isStaff();
+      allow create: if isStaff();
+      allow update: if isStaff() && (resource.data.createdBy == request.auth.uid || isSuperAdmin());
+      allow delete: if isSuperAdmin();
+    }
+
+    match /form_responses/{responseId} {
+      allow create: if true; // Public submission if enabled in app logic
+      allow read: if isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isStaff();
+      allow delete: if isSuperAdmin();
+    }
+
     match /users/{userId} {
       allow get: if true; // Public for verification
       allow list: if isStaff();

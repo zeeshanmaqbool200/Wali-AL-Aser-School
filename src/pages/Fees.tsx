@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Box, Grid, Card, Typography, Button, Chip, Avatar, IconButton, TextField, InputAdornment, Stack, useTheme, Skeleton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, FormControl, InputLabel, Select, MenuItem, CircularProgress } from '@mui/material';
+import { Box, Grid, Card, Typography, Button, Chip, Avatar, IconButton, TextField, InputAdornment, Stack, useTheme, Skeleton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, FormControl, InputLabel, Select, MenuItem, CircularProgress, useMediaQuery, Checkbox } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { Search, Plus, Trash2, Save, Check, X, FileText, Download, Printer, Eye } from 'lucide-react';
 import { useData } from '../context/DataContext';
@@ -10,12 +10,13 @@ import { format } from 'date-fns';
 import ConfirmDialog from '../components/ConfirmDialog';
 import FeeReceiptModal from '../components/FeeReceiptModal';
 import { FeeReceipt, InstituteSettings } from '../types';
-import { Checkbox } from '@mui/material';
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { BulkReceiptPDF } from '../components/FeeReceiptModal';
 import QRCode from 'qrcode';
 
 const Fees = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { receipts, users, loading: dataLoading, setIsSaving, isSaving } = useData();
   const { user: currentUser, instituteSettings } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,7 +37,6 @@ const Fees = () => {
   const [bulkQrCodes, setBulkQrCodes] = useState<Record<string, string>>({});
   const [isPreparingBulk, setIsPreparingBulk] = useState(false);
 
-  const theme = useTheme();
   const navigate = () => {}; // Placeholder if needed
 
   useEffect(() => {
@@ -60,7 +60,8 @@ const Fees = () => {
     }
   }, [selectedReceipts]);
 
-  const isAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'manager';
+  // Permission logic
+  const isAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'super_admin' || currentUser?.role === 'manager' || currentUser?.role === 'muntazim';
 
   const filteredReceipts = useMemo(() => {
     return receipts.filter(r => {
@@ -161,7 +162,7 @@ const Fees = () => {
                 )}
               </PDFDownloadLink>
             )}
-            {isAdmin && <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => setIsModalOpen(true)}>Record Fee</Button>}
+            {isAdmin && <Button variant="contained" size={isMobile ? "small" : "medium"} startIcon={<Plus size={18} />} onClick={() => setIsModalOpen(true)}>Record Fee</Button>}
           </Stack>
         </Box>
 
@@ -221,6 +222,30 @@ const Fees = () => {
                   <TableCell align="right">
                     <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                       <IconButton onClick={() => setViewingReceipt(r as FeeReceipt)} size="small" color="primary"><Eye size={18} /></IconButton>
+                      {(r.status === 'pending' || !r.status) && (currentUser?.role === 'superadmin' || currentUser?.role === 'manager' || currentUser?.role === 'mudeer' || currentUser?.role === 'mudaris') && (
+                        <IconButton 
+                          onClick={async () => {
+                            setIsSaving(true);
+                            try {
+                              const { doc, updateDoc } = await import('firebase/firestore');
+                              await updateDoc(doc(db, 'receipts', r.id!), { 
+                                status: 'approved',
+                                approvedBy: currentUser?.uid,
+                                approvedByName: currentUser?.displayName,
+                                approvedAt: Date.now()
+                              });
+                            } catch (e) {
+                              console.error(e);
+                            } finally {
+                              setIsSaving(false);
+                            }
+                          }} 
+                          size="small" 
+                          color="success"
+                        >
+                          <Check size={18} />
+                        </IconButton>
+                      )}
                       <IconButton onClick={() => { setReceiptToDelete(r.id!); setDeleteConfirmOpen(true); }} size="small" color="error"><Trash2 size={18} /></IconButton>
                     </Stack>
                   </TableCell>
@@ -240,13 +265,14 @@ const Fees = () => {
 
       <Dialog open={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 900 }}>New Fee Payment</DialogTitle>
-        <DialogContent sx={{ p: 3, pt: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <DialogContent sx={{ p: 3, pt: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
           <FormControl fullWidth>
-            <InputLabel>Payer Type</InputLabel>
+            <InputLabel shrink>Payer Type</InputLabel>
             <Select 
               value={isGuest ? 'guest' : 'registered'} 
               onChange={e => setIsGuest(e.target.value === 'guest')}
               label="Payer Type"
+              notched
             >
               <MenuItem value="registered">Registered Student</MenuItem>
               <MenuItem value="guest">General / Guest</MenuItem>
@@ -255,11 +281,12 @@ const Fees = () => {
 
           {!isGuest ? (
             <FormControl fullWidth>
-              <InputLabel>Select Student</InputLabel>
+              <InputLabel shrink>Select Student</InputLabel>
               <Select 
                 value={selectedStudent} 
                 onChange={e => setSelectedStudent(e.target.value as string)}
                 label="Select Student"
+                notched
               >
                 {users.filter(u => u.role === 'student').map(s => (
                   <MenuItem key={s.uid} value={s.uid}>
@@ -269,17 +296,18 @@ const Fees = () => {
               </Select>
             </FormControl>
           ) : (
-            <TextField label="Guest Name" fullWidth value={guestName} onChange={e => setGuestName(e.target.value)} />
+            <TextField label="Guest Name" fullWidth value={guestName} onChange={e => setGuestName(e.target.value)} InputLabelProps={{ shrink: true }} />
           )}
 
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth>
-                <InputLabel>Fee Category</InputLabel>
+                <InputLabel shrink>Fee Category</InputLabel>
                 <Select 
                   value={feeHead} 
                   onChange={e => setFeeHead(e.target.value as any)}
                   label="Fee Category"
+                  notched
                 >
                   <MenuItem value="Monthly Fee">Monthly Fee</MenuItem>
                   <MenuItem value="Admission Fee">Admission Fee</MenuItem>

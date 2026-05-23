@@ -28,8 +28,7 @@ export const PAYMENT_MODES = [
 ] as const;
 
 export const SUBJECT_OPTIONS = [
-  'Quran', 'Diniyat', 'Urdu', 'Tajweed', 
-  'Urdu Grammar', 'Akhlaq', 'Islamic Jurisprudence', 
-  'Naat Khawni', 'Surahs Learning', 'Hifz', 
-  'Fiqh & Aqeedah', 'Gez-z / Gen-x Competitions'
+  'Arabic', 'Diniyat', 'Urdu', 'Urdu Grammar', 'Quran', 'Tajweed', 
+  'Naat Khawni', 'Hifz', 'Akhlaq', 'Islamic Jurisprudence', 
+  'Fiqh & Aqeedah', 'Surahs Learning', 'History', 'Seerah', 'Logic'
 ] as const;

@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.IMS" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#0D9488</item>
+        <item name="android:statusBarColor">#0D9488</item>
+    </style>
+</resources>

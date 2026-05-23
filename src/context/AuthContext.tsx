@@ -102,11 +102,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const updates: any = {};
 
                 // Normalization and Bootstrap
-                if (isSuperAdminEmail && (profile.role !== 'superadmin' && profile.role !== 'super_admin')) {
-                  profile.role = 'superadmin';
-                  updates.role = 'superadmin';
-                  updates.isVerified = true;
-                  needsUpdate = true;
+                if (isSuperAdminEmail) {
+                  if (profile.role !== 'superadmin' && profile.role !== 'super_admin') {
+                    profile.role = 'superadmin';
+                    updates.role = 'superadmin';
+                    updates.isVerified = true;
+                    needsUpdate = true;
+                  }
+                  if (!profile.staffId) {
+                    const id = `ADMIN-${firebaseUser.uid.slice(0, 5).toUpperCase()}`;
+                    profile.staffId = id;
+                    updates.staffId = id;
+                    needsUpdate = true;
+                  }
                 }
 
                 if (profile.isVerified === undefined) {

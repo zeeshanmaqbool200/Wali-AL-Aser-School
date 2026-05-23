@@ -54,29 +54,38 @@ import { deleteUserPermanently, handleFirestoreError, OperationType } from '../l
 import { UserProfile } from '../types';
 import { doc, updateDoc, writeBatch, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import UserModal from '../components/UserModal';
 import IDCardModal from '../components/IDCardModal';
 import { logger } from '../lib/logger';
 import SavingOverlay from '../components/SavingOverlay';
+import PrintableMemberDirectory from '../components/PrintableMemberDirectory';
+import { useReactToPrint } from 'react-to-print';
+import { Printer, Download as DownloadIcon } from 'lucide-react';
 
 const Users = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { users, loading: dataLoading, setIsSaving } = useData();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, instituteSettings } = useAuth();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [tabValue, setTabValue] = useState(0);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [idCardUser, setIdCardUser] = useState<UserProfile | null>(null);
+
+  const printRef = React.useRef<HTMLDivElement>(null);
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: 'Member_Directory',
+  });
 
   const isAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'manager';
 
@@ -160,15 +169,19 @@ const Users = () => {
       };
 
       if (data.role === 'student') {
-        newUser.admissionNo = data.studentId;
-        newUser.studentId = data.studentId;
+        const count = users.filter(u => u.role === 'student').length + 1;
+        const year = new Date().getFullYear();
+        newUser.admissionNo = data.studentId || `WLI-${year}-${String(count).padStart(4, '0')}`;
+        newUser.studentId = newUser.admissionNo;
         newUser.fatherName = data.fatherName;
         newUser.admissionDate = data.admissionDate;
         newUser.classLevel = data.classLevel;
       } else {
-        // Auto-generate Staff ID if not provided
-        const count = users.filter(u => u.role !== 'student' && !['superadmin', 'manager', 'admin'].includes(u.role)).length + 1;
-        newUser.staffId = `STF-${String(count).padStart(4, '0')}`;
+        // Auto-generate Staff ID for all non-students (teachers, managers, admins)
+        const staffCount = users.filter(u => u.role !== 'student').length + 1;
+        const prefix = data.role === 'teacher' ? 'TR' : 'ADM';
+        newUser.staffId = `${prefix}-${String(staffCount).padStart(3, '0')}-${String(Math.floor(100+Math.random()*900))}`;
+        newUser.teacherId = newUser.staffId;
         if (data.subject) newUser.subject = data.subject;
       }
 
@@ -181,8 +194,31 @@ const Users = () => {
     }
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1, 
+      transition: { staggerChildren: 0.05 } 
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { duration: 0.3 } 
+    }
+  };
+
   return (
     <Box sx={{ pb: 16, pt: 2 }}>
+      <PrintableMemberDirectory 
+        ref={printRef} 
+        users={filteredUsers} 
+        settings={instituteSettings} 
+        title={`${tabValue === 0 ? 'Student' : tabValue === 1 ? 'Staff' : 'Members'} Directory`} 
+      />
       <SavingOverlay isSaving={false} message="Managing Directory..." />
       <UserModal open={userModalOpen} onClose={() => setUserModalOpen(false)} onSubmit={handleCreateUser} />
       <IDCardModal open={!!idCardUser} user={idCardUser} onClose={() => setIdCardUser(null)} />
@@ -196,29 +232,52 @@ const Users = () => {
       />
 
       <Stack spacing={3}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          <Box 
+            sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}
+          >
           <Box>
             <Typography variant={isMobile ? "h6" : "h5"} sx={{ fontWeight: 950, letterSpacing: -1 }}>Member Directory</Typography>
             <Typography variant="body2" color="text.secondary">{filteredUsers.length} records found</Typography>
           </Box>
           <Stack direction="row" spacing={1}>
             {isAdmin && (
-              <Button 
-                variant="contained" 
-                startIcon={<UserPlus size={18} />} 
-                onClick={() => setUserModalOpen(true)}
-                sx={{ borderRadius: 3, fontWeight: 800, textTransform: 'none' }}
-              >
-                {!isMobile && 'Add Member'}
-              </Button>
+              <>
+                <Button 
+                  variant="outlined" 
+                  startIcon={<Printer size={18} />} 
+                  onClick={() => handlePrint()}
+                  sx={{ borderRadius: 3, fontWeight: 800, textTransform: 'none', display: { xs: 'none', sm: 'flex' } }}
+                >
+                  Print List
+                </Button>
+                <Button 
+                  variant="contained" 
+                  startIcon={<UserPlus size={18} />} 
+                  onClick={() => setUserModalOpen(true)}
+                  sx={{ borderRadius: 3, fontWeight: 800, textTransform: 'none' }}
+                >
+                  {!isMobile && 'Add Member'}
+                </Button>
+              </>
             )}
             <IconButton onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')} sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
               {viewMode === 'grid' ? <ListIcon size={20} /> : <GridIcon size={20} />}
             </IconButton>
           </Stack>
         </Box>
+        </motion.div>
 
-        <Paper sx={{ mx: 2, p: 2, borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Paper 
+            sx={{ mx: 2, p: 2, borderRadius: 4, border: '1px solid', borderColor: 'divider' }}
+          >
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField 
@@ -237,6 +296,7 @@ const Users = () => {
             </Grid>
           </Grid>
         </Paper>
+        </motion.div>
 
         {selectedUsers.length > 0 && (
           <Fade in={selectedUsers.length > 0}>
@@ -253,22 +313,37 @@ const Users = () => {
 
         <Box sx={{ px: 2 }}>
           {viewMode === 'grid' ? (
-            <Grid container spacing={3}>
-              {filteredUsers.map(user => (
-                <Grid size={{ xs: 12, sm: 6, md: 4, xl: 3 }} key={user.uid}>
-                  <UserCard 
-                    user={user} 
-                    isSelected={selectedUsers.includes(user.uid)}
-                    isAdmin={isAdmin}
-                    onSelect={(id: string) => setSelectedUsers(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
-                    onDelete={() => { setUserToDelete(user.uid); setDeleteConfirmOpen(true); }}
-                    onViewID={() => setIdCardUser(user)}
-                  />
-                </Grid>
-              ))}
-            </Grid>
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              <Grid 
+                container 
+                spacing={3}
+              >
+                {filteredUsers.map(user => (
+                  <Grid size={{ xs: 12, sm: 6, md: 4, xl: 3 }} key={user.uid}>
+                    <motion.div variants={itemVariants}>
+                      <UserCard 
+                        user={user} 
+                        isSelected={selectedUsers.includes(user.uid)}
+                        isAdmin={isAdmin}
+                        onSelect={(id: string) => setSelectedUsers(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
+                        onDelete={() => { setUserToDelete(user.uid); setDeleteConfirmOpen(true); }}
+                        onViewID={() => setIdCardUser(user)}
+                      />
+                    </motion.div>
+                  </Grid>
+                ))}
+              </Grid>
+            </motion.div>
           ) : (
-            <TableContainer component={Paper} sx={{ borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
+            <TableContainer 
+              component={Paper} 
+              sx={{ borderRadius: 4, border: '1px solid', borderColor: 'divider' }}
+              className="gpu-accelerated"
+            >
               <Table size="small">
                 <TableHead sx={{ bgcolor: 'background.default' }}>
                   <TableRow>
@@ -282,7 +357,11 @@ const Users = () => {
                 </TableHead>
                 <TableBody>
                   {filteredUsers.map(user => (
-                    <TableRow key={user.uid} hover selected={selectedUsers.includes(user.uid)}>
+                    <TableRow 
+                      key={user.uid} 
+                      hover 
+                      selected={selectedUsers.includes(user.uid)}
+                    >
                       <TableCell onClick={() => setSelectedUsers(prev => prev.includes(user.uid) ? prev.filter(x => x !== user.uid) : [...prev, user.uid])}>
                         <Stack direction="row" spacing={2} alignItems="center">
                           <Avatar src={user.photoURL} sx={{ width: 32, height: 32 }}>{user.displayName?.charAt(0)}</Avatar>

@@ -32,6 +32,7 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { CLASS_LEVELS } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
+import SavingProgress from '../components/SavingProgress';
 import confetti from 'canvas-confetti';
 import { logger } from '../lib/logger';
 import SimpleMDE from 'react-simplemde-editor';
@@ -151,6 +152,13 @@ export default function Courses() {
     content: '',
     type: 'text' as 'text' | 'image' | 'video' | 'quiz' | 'file' | 'audio',
     mediaUrl: '',
+    fontFamily: 'default' as 'default' | 'serif' | 'nastaliq' | 'mono',
+    alignment: 'left' as 'left' | 'center' | 'right' | 'justify',
+    isRTL: false,
+    fontSize: 'medium' as 'small' | 'medium' | 'large' | 'extra-large',
+    secondaryMediaUrl: '',
+    secondaryMediaType: 'audio' as 'audio' | 'video',
+    layout: 'standard' as 'standard' | 'ebook' | 'blog' | 'magazine',
     quizData: {
       questions: [] as any[],
       passingScore: 70
@@ -162,6 +170,8 @@ export default function Courses() {
     options: ['', '', '', ''],
     correctAnswer: 0
   });
+
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleAddQuizQuestion = () => {
     if (!currentQuizQuestion.question || currentQuizQuestion.options.some(o => !o)) return;
@@ -182,7 +192,7 @@ export default function Courses() {
     // Use specific limits: 2MB for thumbnails (logo), 10MB for sections (images/audio/banners)
     const limitMB = target === 'thumbnail' ? 2 : 10;
     if (file.size > limitMB * 1024 * 1024) {
-      alert(`File too large. Please use an file smaller than ${limitMB}MB.`);
+      setSnackbar({ open: true, message: `File too large. Please use an file smaller than ${limitMB}MB.`, severity: 'warning' });
       return;
     }
 
@@ -265,29 +275,31 @@ export default function Courses() {
 
       if (editingCourse) {
         await smartUpdateDoc(doc(db, 'courses', editingCourse.id), data);
-        setSnackbar({ open: true, message: 'Subject updated successfully! ✨', severity: 'success' });
       } else {
         await smartAddDoc(collection(db, 'courses'), { ...data, createdAt: Date.now() });
-        setSnackbar({ open: true, message: 'New Subject added successfully! 🚀', severity: 'success' });
       }
       
-      setOpenDialog(false);
-      setEditingCourse(null);
-      setFormData({ 
-        name: '', 
-        code: '', 
-        description: '', 
-        duration: '', 
-        fee: 0, 
-        teacherName: currentUser?.displayName || '', 
-        teacherId: currentUser?.uid || '', 
-        thumbnailUrl: '', 
-        sections: [], 
-        isPublished: true, 
-        classLevelId: 'all',
-        assignedTeachers: [],
-        targetClassLevels: []
-      });
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        setOpenDialog(false);
+        setEditingCourse(null);
+        setFormData({ 
+          name: '', 
+          code: '', 
+          description: '', 
+          duration: '', 
+          fee: 0, 
+          teacherName: currentUser?.displayName || '', 
+          teacherId: currentUser?.uid || '', 
+          thumbnailUrl: '', 
+          sections: [], 
+          isPublished: true, 
+          classLevelId: 'all',
+          assignedTeachers: [],
+          targetClassLevels: []
+        });
+      }, 1500);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'courses');
       setSnackbar({ open: true, message: 'Failed to save subject.', severity: 'error' });
@@ -357,6 +369,10 @@ export default function Courses() {
       content: '', 
       type: 'text', 
       mediaUrl: '',
+      fontFamily: 'default',
+      alignment: 'left',
+      isRTL: false,
+      fontSize: 'medium',
       quizData: { questions: [], passingScore: 70 }
     });
     setCurrentQuizQuestion({ question: '', options: ['', '', '', ''], correctAnswer: 0 });
@@ -365,36 +381,142 @@ export default function Courses() {
 
   // Memoized lesson editor to prevent focus loss during typing
   const LessonEditor = React.useMemo(() => (
-    <Paper id="lesson-editor-entry" variant="outlined" sx={{ p: 4, borderRadius: 6, mb: 4 }}>
+    <Paper id="lesson-editor-entry" variant="outlined" sx={{ p: 4, borderRadius: 6, mb: 4, bgcolor: alpha(theme.palette.background.paper, 0.4) }}>
       <Stack spacing={3}>
-        <TextField 
-          fullWidth 
-          label="Lesson Title" 
-          value={newSection.title} 
-          onChange={(e) => setNewSection(p => ({ ...p, title: e.target.value }))} 
-          variant="outlined" 
-        />
-        <FormControl fullWidth>
-          <InputLabel>Type</InputLabel>
-          <Select 
-            value={newSection.type} 
-            label="Type" 
-            onChange={(e) => setNewSection(p => ({ ...p, type: e.target.value as any, mediaUrl: '' }))}
-          >
-            <MenuItem value="text">Text Based</MenuItem>
-            <MenuItem value="audio">AudioBook</MenuItem>
-            <MenuItem value="video">Video Lesson</MenuItem>
-            <MenuItem value="image">Illustrated Guide</MenuItem>
-            <MenuItem value="quiz">Interactive Quiz</MenuItem>
-            <MenuItem value="file">Downloadable Resources</MenuItem>
-          </Select>
-        </FormControl>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <TextField 
+            fullWidth 
+            label="Lesson Title" 
+            value={newSection.title} 
+            onChange={(e) => setNewSection(p => ({ ...p, title: e.target.value }))} 
+            variant="outlined" 
+            sx={{ flex: 2 }}
+          />
+          <FormControl sx={{ flex: 1 }}>
+            <InputLabel>Module Type</InputLabel>
+            <Select 
+              value={newSection.type} 
+              label="Module Type" 
+              onChange={(e) => setNewSection(p => ({ ...p, type: e.target.value as any, mediaUrl: '' }))}
+            >
+              <MenuItem value="text">Rich Text / Blog</MenuItem>
+              <MenuItem value="audio">Audio / Podcast</MenuItem>
+              <MenuItem value="video">Video Lecture</MenuItem>
+              <MenuItem value="image">Graphic / Poster</MenuItem>
+              <MenuItem value="quiz">Interactive Quiz</MenuItem>
+              <MenuItem value="file">Resources / PDF</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl sx={{ flex: 1 }}>
+            <InputLabel>Layout Style</InputLabel>
+            <Select 
+              value={newSection.layout || 'standard'} 
+              label="Layout Style" 
+              onChange={(e) => setNewSection(p => ({ ...p, layout: e.target.value as any }))}
+            >
+              <MenuItem value="standard">Standard Reader</MenuItem>
+              <MenuItem value="ebook">E-Book (Center focus)</MenuItem>
+              <MenuItem value="blog">Editorial Blog</MenuItem>
+              <MenuItem value="magazine">Magazine (Immersive)</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+
+        <Box sx={{ p: 2, borderRadius: 4, border: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.background.default, 0.5) }}>
+          <Typography variant="caption" sx={{ fontWeight: 900, mb: 2, display: 'block', color: 'primary.main', textTransform: 'uppercase', letterSpacing: 1 }}>Typography & Layout</Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 6, md: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Font Profile</InputLabel>
+                <Select value={newSection.fontFamily} label="Font Profile" onChange={(e) => setNewSection(p => ({ ...p, fontFamily: e.target.value as any }))}>
+                  <MenuItem value="default">Modern Inter</MenuItem>
+                  <MenuItem value="serif">Academic Serif</MenuItem>
+                  <MenuItem value="nastaliq">Nastaliq (Urdu Standard)</MenuItem>
+                  <MenuItem value="urdu-modern">Urdu Modern (Nastaliq)</MenuItem>
+                  <MenuItem value="ebook-serif">E-Book Classic</MenuItem>
+                  <MenuItem value="display-playfair">Playfair Display</MenuItem>
+                  <MenuItem value="mono">Technical (Mono)</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+               <FormControl fullWidth size="small">
+                <InputLabel>Text Size</InputLabel>
+                <Select value={newSection.fontSize} label="Text Size" onChange={(e) => setNewSection(p => ({ ...p, fontSize: e.target.value as any }))}>
+                  <MenuItem value="small">Small</MenuItem>
+                  <MenuItem value="medium">Standard</MenuItem>
+                  <MenuItem value="large">Reading (Large)</MenuItem>
+                  <MenuItem value="extra-large">Reading Plus</MenuItem>
+                  <MenuItem value="massive">Very Large (Massive)</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+               <FormControl fullWidth size="small">
+                <InputLabel>Text Align</InputLabel>
+                <Select value={newSection.alignment} label="Text Align" onChange={(e) => setNewSection(p => ({ ...p, alignment: e.target.value as any }))}>
+                  <MenuItem value="left">Left Flush</MenuItem>
+                  <MenuItem value="center">Centered</MenuItem>
+                  <MenuItem value="right">Right Flush</MenuItem>
+                  <MenuItem value="justify">Justified</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+               <Button 
+                fullWidth 
+                variant={newSection.isRTL ? "contained" : "outlined"} 
+                size="small" 
+                onClick={() => setNewSection(p => ({ ...p, isRTL: !p.isRTL }))}
+                startIcon={<Globe size={14} />}
+                sx={{ borderRadius: 2, textTransform: 'none', height: 40 }}
+               >
+                 {newSection.isRTL ? 'RTL Active (Urdu)' : 'LTR Active (Eng)'}
+               </Button>
+            </Grid>
+          </Grid>
+        </Box>
+
+        <Box sx={{ p: 2, borderRadius: 4, border: '1px solid', borderColor: alpha(theme.palette.secondary.main, 0.2), bgcolor: alpha(theme.palette.secondary.main, 0.02) }}>
+          <Typography variant="caption" sx={{ fontWeight: 900, mb: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'secondary.main', textTransform: 'uppercase', letterSpacing: 1 }}>
+            <Headphones size={14} /> Blended Audio / Background Score
+          </Typography>
+          <Grid container spacing={2} alignItems="center">
+            <Grid size={{ xs: 12, md: 9 }}>
+              <TextField 
+                fullWidth 
+                size="small" 
+                label="Background Media URL" 
+                value={newSection.secondaryMediaUrl || ''} 
+                onChange={(e) => setNewSection(p => ({ ...p, secondaryMediaUrl: e.target.value }))} 
+                placeholder="Paste audio URL here for blended experience..." 
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 3 }}>
+               <Button component="label" variant="outlined" size="small" fullWidth sx={{ borderRadius: 2, borderStyle: 'dashed' }}>
+                  Upload Audio
+                  <input type="file" hidden accept="audio/*" onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setIsUploading(true);
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setNewSection(p => ({ ...p, secondaryMediaUrl: reader.result as string, secondaryMediaType: 'audio' }));
+                        setIsUploading(false);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }} />
+               </Button>
+            </Grid>
+          </Grid>
+        </Box>
 
         {newSection.type !== 'text' && newSection.type !== 'quiz' && (
            <Box>
-             <TextField fullWidth label="Media URL" value={newSection.mediaUrl} onChange={(e) => setNewSection(p => ({ ...p, mediaUrl: e.target.value }))} variant="outlined" sx={{ mb: 2 }} />
-             <Button component="label" variant="outlined" fullWidth sx={{ borderRadius: 2 }}>
-                Upload Asset
+             <TextField fullWidth label="Cloud Media Link" value={newSection.mediaUrl} onChange={(e) => setNewSection(p => ({ ...p, mediaUrl: e.target.value }))} variant="outlined" placeholder="https://..." sx={{ mb: 2 }} />
+             <Button component="label" variant="outlined" fullWidth sx={{ borderRadius: 2, height: 48, borderStyle: 'dashed' }}>
+                Upload Local Resource
                 <input type="file" hidden onChange={(e) => handleFileUpload(e, 'section')} />
              </Button>
            </Box>
@@ -446,7 +568,7 @@ export default function Courses() {
         
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button variant="contained" fullWidth onClick={handleAddSection} sx={{ borderRadius: 6 }}>{editingSectionIdx !== null ? 'Update' : 'Add Module'}</Button>
-          {editingSectionIdx !== null && <Button onClick={() => { setEditingSectionIdx(null); setNewSection({ title: '', content: '', type: 'text', mediaUrl: '', quizData: { questions: [], passingScore: 70 } }); }}>Cancel</Button>}
+          {editingSectionIdx !== null && <Button onClick={() => { setEditingSectionIdx(null); setNewSection({ title: '', content: '', type: 'text', mediaUrl: '', fontFamily: 'default', alignment: 'left', isRTL: false, fontSize: 'medium', quizData: { questions: [], passingScore: 70 } }); }}>Cancel</Button>}
         </Box>
       </Stack>
     </Paper>
@@ -459,6 +581,13 @@ export default function Courses() {
       content: s.content || '',
       type: s.type,
       mediaUrl: s.mediaUrl || '',
+      fontFamily: s.fontFamily || 'default',
+      alignment: s.alignment || 'left',
+      isRTL: s.isRTL || false,
+      fontSize: s.fontSize || 'medium',
+      secondaryMediaUrl: (s as any).secondaryMediaUrl || '',
+      secondaryMediaType: (s as any).secondaryMediaType || 'audio',
+      layout: (s as any).layout || 'standard',
       quizData: s.quizData || { questions: [], passingScore: 70 }
     });
     setEditingSectionIdx(idx);
@@ -539,6 +668,16 @@ export default function Courses() {
   );
 
   const isDark = theme.palette.mode === 'dark';
+
+  const [readingMode, setReadingMode] = useState<'light' | 'dark' | 'sepia'>('light');
+
+  const getReaderColors = () => {
+    if (readingMode === 'sepia') return { bg: '#F4ECD8', text: '#5B4636', border: '#E2D1B3' };
+    if (readingMode === 'dark') return { bg: '#121212', text: '#E0E0E0', border: '#333' };
+    return { bg: '#FFFFFF', text: '#1A1A1A', border: '#EEE' };
+  };
+
+  const readerStyles = getReaderColors();
 
   return (
     <Box sx={{ 
@@ -1059,108 +1198,138 @@ export default function Courses() {
           </Toolbar>
         </AppBar>
 
-        <DialogContent sx={{ p: { xs: 0, md: 6 }, position: 'relative' }}>
-          {submitting && (
-            <Box sx={{ 
-              position: 'absolute', inset: 0, zIndex: 10, 
-              bgcolor: alpha(theme.palette.background.paper, 0.8),
-              backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', 
-              alignItems: 'center', justifyContent: 'center', gap: 3
-            }}>
-              <Box sx={{ position: 'relative', display: 'inline-flex' }}>
-                <CircularProgress size={80} thickness={2} sx={{ color: alpha(theme.palette.primary.main, 0.2) }} />
-                <CircularProgress 
-                  size={80} 
-                  thickness={4} 
-                  sx={{ 
-                    color: 'primary.main', 
-                    position: 'absolute', left: 0,
-                    strokeDasharray: '80px, 200px'
-                  }} 
-                />
-                <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Save size={32} className="animate-pulse text-primary" />
-                </Box>
-              </Box>
-              <Typography variant="h6" sx={{ fontWeight: 900, letterSpacing: -1 }}>Safeguarding Changes...</Typography>
-            </Box>
-          )}
-          <Grid container spacing={6}>
-            <Grid size={{ xs: 12, md: 5 }}>
-              <Stack spacing={3}>
-                <Box>
-                  <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 1, display: 'block' }}>Course Identity</Typography>
-                  <Grid container spacing={2}>
-                    <Grid size={12}>
-                      <TextField fullWidth label="Subject Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} variant="filled" />
-                    </Grid>
-                    <Grid size={isAdmin ? 6 : 12}>
-                      <TextField fullWidth label="Subject Code" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} variant="filled" />
-                    </Grid>
-                    {isAdmin && (
-                      <Grid size={6}>
-                        <FormControl fullWidth variant="filled">
-                          <InputLabel>Lead Instructor</InputLabel>
-                          <Select
-                            value={formData.teacherId}
-                            onChange={(e) => {
-                              const teacher = allTeachers.find(t => t.uid === e.target.value);
-                              setFormData({ ...formData, teacherId: e.target.value as string, teacherName: teacher?.displayName || '' });
-                            }}
-                          >
-                            <MenuItem value={currentUser?.uid}>{currentUser?.displayName} (Me)</MenuItem>
-                            {allTeachers.filter(t => t.uid !== currentUser?.uid).map(t => (
-                              <MenuItem key={t.uid} value={t.uid}>{t.displayName}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                    )}
-                  </Grid>
-                </Box>
+        <DialogContent sx={{ p: { xs: 0, md: 6 }, position: 'relative', bgcolor: isDark ? alpha('#000', 0.2) : alpha('#f8f8f8', 0.5) }}>
+          <SavingProgress isSaving={submitting} success={showSuccess} />
+          <Container maxWidth="xl">
+            <Grid container spacing={6}>
+              <Grid size={{ xs: 12, md: 5 }}>
+                <Stack spacing={4}>
+                  <Box>
+                    <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block', letterSpacing: 2 }}>Subject Identity</Typography>
+                    <Paper variant="outlined" sx={{ p: 4, borderRadius: 6, borderStyle: 'solid', bgcolor: 'background.paper' }}>
+                      <Stack spacing={3}>
+                        <TextField fullWidth label="Official Subject Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} variant="outlined" />
+                        <Grid container spacing={2}>
+                          <Grid size={6}>
+                            <TextField fullWidth label="Catalog Code" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} variant="outlined" placeholder="e.g. ARB-101" />
+                          </Grid>
+                          <Grid size={6}>
+                             <FormControl fullWidth variant="outlined">
+                              <InputLabel>Primary Class</InputLabel>
+                              <Select value={formData.classLevelId} label="Primary Class" onChange={(e) => setFormData({ ...formData, classLevelId: e.target.value })}>
+                                <MenuItem value="all">All Classes</MenuItem>
+                                {CLASS_LEVELS.map(level => <MenuItem key={level} value={level}>{level}</MenuItem>)}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                        </Grid>
+                        {isAdmin && (
+                          <FormControl fullWidth variant="outlined">
+                            <InputLabel>Lead Instructor</InputLabel>
+                            <Select
+                              value={formData.teacherId}
+                              label="Lead Instructor"
+                              onChange={(e) => {
+                                const teacher = allTeachers.find(t => t.uid === e.target.value);
+                                setFormData({ ...formData, teacherId: e.target.value as string, teacherName: teacher?.displayName || '' });
+                              }}
+                            >
+                              <MenuItem value={currentUser?.uid}>{currentUser?.displayName} (Me)</MenuItem>
+                              {allTeachers.filter(t => t.uid !== currentUser?.uid).map(t => (
+                                <MenuItem key={t.uid} value={t.uid}>{t.displayName}</MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        )}
+                      </Stack>
+                    </Paper>
+                  </Box>
 
-                <Box>
-                  <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 1, display: 'block' }}>Media</Typography>
-                  <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, textAlign: 'center', borderStyle: 'dashed' }}>
-                    {formData.thumbnailUrl ? (
-                      <Box sx={{ position: 'relative' }}>
-                        <Box component="img" src={formData.thumbnailUrl} sx={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 3, mb: 2 }} />
-                        <Button variant="contained" color="error" size="small" onClick={() => setFormData(p => ({ ...p, thumbnailUrl: '' }))}>Remove</Button>
-                      </Box>
-                    ) : (
-                      <Button component="label" variant="outlined">
-                        Upload Thumbnail
-                        <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, 'thumbnail')} />
-                      </Button>
-                    )}
-                  </Paper>
-                </Box>
-              </Stack>
-            </Grid>
+                  <Box>
+                    <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block', letterSpacing: 2 }}>Subject Narrative</Typography>
+                    <TextField fullWidth label="Detailed Bio / Description" multiline rows={6} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} variant="outlined" placeholder="Enter course overview, goals, and what students will learn..." sx={{ '& .MuiOutlinedInput-root': { borderRadius: 6 } }} />
+                  </Box>
 
-            <Grid size={{ xs: 12, md: 7 }}>
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 1.5, display: 'block' }}>Modules</Typography>
-                {LessonEditor}
-
-                <Stack spacing={1}>
-                   {formData.sections.map((s, i) => (
-                      <Paper key={i} sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 800 }}>{i+1}. {s.title} ({s.type})</Typography>
-                        <Box>
-                          <IconButton onClick={() => handleEditSection(i)} color="primary"><Edit2 size={16} /></IconButton>
-                          <IconButton onClick={() => setFormData(p => ({ ...p, sections: p.sections.filter((_, idx) => idx !== i) }))} color="error"><Trash2 size={16} /></IconButton>
+                  <Box>
+                    <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block', letterSpacing: 2 }}>Visual Branding</Typography>
+                    <Paper 
+                      variant="outlined" 
+                      sx={{ 
+                        p: 4, borderRadius: 6, textAlign: 'center', borderStyle: 'dashed', 
+                        borderColor: formData.thumbnailUrl ? 'primary.main' : 'divider',
+                        bgcolor: alpha(theme.palette.primary.main, 0.02)
+                      }}
+                    >
+                      {formData.thumbnailUrl ? (
+                        <Box sx={{ position: 'relative' }}>
+                          <Box component="img" src={formData.thumbnailUrl} sx={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', borderRadius: 4, mb: 3, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
+                          <Button variant="contained" color="error" size="small" onClick={() => setFormData(p => ({ ...p, thumbnailUrl: '' }))} sx={{ borderRadius: 2 }}>Reset Cover</Button>
                         </Box>
-                      </Paper>
-                   ))}
+                      ) : (
+                        <Box>
+                          <ImageIcon size={48} strokeWidth={1} style={{ opacity: 0.3, marginBottom: 16 }} />
+                          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary', fontWeight: 600 }}>High resolution cover image recommended</Typography>
+                          <Button component="label" variant="contained" sx={{ borderRadius: 2 }}>
+                            Upload Book Cover
+                            <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, 'thumbnail')} />
+                          </Button>
+                        </Box>
+                      )}
+                    </Paper>
+                  </Box>
                 </Stack>
-              </Box>
-            </Grid>
+              </Grid>
 
-            <Grid size={12}>
-               <TextField fullWidth label="Bio" multiline rows={4} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} variant="filled" />
+              <Grid size={{ xs: 12, md: 7 }}>
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'flex', alignItems: 'center', gap: 1, letterSpacing: 2 }}>
+                    <Layers size={18} /> Course Curriculum Studio
+                  </Typography>
+                  {LessonEditor}
+
+                  <Box sx={{ mt: 6 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 950, mb: 3, display: 'flex', alignItems: 'center', gap: 1, letterSpacing: -0.5 }}>
+                      Draft Modules <Chip label={formData.sections.length} size="small" sx={{ fontWeight: 900 }} />
+                    </Typography>
+                    <Stack spacing={2}>
+                       <AnimatePresence mode="popLayout">
+                         {formData.sections.map((s, i) => (
+                            <motion.div key={i} layout initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.9 }}>
+                              <Paper sx={{ 
+                                p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 4, 
+                                border: '1px solid', borderColor: 'divider',
+                                '&:hover': { boxShadow: '0 10px 30px rgba(0,0,0,0.05)', borderColor: 'primary.main' }
+                              }}>
+                                <Stack direction="row" spacing={3} alignItems="center">
+                                  <Avatar sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', fontWeight: 900 }}>{i + 1}</Avatar>
+                                  <Box>
+                                    <Typography variant="body2" sx={{ fontWeight: 900 }}>{s.title}</Typography>
+                                    <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                                      <Chip label={s.type} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase' }} />
+                                      {s.isRTL && <Chip label="RTL" color="secondary" size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 900 }} />}
+                                    </Stack>
+                                  </Box>
+                                </Stack>
+                                <Box>
+                                  <IconButton onClick={() => handleEditSection(i)} color="primary"><Edit2 size={18} /></IconButton>
+                                  <IconButton onClick={() => setFormData(p => ({ ...p, sections: p.sections.filter((_, idx) => idx !== i) }))} color="error"><Trash2 size={18} /></IconButton>
+                                </Box>
+                              </Paper>
+                            </motion.div>
+                         ))}
+                       </AnimatePresence>
+                       {formData.sections.length === 0 && (
+                         <Box sx={{ p: 6, textAlign: 'center', border: '1px dashed', borderColor: 'divider', borderRadius: 6 }}>
+                            <ClipboardList size={40} strokeWidth={1} style={{ opacity: 0.2, marginBottom: 8 }} />
+                            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>Your curriculum is empty. Add your first lesson above.</Typography>
+                         </Box>
+                       )}
+                    </Stack>
+                  </Box>
+                </Box>
+              </Grid>
             </Grid>
-          </Grid>
+          </Container>
         </DialogContent>
       </Dialog>
 
@@ -1243,27 +1412,58 @@ export default function Courses() {
       </Dialog>
 
       <Dialog fullScreen open={openReader} onClose={() => setOpenReader(false)} TransitionComponent={Slide} TransitionProps={{ direction: 'up' } as any}>
-        <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-          <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'background.paper', color: 'text.primary', borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: readerStyles.bg, color: readerStyles.text, transition: 'all 0.5s ease' }}>
+          <AppBar position="sticky" elevation={0} sx={{ bgcolor: alpha(readerStyles.bg, 0.9), color: readerStyles.text, borderBottom: '1px solid', borderColor: readerStyles.border, backdropFilter: 'blur(10px)' }}>
             <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 1, sm: 2 } }}>
-              <IconButton onClick={() => setOpenReader(false)} sx={{ color: 'error.main' }}><X size={24} /></IconButton>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <IconButton onClick={() => setOpenReader(false)} sx={{ color: 'error.main' }}><X size={24} /></IconButton>
+                <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 24, borderColor: readerStyles.border }} />
+                <Stack direction="row" spacing={0.5}>
+                  {[
+                    { mode: 'light', icon: <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: '#fff', border: '1px solid #ddd' }} /> },
+                    { mode: 'sepia', icon: <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: '#F4ECD8', border: '1px solid #E2D1B3' }} /> },
+                    { mode: 'dark', icon: <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: '#121212', border: '1px solid #333' }} /> }
+                  ].map((m) => (
+                    <IconButton 
+                      key={m.mode} 
+                      size="small" 
+                      onClick={() => setReadingMode(m.mode as any)}
+                      sx={{ 
+                        border: readingMode === m.mode ? '2px solid' : 'none', 
+                        borderColor: 'primary.main',
+                        p: 0.5
+                      }}
+                    >
+                      {m.icon}
+                    </IconButton>
+                  ))}
+                </Stack>
+              </Box>
               <Typography 
                 variant="h6" 
                 noWrap 
                 sx={{ 
                   fontWeight: 900, 
-                  maxWidth: { xs: '150px', sm: '300px', md: '500px' },
-                  fontSize: { xs: '0.9rem', sm: '1.25rem' } 
+                  maxWidth: { xs: '120px', sm: '300px', md: '500px' },
+                  fontSize: { xs: '0.85rem', sm: '1.1rem' },
+                  fontFamily: '"Outfit", sans-serif'
                 }}
               >
                 {viewingCourse?.name}
               </Typography>
-              <Chip 
-                size="small" 
-                label={`${activeSection + 1} / ${viewingCourse?.sections?.length || 0}`} 
-                sx={{ fontWeight: 800 }} 
-              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip 
+                  size="small" 
+                  label={`${activeSection + 1} of ${viewingCourse?.sections?.length || 0}`} 
+                  sx={{ fontWeight: 800, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }} 
+                />
+              </Box>
             </Toolbar>
+            <LinearProgress 
+              variant="determinate" 
+              value={((activeSection + 1) / (viewingCourse?.sections?.length || 1)) * 100} 
+              sx={{ height: 4, bgcolor: alpha(theme.palette.primary.main, 0.05), '& .MuiLinearProgress-bar': { borderRadius: 2 } }}
+            />
           </AppBar>
 
           <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
@@ -1271,14 +1471,18 @@ export default function Courses() {
               <Grid 
                 size={{ xs: 12, md: 3 }} 
                 sx={{ 
-                  borderRight: '1px solid divider', 
+                  borderRight: '1px solid',
+                  borderColor: readerStyles.border,
                   display: { xs: activeSection === -1 ? 'block' : 'none', md: 'block' },
                   overflow: 'auto', 
                   height: '100%',
-                  bgcolor: alpha(theme.palette.background.paper, 0.5)
+                  bgcolor: alpha(readerStyles.bg, 0.95),
+                  zIndex: 2
                 }}
               >
-                {/* List of sections */}
+                <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: readerStyles.border, bgcolor: alpha(theme.palette.primary.main, 0.03) }}>
+                  <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: 2 }}>Curriculum Index</Typography>
+                </Box>
                 <List sx={{ p: 0 }}>
                   {viewingCourse?.sections?.map((section, idx) => (
                     <ListItem 
@@ -1286,27 +1490,33 @@ export default function Courses() {
                       onClick={() => handleSectionChange(idx)} 
                       sx={{ 
                         cursor: 'pointer', 
-                        py: 2,
-                        bgcolor: activeSection === idx ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                        py: 2.5,
+                        bgcolor: activeSection === idx ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
                         borderLeft: '4px solid',
                         borderColor: activeSection === idx ? 'primary.main' : 'transparent',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) }
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) },
+                        transition: 'all 0.2s ease'
                       }}
                     >
                       <ListItemAvatar sx={{ minWidth: 40 }}>
-                        <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: activeSection === idx ? 'primary.main' : 'divider' }}>
+                        <Avatar sx={{ width: 28, height: 28, fontSize: '0.8rem', bgcolor: activeSection === idx ? 'primary.main' : alpha(readerStyles.text, 0.1), color: activeSection === idx ? 'white' : readerStyles.text, fontWeight: 900 }}>
                           {idx + 1}
                         </Avatar>
                       </ListItemAvatar>
                       <ListItemText 
                         primary={section.title} 
+                        secondary={section.type.toUpperCase()}
                         primaryTypographyProps={{ 
                           variant: 'body2', 
-                          fontWeight: activeSection === idx ? 800 : 600,
-                          color: activeSection === idx ? 'primary.main' : 'text.primary'
+                          fontWeight: activeSection === idx ? 900 : 600,
+                          color: activeSection === idx ? 'primary.main' : readerStyles.text,
+                          letterSpacing: -0.2
                         }} 
+                        secondaryTypographyProps={{
+                          variant: 'caption',
+                          sx: { fontWeight: 800, opacity: 0.5, fontSize: '0.65rem', letterSpacing: 1 }
+                        }}
                       />
-                      {activeSection === idx && <CheckCircle size={14} color={theme.palette.primary.main} />}
                     </ListItem>
                   ))}
                 </List>
@@ -1335,24 +1545,47 @@ export default function Courses() {
                 <Box id="reader-content-top" />
                 <AnimatePresence mode="wait">
                   <motion.div key={activeSection} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                      {(viewingCourse?.sections?.[activeSection]?.type === 'audio') && (
-                        <Paper sx={{ mb: 6, p: 0, borderRadius: 6, overflow: 'hidden', maxWidth: 500, mx: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}>
-                           <Box sx={{ position: 'relative', height: { xs: 260, md: 400 } }}>
-                             <Box component="img" src={viewingCourse?.sections?.[activeSection]?.mediaUrl || viewingCourse?.thumbnailUrl || `https://picsum.photos/seed/${viewingCourse.id}/500/800`} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                             <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.7))' }} />
-                             <Box sx={{ position: 'absolute', bottom: 20, left: 0, right: 0, textAlign: 'center', color: 'white', p: 2 }}>
-                               <Typography variant={isMobile ? "subtitle1" : "h5"} sx={{ fontWeight: 900, mb: 1 }}>{viewingCourse.sections[activeSection].title}</Typography>
-                               <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontSize: { xs: '0.6rem', sm: '0.75rem' } }}>Now Playing • Audiobook</Typography>
+                      {(viewingCourse?.sections?.[activeSection]?.type === 'audio' || viewingCourse?.sections?.[activeSection]?.secondaryMediaUrl) && (
+                        <Paper sx={{ 
+                          mb: (viewingCourse?.sections?.[activeSection]?.type === 'audio') ? 8 : 4, 
+                          p: (viewingCourse?.sections?.[activeSection]?.type === 'audio') ? 0 : 2, 
+                          borderRadius: (viewingCourse?.sections?.[activeSection]?.type === 'audio') ? 8 : 4, 
+                          overflow: 'hidden', 
+                          maxWidth: (viewingCourse?.sections?.[activeSection]?.type === 'audio') ? 600 : '100%', 
+                          mx: 'auto', 
+                          boxShadow: (viewingCourse?.sections?.[activeSection]?.type === 'audio') ? '0 30px 60px rgba(0,0,0,0.2)' : 'none', 
+                          bgcolor: readerStyles.bg,
+                          border: '1px solid', borderColor: readerStyles.border,
+                          transition: 'all 0.3s ease'
+                        }}>
+                           {(viewingCourse?.sections?.[activeSection]?.type === 'audio') && (
+                             <Box sx={{ position: 'relative', height: { xs: 300, md: 450 } }}>
+                               <Box component="img" src={viewingCourse?.sections?.[activeSection]?.mediaUrl || viewingCourse?.thumbnailUrl || `https://picsum.photos/seed/${viewingCourse.id}/600/900`} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                               <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.85))' }} />
+                               <Box sx={{ position: 'absolute', bottom: 30, left: 30, right: 30, textAlign: 'center', color: 'white' }}>
+                                 <Typography variant="overline" sx={{ opacity: 0.7, fontWeight: 900, letterSpacing: 4, mb: 1, display: 'block' }}>Audio Experience</Typography>
+                                 <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 1000, mb: 1, fontFamily: '"Outfit", sans-serif', letterSpacing: -1 }}>{viewingCourse.sections[activeSection].title}</Typography>
+                               </Box>
                              </Box>
-                           </Box>
-                           <Box sx={{ p: 4, textAlign: 'center', bgcolor: 'background.paper', borderTop: '4px solid', borderColor: 'primary.main' }}>
-                              <audio 
-                                controls 
-                                controlsList="nodownload" 
-                                style={{ width: '100%', height: 48, borderRadius: 12 }} 
-                                src={viewingCourse.sections[activeSection].mediaUrl} 
-                              />
-                              <Typography variant="caption" sx={{ mt: 2, display: 'block', color: 'text.secondary', fontWeight: 600 }}>Use headphones for better experience</Typography>
+                           )}
+                           <Box sx={{ p: (viewingCourse?.sections?.[activeSection]?.type === 'audio') ? 4 : 2, textAlign: 'center', bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                              <Box sx={{ position: 'relative', mb: (viewingCourse?.sections?.[activeSection]?.type === 'audio') ? 3 : 0, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                {(viewingCourse?.sections?.[activeSection]?.secondaryMediaUrl && viewingCourse?.sections?.[activeSection]?.type !== 'audio') && (
+                                  <Chip icon={<Headphones size={14} />} label="Background Audio" size="small" variant="outlined" sx={{ fontWeight: 900, fontSize: '0.65rem' }} />
+                                )}
+                                <audio 
+                                  controls 
+                                  controlsList="nodownload" 
+                                  style={{ width: '100%', height: (viewingCourse?.sections?.[activeSection]?.type === 'audio') ? 56 : 32, borderRadius: 28, filter: readingMode === 'dark' ? 'invert(1) hue-rotate(180deg)' : 'none' }} 
+                                  src={viewingCourse.sections[activeSection].type === 'audio' ? viewingCourse.sections[activeSection].mediaUrl : viewingCourse.sections[activeSection].secondaryMediaUrl} 
+                                />
+                              </Box>
+                              {(viewingCourse?.sections?.[activeSection]?.type === 'audio') && (
+                                <Typography variant="body2" sx={{ color: readerStyles.text, fontWeight: 700, opacity: 0.6 }}>
+                                  <Headphones size={16} style={{ verticalAlign: 'middle', marginRight: 8 }} />
+                                  Master quality audio • Optimal for focused study
+                                </Typography>
+                              )}
                            </Box>
                         </Paper>
                       )}
@@ -1384,10 +1617,44 @@ export default function Courses() {
                       )}
 
                       <Box sx={{ 
-                        direction: isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 'rtl' : 'ltr',
-                        px: { xs: 0, md: 4 }
+                        direction: viewingCourse?.sections?.[activeSection]?.isRTL ? 'rtl' : (isRTL(viewingCourse?.sections?.[activeSection]?.content || '') ? 'rtl' : 'ltr'),
+                        px: (() => {
+                          const l = (viewingCourse?.sections?.[activeSection] as any)?.layout;
+                          if (l === 'ebook') return { xs: 2, md: 24 };
+                          if (l === 'blog') return { xs: 2, md: 16 };
+                          if (l === 'magazine') return { xs: 1, md: 4 };
+                          return { xs: 0, md: 4 };
+                        })(),
+                        maxWidth: (() => {
+                          const l = (viewingCourse?.sections?.[activeSection] as any)?.layout;
+                          if (l === 'ebook') return '800px';
+                          if (l === 'blog') return '950px';
+                          return '100%';
+                        })(),
+                        mx: 'auto',
+                        textAlign: viewingCourse?.sections?.[activeSection]?.alignment || 'left',
+                        fontFamily: (() => {
+                          const f = viewingCourse?.sections?.[activeSection]?.fontFamily;
+                          if (f === 'nastaliq' || f === 'urdu-modern') return '"Noto Nastaliq Urdu", serif';
+                          if (f === 'serif' || f === 'ebook-serif') return '"Noto Serif", serif';
+                          if (f === 'display-playfair') return '"Playfair Display", serif';
+                          if (f === 'mono') return 'monospace';
+                          return 'inherit';
+                        })(),
+                        fontSize: (() => {
+                          const s = viewingCourse?.sections?.[activeSection]?.fontSize;
+                          if (s === 'small') return '0.85rem';
+                          if (s === 'large') return '1.25rem';
+                          if (s === 'extra-large') return '1.75rem';
+                          if (s === 'massive') return '2.5rem';
+                          return '1.05rem';
+                        })()
                       }}>
-                        <div className="markdown-body" style={{ fontSize: '0.98rem', lineHeight: '1.9', color: isDark ? '#e5e5e5' : '#333' }}>
+                        <div className="markdown-body" style={{ 
+                          fontSize: 'inherit', 
+                          lineHeight: viewingCourse?.sections?.[activeSection]?.fontFamily === 'nastaliq' ? '2.8' : '1.9', 
+                          color: isDark ? '#e5e5e5' : '#333' 
+                        }}>
                           <ReactMarkdown>{viewingCourse?.sections?.[activeSection]?.content || ''}</ReactMarkdown>
                         </div>
                       </Box>

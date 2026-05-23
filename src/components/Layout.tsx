@@ -20,7 +20,7 @@ import SavingOverlay from './SavingOverlay';
 import ImportantNotificationBanner from './ImportantNotificationBanner';
 import { collection, query, onSnapshot, orderBy, limit, updateDoc, doc, arrayUnion, getDoc, where, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { InstituteSettings } from '../types';
 import { useThemeContext } from '../context/ThemeContext';
 
@@ -107,7 +107,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
 
   useEffect(() => {
     setNavLoading(true);
-    const timer = setTimeout(() => setNavLoading(false), 600);
+    const timer = setTimeout(() => setNavLoading(false), 300);
     return () => clearTimeout(timer);
   }, [location.pathname]);
 
@@ -120,15 +120,10 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
   };
 
   useEffect(() => {
-    // Show nav only after initial mount and a small delay for smoother entrance
-    const timer = setTimeout(() => {
-      setBottomNavVisible(true);
-    }, 500);
-    return () => clearTimeout(timer);
+    setBottomNavVisible(true);
   }, []);
 
   useEffect(() => {
-    // Real-time listener for institute settings
     const unsubscribe = onSnapshot(doc(db, 'settings', 'institute'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -142,28 +137,18 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
         if (data.logoUrl !== undefined) {
           const finalLogo = data.logoUrl || '';
           setLogoUrl(finalLogo);
-          // Dynamically update favicon
           if (finalLogo) {
             const link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
-            if (link) {
-              link.href = finalLogo;
-            } else {
+            if (link) { link.href = finalLogo; }
+            else {
               const newLink = document.createElement('link');
               newLink.rel = 'icon';
               newLink.href = finalLogo;
               document.head.appendChild(newLink);
             }
-            const appleLink: HTMLLinkElement | null = document.querySelector("link[rel~='apple-touch-icon']");
-            if (appleLink) {
-              appleLink.href = finalLogo;
-            }
           }
         }
       }
-    }, (error) => {
-      // Don't use handleFirestoreError for this passive background task
-      // as it would throw and potentially crash the SDK loop or React render
-      // console.warn('Institute settings listener failed:', error.message);
     });
     return () => unsubscribe();
   }, []);
@@ -176,7 +161,6 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
 
   if (!user) return <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>{children}</Box>;
 
-  // Standalone Verification Page
   if (location.pathname.startsWith('/verify')) {
     return (
       <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default', display: 'flex', flexDirection: 'column' }}>
@@ -189,7 +173,6 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default', overflowX: 'hidden' }}>
       <SavingOverlay isSaving={isSaving} />
       
-      {/* Sidebar / Drawer */}
       <Drawer
         variant={isDesktop ? "permanent" : "temporary"}
         open={isDesktop || sidebarOpen}
@@ -203,7 +186,6 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             border: 'none',
             boxShadow: isDesktop ? 'none' : '10px 0 30px rgba(0,0,0,0.1)',
             borderRight: isDesktop ? `1px solid ${alpha(theme.palette.divider, 0.1)}` : 'none',
-            borderRadius: { xs: 0, md: isDesktop ? 0 : '0 30px 30px 0' },
             transition: theme.transitions.create(['width', 'transform'], {
               easing: theme.transitions.easing.sharp,
               duration: theme.transitions.duration.enteringScreen,
@@ -224,14 +206,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
         />
       </Drawer>
 
-      <Box sx={{ 
-        flexGrow: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        minWidth: 0,
-        marginLeft: 0 // Drawer variant permanent handles it if using display flex on container
-      }}>
-        {/* Top App Bar */}
+      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <AppBar 
           position="fixed" 
           color="inherit" 
@@ -251,21 +226,13 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
           {navLoading && (
             <LinearProgress 
               sx={{ 
-                position: 'absolute', 
-                top: 0, 
-                left: 0, 
-                right: 0, 
-                height: '2px',
-                zIndex: 10,
-                '& .MuiLinearProgress-bar': {
-                  transition: 'none'
-                }
+                position: 'absolute', top: 0, left: 0, right: 0, height: '2px', zIndex: 10,
+                '& .MuiLinearProgress-bar': { transition: 'none' }
               }} 
             />
           )}
           <Toolbar sx={{ justifyContent: 'space-between', minHeight: { xs: 60, md: 80 }, px: { xs: 1.5, md: 4 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              {/* Back Button for Deep Pages on Mobile */}
               {isXSmall && !['/', '/dashboard', '/users', '/fees', '/reports', '/settings', '/courses', '/expenses', '/attendance', '/notes', '/exams', '/schedule', '/profile', '/notifications'].includes(location.pathname) && (
                 <IconButton onClick={() => navigate(-1)} sx={{ color: 'primary.main', mr: 1 }}>
                   <ArrowLeft size={24} />
@@ -273,7 +240,6 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
               )}
               
               <AnimatePresence>
-                {/* Hide text logo if using Sidebar and it's visible or likely taking up space */}
                 {(showBottomNav && !sidebarOpen) && (
                   <motion.div
                     initial={{ opacity: 0, x: -20 }}
@@ -282,35 +248,12 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                     style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: (isDesktop || isXSmall) ? 'pointer' : 'default' }}
                     onClick={() => (isDesktop || isXSmall) && setSidebarOpen(true)}
                   >
-                    <Box sx={{ 
-                      width: { xs: 35, md: 45 }, 
-                      height: { xs: 35, md: 45 }, 
-                      borderRadius: 1,
-                      overflow: 'hidden',
-                      flexShrink: 0
-                    }}>
-                      <img 
-                        src={logoUrl} 
-                        style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-                        alt="Logo" 
-                        referrerPolicy="no-referrer"
-                      />
+                    <Box sx={{ width: { xs: 35, md: 45 }, height: { xs: 35, md: 45 }, borderRadius: 1, overflow: 'hidden', flexShrink: 0 }}>
+                      <img src={logoUrl} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="Logo" referrerPolicy="no-referrer" />
                     </Box>
                     <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
-                      <Typography variant="subtitle1" sx={{ 
-                        fontWeight: 900, 
-                        color: 'primary.main',
-                        lineHeight: 1
-                      }}>
-                        {instituteName}
-                      </Typography>
-                      <Typography variant="caption" sx={{ 
-                        fontWeight: 700, 
-                        color: 'text.secondary',
-                        fontSize: '0.6rem'
-                      }}>
-                        {tagline}
-                      </Typography>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'primary.main', lineHeight: 1 }}>{instituteName}</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.6rem' }}>{tagline}</Typography>
                     </Box>
                   </motion.div>
                 )}
@@ -318,25 +261,16 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 3 } }}>
-              {/* Sync Status Label */}
               <AnimatePresence>
                 {isSyncing && (
                   <Box 
                     component={motion.div}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
                     sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 0.8, 
-                      bgcolor: alpha(theme.palette.success.main, 0.1),
-                      color: 'success.main',
-                      px: 1.5,
-                      py: 0.5,
-                      borderRadius: 10,
-                      border: '1px solid',
-                      borderColor: alpha(theme.palette.success.main, 0.2)
+                      display: 'flex', alignItems: 'center', gap: 0.8, bgcolor: alpha(theme.palette.success.main, 0.1),
+                      color: 'success.main', px: 1.5, py: 0.5, borderRadius: 10, border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.2)
                     }}
                   >
                     <Box 
@@ -349,224 +283,69 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
                   </Box>
                 )}
               </AnimatePresence>
-              {/* Global Search - Disabled on search-heavy pages to avoid redundancy */}
-              {!['/', '/dashboard', '/users', '/fees', '/expenses', '/reports'].includes(location.pathname) && (
-                <Box sx={{ position: 'relative', display: { xs: 'none', sm: 'block' } }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: '2px 4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      width: 280,
-                      bgcolor: 'background.default',
-                      borderRadius: 1,
-                      boxShadow: theme.palette.mode === 'dark'
-                        ? '1px 1px 3px rgba(0,0,0,0.4), -1px -1px 3px rgba(255,255,255,0.02)'
-                        : '1px 1px 3px rgba(0,0,0,0.05)',
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      '&:focus-within': {
-                        width: 340,
-                        boxShadow: theme.palette.mode === 'dark'
-                          ? '2px 2px 4px rgba(0,0,0,0.6), -2px -2px 4px rgba(255,255,255,0.03)'
-                          : '2px 2px 4px rgba(0,0,0,0.1)',
-                      }
-                    }}
-                  >
-                    <IconButton sx={{ p: '10px', color: 'primary.main' }} aria-label="search">
-                      <Search size={20} />
-                    </IconButton>
-                    <InputBase
-                      sx={{ ml: 1, flex: 1, fontSize: '0.95rem', fontWeight: 600 }}
-                      placeholder="Search anything..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </Paper>
-                </Box>
-              )}
 
               <Tooltip title="Notifications">
-                <IconButton 
-                  onClick={() => navigate('/notifications')} 
-                  size="large"
-                  sx={{ 
-                    bgcolor: 'transparent',
-                    color: unreadCount > 0 ? 'primary.main' : 'text.secondary',
-                    width: isMobile ? 36 : 48,
-                    height: isMobile ? 36 : 48,
-                    border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-                    '&:hover': { 
-                      transform: 'translateY(-2px)',
-                      color: 'primary.main',
-                      bgcolor: alpha(theme.palette.primary.main, 0.04)
-                    }
-                  }}
-                >
-                  <Badge 
-                    badgeContent={unreadCount} 
-                    color="error"
-                    sx={{ 
-                      '& .MuiBadge-badge': { 
-                        animation: unreadCount > 0 ? 'pulse 2s infinite' : 'none',
-                        fontWeight: 900,
-                        border: `2px solid ${theme.palette.background.default}`,
-                        height: isMobile ? 16 : 20,
-                        minWidth: isMobile ? 16 : 20,
-                        fontSize: isMobile ? '0.6rem' : '0.75rem'
-                      } 
-                    }}
-                  >
+                <IconButton onClick={() => navigate('/notifications')} size="large" sx={{ 
+                    bgcolor: 'transparent', color: unreadCount > 0 ? 'primary.main' : 'text.secondary',
+                    width: isMobile ? 36 : 48, height: isMobile ? 36 : 48, border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+                    '&:hover': { transform: 'translateY(-2px)', color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.04) }
+                  }}>
+                  <Badge badgeContent={unreadCount} color="error" sx={{ '& .MuiBadge-badge': { fontWeight: 900, border: `2px solid ${theme.palette.background.default}`, height: isMobile ? 16 : 20, minWidth: isMobile ? 16 : 20, fontSize: isMobile ? '0.6rem' : '0.75rem' } }}>
                     <Bell size={isMobile ? 18 : 22} />
                   </Badge>
                 </IconButton>
               </Tooltip>
 
-              <Tooltip title={`Switch to ${theme.palette.mode === 'dark' ? 'Light' : 'Dark'} Mode`}>
-                <IconButton 
-                  onClick={() => setMode(mode === 'dark' ? 'light' : 'dark')} 
-                  size="large"
-                  sx={{ 
-                    bgcolor: 'transparent',
-                    color: 'text.secondary',
-                    width: isMobile ? 36 : 48,
-                    height: isMobile ? 36 : 48,
-                    border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-                    '&:hover': { 
-                      transform: 'translateY(-2px)',
-                      color: 'primary.main',
-                      bgcolor: alpha(theme.palette.primary.main, 0.04)
-                    }
-                  }}
-                >
-                  {theme.palette.mode === 'dark' ? <Sun size={isMobile ? 18 : 22} /> : <Moon size={isMobile ? 18 : 22} />}
+              <Tooltip title={`Switch Theme`}>
+                <IconButton onClick={() => setMode(mode === 'dark' ? 'light' : 'dark')} size="large" sx={{ 
+                    bgcolor: 'transparent', color: 'text.secondary', width: isMobile ? 36 : 48, height: isMobile ? 36 : 48, border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+                    '&:hover': { transform: 'translateY(-2px)', color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.04) }
+                  }}>
+                  {mode === 'dark' ? <Sun size={isMobile ? 18 : 22} /> : <Moon size={isMobile ? 18 : 22} />}
                 </IconButton>
               </Tooltip>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 1 }}>
-                <Tooltip title="Manage Profile">
-                  <IconButton 
-                    onClick={() => navigate('/profile')} 
-                    size="small" 
-                    sx={{ 
-                      p: 0.5, 
-                      border: '1.5px solid', 
-                      borderColor: (location.pathname === '/profile' ? 'primary.main' : alpha(theme.palette.divider, 0.1)),
-                      transition: 'all 0.2s',
-                      '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' }
-                    }}
-                  >
-                    <Avatar 
-                      src={user.photoURL} 
-                      imgProps={{ loading: 'lazy' }}
-                      sx={{ width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, bgcolor: 'primary.main', fontWeight: 600, fontSize: isMobile ? '0.85rem' : '1rem' }}
-                    >
-                      {user.displayName.charAt(0)}
-                    </Avatar>
-                  </IconButton>
-                </Tooltip>
-              </Box>
+              <IconButton onClick={() => navigate('/profile')} size="small" sx={{ p: 0.5, border: '1.5px solid', borderColor: (location.pathname === '/profile' ? 'primary.main' : alpha(theme.palette.divider, 0.1)), transition: 'all 0.2s', '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' } }}>
+                <Avatar src={user.photoURL} sx={{ width: isMobile ? 32 : 36, height: isMobile ? 32 : 36, bgcolor: 'primary.main', fontWeight: 600 }}>{user.displayName.charAt(0)}</Avatar>
+              </IconButton>
             </Box>
           </Toolbar>
         </AppBar>
 
-        {/* Main Content */}
-        <Box 
-          component="main"
-          ref={mainRef}
-          className="gpu-accelerated no-scrollbar"
-          sx={{ 
-            flexGrow: 1,
-            p: { xs: 2, sm: 3, md: 4 },
-            pb: { xs: 16, md: 4 }, 
-            pt: location.pathname === '/' ? 0 : { xs: 11, sm: 12, md: 14 }, 
-            overflowY: 'visible',
-            overflowX: 'hidden',
-            WebkitOverflowScrolling: 'touch',
-            position: 'relative',
-          }}
-        >
+        <Box component="main" ref={mainRef} sx={{ flexGrow: 1, p: { xs: 2, sm: 3, md: 4 }, pb: { xs: 16, md: 4 }, pt: location.pathname === '/' ? 0 : { xs: 11, sm: 12, md: 14 }, overflowX: 'hidden', position: 'relative' }}>
           <Container maxWidth="xl" sx={{ p: 0 }}>
-            {isArchived && location.pathname !== '/profile' ? (
-              <Box 
-                component={motion.div}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                sx={{ 
-                  height: 'calc(100vh - 200px)', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  bgcolor: alpha(theme.palette.error.main, 0.05),
-                  borderRadius: 6,
-                  border: '2px dashed',
-                  borderColor: 'error.light',
-                  p: 4,
-                  textAlign: 'center',
-                  gap: 3
-                }}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={location.pathname}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
               >
-                <Box sx={{ p: 3, bgcolor: 'error.main', borderRadius: '50%', color: 'white', mb: 2 }}>
-                  <X size={48} />
-                </Box>
-                <Typography variant="h3" sx={{ fontWeight: 900, color: 'error.main', letterSpacing: -1 }}>
-                  ACCOUNT REMOVED
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 700, maxWidth: 600, opacity: 0.8 }}>
-                  Your account has been deactivated or removed by the institute administration. 
-                  Access to system features has been restricted.
-                </Typography>
-                
-                <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                  <Button 
-                    variant="contained" 
-                    color="error" 
-                    startIcon={<Download size={20} />}
-                    onClick={downloadUserData}
-                    sx={{ fontWeight: 900, borderRadius: 3, px: 4, py: 1.5 }}
+                {isArchived && location.pathname !== '/profile' ? (
+                  <Box 
+                    sx={{ 
+                      height: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      bgcolor: alpha(theme.palette.error.main, 0.05), borderRadius: 6, border: '2px dashed', borderColor: 'error.light', p: 4, textAlign: 'center', gap: 3
+                    }}
                   >
-                    Download My Data
-                  </Button>
-                  <Button 
-                    variant="outlined" 
-                    color="inherit" 
-                    onClick={() => navigate('/profile')}
-                    sx={{ fontWeight: 900, borderRadius: 3, px: 4, py: 1.5 }}
-                  >
-                    View My Profile
-                  </Button>
-                  <Button 
-                    variant="text" 
-                    color="error" 
-                    onClick={onLogout}
-                    sx={{ fontWeight: 900, borderRadius: 3, px: 4, py: 1.5 }}
-                  >
-                    Logout
-                  </Button>
-                </Stack>
-                
-                <Typography variant="caption" sx={{ mt: 4, opacity: 0.5, fontWeight: 700 }}>
-                  If you think this is a mistake, please contact administration.
-                </Typography>
-              </Box>
-            ) : children}
+                    <Box sx={{ p: 3, bgcolor: 'error.main', borderRadius: '50%', color: 'white', mb: 2 }}><X size={48} /></Box>
+                    <Typography variant="h3" sx={{ fontWeight: 900, color: 'error.main', letterSpacing: -1 }}>ACCOUNT REMOVED</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 700, maxWidth: 600, opacity: 0.8 }}>Your account has been deactivated or removed by the institute administration.</Typography>
+                    <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+                      <Button variant="contained" color="error" startIcon={<Download size={20} />} onClick={downloadUserData} sx={{ fontWeight: 900, borderRadius: 3, px: 4, py: 1.5 }}>Download My Data</Button>
+                      <Button variant="outlined" color="inherit" onClick={() => navigate('/profile')} sx={{ fontWeight: 900, borderRadius: 3, px: 4, py: 1.5 }}>View My Profile</Button>
+                      <Button variant="text" color="error" onClick={onLogout} sx={{ fontWeight: 900, borderRadius: 3, px: 4, py: 1.5 }}>Logout</Button>
+                    </Stack>
+                  </Box>
+                ) : children}
+              </motion.div>
+            </AnimatePresence>
           </Container>
         </Box>
       </Box>
 
-      {/* Bottom Nav */}
       {showBottomNav && <Box className="no-print"><BottomNav user={user} unreadNotifications={unreadCount} visible={bottomNavVisible} logoUrl={logoUrl} /></Box>}
-
-      <style>
-        {`
-          @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-            70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-          }
-        `}
-      </style>
     </Box>
   );
 }

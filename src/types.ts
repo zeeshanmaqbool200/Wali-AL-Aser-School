@@ -1,4 +1,4 @@
-export type UserRole = 'student' | 'superadmin' | 'super_admin' | 'manager' | 'teacher' | 'pending_teacher' | 'pending_student';
+export type UserRole = 'student' | 'superadmin' | 'super_admin' | 'manager' | 'teacher' | 'pending_teacher' | 'pending_student' | 'mudeer' | 'mudaris' | 'muntazim';
 export type ClassLevel = 'Mubtadi' | 'Awal' | 'Doum' | 'Soum' | 'Chaharm' | 'Panjum' | 'Shasham' | 'Haftum' | 'Hashtum' | 'Nahum' | 'Dahum' | 'Hafiz' | 'Manager [m]' | 'Manager [f]';
 
 export interface UserProfile {
@@ -142,6 +142,13 @@ export interface CourseSection {
   mediaUrl?: string;
   quizData?: QuizData;
   quizAttempts?: QuizAttempt[];
+  fontFamily?: 'default' | 'serif' | 'nastaliq' | 'mono' | 'urdu-modern' | 'ebook-serif' | 'display-playfair';
+  alignment?: 'left' | 'center' | 'right' | 'justify';
+  isRTL?: boolean;
+  fontSize?: 'small' | 'medium' | 'large' | 'extra-large' | 'massive';
+  secondaryMediaUrl?: string;
+  secondaryMediaType?: 'audio' | 'video';
+  layout?: 'standard' | 'ebook' | 'blog' | 'magazine';
 }
 
 export interface Course {

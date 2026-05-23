@@ -38,17 +38,17 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
   const isSuperAdmin = role === 'superadmin';
 
   const menuItems = [
-    { label: 'Dashboard', icon: <LayoutDashboard size={22} />, path: '/', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'view_dashboard' },
-    { label: 'Users', icon: <Users size={22} />, path: '/users', roles: ['superadmin', 'manager'], permission: 'manage_students' },
-    { label: 'Courses', icon: <BookOpen size={22} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: role === 'student' ? 'My Payments' : 'Fees & Payments', icon: <IndianRupee size={22} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'manage_fees' },
-    { label: 'Attendance', icon: <ClipboardCheck size={22} />, path: '/attendance', roles: ['teacher', 'manager', 'superadmin'], permission: 'manage_attendance' },
-    { label: 'Forms & Exams', icon: <FileText size={22} />, path: '/forms', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: 'Expenses', icon: <CreditCard size={22} />, path: '/expenses', roles: ['superadmin', 'manager'], permission: 'manage_expenses' },
-    { label: 'Reports', icon: <BarChart3 size={22} />, path: '/reports', roles: ['superadmin'], permission: 'manage_reports' },
-    { label: 'Notifications', icon: <Badge badgeContent={unreadNotifications} color="error"><Bell size={22} /></Badge>, path: '/notifications', roles: ['student', 'teacher', 'superadmin', 'manager'] },
-    { label: 'System Logs', icon: <Terminal size={22} />, path: '/admin/logs', roles: ['superadmin'] },
-    { label: 'Settings', icon: <Settings size={22} />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'system_settings' },
+    { label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'view_dashboard' },
+    { label: 'Users', icon: <Users size={20} />, path: '/users', roles: ['superadmin', 'manager'], permission: 'manage_students' },
+    { label: 'Courses', icon: <BookOpen size={20} />, path: '/courses', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: role === 'student' ? 'My Payments' : 'Fees & Payments', icon: <IndianRupee size={20} />, path: '/fees', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'manage_fees' },
+    { label: 'Attendance', icon: <ClipboardCheck size={20} />, path: '/attendance', roles: ['teacher', 'manager', 'superadmin'], permission: 'manage_attendance' },
+    { label: 'Forms & Exams', icon: <FileText size={20} />, path: '/forms', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'Expenses', icon: <CreditCard size={20} />, path: '/expenses', roles: ['superadmin', 'manager'], permission: 'manage_expenses' },
+    { label: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['superadmin'], permission: 'manage_reports' },
+    { label: 'Notifications', icon: <Badge badgeContent={unreadNotifications} color="error"><Bell size={20} /></Badge>, path: '/notifications', roles: ['student', 'teacher', 'superadmin', 'manager'] },
+    { label: 'System Logs', icon: <Terminal size={20} />, path: '/admin/logs', roles: ['superadmin'] },
+    { label: 'Settings', icon: <Settings size={20} />, path: '/settings', roles: ['student', 'teacher', 'superadmin', 'manager'], permission: 'system_settings' },
   ];
 
   const filteredMenu = menuItems.filter(item => {
