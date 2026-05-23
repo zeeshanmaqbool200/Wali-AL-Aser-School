@@ -18,15 +18,11 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
-      with:
-        gradle-version: 8.1.1
-
     - name: Build with Gradle
       run: |
         cd android
-        gradle assembleDebug
+        chmod +x gradlew
+        ./gradlew assembleDebug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
