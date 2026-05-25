@@ -67,6 +67,31 @@ export interface UserProfile {
     microphone: 'granted' | 'denied' | 'prompt' | 'not-supported';
     lastUpdated: string;
   };
+  editHistory?: {
+    timestamp: number;
+    modifiedBy: string;
+    action: string;
+  }[];
+  quizScores?: {
+    courseId: string;
+    sectionId: string;
+    score: number;
+    total: number;
+    timestamp: number;
+  }[];
+  certificates?: Certificate[];
+  readingProgress?: Record<string, {
+    lastSectionId: string;
+    lastPosition: number;
+    completedAt?: number;
+    updatedAt: number;
+  }>;
+  engagementMetrics?: {
+    totalMinutes: number;
+    lastActiveAt: number;
+    lessonsCompleted: number;
+    quizAverage: number;
+  };
 }
 
 export interface Attendance {
@@ -130,16 +155,24 @@ export interface QuizAttempt {
   score: number;
   totalQuestions: number;
   submittedAt: number;
-  answers: number[];
+  answers: any[];
+  completionTimeSeconds?: number;
+  attempts?: number;
+  wrongAnswersIds?: string[];
+  performanceAnalytics?: {
+    accuracy: number;
+    topicBreakdown?: Record<string, number>;
+  };
 }
 
 export interface CourseSection {
-  id?: string;
-  order?: number;
+  id: string;
+  order: number;
   title: string;
-  content: string;
-  type: 'text' | 'image' | 'video' | 'quiz' | 'file' | 'audio';
+  content: string; // Markdown or plain text
+  type: 'text' | 'image' | 'video' | 'quiz' | 'file' | 'audio' | 'callout' | 'quote' | 'code' | 'gallery' | 'pdf' | 'bookmark' | 'divider' | 'flashcard';
   mediaUrl?: string;
+  mediaItems?: string[]; // For gallery
   quizData?: QuizData;
   quizAttempts?: QuizAttempt[];
   fontFamily?: 'default' | 'serif' | 'nastaliq' | 'mono' | 'urdu-modern' | 'ebook-serif' | 'display-playfair';
@@ -148,7 +181,35 @@ export interface CourseSection {
   fontSize?: 'small' | 'medium' | 'large' | 'extra-large' | 'massive';
   secondaryMediaUrl?: string;
   secondaryMediaType?: 'audio' | 'video';
-  layout?: 'standard' | 'ebook' | 'blog' | 'magazine';
+  layout?: 'standard' | 'ebook' | 'blog' | 'magazine' | 'audio-immersive' | 'video-lesson' | 'study-sheet';
+  metadata?: {
+    estimatedReadTime?: number;
+    audioDuration?: number;
+    calloutType?: 'info' | 'warning' | 'error' | 'success' | 'tip';
+    quoteAuthor?: string;
+    codeLanguage?: string;
+    flashcardBack?: string;
+  };
+  metrics?: {
+    views: number;
+    uniqueReaders: number;
+    completions: number;
+    avgTimeSeconds: number;
+    audioListenCompletions: number;
+  };
+}
+
+export interface Certificate {
+  id: string;
+  studentId: string;
+  studentName: string;
+  courseId: string;
+  courseName: string;
+  issueDate: number;
+  issuedBy: string;
+  certificateNumber: string;
+  template: 'classic' | 'premium' | 'islamic';
+  status: 'pending' | 'approved' | 'revoked';
 }
 
 export interface Course {
@@ -162,13 +223,31 @@ export interface Course {
   duration: string;
   fee: number;
   createdAt: number;
+  updatedAt: number;
   thumbnailUrl?: string;
+  bannerUrl?: string; // Cinematic header
   sections?: CourseSection[];
-  enrolledStudents?: string[]; // Array of student UIDs
-  assignedTeachers?: string[]; // Array of teacher UIDs
-  classLevelId?: string; // Class level it's targeted for
+  enrolledStudents?: string[]; 
+  assignedTeachers?: string[]; 
+  classLevelId?: string; 
   isPublished?: boolean;
   views?: number;
+  category?: string;
+  averageRating?: number;
+  totalLessons?: number;
+  totalDurationMinutes?: number;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  tags?: string[];
+  metrics?: {
+    totalViews: number;
+    uniqueReaders: number;
+    completionCount: number;
+    avgReadingMinutes: number;
+    quizParticipation: number;
+    lastAccessedAt: number;
+  };
+  ownerId: string; // Teacher or Admin UID
+  activeUsers?: { uid: string, lastSeen: number }[]; // For "currently reading"
 }
 
 export interface Student {
@@ -325,6 +404,9 @@ export interface InstituteSettings {
   bannerUrl?: string;
   receiptLeftImageUrl?: string;
   receiptRightImageUrl?: string;
+  admissionLeftImageUrl?: string;
+  admissionRightImageUrl?: string;
+  admissionWatermarkImageUrl?: string;
   receiptPrefix: string;
   primaryColor: string;
   secondaryColor: string;

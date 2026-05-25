@@ -5,15 +5,6 @@ export default function SyncNotifier() {
   const { showToast } = useNotification();
 
   useEffect(() => {
-    const handleSyncComplete = () => {
-      showToast({
-        title: 'Sync Complete',
-        message: 'Offline changes synchronized successfully!',
-        type: 'success',
-        duration: 5000
-      });
-    };
-
     const handleOffline = () => {
       showToast({
         title: 'Offline Mode',
@@ -32,12 +23,10 @@ export default function SyncNotifier() {
       });
     };
 
-    window.addEventListener('sync-complete', handleSyncComplete);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('firestore-rate-limit', handleRateLimit);
 
     return () => {
-      window.removeEventListener('sync-complete', handleSyncComplete);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('firestore-rate-limit', handleRateLimit);
     };

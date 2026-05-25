@@ -48,10 +48,11 @@ export default function AdminLogs() {
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
   const [filterLevel, setFilterLevel] = useState<string>('all');
 
+  const isAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'manager';
   const isSuperAdmin = currentUser?.email === 'zeeshanmaqbool200@gmail.com';
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!isAdmin) return;
 
     const q = query(
       collection(db, 'access_logs'), 
@@ -65,7 +66,7 @@ export default function AdminLogs() {
     });
 
     return () => unsubscribe();
-  }, [isSuperAdmin]);
+  }, [isAdmin, isSuperAdmin]);
 
   const handleClearLogs = async () => {
     if (!window.confirm('Are you sure you want to clear all access logs?')) return;
@@ -113,7 +114,7 @@ export default function AdminLogs() {
     return matchesSearch && matchesLevel;
   });
 
-  if (!isSuperAdmin) {
+  if (!isAdmin) {
     return (
       <Box sx={{ p: 10, textAlign: 'center' }}>
         <Shield size={64} color="error" style={{ marginBottom: 24, opacity: 0.2 }} />

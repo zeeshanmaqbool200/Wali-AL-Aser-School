@@ -17,39 +17,38 @@ export default function SavingOverlay({ isSaving, message = 'Syncing Changes...'
       {isSaving && (
         <Box
           component={motion.div}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 1, transition: { delay: 0.5 } }} // Hold a bit before vanishing
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, transition: { delay: 0.5 } }}
           sx={{
             position: 'fixed',
-            inset: 0,
+            bottom: { xs: 80, md: 30 },
+            left: { xs: '50%', md: 'auto' },
+            right: { xs: 'auto', md: 30 },
+            transform: { xs: 'translateX(-50%)', md: 'none' },
             zIndex: 9999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: alpha(theme.palette.background.default, 0.4),
-            backdropFilter: 'blur(4px)',
+            pointerEvents: 'none', // Allow clicking through it if necessary, though it's usually small
           }}
         >
           <Box
             component={motion.div}
-            initial={{ scale: 0.95, opacity: 0, y: 10 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 1.05, opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 400 }}
             sx={{
               display: 'flex',
               alignItems: 'center',
-              gap: 2.5,
+              gap: 2,
               px: 3,
-              py: 1.5,
-              borderRadius: 4,
-              bgcolor: theme.palette.mode === 'dark' ? '#1e293b' : '#ffffff',
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+              py: 1.2,
+              borderRadius: 3,
+              bgcolor: theme.palette.mode === 'dark' ? alpha('#1e293b', 0.9) : alpha('#ffffff', 0.9),
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
               boxShadow: theme.palette.mode === 'dark' 
-                ? '0 10px 30px rgba(0,0,0,0.5), 0 0 20px rgba(0,224,255,0.05)' 
-                : '0 10px 30px rgba(0,0,0,0.08)',
-              backdropFilter: 'blur(20px)',
+                ? '0 10px 30px rgba(0,0,0,0.5)' 
+                : '0 10px 30px rgba(0,0,0,0.06)',
+              backdropFilter: 'blur(10px)',
+              pointerEvents: 'auto', // Re-enable pointer events for the box itself if needed
             }}
           >
             <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

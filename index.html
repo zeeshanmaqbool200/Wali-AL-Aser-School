@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Institute Management System</title>
-    <meta name="description" content="Integrated Institute Management System. Manage student fees, attendance, upcoming events, and educational courses with real-time updates and offline support." />
-    <meta name="keywords" content="Institute, Management, Education, Fee Tracking, Attendance" />
-    <meta name="theme-color" content="#0f766e" />
+    <title>Wali Ul Aser | Institutional Management</title>
+    <meta name="description" content="Official Institutional Management & Digital Identity Portal for Wali Ul Aser Academy. Secure access for students, staff, and administration." />
+    <meta name="keywords" content="Maktab, Education, Institutional Management, Digital ID" />
+    <meta name="theme-color" content="#3b82f6" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -19,6 +19,13 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js');
+        });
+      }
+    </script>
   </body>
 </html>
 

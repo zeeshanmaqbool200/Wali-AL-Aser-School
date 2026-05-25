@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import html2canvas from 'html2canvas';
 import { QRCodeSVG } from 'qrcode.react';
 import { useReactToPrint } from 'react-to-print';
+import { logger } from '../lib/logger';
 
 interface IDCardModalProps {
   open: boolean;
@@ -28,36 +29,42 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
     if (!cardRef.current) return;
     setDownloading(true);
     try {
-      // Small delay to ensure everything is rendered
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Temporarily unset scale for high-quality capture
+      const originalTransform = cardRef.current.style.transform;
+      const originalMargin = cardRef.current.style.marginBottom;
+      
+      cardRef.current.style.transform = 'none';
+      cardRef.current.style.marginBottom = '0';
+      cardRef.current.style.display = 'block'; // Ensure block layout for capture
+      
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       const canvas = await html2canvas(cardRef.current, {
         useCORS: true,
         allowTaint: true,
-        scale: 3, // High scale for crisp download
+        scale: 4, // Higher scale for premium print quality
         logging: false,
         backgroundColor: '#ffffff',
-        width: 638,
-        height: 404,
-        onclone: (clonedDoc) => {
-          // Reset any responsive scaling for the capture
-          const card = clonedDoc.querySelector('#printable-card-content');
-          if (card) {
-            (card as HTMLElement).style.transform = 'none';
-          }
-        }
+        windowWidth: 1000, // Ensure fixed width for consistency
       });
       
+      // Restore styles
+      cardRef.current.style.transform = originalTransform;
+      cardRef.current.style.marginBottom = originalMargin;
+      cardRef.current.style.display = ''; 
+
       const dataUrl = canvas.toDataURL('image/png', 1.0);
       const link = document.createElement('a');
-      link.download = `ID-CARD-${(user.displayName || 'MEMBER').replace(/\s+/g, '-')}.png`;
+      link.download = `ID-CARD-${(user.displayName || 'STUDENT').replace(/\s+/g, '-')}.png`;
       link.href = dataUrl;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
+      logger.success('HD Card downloaded successfully');
     } catch (error: any) {
       console.error('Failed to download ID card:', error);
+      logger.error('Download failed. Try printing to PDF instead.');
     } finally {
       setDownloading(false);
     }
@@ -78,249 +85,341 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
       fullWidth
       sx={{ 
         '& .MuiDialog-container': {
-          alignItems: { xs: 'center', sm: 'center' }
+          alignItems: 'center'
         },
         '& .MuiDialog-paper': { 
-          borderRadius: 2,
-          bgcolor: 'transparent',
-          boxShadow: 'none',
+          borderRadius: 4,
+          bgcolor: 'background.paper',
           overflow: 'visible',
           m: { xs: 1, sm: 2 },
           width: 'auto',
-          maxWidth: '100vw'
+          maxWidth: '100vw',
+          backgroundImage: 'none'
         } 
       }}
     >
-      <Box sx={{ position: 'relative', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', width: '100%', mb: 1 }}>
-           <IconButton 
-            onClick={onClose} 
-            sx={{ 
-              bgcolor: 'white', 
-              color: 'text.primary', 
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-              borderRadius: 1,
-              '&:hover': { bgcolor: '#f0f0f0' } 
-            }}
-          >
-            <X size={20} />
-          </IconButton>
-        </Box>
+      <Box sx={{ position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 100, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider', '@media print': { display: 'none' } }}>
+        <Typography variant="h6" sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 1.5, letterSpacing: -0.5 }}>
+          <Shield size={24} color={theme.palette.success.main} />
+          Digital ID Asset
+        </Typography>
+        <IconButton onClick={onClose} sx={{ bgcolor: alpha(theme.palette.error.main, 0.05), color: 'error.main' }}>
+          <X size={20} />
+        </IconButton>
+      </Box>
 
-        <Box sx={{ 
-          width: '100%', 
-          display: 'flex', 
-          justifyContent: 'center', 
-          mb: 4,
-          overflow: 'visible'
-        }}>
-          {/* CR80 Standard Horizontal Ratio: 1.58:1 (approx 638x404 px) */}
-          <Box 
-            id="printable-card-content"
-            ref={cardRef} 
+      <Box sx={{ p: { xs: 2, sm: 4 }, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, mb: 10 }}>
+        <Box 
+          id="printable-card-content"
+          ref={cardRef} 
+          sx={{ 
+            display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' },
+            gap: 4,
+            width: 'fit-content',
+            transform: { xs: 'scale(0.35)', sm: 'scale(0.5)', md: 'scale(0.65)', lg: 'scale(0.7)' },
+            transformOrigin: 'top center',
+            mb: { xs: -45, sm: -30, md: -20, lg: -15 }, // Offset for scaled content space
+            '@media print': {
+              flexDirection: 'column',
+              gap: '20mm',
+              m: 0,
+              transform: 'none',
+              mb: 0
+            }
+          }}
+        >
+          {/* FRONT SIDE */}
+          <Paper 
+            elevation={0}
+            className="front-card"
             sx={{ 
-              width: 638,
-              height: 404,
-              background: '#fff',
-              borderRadius: 1.5, 
+              width: 350,
+              height: 550,
+              bgcolor: '#f1f5f9',
+              borderRadius: 6,
               overflow: 'hidden',
-              boxShadow: '0 30px 90px rgba(0,0,0,0.4)',
-              display: 'flex',
               position: 'relative',
-              userSelect: 'none',
-              transform: { xs: 'scale(0.5)', sm: 'scale(0.8)', md: 'scale(1)' },
-              transformOrigin: 'center center',
-              flexShrink: 0,
-              // Add a fixed aspect ratio wrapper for CSS layout to reserve space
-              my: { xs: -10, sm: -4, md: 0 },
+              border: '1px solid',
+              borderColor: 'divider',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.1)',
+              display: 'flex',
+              flexDirection: 'column',
               '@media print': {
-                transform: 'none',
                 boxShadow: 'none',
-                border: '1px solid #ccc',
-                position: 'fixed',
-                top: '50mm',
-                left: '50mm',
-                zIndex: 9999
+                border: '1px solid #ddd'
               }
             }}
           >
-            {/* Left accent bar with gradient */}
-            <Box sx={{ width: 18, height: '100%', background: `linear-gradient(to bottom, ${theme.palette.primary.main}, ${theme.palette.secondary.main})` }} />
-            
-            {/* Main content area */}
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              {/* Header Section */}
-              <Box sx={{ 
-                p: { xs: 2, sm: 3 }, 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                borderBottom: '1.5px solid rgba(0,0,0,0.04)',
-                bgcolor: alpha(theme.palette.primary.main, 0.02)
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {/* Left Decorative Bar - Deep Indigo/Navy */}
+            <Box sx={{ 
+              position: 'absolute', 
+              left: 0, 
+              top: 0, 
+              bottom: 0, 
+              width: 65, 
+              bgcolor: '#0f172a',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              pt: 6,
+              zIndex: 2
+            }}>
+               <Typography variant="caption" sx={{ 
+                 color: 'rgba(255,255,255,0.08)', 
+                 fontWeight: 950, 
+                 transform: 'rotate(-90deg)', 
+                 whiteSpace: 'nowrap',
+                 fontSize: '1.4rem',
+                 mt: 24,
+                 fontFamily: 'serif',
+                 letterSpacing: 4
+               }}>
+                 MAKTAB PORTAL SYSTEM
+               </Typography>
+            </Box>
+
+            <Box sx={{ ml: '65px', flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1, bgcolor: 'white' }}>
+              {/* Header Branding - Increased Padding and Height */}
+              <Box sx={{ p: 3, display: 'flex', gap: 2, alignItems: 'center', borderBottom: '1px solid', borderColor: '#f1f5f9', minHeight: 90 }}>
+                <Box sx={{ 
+                  width: 55, 
+                  height: 55, 
+                  bgcolor: 'transparent', 
+                  borderRadius: 2, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  flexShrink: 0
+                }}>
                   {instituteSettings?.logoUrl ? (
-                    <Box 
-                      component="img" 
-                      src={instituteSettings.logoUrl} 
-                      crossOrigin="anonymous"
-                      sx={{ height: 44, width: 'auto', maxHeight: 44 }} 
-                    />
+                    <Box component="img" src={instituteSettings.logoUrl} crossOrigin="anonymous" sx={{ width: '100%', height: 'auto', maxHeight: '100%' }} />
                   ) : (
-                    <Shield size={32} color={theme.palette.primary.main} />
+                    <Box sx={{ width: '100%', height: '100%', bgcolor: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                      <Shield size={32} />
+                    </Box>
                   )}
-                  <Box>
-                    <Typography variant="h6" sx={{ fontWeight: 950, fontSize: { xs: '0.8rem', sm: '1.1rem' }, color: '#000', lineHeight: 1, mb: 0.5 }}>
-                      {instituteSettings?.instituteName || 'WALI ACADEMY'}
-                    </Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 900, color: 'primary.main', letterSpacing: 2, textTransform: 'uppercase', fontSize: '0.65rem' }}>
-                      Identity Tracking System
-                    </Typography>
-                  </Box>
                 </Box>
-                <Chip label={roleLabel} size="small" variant="filled" sx={{ fontWeight: 950, letterSpacing: 1, height: 24, borderRadius: 1, fontSize: '0.6rem' }} />
+                <Box sx={{ overflow: 'hidden' }}>
+                  <Typography variant="caption" sx={{ fontWeight: 900, color: '#3b82f6', letterSpacing: 2, display: 'flex', gap: 1, textTransform: 'uppercase', fontSize: '0.6rem' }}>
+                    {instituteSettings?.instituteName?.split(' ')[0] || 'MAKTAB'} <Box component="span" sx={{ opacity: 0.5 }}>|</Box> مکتب
+                  </Typography>
+                  <Typography 
+                    variant="subtitle1" 
+                    sx={{ 
+                      fontWeight: 950, 
+                      lineHeight: 1.1, 
+                      color: '#0f172a', 
+                      fontSize: '0.85rem',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}
+                  >
+                    {instituteSettings?.instituteName || 'Institutional Academy'}
+                  </Typography>
+                </Box>
               </Box>
 
-              {/* Identity Section */}
-              <Box sx={{ flex: 1, p: { xs: 2, sm: 4 }, display: 'flex', gap: { xs: 2, sm: 4 }, alignItems: 'center' }}>
-                 {/* Profile Photo */}
-                 <Box sx={{ position: 'relative' }}>
-                    <Box sx={{ 
-                      width: { xs: 90, sm: 160 }, 
-                      height: { xs: 90, sm: 180 },
-                      borderRadius: 1,
-                      border: '4px solid #fff',
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                      overflow: 'hidden',
-                      bgcolor: '#f8fafc'
-                    }}>
-                      {user.photoURL ? (
-                        <Box 
-                          component="img"
-                          src={user.photoURL}
-                          crossOrigin="anonymous"
-                          sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                      ) : (
-                        <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: alpha(theme.palette.primary.main, 0.2) }}>
-                          <User size={80} />
-                        </Box>
-                      )}
-                    </Box>
+              {/* Identity Portrait */}
+              <Box sx={{ px: 4, pt: 3, pb: 3, display: 'flex', justifyContent: 'center' }}>
+                <Box sx={{ 
+                  width: 140, 
+                  height: 170, 
+                  borderRadius: 3, 
+                  border: '4px solid #fff', 
+                  p: 0.5,
+                  bgcolor: '#fff',
+                  boxShadow: '0 15px 35px rgba(0,0,0,0.08)',
+                  position: 'relative'
+                }}>
+                  <Box sx={{ width: '100%', height: '100%', borderRadius: 2, overflow: 'hidden', bgcolor: '#f8fafc' }}>
+                    {user.photoURL ? (
+                      <Box component="img" src={user.photoURL} crossOrigin="anonymous" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.1, color: '#334155' }}>
+                        <User size={80} />
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* Primary Data - Clearer Vertical Spacing */}
+              <Box sx={{ px: 4, flex: 1, mt: 1 }}>
+                <Typography 
+                  variant="h5" 
+                  sx={{ 
+                    fontWeight: 950, 
+                    color: '#0f172a', 
+                    textAlign: 'center', 
+                    mb: 1.5, 
+                    fontFamily: 'serif', 
+                    letterSpacing: -0.5,
+                    fontSize: '1.3rem',
+                    lineHeight: 1.2
+                  }}
+                >
+                  {user.displayName}
+                </Typography>
+
+                <Box sx={{ borderBottom: '2.5px solid #3b82f6', width: 40, mx: 'auto', mb: 2.5 }} />
+
+                <Stack spacing={1.2}>
+                   {[
+                     { label: 'S/O | ولدیت', value: user.fatherName || 'N/A' },
+                     { label: 'CLASS | جماعت', value: user.role === 'student' ? (user.classLevel || 'Active Student') : roleLabel },
+                     { label: 'ID NO | شناختی نمبر', value: idText },
+                     { label: 'DOB | تاریخِ پیدائش', value: user.dob || 'N/A' },
+                     { label: 'PHONE | موبائل', value: user.phone || 'N/A' }
+                   ].map((item, i) => (
+                     <Box key={i} sx={{ borderBottom: '1px solid #f1f5f9', pb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 950, color: '#64748b', fontSize: '0.45rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                          {item.label}
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 900, color: '#0f172a', fontSize: '0.6rem', maxWidth: '65%', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.value}
+                        </Typography>
+                     </Box>
+                   ))}
+                </Stack>
+              </Box>
+
+              {/* Compliance & Verification Footer */}
+              <Box sx={{ px: 3, py: 3, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', mt: 'auto', bgcolor: '#f8fafc' }}>
+                <Box>
+                  <Box sx={{ width: 90, height: 35, borderBottom: '1px solid #cbd5e1', mb: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3 }}>
+                    {/* Principal Signature Area */}
+                    <Typography variant="caption" sx={{ fontSize: '0.45rem', fontWeight: 800 }}>AUTHORIZED</Typography>
+                  </Box>
+                  <Typography variant="caption" sx={{ fontWeight: 950, fontSize: '0.55rem', color: '#64748b' }}>Superadmin Signature</Typography>
+                </Box>
+                <Box sx={{ p: 0.5, bgcolor: 'white', borderRadius: 2, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                  <QRCodeSVG value={verificationUrl} size={64} level="H" />
+                </Box>
+              </Box>
+            </Box>
+          </Paper>
+
+          {/* BACK SIDE */}
+          <Paper 
+            elevation={0}
+            sx={{ 
+              width: 350,
+              height: 550,
+              bgcolor: '#0f172a',
+              borderRadius: 6,
+              overflow: 'hidden',
+              position: 'relative',
+              border: '1px solid',
+              borderColor: 'divider',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.1)',
+              display: 'flex',
+              flexDirection: 'column',
+              color: 'white',
+              '@media print': {
+                boxShadow: 'none',
+                border: '1px solid #ddd'
+              }
+            }}
+          >
+            <Box sx={{ 
+              position: 'absolute', 
+              top: 0, left: 0, right: 0, bottom: 0, 
+              opacity: 0.05, 
+              backgroundImage: `radial-gradient(circle at 2px 2px, white 1px, transparent 0)`,
+              backgroundSize: '24px 24px'
+            }} />
+
+            <Box sx={{ p: 4, position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column' }}>
+               <Box sx={{ mb: 5, textAlign: 'center' }}>
+                 <Box sx={{ 
+                   width: 70, height: 70, borderRadius: 2.5, bgcolor: alpha('#fff', 0.1), 
+                   mx: 'auto', mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                 }}>
+                   <Shield size={36} color={theme.palette.primary.main} />
+                 </Box>
+                 <Typography variant="h5" sx={{ fontWeight: 950, letterSpacing: 2 }}>MAKTAB</Typography>
+                 <Typography variant="caption" sx={{ opacity: 0.5, letterSpacing: 4, fontWeight: 800, textTransform: 'uppercase' }}>Identity Ecosystem</Typography>
+               </Box>
+
+               <Stack spacing={4}>
+                 <Box>
+                    <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 950, letterSpacing: 1.5, borderBottom: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.3), pb: 0.5, display: 'inline-block' }}>TERMS OF USAGE</Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.7, fontSize: '0.75rem', mt: 2, lineHeight: 1.7, fontWeight: 500 }}>
+                      This document is an official identity issued by {instituteSettings?.instituteName || 'Maktab'}. Loss must be reported immediately. Misuse is subject to disciplinary action. Please return to the address below if found.
+                    </Typography>
                  </Box>
 
-                 {/* Information Details */}
-                 <Stack spacing={2} sx={{ flex: 1 }}>
-                    <Box>
-                      <Typography variant="h4" sx={{ 
-                        fontWeight: 950, 
-                        color: '#1e293b', 
-                        fontSize: { xs: '1.3rem', sm: '2.2rem' }, 
-                        letterSpacing: -1.5,
-                        lineHeight: 1,
-                        mb: 1
-                      }}>
-                        {user.displayName}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 900, color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.1), px: 1, borderRadius: 0.5 }}>
-                          ID NUM: {idText}
-                        </Typography>
-                      </Box>
-                    </Box>
-                    
-                    <Stack spacing={1.5}>
+                 <Box>
+                    <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 950, letterSpacing: 1.5, borderBottom: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.3), pb: 0.5, display: 'inline-block' }}>CONTACT UTILITIES</Typography>
+                    <Stack spacing={2} sx={{ mt: 2.5 }}>
                        {[
-                         { icon: Phone, label: 'Contact', value: user.phone || 'N/A' },
-                         { icon: GraduationCap, label: 'Status', value: user.classLevel || user.role || 'Member' }
+                         { icon: Phone, text: instituteSettings?.phone || '+92 300 0000000', label: 'Support Line' },
+                         { icon: Download, text: instituteSettings?.website || 'portal.maktab.academy', label: 'Web Portal' },
+                         { icon: Shield, text: instituteSettings?.address || 'Pakistan', label: 'Campus HQ' }
                        ].map((item, i) => (
-                         <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                           <Box sx={{ display: 'flex', color: 'text.secondary', opacity: 0.5 }}>
-                             <item.icon size={16} />
-                           </Box>
-                           <Box>
-                             <Typography variant="caption" sx={{ display: 'block', fontWeight: 900, fontSize: '0.6rem', color: 'text.secondary', textTransform: 'uppercase' }}>{item.label}</Typography>
-                             <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#334155', lineHeight: 1 }}>{item.value}</Typography>
-                           </Box>
+                         <Box key={i} sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                            <Box sx={{ color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.1), p: 1, borderRadius: 1.5 }}><item.icon size={16} /></Box>
+                            <Box>
+                               <Typography variant="caption" sx={{ opacity: 0.4, display: 'block', textTransform: 'uppercase', fontSize: '0.55rem', fontWeight: 900 }}>{item.label}</Typography>
+                               <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.75rem' }}>{item.text}</Typography>
+                            </Box>
                          </Box>
                        ))}
                     </Stack>
-                 </Stack>
-
-                 {/* Vertical QR Section */}
-                 <Box sx={{ 
-                   p: 1.5, 
-                   bgcolor: '#f8fafc', 
-                   borderRadius: 1, 
-                   border: '1.5px solid #e2e8f0',
-                   display: 'flex', 
-                   flexDirection: 'column', 
-                   alignItems: 'center',
-                   gap: 1
-                 }}>
-                    <QRCodeSVG value={verificationUrl} size={84} level="H" includeMargin={true} />
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ fontSize: '0.55rem', fontWeight: 950, color: '#64748b', display: 'block', lineHeight: 1 }}>VERIFY</Typography>
-                      <Typography variant="caption" sx={{ fontSize: '0.45rem', fontWeight: 700, color: '#94a3b8' }}>SCAN QR</Typography>
-                    </Box>
                  </Box>
-              </Box>
 
-              {/* Footer Section */}
-              <Box sx={{ 
-                px: 3, py: 1.5, 
-                bgcolor: '#f1f5f9', 
-                borderTop: '1px solid #e2e8f0',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <QrCode size={14} color="#64748b" />
-                    <Typography variant="caption" sx={{ fontWeight: 900, color: '#64748b', letterSpacing: 0.5, fontSize: '0.6rem' }}>
-                      DIGITAL IDENTITY PORTAL VALIDATION
+                 <Box sx={{ mt: 'auto', pt: 4, borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+                    <Typography variant="caption" sx={{ display: 'block', opacity: 0.4, fontWeight: 700, letterSpacing: 1 }}>
+                      SECURE DIGITAL VERIFICATION ACTIVE
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: 'block', opacity: 0.2, fontSize: '0.5rem', mt: 1, fontFamily: 'monospace' }}>
+                      UID: {user.uid}
                     </Typography>
                  </Box>
-                 <Typography variant="caption" sx={{ fontWeight: 800, color: '#94a3b8', fontSize: '0.6rem' }}>
-                   Ref: {user.uid?.slice(0, 8).toUpperCase()}
-                 </Typography>
-              </Box>
+               </Stack>
             </Box>
-          </Box>
+            
+            <Box sx={{ height: 12, bgcolor: 'primary.main', width: '100%' }} />
+          </Paper>
         </Box>
+      </Box>
 
-        <Stack direction="row" spacing={2} justifyContent="center" sx={{ px: 2, pb: { xs: 12, sm: 6 }, width: '100%', maxWidth: 500 }}>
-          <Button 
-            variant="outlined" 
-            fullWidth
-            startIcon={<Printer size={16} />}
-            onClick={handlePrint}
-            sx={{ 
-              borderRadius: 0.5, color: 'white', borderColor: 'rgba(255,255,255,0.3)', 
-              fontWeight: 900, px: 2, py: 1, backdropFilter: 'blur(10px)',
-              fontSize: { xs: '0.65rem', sm: '0.75rem' },
-              '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' }
-            }}
-          >
-            PRINT
-          </Button>
-          <Button 
-            variant="contained" 
-            fullWidth
-            disableElevation
-            startIcon={downloading ? <CircularProgress size={14} color="inherit" /> : <Download size={16} />}
-            onClick={handleDownload}
-            disabled={downloading}
-            sx={{ 
-              borderRadius: 0.5, bgcolor: 'primary.main', fontWeight: 900, px: 2, py: 1,
-              boxShadow: theme.shadows[4],
-              fontSize: { xs: '0.65rem', sm: '0.75rem' },
-              '&:hover': { bgcolor: 'primary.dark' }
-            }}
-          >
-            {downloading ? 'WAIT...' : 'SAVE IMAGE'}
-          </Button>
-        </Stack>
+      {/* Sticky Footer for Actions */}
+      <Box sx={{ 
+        position: 'sticky', 
+        bottom: 0, 
+        bgcolor: alpha(theme.palette.background.paper, 0.9), 
+        backdropFilter: 'blur(10px)',
+        zIndex: 100, 
+        p: 2, 
+        borderTop: '1px solid', 
+        borderColor: 'divider',
+        display: 'flex',
+        justifyContent: 'center',
+        gap: 2,
+        '@media print': { display: 'none' }
+      }}>
+        <Button 
+          variant="outlined" 
+          startIcon={<Printer size={18} />}
+          onClick={handlePrint}
+          sx={{ borderRadius: 3, fontWeight: 900, flex: 1, maxWidth: 200 }}
+        >
+          Print ID
+        </Button>
+        <Button 
+          variant="contained" 
+          disableElevation
+          startIcon={downloading ? <CircularProgress size={14} color="inherit" /> : <Download size={18} />}
+          onClick={handleDownload}
+          disabled={downloading}
+          sx={{ borderRadius: 3, fontWeight: 900, flex: 1, maxWidth: 200 }}
+        >
+          {downloading ? 'Preparing...' : 'Download Image'}
+        </Button>
       </Box>
     </Dialog>
   );

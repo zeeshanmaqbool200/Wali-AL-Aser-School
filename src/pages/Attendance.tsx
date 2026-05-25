@@ -87,8 +87,8 @@ const Attendance = () => {
           <IconButton onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() + 1)))}><ChevronRight /></IconButton>
           <TextField size="small" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} InputProps={{ startAdornment: <Search size={18} /> }} />
         </Paper>
-        <TableContainer component={Paper} sx={{ borderRadius: 4, border: '1px solid', borderColor: 'divider' }}>
-          <Table><TableHead><TableRow><TableCell>Student</TableCell><TableCell align="center">Action</TableCell></TableRow></TableHead>
+        <TableContainer component={Paper} sx={{ borderRadius: 4, border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
+          <Table sx={{ minWidth: 500 }}><TableHead><TableRow><TableCell>Student</TableCell><TableCell align="center">Action</TableCell></TableRow></TableHead>
             <TableBody>{students.map(s => (
               <TableRow key={s.uid} hover><TableCell><Stack direction="row" spacing={2} alignItems="center"><Avatar src={s.photoURL} />
                 <Box><Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{s.displayName}</Typography><Typography variant="caption">{s.classLevel}</Typography></Box></Stack></TableCell>

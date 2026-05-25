@@ -25,9 +25,12 @@ const Reports = lazy(() => import('./pages/Reports'));
 const Exams = lazy(() => import('./pages/Exams'));
 const Expenses = lazy(() => import('./pages/Expenses'));
 const Courses = lazy(() => import('./pages/Courses'));
+const CourseReader = lazy(() => import('./pages/CourseReader'));
+const CourseEditor = lazy(() => import('./pages/CourseEditor'));
 const PaymentsSummary = lazy(() => import('./pages/PaymentsSummary'));
 const AdminLogs = lazy(() => import('./pages/AdminLogs'));
 const Profile = lazy(() => import('./pages/Profile'));
+const UserProfileView = lazy(() => import('./pages/UserProfileView'));
 const FormManager = lazy(() => import('./pages/Forms/FormManager'));
 const FormBuilder = lazy(() => import('./pages/Forms/FormBuilder'));
 const FormView = lazy(() => import('./pages/Forms/FormView'));
@@ -158,6 +161,18 @@ function AppContent() {
               <>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/courses" element={<Courses />} />
+                <Route path="/courses/new" element={
+                  <ProtectedRoute user={user} allowedRoles={staffRoles}>
+                    <CourseEditor />
+                  </ProtectedRoute>
+                } />
+                <Route path="/courses/:courseId" element={<CourseReader />} />
+                <Route path="/courses/:courseId/section/:sectionId" element={<CourseReader />} />
+                <Route path="/courses/:courseId/edit" element={
+                  <ProtectedRoute user={user} allowedRoles={staffRoles}>
+                    <CourseEditor />
+                  </ProtectedRoute>
+                } />
                 <Route path="/attendance" element={
                   <ProtectedRoute user={user} allowedRoles={staffRoles}>
                     <Attendance />
@@ -172,6 +187,11 @@ function AppContent() {
                 <Route path="/users" element={
                   <ProtectedRoute user={user} allowedRoles={staffRoles}>
                     <Users />
+                  </ProtectedRoute>
+                } />
+                <Route path="/users/:uid" element={
+                  <ProtectedRoute user={user} allowedRoles={staffRoles}>
+                    <UserProfileView />
                   </ProtectedRoute>
                 } />
                 <Route path="/settings" element={
@@ -211,7 +231,7 @@ function AppContent() {
                   </ProtectedRoute>
                 } />
                 <Route path="/admin/logs" element={
-                  <ProtectedRoute user={user} allowedRoles={systemAdminRoles}>
+                  <ProtectedRoute user={user} allowedRoles={fullAdminRoles}>
                     <AdminLogs />
                   </ProtectedRoute>
                 } />

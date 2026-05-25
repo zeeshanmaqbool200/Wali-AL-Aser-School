@@ -458,7 +458,7 @@ export default function Settings() {
     }
   };
 
-  const handleImageUpload = (field: 'logoUrl' | 'bannerUrl' | 'receiptLeftImageUrl' | 'receiptRightImageUrl') => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (field: 'logoUrl' | 'bannerUrl' | 'receiptLeftImageUrl' | 'receiptRightImageUrl' | 'admissionLeftImageUrl' | 'admissionRightImageUrl' | 'admissionWatermarkImageUrl') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -533,7 +533,7 @@ export default function Settings() {
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveImage = (field: 'logoUrl' | 'bannerUrl' | 'receiptLeftImageUrl' | 'receiptRightImageUrl') => {
+  const handleRemoveImage = (field: 'logoUrl' | 'bannerUrl' | 'receiptLeftImageUrl' | 'receiptRightImageUrl' | 'admissionLeftImageUrl' | 'admissionRightImageUrl' | 'admissionWatermarkImageUrl') => {
     setInstituteData(prev => ({ ...prev, [field]: '' }));
   };
 
@@ -541,6 +541,7 @@ export default function Settings() {
     { id: 'appearance', label: 'Visual & Theme', icon: <Palette size={20} />, role: 'all' },
     { id: 'permissions', label: 'Permissions', icon: <Key size={20} />, role: 'admin' },
     { id: 'security', label: 'Account Security', icon: <Shield size={20} />, role: 'all' },
+    { id: 'notifications', label: 'Notifications', icon: <Bell size={20} />, role: 'all' },
     { id: 'data', label: 'Data & System', icon: <Database size={20} />, role: 'admin' },
   ].filter(item => {
     if (item.role === 'all') return true;
@@ -561,7 +562,6 @@ export default function Settings() {
 
   return (
     <Box sx={{ pb: isMobile ? 12 : 8, px: isSmallMobile ? 0 : 0 }}>
-      <SavingOverlay isSaving={loading && !!profileData.uid} message="Updating System Configuration..." />
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -626,7 +626,8 @@ export default function Settings() {
                 value={tabValue} 
                 onChange={(_, v) => setTabValue(v)}
                 variant="scrollable"
-                scrollButtons="auto"
+                scrollButtons
+                allowScrollButtonsMobile
                 sx={{ 
                   '& .MuiTabs-indicator': { height: 4, borderRadius: '4px 4px 0 0' },
                   '& .MuiTab-root': { 
@@ -692,7 +693,7 @@ export default function Settings() {
                     <CardContent sx={{ p: 4 }}>
                       <Stack spacing={4}>
                         <Box>
-                          <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>USER INTERFACE PREFERENCES</Typography>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', mb: 3, display: 'block' }}>User Interface Preferences</Typography>
                           <Grid container spacing={3}>
                             <Grid size={{ xs: 12, md: 6 }}>
                                <Box sx={{ p: 2, borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.4), border: '1px solid', borderColor: 'divider' }}>
@@ -773,7 +774,7 @@ export default function Settings() {
                         <CardContent sx={{ p: 4 }}>
                           <Stack spacing={4}>
                             <Box>
-                              <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>RECOGNITION & IDENTITY</Typography>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', mb: 3, display: 'block' }}>Recognition & Identity</Typography>
                               <Grid container spacing={3}>
                                 <Grid size={{ xs: 12, md: 8 }}>
                                   <TextField 
@@ -845,17 +846,21 @@ export default function Settings() {
                             </Box>
                             <Divider />
                             <Box>
-                              <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>VISUAL ASSETS</Typography>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', mb: 3, display: 'block' }}>Visual Assets</Typography>
                               <Grid container spacing={3}>
                                 <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Primary Logo" value={instituteData.logoUrl} onUpload={handleImageUpload('logoUrl')} onRemove={() => handleRemoveImage('logoUrl')} icon={<Monitor size={24} />} /></Grid>
                                 <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Banner Image" value={instituteData.bannerUrl} onUpload={handleImageUpload('bannerUrl')} onRemove={() => handleRemoveImage('bannerUrl')} icon={<ImageIcon size={24} />} isBanner /></Grid>
                                 <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Receipt Left" value={instituteData.receiptLeftImageUrl} onUpload={handleImageUpload('receiptLeftImageUrl')} onRemove={() => handleRemoveImage('receiptLeftImageUrl')} icon={<CheckCircle size={24} />} /></Grid>
                                 <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Receipt Right" value={instituteData.receiptRightImageUrl} onUpload={handleImageUpload('receiptRightImageUrl')} onRemove={() => handleRemoveImage('receiptRightImageUrl')} icon={<CheckCircle size={24} />} /></Grid>
+                                
+                                <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Admission Left" value={instituteData.admissionLeftImageUrl} onUpload={handleImageUpload('admissionLeftImageUrl')} onRemove={() => handleRemoveImage('admissionLeftImageUrl')} icon={<ImageIcon size={24} />} /></Grid>
+                                <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Admission Right" value={instituteData.admissionRightImageUrl} onUpload={handleImageUpload('admissionRightImageUrl')} onRemove={() => handleRemoveImage('admissionRightImageUrl')} icon={<ImageIcon size={24} />} /></Grid>
+                                <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Admission Watermark" value={instituteData.admissionWatermarkImageUrl} onUpload={handleImageUpload('admissionWatermarkImageUrl')} onRemove={() => handleRemoveImage('admissionWatermarkImageUrl')} icon={<Shield size={24} />} /></Grid>
                               </Grid>
                             </Box>
                             <Divider />
                             <Box>
-                              <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>GREETING & MOTIVATION</Typography>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', mb: 3, display: 'block' }}>Greeting & Motivation</Typography>
                                <TextField
                                   fullWidth
                                   multiline
@@ -894,7 +899,7 @@ export default function Settings() {
                   <CardContent sx={{ p: 4 }}>
                     <Stack spacing={4}>
                       <Box>
-                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'primary.main', mb: 2, display: 'block' }}>STUDENT USER CONTROLS</Typography>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', mb: 3, display: 'block' }}>Student User Controls</Typography>
                         <Grid container spacing={2}>
                           {[
                             { key: 'showDashboardStats', label: 'Attendance Stats', desc: 'Allow students to see attendance %' },
@@ -922,7 +927,7 @@ export default function Settings() {
                       </Box>
                       <Divider />
                       <Box>
-                        <Typography variant="overline" sx={{ fontWeight: 900, color: 'secondary.main', mb: 2, display: 'block' }}>TEACHER & STAFF CONTROLS</Typography>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'secondary.main', mb: 3, display: 'block' }}>Teacher & Staff Controls</Typography>
                         <Grid container spacing={2}>
                           {[
                             { key: 'showQuickActions', label: 'Quick Actions', desc: 'Show attendance/course shortcuts' },
@@ -964,31 +969,31 @@ export default function Settings() {
               </motion.div>
             )}
 
-            {/* Security Section */}
+            {/* Account Security Section */}
             {tabValue === 'security' && (
               <motion.div key="security" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                 <Stack spacing={3}>
-                   <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', border: '1.5px solid', borderColor: 'divider' }}>
-                     <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.error.main, 0.01) }}>
+                 <Stack spacing={4}>
+                   <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                     <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
                         <Typography variant="h6" sx={{ fontWeight: 900 }}>Credential Security</Typography>
                      </Box>
                      <CardContent sx={{ p: 4 }}>
                         <Grid container spacing={4}>
                            <Grid size={{ xs: 12, md: 6 }}>
-                              <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.secondary', display: 'block', mb: 2 }}>AUTHENTICATION SECRET</Typography>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'text.secondary', display: 'block', mb: 2 }}>Authentication Secret</Typography>
                               <Stack spacing={2}>
                                  <TextField fullWidth size="small" label="Current Secret" type={showPassword ? 'text' : 'password'} value={passwordDialog.current} onChange={(e) => setPasswordDialog({ ...passwordDialog, current: e.target.value })} InputProps={{ endAdornment: <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</IconButton>, sx: { borderRadius: 2 } }} />
                                  <TextField fullWidth size="small" label="New Secret" type={showPassword ? 'text' : 'password'} value={passwordDialog.new} onChange={(e) => setPasswordDialog({ ...passwordDialog, new: e.target.value })} InputProps={{ sx: { borderRadius: 2 } }} />
                                  <TextField fullWidth size="small" label="Confirm New Secret" type={showPassword ? 'text' : 'password'} value={passwordDialog.confirm} onChange={(e) => setPasswordDialog({ ...passwordDialog, confirm: e.target.value })} InputProps={{ sx: { borderRadius: 2 } }} />
-                                 <Button variant="contained" color="error" fullWidth startIcon={<Lock size={18} />} onClick={handleUpdatePassword} disabled={passwordDialog.loading || !passwordDialog.new} sx={{ py: 1.5, fontWeight: 900, borderRadius: 2 }}>Sync New Secret</Button>
+                                 <Button variant="contained" color="primary" fullWidth startIcon={<Lock size={18} />} onClick={handleUpdatePassword} disabled={passwordDialog.loading || !passwordDialog.new} sx={{ py: 1.5, fontWeight: 900, borderRadius: 2 }}>Update Authentication Secret</Button>
                               </Stack>
                            </Grid>
                            <Grid size={{ xs: 12, md: 6 }}>
-                              <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.secondary', display: 'block', mb: 2 }}>ADMIN IDENTITY</Typography>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'text.secondary', display: 'block', mb: 2 }}>Admin Identity</Typography>
                               <Stack spacing={2}>
                                  <TextField fullWidth label="Display Name" size="small" value={profileData.displayName || ''} onChange={(e) => setProfileData({ ...profileData, displayName: e.target.value })} variant="filled" InputProps={{ disableUnderline: true, sx: { borderRadius: 2, fontWeight: 700 } }} />
                                  <TextField fullWidth label="Login Email" size="small" value={profileData.email || ''} disabled variant="filled" InputProps={{ disableUnderline: true, sx: { borderRadius: 2, fontWeight: 700, opacity: 0.8 } }} />
-                                 <Button variant="outlined" fullWidth onClick={handleSaveProfile} disabled={!isProfileDirty || loading} sx={{ py: 1.5, fontWeight: 900, borderRadius: 2 }}>Update Display Identity</Button>
+                                 <Button variant="outlined" fullWidth onClick={handleSaveProfile} disabled={!isProfileDirty || loading} sx={{ py: 1.5, fontWeight: 900, borderRadius: 2 }}>Update Profile Identity</Button>
                               </Stack>
                            </Grid>
                         </Grid>
@@ -996,28 +1001,9 @@ export default function Settings() {
                    </Card>
 
                     <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
-                      <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                         <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Device Access</Typography>
-                         <Chip label="Current" size="small" color="primary" sx={{ fontWeight: 900, borderRadius: 1 }} />
-                      </Box>
-                      <CardContent sx={{ p: 3 }}>
-                         <List disablePadding>
-                            <ListItem sx={{ py: 2, px: 2, borderRadius: 2, bgcolor: alpha(theme.palette.primary.main, 0.03) }}>
-                               <ListItemIcon><Monitor size={20} color={theme.palette.primary.main} /></ListItemIcon>
-                               <ListItemText 
-                                 primary={<Typography variant="body2" sx={{ fontWeight: 800 }}>Current Browser Session</Typography>} 
-                                 secondary={<Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>Secure connection active from this device</Typography>} 
-                               />
-                            </ListItem>
-                         </List>
-                      </CardContent>
-                   </Card>
-
-                   {isAdmin && (
-                    <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
-                      <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                         <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Access Intelligence Logs</Typography>
-                         <Button variant="text" size="small" startIcon={<ExternalLink size={16} />} onClick={() => navigate('/admin-logs')} sx={{ fontWeight: 800 }}>Explore System Audit</Button>
+                      <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: alpha(theme.palette.background.default, 0.5) }}>
+                         <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>System Audit Logs</Typography>
+                         <Button variant="text" size="small" startIcon={<ExternalLink size={16} />} onClick={() => navigate('/admin/logs')} sx={{ fontWeight: 800 }}>Explore Full Audit</Button>
                       </Box>
                       <CardContent sx={{ p: 0 }}>
                         <List disablePadding>
@@ -1036,27 +1022,94 @@ export default function Settings() {
                               </ListItem>
                             )) : (
                               <Box sx={{ p: 4, textAlign: 'center' }}>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Telemetry connection active. Waiting for events...</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>テレメトリ接続中. イベント待機中...</Typography>
                               </Box>
                             )}
                         </List>
                       </CardContent>
                     </Card>
-                   )}
 
-                    <Box sx={{ mt: 2, pt: 2 }}>
+                    <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', overflow: 'hidden' }}>
+                      <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                         <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Device Access</Typography>
+                         <Chip label="Active Device" size="small" color="primary" sx={{ fontWeight: 900, borderRadius: 1 }} />
+                      </Box>
+                      <CardContent sx={{ p: 3 }}>
+                         <List disablePadding>
+                            <ListItem sx={{ py: 2, px: 2.5, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                               <ListItemIcon><Monitor size={22} color={theme.palette.primary.main} /></ListItemIcon>
+                               <ListItemText 
+                                 primary={<Typography variant="body2" sx={{ fontWeight: 800 }}>Primary Browser Session</Typography>} 
+                                 secondary={<Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>Secure connection active from this endpoint</Typography>} 
+                               />
+                            </ListItem>
+                         </List>
+                      </CardContent>
+                    </Card>
+
+                    <Box sx={{ mt: 2 }}>
                         <Button
                           fullWidth
                           variant="contained"
                           color="error"
                           startIcon={<LogOut size={20} />}
                           onClick={logout}
-                          sx={{ borderRadius: 1.5, py: 2, fontWeight: 900 }}
+                          sx={{ borderRadius: 2, py: 2, fontWeight: 900, boxShadow: 'none' }}
                         >
-                          Sign Out of Account
+                          Sign Out of All Sessions
                         </Button>
                     </Box>
                  </Stack>
+              </motion.div>
+            )}
+
+            {/* Notifications Section */}
+            {tabValue === 'notifications' && (
+              <motion.div key="notifications" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper' }}>
+                  <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900 }}>Notification & Alert Sync</Typography>
+                  </Box>
+                  <CardContent sx={{ p: 4 }}>
+                    <Stack spacing={4}>
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'text.secondary', mb: 3, display: 'block' }}>Alert Preferences</Typography>
+                        <Grid container spacing={3}>
+                          {[
+                            { key: 'email', label: 'Email Reports', desc: 'Periodic summaries to your primary inbox', icon: <Mail size={18} /> },
+                            { key: 'push', label: 'Push Intelligence', desc: 'Real-time banners on browser and mobile', icon: <Bell size={18} /> },
+                            { key: 'feeReminders', label: 'Payment Alerts', desc: 'Automatic overdue notifications for finance', icon: <CreditCard size={18} /> },
+                            { key: 'inAppToasts', label: 'In-App Alerts', desc: 'Subtle toast notifications during usage', icon: <MessageSquare size={18} /> }
+                          ].map((item, i) => (
+                            <Grid size={{ xs: 12, md: 6 }} key={i}>
+                              <Box sx={{ p: 3, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), borderRadius: 3, bgcolor: alpha(theme.palette.background.default, 0.4), display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <Stack direction="row" spacing={2}>
+                                  <Box sx={{ color: 'primary.main', p: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 2, display: 'flex', height: 'fit-content' }}>
+                                    {item.icon}
+                                  </Box>
+                                  <Box>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{item.label}</Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', maxWidth: 200 }}>{item.desc}</Typography>
+                                  </Box>
+                                </Stack>
+                                <IOSSwitch size="small" checked={(notificationPrefs as any)[item.key]} onChange={(e: any) => setNotificationPrefs({ ...notificationPrefs, [item.key]: e.target.checked })} />
+                              </Box>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      </Box>
+                    </Stack>
+                    <Box sx={{ mt: 5, display: 'flex', justifyContent: 'flex-end' }}>
+                      <AnimatePresence>
+                        {isPrefsDirty && (
+                          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
+                            <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveNotifications} sx={{ borderRadius: 2, fontWeight: 950, px: 4 }}>Save Notification Sync</Button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </Box>
+                  </CardContent>
+                </Card>
               </motion.div>
             )}
 
@@ -1065,104 +1118,126 @@ export default function Settings() {
               <motion.div key="data" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
                 <Stack spacing={4}>
                   <Card variant="outlined" sx={{ borderRadius: 4, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
-                    <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-                      <Typography variant="h6" sx={{ fontWeight: 900 }}>Data Infrastructure & Calendar</Typography>
+                    <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="h6" sx={{ fontWeight: 900 }}>Data Infrastructure & Continuity</Typography>
                     </Box>
                     <CardContent sx={{ p: 4 }}>
-                      <Stack spacing={4}>
-                        <Box sx={{ p: 4, borderRadius: 3, border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.2), bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} alignItems="center" justifyContent="space-between">
-                              <Box sx={{ maxWidth: 460 }}>
-                                 <Typography variant="h6" sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-                                   <Languages size={22} color={theme.palette.primary.main} /> 
-                                   Islamic Hijri Date Adjustment
-                                 </Typography>
-                                 <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                                    Adjust calendar offset to match local moon sightings. This shifts the Hijri date globally across receipts, cards, and dashboards.
-                                 </Typography>
-                              </Box>
-                              <Stack direction="row" spacing={3} alignItems="center">
-                                  <IconButton 
-                                    size="large" 
-                                    onClick={() => setInstituteData(prev => ({ ...prev, jafariOffset: (prev.jafariOffset || 0) - 1 }))}
-                                    sx={{ bgcolor: 'background.paper', boxShadow: 3, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } }}
-                                  >
-                                    <Minus size={24} />
-                                  </IconButton>
-                                  <Box sx={{ textAlign: 'center', minWidth: 100 }}>
-                                    <Typography variant="h2" sx={{ fontWeight: 950, color: 'primary.main', letterSpacing: -2 }}>
-                                      {instituteData.jafariOffset > 0 ? '+' : ''}{instituteData.jafariOffset || 0}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.6, letterSpacing: 1 }}>DAYS SHIFT</Typography>
-                                  </Box>
-                                  <IconButton 
-                                    size="large" 
-                                    onClick={() => setInstituteData(prev => ({ ...prev, jafariOffset: (prev.jafariOffset || 0) + 1 }))}
-                                    sx={{ bgcolor: 'background.paper', boxShadow: 3, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } }}
-                                  >
-                                    <Plus size={24} />
-                                  </IconButton>
-                              </Stack>
-                           </Stack>
-                        </Box>
-
-                        <Divider />
-
+                      <Stack spacing={5}>
                         <Box>
-                          <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.secondary', display: 'block', mb: 2 }}>NOTIFICATIONS & ALERT SYNC</Typography>
-                          <Grid container spacing={2}>
-                            {[
-                              { key: 'email', label: 'Email Reports', desc: 'Sync summaries', icon: <Mail size={18} /> },
-                              { key: 'push', label: 'Push Intelligence', desc: 'Real-time banners', icon: <Bell size={18} /> },
-                              { key: 'feeReminders', label: 'Payment Alerts', desc: 'Fee overdue sync', icon: <CreditCard size={18} /> }
-                            ].map((item, i) => (
-                              <Grid size={{ xs: 12, md: 4 }} key={i}>
-                                <Box sx={{ p: 2.5, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), borderRadius: 3, bgcolor: alpha(theme.palette.background.default, 0.4) }}>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                                     <Box sx={{ color: 'primary.main', p: 1, bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 1.5, display: 'flex' }}>
-                                        {item.icon}
-                                     </Box>
-                                     <Switch size="small" checked={(notificationPrefs as any)[item.key]} onChange={(e) => setNotificationPrefs({ ...notificationPrefs, [item.key]: e.target.checked })} />
-                                  </Box>
-                                  <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{item.label}</Typography>
-                                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block' }}>{item.desc}</Typography>
+                           <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'text.secondary', display: 'block', mb: 3 }}>Calendar & Regional Adjustments</Typography>
+                           <Box sx={{ p: 4, borderRadius: 3, border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.2), bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
+                             <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} alignItems="center" justifyContent="space-between">
+                                <Box sx={{ maxWidth: 500 }}>
+                                   <Typography variant="h6" sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                                     <Languages size={22} color={theme.palette.primary.main} /> 
+                                     Islamic Hijri Date Offset
+                                   </Typography>
+                                   <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+                                      Adjust the lunar calendar shifting globally across receipts, reporting, and dashboard views to align with local moon sightings.
+                                   </Typography>
                                 </Box>
-                              </Grid>
-                            ))}
-                          </Grid>
+                                <Stack direction="row" spacing={3} alignItems="center">
+                                    <IconButton 
+                                      size="large" 
+                                      onClick={() => setInstituteData(prev => ({ ...prev, jafariOffset: (prev.jafariOffset || 0) - 1 }))}
+                                      sx={{ bgcolor: 'background.paper', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } }}
+                                    >
+                                      <Minus size={24} />
+                                    </IconButton>
+                                    <Box sx={{ textAlign: 'center', minWidth: 100 }}>
+                                      <Typography variant="h2" sx={{ fontWeight: 950, color: 'primary.main', letterSpacing: -2 }}>
+                                        {instituteData.jafariOffset > 0 ? '+' : ''}{instituteData.jafariOffset || 0}
+                                      </Typography>
+                                      <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.6, letterSpacing: 1 }}>DAYS SHIFT</Typography>
+                                    </Box>
+                                    <IconButton 
+                                      size="large" 
+                                      onClick={() => setInstituteData(prev => ({ ...prev, jafariOffset: (prev.jafariOffset || 0) + 1 }))}
+                                      sx={{ bgcolor: 'background.paper', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } }}
+                                    >
+                                      <Plus size={24} />
+                                    </IconButton>
+                                </Stack>
+                             </Stack>
+                           </Box>
                         </Box>
-                        
+
                         <Divider />
 
                         <Box>
-                          <Typography variant="overline" sx={{ fontWeight: 900, color: 'text.secondary', display: 'block', mb: 2 }}>INFRASTRUCTURE MAINTENANCE</Typography>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'text.secondary', display: 'block', mb: 3 }}>Infrastructure Maintenance</Typography>
                           <Grid container spacing={3}>
                              <Grid size={{ xs: 12, md: 6 }}>
-                                <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, bgcolor: alpha(theme.palette.primary.main, 0.01) }}>
-                                   <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <Download size={18} /> Database Snapshots
+                                <Paper variant="outlined" sx={{ p: 4, borderRadius: 4, bgcolor: alpha(theme.palette.primary.main, 0.01) }}>
+                                   <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 1, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                      <Download size={20} color={theme.palette.primary.main} /> Database Snapshots
                                    </Typography>
-                                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 3 }}>Export full record history as JSON for local storage.</Typography>
-                                   <Button variant="outlined" fullWidth onClick={handleGenerateBackup} sx={{ fontWeight: 900, borderRadius: 2.5, py: 1.2 }}>Download Backup</Button>
-                                </Paper>
-                             </Grid>
-                             <Grid size={{ xs: 12, md: 6 }}>
-                                <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: alpha(theme.palette.error.main, 0.2), bgcolor: alpha(theme.palette.error.main, 0.01) }}>
-                                   <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <Trash2 size={18} /> Record Purge
-                                   </Typography>
-                                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 3 }}>Irreversibly delete specific data domains from cloud.</Typography>
-                                   <Button variant="outlined" color="error" fullWidth onClick={() => { setPurgeType('STUDENTS'); setResetConfirmOpen(true); }} sx={{ fontWeight: 900, borderRadius: 2.5, py: 1.2 }}>Purge Students</Button>
+                                   <Typography variant="body2" color="text.secondary" sx={{ display: 'block', mb: 4, fontWeight: 500 }}>Generate a secure JSON snapshot of all institutional records for external cold storage.</Typography>
+                                   <Button variant="contained" fullWidth onClick={handleGenerateBackup} sx={{ fontWeight: 950, borderRadius: 2.5, py: 1.5, bgcolor: 'text.primary', '&:hover': { bgcolor: 'text.secondary' } }}>Download Cloud Backup</Button>
                                 </Paper>
                              </Grid>
                           </Grid>
                         </Box>
+
+                        <Divider />
+
+                        <Box>
+                           <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'error.main', display: 'block', mb: 3 }}>Danger Zone</Typography>
+                           <Paper 
+                             variant="outlined" 
+                             sx={{ 
+                               p: 4, 
+                               borderRadius: 4, 
+                               borderColor: alpha(theme.palette.error.main, 0.3), 
+                               bgcolor: alpha(theme.palette.error.main, 0.03),
+                               borderStyle: 'dashed'
+                             }}
+                           >
+                              <Stack spacing={3}>
+                                 <Box>
+                                    <Typography variant="h6" sx={{ fontWeight: 950, color: 'error.main', mb: 1, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                      <AlertTriangle size={22} /> Critical Data Purge
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+                                       Destructive actions that irreversibly remove specific data domains. Use with extreme caution.
+                                    </Typography>
+                                 </Box>
+                                 <Grid container spacing={2}>
+                                    <Grid size={{ xs: 12, md: 6 }}>
+                                       <Button 
+                                          variant="outlined" 
+                                          color="error" 
+                                          fullWidth 
+                                          startIcon={<Trash2 size={18} />} 
+                                          onClick={() => { setPurgeType('STUDENTS'); setResetConfirmOpen(true); }} 
+                                          sx={{ fontWeight: 950, borderRadius: 2.5, py: 1.5, bgcolor: 'background.paper', border: '2px solid' }}
+                                       >
+                                          Purge All Student Records
+                                       </Button>
+                                    </Grid>
+                                    <Grid size={{ xs: 12, md: 6 }}>
+                                       <Button 
+                                          variant="contained" 
+                                          color="error" 
+                                          fullWidth 
+                                          startIcon={<AlertCircle size={18} />} 
+                                          onClick={() => { setPurgeType('ALL'); setResetConfirmOpen(true); }} 
+                                          sx={{ fontWeight: 950, borderRadius: 2.5, py: 1.5, boxShadow: 'none' }}
+                                       >
+                                          Full System Factory Reset
+                                       </Button>
+                                    </Grid>
+                                 </Grid>
+                              </Stack>
+                           </Paper>
+                        </Box>
                       </Stack>
-                      <Box sx={{ mt: 5, display: 'flex', justifyContent: 'flex-end' }}>
+
+                      <Box sx={{ mt: 6, display: 'flex', justifyContent: 'flex-end' }}>
                         <AnimatePresence>
                           {(isInstituteDirty || isPrefsDirty) && (
                             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
-                              <Button variant="contained" size="large" startIcon={<RefreshCw size={20} />} onClick={async () => { await handleSaveInstitute(); await handleSaveSettings(); }} sx={{ borderRadius: 3, fontWeight: 950, px: 6, py: 1.5 }}>Synchronize Systems</Button>
+                              <Button variant="contained" size="large" color="primary" startIcon={<RefreshCw size={20} />} onClick={async () => { await handleSaveInstitute(); await handleSaveSettings(); }} sx={{ borderRadius: 3, fontWeight: 950, px: 6, py: 2 }}>Synchronize Global Systems</Button>
                             </motion.div>
                           )}
                         </AnimatePresence>

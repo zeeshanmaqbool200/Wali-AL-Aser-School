@@ -15,11 +15,13 @@ export default function NotificationBanner() {
   useEffect(() => {
     const checkDismissed = async () => {
       const isDismissed = await localforage.getItem('notification_prompt_dismissed');
-      if (isSupported && permission === 'default' && !isDismissed) {
+      const isSessionRestored = sessionStorage.getItem('notification_prompt_closed');
+      
+      if (isSupported && permission === 'default' && !isDismissed && !isSessionRestored) {
         const timer = setTimeout(() => setShowPrompt(true), 3000);
         return () => clearTimeout(timer);
       }
-      if (isSupported && permission === 'denied' && !isDismissed) {
+      if (isSupported && permission === 'denied' && !isDismissed && !isSessionRestored) {
         setShowDeniedBanner(true);
       }
     };
@@ -28,11 +30,13 @@ export default function NotificationBanner() {
 
   const handleDismissPrompt = async () => {
     setShowPrompt(false);
+    sessionStorage.setItem('notification_prompt_closed', 'true');
     await localforage.setItem('notification_prompt_dismissed', 'true');
   };
 
   const handleDismissDenied = async () => {
     setShowDeniedBanner(false);
+    sessionStorage.setItem('notification_prompt_closed', 'true');
     await localforage.setItem('notification_prompt_dismissed', 'true');
   };
 

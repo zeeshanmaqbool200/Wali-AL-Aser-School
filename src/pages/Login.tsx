@@ -99,10 +99,10 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center',
-        bgcolor: isDark ? 'background.default' : '#f8fafc',
+        bgcolor: isDark ? '#0f172a' : '#f8fafc',
         backgroundImage: isDark 
-          ? `radial-gradient(circle at 0% 0%, ${alpha('#ffffff', 0.015)} 0%, transparent 50%), 
-             radial-gradient(circle at 100% 100%, ${alpha('#ffffff', 0.01)} 0%, transparent 50%)`
+          ? `radial-gradient(circle at 0% 0%, ${alpha('#3b82f6', 0.05)} 0%, transparent 50%), 
+             radial-gradient(circle at 100% 100%, ${alpha('#1e40af', 0.03)} 0%, transparent 50%)`
           : `radial-gradient(circle at 0% 0%, ${alpha(theme.palette.primary.main, 0.05)} 0%, transparent 50%)`,
         position: 'relative',
         py: { xs: 4, md: 6 },
@@ -122,48 +122,23 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
       }}>
         <Box sx={{ 
           position: 'absolute', 
-          top: '20%', 
-          left: '10%', 
-          width: '40vw', 
-          height: '40vw', 
-          background: isDark ? alpha('#ffffff', 0.02) : alpha(theme.palette.primary.main, 0.03),
-          filter: 'blur(100px)',
+          top: '-10%', 
+          left: '-5%', 
+          width: '50vw', 
+          height: '50vw', 
+          background: isDark ? alpha('#3b82f6', 0.05) : alpha(theme.palette.primary.main, 0.03),
+          filter: 'blur(120px)',
           borderRadius: '50%',
-          animation: 'float 20s infinite alternate ease-in-out'
-        }} />
-        <Box sx={{ 
-          position: 'absolute', 
-          bottom: '10%', 
-          right: '5%', 
-          width: '30vw', 
-          height: '30vw', 
-          background: isDark ? alpha('#ffffff', 0.02) : alpha(theme.palette.secondary.main, 0.03),
-          filter: 'blur(80px)',
-          borderRadius: '50%',
-          animation: 'float 15s infinite alternate-reverse ease-in-out'
         }} />
       </Box>
 
-      {/* Subtle Grid Background */}
-      <Box sx={{ 
-        position: 'absolute', 
-        inset: 0,
-        opacity: isDark ? 0.15 : 0.4,
-        backgroundImage: isDark
-          ? 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)'
-          : 'linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px)',
-        backgroundSize: '40px 40px',
-        maskImage: 'radial-gradient(circle at center, black, transparent 80%)',
-        zIndex: 0
-      }} />
-
-      <Container maxWidth="xs" sx={{ position: 'relative', zIndex: 1 }}>
+      <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
         >
-          <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Box sx={{ textAlign: 'center', mb: 5 }}>
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -172,54 +147,52 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
               <Box 
                 sx={{ 
                   display: 'inline-flex', 
-                  p: 1.5, 
-                  borderRadius: 4, 
+                  p: 2, 
+                  borderRadius: 5, 
                   bgcolor: isDark ? 'background.paper' : '#ffffff',
-                  mb: 2.5,
-                  width: { xs: 64, md: 80 },
-                  height: { xs: 64, md: 80 },
+                  mb: 3,
+                  width: { xs: 80, md: 100 },
+                  height: { xs: 80, md: 100 },
                   alignItems: 'center',
                   justifyContent: 'center',
                   boxShadow: isDark 
-                    ? '0 0 0 1px rgba(255,255,255,0.1), 0 20px 40px rgba(0,0,0,0.8)'
-                    : '0 10px 30px rgba(0,0,0,0.05)',
-                  backdropFilter: 'blur(10px)',
-                  border: isDark ? '1px solid rgba(255,255,255,0.1)' : 'none'
+                    ? '0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1)'
+                    : '0 20px 40px rgba(0,0,0,0.05)',
+                  border: isDark ? '1px solid rgba(255,255,255,0.05)' : 'none'
                 }}
               >
                 {institute.logoUrl ? (
                   <Box component="img" src={institute.logoUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 ) : (
-                  <GraduationCap size={32} color={theme.palette.primary.main} strokeWidth={1.5} />
+                  <School size={48} color={theme.palette.primary.main} strokeWidth={1.5} />
                 )}
               </Box>
             </motion.div>
             
             <motion.div
-              initial={{ y: 15, opacity: 0 }}
+              initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3, duration: 0.6 }}
             >
               <Typography variant="h3" sx={{ 
                 fontWeight: 950, 
-                mb: 0.5, 
+                mb: 1, 
                 color: 'text.primary', 
-                letterSpacing: -1.5, 
-                fontSize: { xs: '1.75rem', sm: '2.4rem' },
-                fontFamily: 'var(--font-heading)',
-                textShadow: isDark ? '0 0 30px rgba(255,255,255,0.1)' : 'none'
+                letterSpacing: -2, 
+                fontSize: { xs: '2rem', sm: '2.8rem' },
+                fontFamily: 'var(--font-heading)'
               }}>
-                {institute.instituteName}
+                {institute.instituteName || 'Wali Ul Aser'}
               </Typography>
               <Typography variant="body1" sx={{ 
                 fontWeight: 800, 
-                color: 'text.secondary', 
-                letterSpacing: 1.5,
-                fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                color: 'primary.main', 
+                letterSpacing: 2,
+                fontSize: { xs: '0.75rem', sm: '0.9rem' },
                 textTransform: 'uppercase',
-                mt: 1
+                opacity: 0.8
               }}>
-                {institute.tagline}
+                {institute.tagline || 'Education & Management Portal'}
               </Typography>
             </motion.div>
           </Box>
@@ -227,18 +200,21 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
           <Card
             elevation={0}
             sx={{ 
-              borderRadius: 4,
-              bgcolor: isDark ? alpha(theme.palette.background.paper, 0.7) : 'white',
-              backdropFilter: 'blur(30px)',
+              borderRadius: 6,
+              bgcolor: isDark ? alpha(theme.palette.background.paper, 0.4) : 'white',
+              backdropFilter: 'blur(20px)',
               border: '1px solid',
-              borderColor: 'divider',
+              borderColor: isDark ? alpha('#ffffff', 0.1) : 'divider',
               boxShadow: isDark 
-                ? '0 40px 80px rgba(0, 0, 0, 0.9)'
-                : '0 20px 40px rgba(0, 0, 0, 0.05)',
+                ? '0 50px 100px rgba(0, 0, 0, 0.5)'
+                : '0 30px 60px rgba(0, 0, 0, 0.08)',
               overflow: 'hidden'
             }}
           >
-            <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+            <CardContent sx={{ p: { xs: 4, sm: 6 } }}>
+              <Typography variant="h5" sx={{ fontWeight: 950, mb: 4, textAlign: 'center', letterSpacing: -1 }}>
+                {isSignUp ? 'Create Workspace Account' : 'Welcome Back'}
+              </Typography>
               <AnimatePresence mode="wait">
                 {error && (
                   <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>

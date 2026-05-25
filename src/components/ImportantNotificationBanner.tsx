@@ -12,7 +12,14 @@ export default function ImportantNotificationBanner() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { notifications } = useData();
-  const [dismissed, setDismissed] = React.useState(false);
+  const [dismissed, setDismissed] = React.useState(() => {
+    return sessionStorage.getItem('announcement_banner_dismissed') === 'true';
+  });
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    sessionStorage.setItem('announcement_banner_dismissed', 'true');
+  };
 
   // Filter for unread and important/announcement
   const unreadAnnouncements = notifications.filter(n => 
@@ -75,7 +82,7 @@ export default function ImportantNotificationBanner() {
               borderBottom: '1px solid',
               borderColor: alpha('#10b981', 0.15),
               color: theme.palette.mode === 'dark' ? '#34d399' : '#047857',
-              py: 0.75, // Smaller height
+              py: 1, // Balanced height
               px: { xs: 2, md: 3 },
               display: 'flex',
               alignItems: 'center',
@@ -106,8 +113,8 @@ export default function ImportantNotificationBanner() {
                   src={latest.imageUrl} 
                   variant="rounded"
                   sx={{ 
-                    width: 32, 
-                    height: 32, 
+                    width: 36, 
+                    height: 36, 
                     borderRadius: 1,
                     boxShadow: `0 4px 12px ${alpha('#000', 0.1)}`
                   }} 
@@ -116,15 +123,15 @@ export default function ImportantNotificationBanner() {
                 <Box 
                   className="banner-icon"
                   sx={{ 
-                    p: 0.8, 
-                    borderRadius: 2, 
+                    p: 1, 
+                    borderRadius: 2.5, 
                     bgcolor: alpha('#10b981', 0.15),
                     display: 'flex',
                     color: '#059669',
                     transition: 'transform 0.3s ease'
                   }}
                 >
-                  <Megaphone size={16} className="animate-pulse" />
+                  <Megaphone size={18} className="animate-pulse" />
                 </Box>
               )}
               
@@ -134,27 +141,27 @@ export default function ImportantNotificationBanner() {
                   sx={{ 
                     fontWeight: 900, 
                     textTransform: 'uppercase', 
-                    letterSpacing: 1.2, 
+                    letterSpacing: 1.5, 
                     color: theme.palette.mode === 'dark' ? '#10b981' : '#059669', 
                     display: 'block', 
                     lineHeight: 1, 
-                    mb: 0.2,
-                    fontSize: '0.6rem'
+                    mb: 0.4,
+                    fontSize: '0.65rem'
                   }}
                 >
-                  Announcement
+                  Important Announcement
                 </Typography>
                 <Typography 
                   variant="body2" 
                   sx={{ 
-                    fontWeight: 700, 
-                    letterSpacing: -0.1, 
+                    fontWeight: 800, 
+                    letterSpacing: -0.2, 
                     lineHeight: 1.2,
-                    fontSize: '0.8rem',
+                    fontSize: '0.85rem',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    maxWidth: { xs: '200px', sm: '400px', md: '600px' }
+                    maxWidth: { xs: '200px', sm: '450px', md: '700px' }
                   }}
                 >
                   {latest.message}
@@ -166,15 +173,15 @@ export default function ImportantNotificationBanner() {
               size="small" 
               onClick={(e) => {
                 e.stopPropagation();
-                setDismissed(true);
+                handleDismiss();
               }} 
               sx={{ 
                 color: 'inherit', 
-                opacity: 0.5, 
+                opacity: 0.6, 
                 '&:hover': { opacity: 1, bgcolor: alpha('#10b981', 0.1) } 
               }}
             >
-              <X size={16} />
+              <X size={18} />
             </IconButton>
           </Box>
         </motion.div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Paper, Badge, Typography, Popover, MenuItem, ListItemIcon, ListItemText, Divider, useMediaQuery } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { 
@@ -25,10 +25,20 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [internalVisible, setInternalVisible] = useState(true);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
-  const [lastScrollY, setLastScrollY] = useState(0);
   const [moreAnchorEl, setMoreAnchorEl] = useState<null | HTMLElement>(null);
 
+  const scrollPos = useRef(0);
+  const ticking = useRef(false);
+
   useEffect(() => {
+    // Dialog observer to hide nav when a modal is open
+    const observer = new MutationObserver(() => {
+      const isDialogOpen = !!document.querySelector('.MuiDialog-root');
+      setInternalVisible(!isDialogOpen);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Keyboard observer
     const handleViewportChange = () => {
       if (window.visualViewport) {
         const isKeyboard = window.visualViewport.height < window.innerHeight * 0.85;
@@ -36,73 +46,46 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
       }
     };
 
-    const observer = new MutationObserver(() => {
-      const isDialogOpen = !!document.querySelector('.MuiDialog-root');
-      setInternalVisible(!isDialogOpen);
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportChange);
-      return () => {
-        window.visualViewport?.removeEventListener('resize', handleViewportChange);
-        observer.disconnect();
-      };
-    }
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-
-  useEffect(() => {
-    let clickTimeout: any;
-    let isRecentlyClicked = false;
-
+    // Scroll handler with requestAnimationFrame for performance
     const handleScroll = () => {
-      if (isRecentlyClicked) return;
       const currentScrollY = window.scrollY;
       
-      const scrollDiff = currentScrollY - lastScrollY;
-      if (Math.abs(scrollDiff) < 15) return; 
-
-      if (currentScrollY < 100) {
-        setInternalVisible(true);
-        setLastScrollY(currentScrollY);
-        return;
+      if (!ticking.current) {
+        window.requestAnimationFrame(() => {
+          const prevScrollY = scrollPos.current;
+          const diff = currentScrollY - prevScrollY;
+          
+          // HIDE logic: Scrolling down (even by 1 pixel)
+          if (currentScrollY > 10 && diff > 1) {
+             setInternalVisible(false);
+          } 
+          // SHOW logic: Deliberate upward scroll or at very top
+          else if (currentScrollY <= 2) {
+             setInternalVisible(true);
+          }
+          else if (diff < -40) {
+             setInternalVisible(true);
+          }
+          // Do nothing when diff is 0 (stopped scrolling) - this keeps it hidden if it was hidden
+          
+          scrollPos.current = currentScrollY;
+          ticking.current = false;
+        });
+        ticking.current = true;
       }
-
-      if (scrollDiff > 0 && currentScrollY > 200) {
-        if (internalVisible) setInternalVisible(false);
-      } else if (scrollDiff < 0) {
-        if (!internalVisible) setInternalVisible(true);
-      }
-      
-      setLastScrollY(currentScrollY);
-    };
-
-    const handleClick = (e: MouseEvent | TouchEvent) => {
-      const navElement = document.querySelector('[data-testid="bottom-nav-paper"]');
-      if (navElement && navElement.contains(e.target as Node)) return;
-
-      isRecentlyClicked = true;
-      if (clickTimeout) clearTimeout(clickTimeout);
-      clickTimeout = setTimeout(() => {
-        isRecentlyClicked = false;
-      }, 500); 
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('mousedown', handleClick as any, { passive: true });
-    window.addEventListener('touchstart', handleClick as any, { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+    }
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('mousedown', handleClick);
-      window.removeEventListener('touchstart', handleClick);
-      if (clickTimeout) clearTimeout(clickTimeout);
+      window.visualViewport?.removeEventListener('resize', handleViewportChange);
+      observer.disconnect();
     };
-  }, [lastScrollY, internalVisible]);
+  }, []);
 
   const role = user.role || 'student';
   
@@ -126,6 +109,9 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
   const moreItems = filteredMenu.filter(item => !primaryPaths.includes(item.path));
 
   const isMoreActive = moreItems.some(item => item.path === location.pathname);
+  const activeMoreItem = moreItems.find(item => item.path === location.pathname);
+  const moreLabel = activeMoreItem ? activeMoreItem.label : 'More';
+  const displayMoreLabel = moreLabel;
   const activePath = location.pathname;
 
   const isActuallyVisible = controlledVisible && internalVisible && !keyboardOpen;
@@ -346,7 +332,10 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                   </motion.div>
                 )}
               </AnimatePresence>
-              <MoreHorizontal size={isMobile ? 16 : 18} strokeWidth={isMoreActive ? 2.5 : 2} />
+              {activeMoreItem ? React.cloneElement(activeMoreItem.icon as React.ReactElement<any>, { 
+                size: isMobile ? 16 : 18, 
+                strokeWidth: 2.5 
+              }) : <MoreHorizontal size={isMobile ? 16 : 18} strokeWidth={isMoreActive ? 2.5 : 2} />}
               {!isMobile && (
                 <Typography variant="caption" sx={{ 
                   fontSize: '0.6rem', 
@@ -354,7 +343,7 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                   letterSpacing: '0.01em',
                   opacity: isMoreActive ? 1 : 0.6 
                 }}>
-                  More
+                  {displayMoreLabel}
                 </Typography>
               )}
               {isMobile && isMoreActive && (
@@ -363,6 +352,15 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                   fontWeight: 800,
                   position: 'absolute',
                   bottom: 4,
+                }}>
+                  {moreLabel}
+                </Typography>
+              )}
+              {isMobile && !isMoreActive && (
+                <Typography variant="caption" sx={{ 
+                  fontSize: '0.55rem', 
+                  fontWeight: 500,
+                  opacity: 0.6
                 }}>
                   More
                 </Typography>
@@ -395,26 +393,26 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
               transition={{ type: 'spring', damping: 25, stiffness: 400 }}
               style={{
                 position: 'fixed',
-                bottom: 100,
+                bottom: 85,
                 right: isMobile ? 12 : 'auto',
                 left: isMobile ? 'auto' : 'calc(50% + 140px)',
-                width: 220,
+                width: 160,
                 backgroundColor: theme.palette.mode === 'dark' ? alpha('#0f0f0f', 0.95) : alpha('#ffffff', 0.95),
                 backdropFilter: 'blur(30px)',
-                borderRadius: 28,
-                padding: 10,
+                borderRadius: 20,
+                padding: 4,
                 zIndex: 1301,
                 boxShadow: theme.palette.mode === 'dark' 
                   ? '0 20px 50px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05)' 
-                  : '0 20px 50px rgba(0,0,0,0.2)',
+                  : '0 20px 50px rgba(0,0,0,0.12)',
                 border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                 transform: isMobile ? 'none' : 'translateX(-50%)',
               }}
             >
-              <Typography variant="overline" sx={{ px: 2, mb: 1, display: 'block', fontWeight: 900, opacity: 0.5, letterSpacing: '0.1em' }}>
-                ADMINISTRATION & TOOLS
+              <Typography variant="overline" sx={{ px: 1.5, py: 0.5, mb: 0.5, display: 'block', fontWeight: 900, opacity: 0.5, letterSpacing: '0.1em', fontSize: '0.6rem' }}>
+                ADMIN & TOOLS
               </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                 {moreItems.map((item) => {
                   const isActive = activePath === item.path;
                   return (
@@ -430,9 +428,9 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                       sx={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 2,
-                        p: 1.5,
-                        borderRadius: '20px',
+                        gap: 1.5,
+                        p: 1,
+                        borderRadius: '16px',
                         cursor: 'pointer',
                         color: isActive ? 'primary.main' : 'text.primary',
                         bgcolor: isActive ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
@@ -444,13 +442,13 @@ export default function BottomNav({ user, unreadNotifications = 0, visible: cont
                       <Box sx={{ 
                         display: 'flex', 
                         color: isActive ? 'primary.main' : 'text.secondary',
-                        p: 1,
-                        borderRadius: 1.5,
+                        p: 0.75,
+                        borderRadius: 1.2,
                         bgcolor: isActive ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.divider, 0.03)
                       }}>
-                        {React.cloneElement(item.icon as React.ReactElement<any>, { size: 20, strokeWidth: isActive ? 2.5 : 2 })}
+                        {React.cloneElement(item.icon as React.ReactElement<any>, { size: 18, strokeWidth: isActive ? 2.5 : 2 })}
                       </Box>
-                      <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '0.9rem' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '0.8rem' }}>
                         {item.label}
                       </Typography>
                     </Box>

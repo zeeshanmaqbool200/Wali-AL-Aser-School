@@ -1,5 +1,4 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
     // Basic helpers
@@ -11,75 +10,73 @@ service cloud.firestore {
       return isSignedIn() && (
         request.auth.token.email == 'zeeshanmaqbool200@gmail.com' || 
         getUserData().role == 'superadmin' ||
-        getUserData().role == 'admin'
+        getUserData().role == 'super_admin'
       ); 
     }
-    function isManager() { return isSuperAdmin() || (isSignedIn() && (getUserData().role == 'manager' || getUserData().role == 'muntazim')); }
+    function isAdmin() { return isSuperAdmin() || (isSignedIn() && getUserData().role == 'admin'); }
+    function isManager() { return isAdmin() || (isSignedIn() && (getUserData().role == 'manager' || getUserData().role == 'muntazim')); }
     function isTeacher() { return isManager() || (isSignedIn() && getUserData().role == 'teacher'); }
-    function isStaff() { return isTeacher(); }
+
+    // Ownership helpers
+    function isOwner(data) { return isSignedIn() && data.ownerId == request.auth.uid; }
+    function isCreator(data) { return isSignedIn() && data.createdBy == request.auth.uid; }
 
     // Collection specific rules
-    match /forms/{formId} {
-      allow get: if true; // Public access for viewing
-      allow list: if isStaff();
-      allow create: if isStaff();
-      allow update: if isStaff() && (resource.data.createdBy == request.auth.uid || isSuperAdmin());
+    match /subjects/{subjectId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /courses/{courseId} {
+      allow read: if isSignedIn();
+      allow create: if isTeacher();
+      allow update: if isSuperAdmin() || (isTeacher() && isOwner(resource.data));
       allow delete: if isSuperAdmin();
     }
 
-    match /form_responses/{responseId} {
-      allow create: if true; // Public submission if enabled in app logic
-      allow read: if isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow update: if isStaff();
+    match /forms/{formId} {
+      allow get: if true; 
+      allow list: if isTeacher();
+      allow create: if isTeacher();
+      allow update: if isSuperAdmin() || (isTeacher() && isCreator(resource.data));
       allow delete: if isSuperAdmin();
     }
 
     match /users/{userId} {
-      allow get: if true; // Public for verification
-      allow list: if isStaff();
+      allow get: if true; 
+      allow list: if isTeacher();
       allow create: if isSignedIn();
-      allow update: if isSuperAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow update: if isSuperAdmin() || (isSignedIn() && request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isVerified']));
       allow delete: if isSuperAdmin();
     }
 
     match /attendance/{atId} {
-      allow read: if isSignedIn() && (isStaff() || resource.data.studentId == request.auth.uid);
+      allow read: if isSignedIn() && (isTeacher() || resource.data.studentId == request.auth.uid);
       allow write: if isTeacher();
       allow delete: if isManager();
     }
 
     match /receipts/{rId} {
-      allow get: if true; // Public for verification
-      allow list: if isStaff() || (isSignedIn() && resource.data.studentId == request.auth.uid);
-      allow create: if isStaff();
+      allow get: if true;
+      allow list: if isTeacher() || (isSignedIn() && resource.data.studentId == request.auth.uid);
+      allow create: if isTeacher();
       allow update: if isManager();
       allow delete: if isSuperAdmin();
     }
 
-    match /notifications/{nId} {
-      allow read: if isSignedIn();
-      allow write: if isStaff();
-    }
-
-    match /courses/{cId} {
-      allow read: if true;
-      allow write: if isManager();
-    }
-
-    match /expenses/{eId} {
-      allow read: if isManager();
-      allow write: if isManager();
-    }
-
     match /settings/{docId} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if isAdmin();
     }
 
-    // Fallback block
+    match /analytics/{docId} {
+      allow read: if isTeacher();
+      allow write: if false; // System only or handled via batches
+    }
+
+    // Default deny
     match /{document=**} {
-      allow read: if isSignedIn() && isSuperAdmin();
-      allow write: if isSignedIn() && isSuperAdmin();
+      allow read, write: if isSuperAdmin();
     }
   }
 }

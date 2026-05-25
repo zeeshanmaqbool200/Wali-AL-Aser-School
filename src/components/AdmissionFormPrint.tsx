@@ -24,103 +24,156 @@ const AdmissionFormPrint = React.forwardRef<HTMLDivElement, Props>(({ user, sett
         fontFamily: 'serif',
         position: 'relative',
         display: 'none', 
+        width: '210mm',
+        minHeight: '297mm',
+        boxSizing: 'border-box',
+        px: '15mm',
+        py: '15mm',
         '@media print': {
           display: 'block',
+          boxShadow: 'none',
+          p: '15mm',
+          width: '100%',
         },
       }}
     >
+      {/* Watermark Logo */}
+      {settings?.logoUrl && (
+        <Box sx={{ 
+          position: 'absolute', 
+          top: '50%', 
+          left: '50%', 
+          transform: 'translate(-50%, -50%)', 
+          opacity: 0.05, 
+          zIndex: 0,
+          pointerEvents: 'none',
+          width: 500,
+          height: 500,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <img src={settings.logoUrl} crossOrigin="anonymous" alt="" style={{ width: '100%', height: 'auto', maxHeight: '100%', objectFit: 'contain' }} />
+        </Box>
+      )}
+
       {/* Header */}
-      <Box sx={{ border: '2px solid #000', p: 2, mb: 4, textAlign: 'center' }}>
-        <Grid container alignItems="center">
-          <Grid size={{ xs: 2 }}>
-            {settings?.logoUrl && <img src={settings.logoUrl} alt="Logo" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />}
+      <Box sx={{ borderBottom: '2px solid #000', pb: 2, mb: 4, textAlign: 'center', position: 'relative', zIndex: 1 }}>
+        <Grid container alignItems="center" spacing={2}>
+          <Grid size={{ xs: 3 }}>
+            {settings?.receiptLeftImageUrl ? (
+              <img src={settings.receiptLeftImageUrl} crossOrigin="anonymous" alt="Left Header" style={{ width: '100%', height: '80px', objectFit: 'contain' }} />
+            ) : settings?.logoUrl ? (
+              <img src={settings.logoUrl} crossOrigin="anonymous" alt="Logo" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
+            ) : null}
           </Grid>
-          <Grid size={{ xs: 8 }}>
-            <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5 }}>{settings?.instituteName || 'AL-ASAR INSTITUTE'}</Typography>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>{settings?.tagline || 'Knowledge is Light'}</Typography>
-            <Typography variant="body2">{settings?.address}</Typography>
+          <Grid size={{ xs: 6 }}>
+            <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5, textTransform: 'uppercase' }}>{settings?.instituteName || 'AL-ASAR INSTITUTE'}</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'primary.main' }}>{settings?.tagline || 'Knowledge is Light'}</Typography>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', maxWidth: '80%', mx: 'auto' }}>{settings?.address}</Typography>
           </Grid>
-          <Grid size={{ xs: 2 }}>
-            <Box sx={{ border: '1px solid #ccc', width: 100, height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {user.photoURL ? (
-                <img src={user.photoURL} alt="Photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <Typography variant="caption" color="text.secondary">Passport Photo</Typography>
-              )}
-            </Box>
+          <Grid size={{ xs: 3 }}>
+            {settings?.receiptRightImageUrl ? (
+              <img src={settings.receiptRightImageUrl} crossOrigin="anonymous" alt="Right Header" style={{ width: '100%', height: '80px', objectFit: 'contain' }} />
+            ) : (
+              <Box sx={{ border: '1px solid #ccc', width: 90, height: 110, mx: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f8fafc' }}>
+                {user.photoURL ? (
+                  <img src={user.photoURL} crossOrigin="anonymous" alt="Photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <Typography variant="caption" color="text.secondary">Passport Photo</Typography>
+                )}
+              </Box>
+            )}
           </Grid>
         </Grid>
       </Box>
 
-      <Typography variant="h5" align="center" sx={{ fontWeight: 900, mb: 4, textDecoration: 'underline' }}>ADMISSION FORM / رجسٹریشن فارم</Typography>
+      <Box sx={{ position: 'relative', zIndex: 1 }}>
+        <Typography variant="h5" align="center" sx={{ fontWeight: 950, mb: 4, py: 1, borderTop: '1px solid #eee', borderBottom: '1px solid #eee' }}>
+          ADMISSION RECORD FORM / رجسٹریشن فارم
+        </Typography>
 
-      {/* RTL Content Sections */}
-      <Box sx={{ dir: 'rtl', textAlign: 'right' }}>
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 6 }}>
-            <DetailRow label="نام / Name" value={user.displayName} />
+        {/* RTL Content Sections */}
+        <Box sx={{ dir: 'rtl', textAlign: 'right' }}>
+          <Grid container spacing={4}>
+            <Grid size={{ xs: 6 }}>
+              <DetailRow label="نام / Name" value={user.displayName} />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <DetailRow label="داخلہ نمبر / Reg No" value={user.studentId || user.admissionNo} />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <DetailRow label="ولدیت / Father's Name" value={user.fatherName} />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <DetailRow label="والدہ کا نام / Mother Name" value={user.motherName} />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <DetailRow label="تاریخ پیدائش / D.O.B" value={user.dob} />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <DetailRow label="داخلہ تاریخ / Date" value={user.admissionDate} />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <DetailRow label="پتہ / Address" value={user.address} />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+               <DetailRow label="فون نمبر / Contact" value={user.contactNumber || user.phone || user.whatsapp} />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+               <DetailRow label="کلاس / Class" value={user.classLevel} />
+            </Grid>
           </Grid>
-          <Grid size={{ xs: 6 }}>
-            <DetailRow label="داخلہ نمبر / Reg No" value={user.studentId || user.admissionNo} />
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-            <DetailRow label="ولدیت / Father's Name" value={user.fatherName} />
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-            <DetailRow label="والدہ کا نام / Mother Name" value={user.motherName} />
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-            <DetailRow label="تاریخ پیدائش / D.O.B" value={user.dob} />
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-            <DetailRow label="داخلہ تاریخ / Date" value={user.admissionDate} />
-          </Grid>
-          <Grid size={{ xs: 12 }}>
-            <DetailRow label="پتہ / Address" value={user.address} />
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-             <DetailRow label="فون نمبر / Contact" value={user.contactNumber || user.phone || user.whatsapp} />
-          </Grid>
-          <Grid size={{ xs: 6 }}>
-             <DetailRow label="کلاس / Class" value={user.classLevel} />
-          </Grid>
-        </Grid>
 
-        <Box sx={{ mt: 6 }}>
-           <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, borderBottom: '1px solid #000' }}>مقررہ نصاب / Subjects Enrolled</Typography>
-           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              {(user.subjectsEnrolled || []).map(s => (
-                <Typography key={s} sx={{ p: 1, border: '1px solid #ddd', borderRadius: 1 }}>{s}</Typography>
-              ))}
-           </Box>
+          <Box sx={{ mt: 6 }}>
+             <Typography variant="h6" sx={{ fontWeight: 900, mb: 2, pb: 1, borderBottom: '2px solid #000', display: 'inline-block' }}>
+               مقررہ نصاب / Subjects Enrolled
+             </Typography>
+             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                {(user.subjectsEnrolled || []).map(s => (
+                  <Typography key={s} sx={{ px: 2, py: 1, border: '1px solid #ddd', borderRadius: 1.5, fontWeight: 700, bgcolor: '#f8fafc' }}>{s}</Typography>
+                ))}
+             </Box>
+          </Box>
+        </Box>
+
+        {/* Declaration */}
+        <Box sx={{ mt: 8, p: 3, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #eee' }}>
+           <Typography variant="caption" sx={{ fontWeight: 950, display: 'block', mb: 1, color: 'primary.main' }}>DECLARATION / اقرار نامہ</Typography>
+           <Typography variant="body2" sx={{ fontSize: '0.7rem', lineHeight: 1.6, opacity: 0.8 }}>
+             I hereby declare that the information provided above is correct to the best of my knowledge. I agree to abide by the rules and regulations of {settings?.instituteName || 'the institute'}.
+           </Typography>
         </Box>
       </Box>
 
       {/* Footer Info */}
-      <Box sx={{ position: 'absolute', bottom: '40mm', left: '15mm', right: '15mm' }}>
-        <Divider sx={{ mb: 4, borderColor: '#000' }} />
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Box sx={{ textAlign: 'center', width: 200 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Student/Guardian Signature</Typography>
-            <Box sx={{ height: 60, borderBottom: '1px solid #000', mt: 2 }} />
+      <Box sx={{ position: 'absolute', bottom: '20mm', left: '15mm', right: '15mm', zIndex: 1 }}>
+        <Divider sx={{ mb: 4, borderColor: '#000', borderWidth: 1 }} />
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-end">
+          <Box sx={{ textAlign: 'center', width: 220 }}>
+            <Box sx={{ height: 60, borderBottom: '2px solid #000', mb: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+               <Typography variant="caption" sx={{ opacity: 0.2 }}>Signature</Typography>
+            </Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 900, textTransform: 'uppercase', fontSize: '0.65rem' }}>Student/Guardian Signature</Typography>
           </Box>
           
           <Box sx={{ textAlign: 'center' }}>
-            <QRCodeSVG value={verificationUrl} size={80} />
-            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>Scan to Verify Admission</Typography>
+            <QRCodeSVG value={verificationUrl} size={90} />
+            <Typography variant="caption" sx={{ display: 'block', mt: 1, fontWeight: 900, fontSize: '0.55rem' }}>OFFICIAL VERIFICATION QR</Typography>
           </Box>
 
-          <Box sx={{ textAlign: 'center', width: 200 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Institute Seal & Signature</Typography>
-            <Box sx={{ height: 60, borderBottom: '1px solid #000', mt: 2 }} />
-            <Typography variant="caption" sx={{ fontWeight: 900, color: 'primary.main' }}>Approved by Administration</Typography>
+          <Box sx={{ textAlign: 'center', width: 220 }}>
+            <Box sx={{ height: 60, borderBottom: '2px solid #000', mb: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+               <Typography variant="caption" sx={{ opacity: 0.2 }}>Seal</Typography>
+            </Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 900, textTransform: 'uppercase', fontSize: '0.65rem' }}>Institute Seal & Signature</Typography>
           </Box>
         </Stack>
       </Box>
 
       {/* Vertical Side Label */}
-      <Box sx={{ position: 'absolute', right: '5mm', top: '100mm', transform: 'rotate(90deg)', opacity: 0.1 }}>
-         <Typography variant="h2" sx={{ fontWeight: 900 }}>OFFICIAL RECORD</Typography>
+      <Box sx={{ position: 'absolute', right: '2mm', top: '50%', transform: 'translateY(-50%) rotate(90deg)', opacity: 0.03 }}>
+         <Typography variant="h1" sx={{ fontWeight: 950, whiteSpace: 'nowrap' }}>MAKTAB OFFICIAL RECORD</Typography>
       </Box>
     </Box>
   );
