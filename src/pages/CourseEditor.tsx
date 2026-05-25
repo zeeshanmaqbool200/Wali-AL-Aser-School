@@ -13,7 +13,7 @@ import {
   Layout, Book, Image as ImageIcon, Video, 
   FileText, Headphones, CheckCircle, HelpCircle, 
   GripVertical, Eye, Share2, Globe, Archive, 
-  MoreVertical, Quote, Code, Bookmark, Zap,
+  MoreVertical, Quote, Code, Bookmark, ChevronUp, ChevronDown,
   Type, MessageSquare, List as ListIcon, Calendar, Info,
   Upload, Music, Link as LinkIcon, Clock
 } from 'lucide-react';
@@ -246,7 +246,8 @@ const CurriculumTab = React.memo(({ sections, moveSection, editSection, removeSe
                   }}
                   secondaryAction={
                     <Stack direction="row" spacing={1}>
-                        <IconButton onClick={() => moveSection(idx, 'up')} disabled={idx === 0}><Zap size={18} /></IconButton>
+                        <IconButton onClick={() => moveSection(idx, 'up')} disabled={idx === 0}><ChevronUp size={18} /></IconButton>
+                        <IconButton onClick={() => moveSection(idx, 'down')} disabled={idx === sections.length - 1}><ChevronDown size={18} /></IconButton>
                         <IconButton onClick={() => editSection(idx)} color="primary"><Edit2 size={18} /></IconButton>
                         <IconButton onClick={() => removeSection(idx)} color="error"><Trash2 size={18} /></IconButton>
                     </Stack>
@@ -672,7 +673,7 @@ export default function CourseEditor() {
                 }} 
                 disabled={submitting}
                 startIcon={<Globe size={18} />}
-                sx={{ borderRadius: 10, fontWeight: 950, px: 4, textTransform: 'none', boxShadow: isDark ? 'none' : '0 8px 24px rgba(25, 118, 210, 0.2)' }}
+                sx={{ borderRadius: 10, fontWeight: 950, px: 4, textTransform: 'none', boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 8px 24px rgba(25, 118, 210, 0.2)' }}
               >
                 Publish
               </Button>

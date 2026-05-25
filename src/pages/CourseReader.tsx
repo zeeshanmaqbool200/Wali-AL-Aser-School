@@ -3,7 +3,7 @@ import {
   Box, Typography, IconButton, Button, Paper, Stack, 
   Container, LinearProgress, Avatar, Tooltip, 
   Drawer, List, ListItem, ListItemButton, ListItemText, 
-  Divider, useMediaQuery, Fade, Zoom, Chip
+  Divider, useMediaQuery, Fade, Zoom, Chip, Skeleton
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { 
@@ -11,7 +11,7 @@ import {
   Volume2, Settings, Bookmark, Share2, 
   Maximize2, Headphones, Play, Pause, 
   SkipForward, SkipBack, List as ListIcon, BookOpen, Clock, Heart,
-  CheckCircle2
+  CheckCircle2, Sparkles, Wand2
 } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, onSnapshot, updateDoc, setDoc } from 'firebase/firestore';
@@ -35,13 +35,31 @@ export default function CourseReader() {
   const [loading, setLoading] = useState(true);
   const [activeSectionIdx, setActiveSectionIdx] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [readingMode, setReadingMode] = useState<'light' | 'dark' | 'sepia'>('light');
+  const [readingMode, setReadingMode] = useState<'light' | 'dark' | 'sepia'>(theme.palette.mode === 'dark' ? 'dark' : 'light');
   const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large' | 'extra-large' | 'massive'>('medium');
   const [isPlaying, setIsPlaying] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [activeHighlightIdx, setActiveHighlightIdx] = useState<number | null>(null);
   const [hasCompleted, setHasCompleted] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
   
   const scrollRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const engagementInterval = useRef<any>(null);
+
+  // Handle Scroll Progress for current section
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      const progress = (scrollY / (documentHeight - windowHeight)) * 100;
+      setScrollProgress(Math.min(100, Math.max(0, progress)));
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Resume Progress and Fetch Course
   useEffect(() => {
@@ -197,24 +215,58 @@ export default function CourseReader() {
      }
   };
 
-  const getThemeStyles = () => {
-    if (readingMode === 'sepia') return { bg: '#F4ECD8', text: '#5D4037', paper: '#E2D1B3' };
-    if (readingMode === 'dark') return { bg: '#0A0A0A', text: '#F5F5F5', paper: '#1A1A1A' };
-    return { bg: '#FDFCFB', text: '#1A1A1A', paper: '#FFFFFF' };
+  const calculateReadTime = (content: string) => {
+    const wordsPerMinute = 180;
+    const words = content.trim().split(/\s+/).length;
+    return Math.max(1, Math.ceil(words / wordsPerMinute));
   };
+
+  const getThemeStyles = () => {
+    if (readingMode === 'sepia') return { bg: '#F4ECD8', text: '#5D4037', paper: '#E2D1B3', divider: 'rgba(93, 64, 55, 0.1)' };
+    if (readingMode === 'dark') return { bg: '#0A0A0A', text: '#F5F5F5', paper: '#1A1A1A', divider: 'rgba(255, 255, 255, 0.08)' };
+    return { bg: '#FDFCFB', text: '#1A1A1A', paper: '#FFFFFF', divider: 'rgba(0, 0, 0, 0.06)' };
+  };
+
+  // Simulated Audiobook Highlighting Logic
+  useEffect(() => {
+    let interval: any;
+    if (isPlaying) {
+      interval = setInterval(() => {
+        setActiveHighlightIdx(prev => {
+          if (prev === null) return 0;
+          return prev + 1;
+        });
+      }, 5000); // Highlight new paragraph every 5 seconds for simulation
+    } else {
+      setActiveHighlightIdx(null);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   const activeStyles = getThemeStyles();
 
   if (loading) return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 3, bgcolor: '#050505' }}>
-       <Box 
-        component={motion.div}
-        animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-       >
-          <BookOpen size={60} color="white" />
-       </Box>
-       <Typography variant="h6" sx={{ fontWeight: 900, color: 'white', letterSpacing: 2 }}>CATALOGING ASSETS...</Typography>
+    <Box sx={{ minHeight: '100vh', bgcolor: theme.palette.mode === 'dark' ? '#050505' : '#F8F9FA' }}>
+      <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, py: 1, px: 4, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider', zIndex: 10 }}>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Skeleton variant="circular" width={40} height={40} />
+          <Box sx={{ flex: 1 }}>
+            <Skeleton variant="text" width="40%" height={20} />
+            <Skeleton variant="text" width="60%" height={24} />
+          </Box>
+        </Stack>
+      </Box>
+      <Container maxWidth="md" sx={{ pt: 15, pb: 10 }}>
+        <Skeleton variant="rectangular" width="100%" height={400} sx={{ borderRadius: 4, mb: 4 }} />
+        <Skeleton variant="text" width="80%" height={60} sx={{ mb: 2 }} />
+        <Stack spacing={2}>
+          <Skeleton variant="text" width="100%" />
+          <Skeleton variant="text" width="100%" />
+          <Skeleton variant="text" width="90%" />
+          <Skeleton variant="text" width="95%" />
+          <Skeleton variant="text" width="40%" />
+        </Stack>
+      </Container>
     </Box>
   );
 
@@ -276,6 +328,10 @@ export default function CourseReader() {
           <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">
             {hasCompleted && <CheckCircle2 size={24} color={theme.palette.success.main} />}
             
+            <IconButton onClick={() => setFocusMode(!focusMode)} sx={{ color: focusMode ? 'primary.main' : activeStyles.text }}>
+              <Maximize2 size={18} />
+            </IconButton>
+            
             <IconButton onClick={() => setDrawerOpen(true)} sx={{ color: activeStyles.text }}>
               <ListIcon size={20} />
             </IconButton>
@@ -309,17 +365,39 @@ export default function CourseReader() {
         </Stack>
       </AppBar>
 
-      {/* Progress Bar */}
-      <Box sx={{ position: 'fixed', top: { xs: 58, sm: 60 }, left: 0, right: 0, zIndex: 1101, height: 3 }}>
+      {/* Progress Bar (Overall Course) */}
+      <Box sx={{ position: 'fixed', top: { xs: 58, sm: 60 }, left: 0, right: 0, zIndex: 1101, height: 2 }}>
         <LinearProgress 
           variant="determinate" 
           value={progress} 
-          sx={{ height: '100%', bgcolor: 'transparent', '& .MuiLinearProgress-bar': { borderRadius: 0, bgcolor: 'primary.main', boxShadow: '0 0 10px rgba(59,130,246,0.5)' } }}
+          sx={{ height: '100%', bgcolor: 'transparent', '& .MuiLinearProgress-bar': { borderRadius: 0, bgcolor: 'primary.main', opacity: 0.3 } }}
+        />
+      </Box>
+
+      {/* Scroll Progress Bar (Current Page) */}
+      <Box sx={{ position: 'fixed', top: { xs: 58, sm: 60 }, left: 0, right: 0, zIndex: 1102, height: 3 }}>
+        <Box 
+          sx={{ 
+            height: '100%', 
+            width: `${scrollProgress}%`, 
+            bgcolor: 'primary.main', 
+            transition: 'width 0.1s linear',
+            boxShadow: '0 0 12px rgba(59,130,246,0.6)'
+          }} 
         />
       </Box>
 
       {/* Main Content Card Wrapper */}
-      <Container maxWidth="md" sx={{ pt: { xs: 12, sm: 20 }, pb: 24, position: 'relative', zIndex: 1 }}>
+      <Container 
+        maxWidth={focusMode ? "md" : "sm"} 
+        sx={{ 
+          pt: { xs: 10, sm: 16 }, 
+          pb: 24, 
+          position: 'relative', 
+          zIndex: 1,
+          transition: 'all 0.5s ease'
+        }}
+      >
         <AnimatePresence mode="wait">
           <Box 
              key={activeSectionIdx}
@@ -334,39 +412,68 @@ export default function CourseReader() {
               variant="h3" 
               sx={{ 
                 fontWeight: 950, 
-                mb: 4, 
+                mb: focusMode ? 2 : 4, 
                 letterSpacing: -1.5, 
                 fontFamily: readingMode === 'sepia' ? 'serif' : 'inherit',
-                fontSize: { xs: '1.75rem', md: '3.5rem' },
+                fontSize: { xs: '1.25rem', md: focusMode ? '2.5rem' : '3.5rem' },
                 lineHeight: 1.1,
-                color: activeStyles.text
+                color: activeStyles.text,
+                transition: 'all 0.3s'
               }}
             >
               {activeSection.title}
             </Typography>
 
             <Box sx={{ 
-              mb: 6, 
+              mb: focusMode ? 3 : 6, 
               display: 'flex', 
               alignItems: 'center', 
-              gap: 2, 
+              flexWrap: 'wrap',
+              gap: 1.5, 
               pb: 3, 
               borderBottom: '1px solid', 
-              borderColor: alpha(activeStyles.text, 0.1) 
+              borderColor: alpha(activeStyles.text, 0.1),
+              transition: 'all 0.3s'
             }}>
               <Chip 
                 icon={<Clock size={14} />} 
-                label={`${activeSection.metadata?.estimatedReadTime || 5} min read`} 
+                label={`${activeSection.metadata?.estimatedReadTime || calculateReadTime(activeSection.content)} min read`} 
                 size="small" 
                 variant="outlined" 
-                sx={{ fontWeight: 800, borderColor: alpha(activeStyles.text, 0.2), color: alpha(activeStyles.text, 0.6) }} 
+                sx={{ 
+                  fontWeight: 800, 
+                  height: 24,
+                  fontSize: '0.65rem',
+                  borderColor: alpha(activeStyles.text, 0.2), 
+                  color: alpha(activeStyles.text, 0.6) 
+                }} 
               />
               <Chip 
                 icon={<BookOpen size={14} />} 
                 label={`Chapter ${activeSectionIdx + 1}`} 
                 size="small" 
-                sx={{ fontWeight: 900, bgcolor: 'primary.main', color: 'white' }} 
+                sx={{ 
+                  fontWeight: 900, 
+                  height: 24,
+                  fontSize: '0.65rem',
+                  bgcolor: readingMode === 'sepia' ? 'rgba(0,0,0,0.1)' : 'primary.main', 
+                  color: readingMode === 'sepia' ? activeStyles.text : 'white' 
+                }} 
               />
+              {activeSection.type === 'audio' && (
+                <Chip 
+                  icon={<Headphones size={14} />} 
+                  label="Audiobook Available" 
+                  size="small" 
+                  sx={{ 
+                    fontWeight: 900, 
+                    height: 24,
+                    fontSize: '0.65rem',
+                    bgcolor: alpha(theme.palette.secondary.main, 0.1), 
+                    color: 'secondary.main' 
+                  }} 
+                />
+              )}
             </Box>
 
             <ContentRenderer 
@@ -374,6 +481,7 @@ export default function CourseReader() {
               readingMode={readingMode} 
               fontSize={fontSize} 
               onQuizSubmit={handleQuizSubmit}
+              activeHighlightIdx={activeHighlightIdx}
             />
           </Box>
         </AnimatePresence>

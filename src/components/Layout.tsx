@@ -300,9 +300,9 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
 
         <Box component="main" ref={mainRef} sx={{ 
           flexGrow: 1, 
-          p: hideNavigation ? 0 : { xs: 2, sm: 3, md: 4 }, 
-          pb: hideNavigation ? 0 : { xs: 16, md: 4 }, 
-          pt: hideNavigation ? 0 : (location.pathname === '/' ? 0 : { xs: 11, sm: 12, md: 14 }), 
+          p: (hideNavigation || location.pathname === '/courses') ? 0 : { xs: 2, sm: 3, md: 4 }, 
+          pb: (hideNavigation || location.pathname === '/courses') ? 0 : { xs: 16, md: 4 }, 
+          pt: (hideNavigation || location.pathname === '/courses') ? 0 : (location.pathname === '/' ? 0 : { xs: 11, sm: 12, md: 14 }), 
           position: 'relative' 
         }}>
           <Container maxWidth={hideNavigation ? false : "xl"} sx={{ p: 0 }}>

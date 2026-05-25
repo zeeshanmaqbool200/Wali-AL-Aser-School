@@ -1,4 +1,4 @@
-export type UserRole = 'student' | 'superadmin' | 'super_admin' | 'manager' | 'teacher' | 'pending_teacher' | 'pending_student' | 'mudeer' | 'mudaris' | 'muntazim';
+export type UserRole = 'student' | 'admin' | 'superadmin' | 'super_admin' | 'manager' | 'teacher' | 'pending_teacher' | 'pending_student' | 'mudeer' | 'mudaris' | 'muntazim';
 export type ClassLevel = 'Mubtadi' | 'Awal' | 'Doum' | 'Soum' | 'Chaharm' | 'Panjum' | 'Shasham' | 'Haftum' | 'Hashtum' | 'Nahum' | 'Dahum' | 'Hafiz' | 'Manager [m]' | 'Manager [f]';
 
 export interface UserProfile {
@@ -91,6 +91,8 @@ export interface UserProfile {
     lastActiveAt: number;
     lessonsCompleted: number;
     quizAverage: number;
+    streak?: number;
+    dailyMinutes?: Record<string, number>; // Historical record of minutes spent per day
   };
 }
 

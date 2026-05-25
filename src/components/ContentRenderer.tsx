@@ -3,6 +3,7 @@ import { Box, Typography, Paper, Grid, Stack, Checkbox, FormControlLabel, Accord
 import { alpha, useTheme } from '@mui/material/styles';
 import { Info, AlertTriangle, CheckCircle, Lightbulb, Quote, Code, Bookmark, ChevronDown, Play, FileText, Headphones, Image as ImageIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { useAuth } from '../context/AuthContext';
 import { CourseSection } from '../types';
 
 interface ContentRendererProps {
@@ -10,13 +11,26 @@ interface ContentRendererProps {
   readingMode?: 'light' | 'dark' | 'sepia';
   fontSize?: 'small' | 'medium' | 'large' | 'extra-large' | 'massive';
   onQuizSubmit?: (attempt: any) => void;
+  activeHighlightIdx?: number | null;
 }
 
-export default function ContentRenderer({ section, readingMode = 'light', fontSize = 'medium', onQuizSubmit }: ContentRendererProps) {
+export default function ContentRenderer({ section, readingMode = 'light', fontSize = 'medium', onQuizSubmit, activeHighlightIdx = null }: ContentRendererProps) {
   const theme = useTheme();
+  const { user: currentUser } = useAuth();
   const [quizAnswers, setQuizAnswers] = React.useState<Record<string, number>>({});
   const [quizSubmitted, setQuizSubmitted] = React.useState(false);
+  const [persistedAttempt, setPersistedAttempt] = React.useState<any>(null);
   const startTime = React.useRef(Date.now());
+
+  React.useEffect(() => {
+    if (currentUser?.quizScores && section.id) {
+      const existing = currentUser.quizScores.find(s => s.sectionId === section.id);
+      if (existing) {
+        setPersistedAttempt(existing);
+        setQuizSubmitted(true);
+      }
+    }
+  }, [currentUser?.uid, section.id]);
   
   const handleQuizSubmit = () => {
     if (!section.quizData || !onQuizSubmit) return;
@@ -144,46 +158,61 @@ export default function ContentRenderer({ section, readingMode = 'light', fontSi
                     bgcolor: readingMode === 'dark' ? 'rgba(255,255,255,0.03)' : readingMode === 'sepia' ? 'rgba(0,0,0,0.03)' : alpha(theme.palette.primary.main, 0.02) 
                   }}
                 >
-                  <Typography variant="h5" sx={{ fontWeight: 950, mb: 1 }}>Final Assessment</Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.6, mb: 4 }}>Verify your understanding of this module to proceed.</Typography>
-                  
-                  <Stack spacing={4}>
-                    {section.quizData.questions.map((q, idx) => (
-                      <Box key={q.id}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 2, display: 'flex', gap: 1.5 }}>
-                          <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: 'primary.main', fontWeight: 900 }}>{idx + 1}</Avatar>
-                          {q.question}
-                        </Typography>
-                        <Grid container spacing={2}>
-                          {q.options.map((opt, optIdx) => (
-                            <Grid size={{ xs: 12, sm: 6 }} key={optIdx}>
-                              <Button 
-                                fullWidth 
-                                variant={quizAnswers[q.id] === optIdx ? "contained" : "outlined"} 
-                                onClick={() => !quizSubmitted && setQuizAnswers(p => ({ ...p, [q.id]: optIdx }))}
-                                disabled={quizSubmitted}
-                                sx={{ 
-                                  textAlign: 'left', justifyContent: 'flex-start', p: 2, borderRadius: 3,
-                                  borderWidth: 2, fontWeight: 700,
-                                  borderColor: quizAnswers[q.id] === optIdx ? 'primary.main' : alpha(theme.palette.divider, 0.5),
-                                  '&:hover': { borderWidth: 2 }
-                                }}
-                              >
-                                {opt}
-                              </Button>
-                            </Grid>
-                          ))}
-                        </Grid>
-                        {quizSubmitted && quizAnswers[q.id] !== q.correctAnswer && (
-                           <Typography variant="caption" sx={{ mt: 1, color: 'error.main', fontWeight: 700, display: 'block' }}>
-                             Incorrect. Correct Answer: {q.options[q.correctAnswer]}
-                           </Typography>
-                        )}
-                      </Box>
-                    ))}
-                  </Stack>
+                  <Typography variant="h5" sx={{ fontWeight: 950, mb: 1 }}>{persistedAttempt ? 'Assessment Result' : 'Final Assessment'}</Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.6, mb: 4 }}>
+                    {persistedAttempt 
+                      ? `Synchronized on ${new Date(persistedAttempt.timestamp).toLocaleDateString()}` 
+                      : 'Verify your understanding of this module to proceed.'}
+                  </Typography>
 
-                  {!quizSubmitted && (
+                  {persistedAttempt && (
+                    <Box sx={{ mb: 4, p: 3, borderRadius: 4, bgcolor: alpha(theme.palette.success.main, 0.1), border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.2) }}>
+                       <Stack direction="row" spacing={3} alignItems="center">
+                          <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                             <Typography variant="h4" sx={{ fontWeight: 950, color: 'success.main' }}>{Math.round((persistedAttempt.score / persistedAttempt.total) * 100)}%</Typography>
+                          </Box>
+                          <Box>
+                             <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Score: {persistedAttempt.score} / {persistedAttempt.total}</Typography>
+                             <Typography variant="body2" sx={{ opacity: 0.7 }}>This assessment is permanently locked to your academic record.</Typography>
+                          </Box>
+                       </Stack>
+                    </Box>
+                  )}
+                  
+                  {!persistedAttempt && (
+                    <Stack spacing={4}>
+                      {section.quizData.questions.map((q, idx) => (
+                        <Box key={q.id}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 2, display: 'flex', gap: 1.5 }}>
+                            <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: 'primary.main', fontWeight: 900 }}>{idx + 1}</Avatar>
+                            {q.question}
+                          </Typography>
+                          <Grid container spacing={2}>
+                            {q.options.map((opt, optIdx) => (
+                              <Grid size={{ xs: 12, sm: 6 }} key={optIdx}>
+                                <Button 
+                                  fullWidth 
+                                  variant={quizAnswers[q.id] === optIdx ? "contained" : "outlined"} 
+                                  onClick={() => !quizSubmitted && setQuizAnswers(p => ({ ...p, [q.id]: optIdx }))}
+                                  disabled={quizSubmitted}
+                                  sx={{ 
+                                    textAlign: 'left', justifyContent: 'flex-start', p: 2, borderRadius: 3,
+                                    borderWidth: 2, fontWeight: 700,
+                                    borderColor: quizAnswers[q.id] === optIdx ? 'primary.main' : alpha(theme.palette.divider, 0.5),
+                                    '&:hover': { borderWidth: 2 }
+                                  }}
+                                >
+                                  {opt}
+                                </Button>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        </Box>
+                      ))}
+                    </Stack>
+                  )}
+
+                  {!quizSubmitted && !persistedAttempt && (
                     <Button 
                       variant="contained" 
                       fullWidth 
@@ -224,7 +253,13 @@ export default function ContentRenderer({ section, readingMode = 'light', fontSi
           }}>
             <Box sx={{ color: activeColor.main, mt: 0.5 }}>{activeColor.icon}</Box>
             <Box sx={{ flex: 1 }}>
-              <ReactMarkdown>{section.content}</ReactMarkdown>
+              {calloutType === 'tip' ? (
+                 <Typography variant="body1" sx={{ fontStyle: 'italic', opacity: 0.9 }}>
+                    "{section.content}"
+                 </Typography>
+              ) : (
+                 <ReactMarkdown>{section.content}</ReactMarkdown>
+              )}
             </Box>
           </Box>
         );
@@ -312,22 +347,41 @@ export default function ContentRenderer({ section, readingMode = 'light', fontSi
         );
 
       default:
+        const paragraphs = section.content.split(/\n\n+/);
         return (
           <Box 
             sx={{ 
               fontSize: getFontSize(), 
               lineHeight: getLineHeight(),
-              '& h1, & h2, & h3': { mt: 4, mb: 2, fontWeight: 900, lineHeight: 1.2 },
-              '& p': { mb: 2.5 },
-              '& ul, & ol': { mb: 3, pl: 3 },
-              '& li': { mb: 1.5 },
+              '& h1, & h2, & h3': { mt: 3, mb: 1.5, fontWeight: 900, lineHeight: 1.2, transition: 'all 0.3s' },
+              '& p': { mb: 2 },
+              '& ul, & ol': { mb: 2, pl: 3 },
+              '& li': { mb: 1 },
               textAlign: section.alignment || 'left',
               fontFamily: section.fontFamily === 'serif' ? '"Playfair Display", serif' : 
                           section.fontFamily === 'mono' ? 'monospace' : 'inherit',
               direction: section.isRTL ? 'rtl' : 'ltr'
             }}
           >
-            <ReactMarkdown>{section.content}</ReactMarkdown>
+            {paragraphs.map((para, pIdx) => (
+              <Box 
+                key={pIdx}
+                sx={{ 
+                  mb: 2,
+                  transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                  opacity: activeHighlightIdx !== null && activeHighlightIdx !== pIdx % paragraphs.length ? 0.3 : 1,
+                  scale: activeHighlightIdx !== null && activeHighlightIdx === pIdx % paragraphs.length ? '1.02' : '1',
+                  bgcolor: activeHighlightIdx !== null && activeHighlightIdx === pIdx % paragraphs.length 
+                    ? alpha(theme.palette.primary.main, 0.05) 
+                    : 'transparent',
+                  borderRadius: 2,
+                  p: activeHighlightIdx !== null && activeHighlightIdx === pIdx % paragraphs.length ? 1.5 : 0,
+                  mx: activeHighlightIdx !== null && activeHighlightIdx === pIdx % paragraphs.length ? -1.5 : 0,
+                }}
+              >
+                <ReactMarkdown>{para}</ReactMarkdown>
+              </Box>
+            ))}
           </Box>
         );
     }

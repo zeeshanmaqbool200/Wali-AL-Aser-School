@@ -529,27 +529,86 @@ const Users = () => {
                          </IconButton>
                       </TableCell>
                       <TableCell onClick={() => handleOpenProfile(user.uid)}>
-                        <Stack direction="row" spacing={2} alignItems="center">
-                          <Avatar src={user.photoURL} sx={{ width: 32, height: 32 }}>{user.displayName?.charAt(0)}</Avatar>
-                          <Box><Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{user.displayName}</Typography><Typography variant="caption" color="text.secondary">{user.email}</Typography></Box>
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                          <Avatar 
+                            src={user.photoURL} 
+                            sx={{ 
+                              width: { xs: 36, md: 40 }, 
+                              height: { xs: 36, md: 40 },
+                              border: '1.5px solid',
+                              borderColor: 'divider',
+                              boxShadow: '0 4px 10px rgba(0,0,0,0.04)'
+                            }}
+                          >
+                            {user.displayName?.charAt(0)}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 900, lineHeight: 1.2, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
+                              {user.displayName}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem', opacity: 0.7 }}>
+                              {user.email || 'No email provided'}
+                            </Typography>
+                          </Box>
                         </Stack>
                       </TableCell>
                       <TableCell onClick={() => handleOpenProfile(user.uid)}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: { xs: '0.75rem', md: '0.8125rem' }, opacity: 0.8 }}>
                           {user.fatherName || '-'}
                         </Typography>
                       </TableCell>
                       <TableCell onClick={() => handleOpenProfile(user.uid)}>
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: 'primary.main' }}>
-                          {user.admissionNo || user.staffId || 'N/A'}
+                        <Typography variant="body2" sx={{ fontWeight: 900, color: 'primary.main', fontSize: { xs: '0.75rem', md: '0.8125rem' }, letterSpacing: 0.5 }}>
+                          {user.admissionNo || user.studentId || user.staffId || 'N/A'}
                         </Typography>
                       </TableCell>
-                      <TableCell onClick={() => handleOpenProfile(user.uid)} sx={{ textTransform: 'capitalize' }}>{user.role}</TableCell>
-                      <TableCell onClick={() => handleOpenProfile(user.uid)}><Chip size="small" label={user.status || 'Active'} color={user.status === 'Active' ? 'success' : 'default'} /></TableCell>
+                      <TableCell onClick={() => handleOpenProfile(user.uid)} sx={{ textTransform: 'capitalize' }}>
+                        <Chip 
+                          label={user.role} 
+                          size="small" 
+                          sx={{ 
+                            height: 20, 
+                            fontSize: '0.65rem', 
+                            fontWeight: 800, 
+                            bgcolor: alpha(theme.palette.secondary.main, 0.08),
+                            color: 'secondary.main',
+                            border: '1px solid',
+                            borderColor: alpha(theme.palette.secondary.main, 0.1)
+                          }} 
+                        />
+                      </TableCell>
+                      <TableCell onClick={() => handleOpenProfile(user.uid)}>
+                        <Chip 
+                          size="small" 
+                          label={user.status || 'Active'} 
+                          color={user.status === 'Active' ? 'success' : 'default'} 
+                          variant="outlined"
+                          sx={{ height: 20, fontSize: '0.65rem', fontWeight: 900, px: 0.5 }}
+                        />
+                      </TableCell>
                       <TableCell align="right">
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
-                          {isAdmin ? (
-                            <Tooltip title="Direct Edit">
+                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                          {user.phone && (
+                            <Tooltip title="Message via WhatsApp">
+                              <IconButton 
+                                size="small" 
+                                color="success"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const phone = user.phone.replace(/\D/g, '');
+                                  window.open(`https://wa.me/${phone}`, '_blank');
+                                }}
+                                sx={{ 
+                                  bgcolor: alpha(theme.palette.success.main, 0.05),
+                                  '&:hover': { bgcolor: alpha(theme.palette.success.main, 0.1) }
+                                }}
+                              >
+                                <Phone size={14} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {isAdmin && (
+                            <Tooltip title="Quick Edit">
                               <IconButton 
                                 size="small" 
                                 color="primary"
@@ -560,29 +619,33 @@ const Users = () => {
                                 }}
                                 sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}
                               >
-                                <Edit2 size={18} />
+                                <Edit2 size={14} />
                               </IconButton>
                             </Tooltip>
-                          ) : (
-                             <IconButton size="small" onClick={(e) => { e.stopPropagation(); setIdCardUser(user); }}><Printer size={18} /></IconButton>
                           )}
                           
-                          <IconButton 
-                            size="small" 
-                            onClick={(e) => { e.stopPropagation(); setIdCardUser(user); }}
-                            sx={{ opacity: 0.6 }}
-                          >
-                            <Printer size={18} />
-                          </IconButton>
+                          <Tooltip title="Print ID Card">
+                            <IconButton 
+                              size="small" 
+                              onClick={(e) => { e.stopPropagation(); setIdCardUser(user); }}
+                              sx={{ bgcolor: alpha(theme.palette.divider, 0.3) }}
+                            >
+                              <Printer size={14} />
+                            </IconButton>
+                          </Tooltip>
 
-                          <IconButton 
-                            size="small" 
-                            color="error" 
-                            onClick={(e) => { e.stopPropagation(); if(tabValue === 3) { setUserToDelete(user.uid); setDeleteConfirmOpen(true); } else { setUserToArchive(user.uid); setArchiveConfirmOpen(true); } }}
-                            sx={{ opacity: 0.6 }}
-                          >
-                             {tabValue === 3 ? <Trash2 size={18} /> : <Archive size={18} />}
-                          </IconButton>
+                          {isAdmin && (
+                            <Tooltip title="Archive/Delete">
+                              <IconButton 
+                                size="small" 
+                                color="error" 
+                                onClick={(e) => { e.stopPropagation(); if(tabValue === 3) { setUserToDelete(user.uid); setDeleteConfirmOpen(true); } else { setUserToArchive(user.uid); setArchiveConfirmOpen(true); } }}
+                                sx={{ bgcolor: alpha(theme.palette.error.main, 0.05) }}
+                              >
+                                 {tabValue === 3 ? <Trash2 size={14} /> : <Archive size={14} />}
+                              </IconButton>
+                            </Tooltip>
+                          )}
                         </Stack>
                       </TableCell>
                     </TableRow>
@@ -637,10 +700,24 @@ const UserCard = ({ user, onDelete, onSelect, isSelected, onEdit, isAdmin, onOpe
         </Stack>
         
         <Stack direction="row" spacing={1} sx={{ mt: 3, width: '100%' }}>
-          <Button fullWidth size="small" variant="contained" disableElevation onClick={(e) => { e.stopPropagation(); onPass(user); }} startIcon={<Printer size={14} />} sx={{ borderRadius: 2, fontWeight: 900, fontSize: '0.7rem' }}>Pass</Button>
-          {isAdmin && <Button fullWidth size="small" variant="outlined" onClick={(e) => { e.stopPropagation(); onEdit(user); }} startIcon={<Edit2 size={14} />} sx={{ borderRadius: 2, fontWeight: 900, fontSize: '0.7rem' }}>Edit</Button>}
+          <Button fullWidth size="small" variant="contained" disableElevation onClick={(e) => { e.stopPropagation(); onPass(user); }} startIcon={<Printer size={14} />} sx={{ borderRadius: 2, fontWeight: 900, fontSize: '0.65rem' }}>Pass</Button>
+          {user.phone && (
+            <IconButton 
+              size="small" 
+              color="success" 
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                const phone = user.phone.replace(/\D/g, '');
+                window.open(`https://wa.me/${phone}`, '_blank');
+              }} 
+              sx={{ borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.2), bgcolor: alpha(theme.palette.success.main, 0.05) }}
+            >
+              <Phone size={14} />
+            </IconButton>
+          )}
+          {isAdmin && <Button fullWidth size="small" variant="outlined" onClick={(e) => { e.stopPropagation(); onEdit(user); }} startIcon={<Edit2 size={14} />} sx={{ borderRadius: 2, fontWeight: 900, fontSize: '0.65rem' }}>Edit</Button>}
           <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); onDelete(user); }} sx={{ borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette.error.main, 0.2) }}>
-             <Trash2 size={16} />
+             <Trash2 size={14} />
           </IconButton>
         </Stack>
       </Box>
