@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Box, Grid, Card, Typography, Button, Avatar, IconButton, TextField, InputAdornment, Stack, useTheme, Skeleton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, alpha } from '@mui/material';
+import { Box, Grid, Card, Typography, Button, Avatar, IconButton, TextField, InputAdornment, Stack, useTheme, Skeleton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, alpha, Alert } from '@mui/material';
 import { Search, CheckCircle2, XCircle, Clock, ChevronLeft, ChevronRight, Save, Check, X, FileText } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,18 @@ const Attendance = () => {
   const [currentAttendance, setCurrentAttendance] = useState<Record<string, 'present' | 'absent' | 'late' | 'excused'>>({});
   const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
 
+  const isToday = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+  const isSunday = selectedDate.getDay() === 0;
+  const isGeneralHoliday = instituteSettings?.holidays?.includes(format(selectedDate, 'yyyy-MM-dd'));
+  const isHoliday = isSunday || isGeneralHoliday;
+
+  const minDate = new Date();
+  minDate.setDate(minDate.getDate() - 30);
+  const maxDate = new Date();
+  
+  const canGoPrev = startOfDay(selectedDate) > startOfDay(minDate);
+  const canGoNext = startOfDay(selectedDate) < startOfDay(maxDate);
+
   const printRef = React.useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -27,7 +39,7 @@ const Attendance = () => {
   });
 
   const students = useMemo(() => {
-    return users.filter(u => (u.role === 'student' || !u.role) && u.status !== 'Archived' && 
+    return users.filter(u => (u.role === 'student' || !u.role) && (u.status === 'Active' || !u.status) && 
       (u.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) || u.admissionNo?.toLowerCase().includes(searchQuery.toLowerCase())));
   }, [users, searchQuery]);
 
@@ -78,13 +90,35 @@ const Attendance = () => {
           <Box><Typography variant="h5" sx={{ fontWeight: 950 }}>Attendance</Typography></Box>
           <Stack direction="row" spacing={1}>
             <Button variant="outlined" startIcon={<Printer size={18} />} onClick={() => handlePrint()} sx={{ display: { xs: 'none', sm: 'flex' } }}>Print Sheet</Button>
-            <Button variant="contained" startIcon={<Save size={18} />} onClick={() => setSaveConfirmOpen(true)} disabled={isSaving}>Submit Records</Button>
+            <Button 
+              variant="contained" 
+              startIcon={<Save size={18} />} 
+              onClick={() => setSaveConfirmOpen(true)} 
+              disabled={isSaving || isHoliday}
+            >
+              {isHoliday ? 'Holiday' : 'Submit Records'}
+            </Button>
           </Stack>
         </Box>
+        {isHoliday && (
+          <Alert severity="info" variant="outlined" sx={{ borderRadius: 4, fontWeight: 800 }}>
+            {isSunday ? 'Today is Sunday (Weekly Holiday)' : 'Today is a General Holiday'}
+          </Alert>
+        )}
         <Paper sx={{ p: 2, borderRadius: 4, display: 'flex', gap: 2, alignItems: 'center', border: '1px solid', borderColor: 'divider' }}>
-          <IconButton onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() - 1)))}><ChevronLeft /></IconButton>
+          <IconButton 
+            onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() - 1)))}
+            disabled={!canGoPrev}
+          >
+            <ChevronLeft />
+          </IconButton>
           <Typography sx={{ fontWeight: 900, flex: 1, textAlign: 'center' }}>{format(selectedDate, 'EEEE, d MMM yyyy')}</Typography>
-          <IconButton onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() + 1)))}><ChevronRight /></IconButton>
+          <IconButton 
+            onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() + 1)))}
+            disabled={!canGoNext}
+          >
+            <ChevronRight />
+          </IconButton>
           <TextField size="small" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} InputProps={{ startAdornment: <Search size={18} /> }} />
         </Paper>
         <TableContainer component={Paper} sx={{ borderRadius: 4, border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
@@ -93,7 +127,26 @@ const Attendance = () => {
               <TableRow key={s.uid} hover><TableCell><Stack direction="row" spacing={2} alignItems="center"><Avatar src={s.photoURL} />
                 <Box><Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{s.displayName}</Typography><Typography variant="caption">{s.classLevel}</Typography></Box></Stack></TableCell>
                 <TableCell align="center"><Stack direction="row" spacing={1} justifyContent="center">{['present', 'absent', 'late'].map(st => (
-                    <Box key={st} onClick={() => setCurrentAttendance(p => ({ ...p, [s.uid]: st as any }))} sx={{ width: 36, height: 36, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px solid', borderColor: currentAttendance[s.uid] === st ? 'primary.main' : 'divider', bgcolor: currentAttendance[s.uid] === st ? alpha(theme.palette.primary.main, 0.1) : 'transparent' }}>
+                    <Box 
+                      key={st} 
+                      onClick={() => {
+                        if (isHoliday) return;
+                        setCurrentAttendance(p => ({ ...p, [s.uid]: st as any }));
+                      }} 
+                      sx={{ 
+                        width: 36, 
+                        height: 36, 
+                        borderRadius: 2, 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        cursor: isHoliday ? 'default' : 'pointer', 
+                        opacity: isHoliday ? 0.6 : 1,
+                        border: '2px solid', 
+                        borderColor: currentAttendance[s.uid] === st ? 'primary.main' : 'divider', 
+                        bgcolor: currentAttendance[s.uid] === st ? alpha(theme.palette.primary.main, 0.1) : 'transparent' 
+                      }}
+                    >
                       {st === 'present' ? <Check size={18} /> : st === 'absent' ? <X size={18} /> : <Clock size={14} />}
                     </Box>))}</Stack></TableCell></TableRow>))}</TableBody></Table>
         </TableContainer>

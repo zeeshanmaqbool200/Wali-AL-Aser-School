@@ -119,10 +119,10 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
     setProfileAnchorEl(null);
   };
 
-  const mainNavPaths = ['/', '/dashboard', '/users', '/fees', '/reports', '/settings', '/courses', '/expenses', '/attendance', '/notes', '/exams', '/schedule', '/profile', '/notifications'];
+  const mainNavPaths = ['/', '/dashboard', '/users', '/fees', '/reports', '/settings', '/courses', '/expenses', '/attendance', '/notes', '/exams', '/forms', '/schedule', '/profile', '/notifications', '/admin/logs', '/payments-summary'];
   const isInternalPage = !mainNavPaths.includes(location.pathname);
-  const isImmersiveCoursePage = location.pathname.startsWith('/courses/') && !['/courses', '/courses/new'].includes(location.pathname);
-  const hideNavigation = isImmersiveCoursePage;
+  const isImmersiveCoursePage = location.pathname.startsWith('/courses/') && !['/courses', '/courses/new', '/courses/edit'].some(p => location.pathname === p);
+  const hideNavigation = isImmersiveCoursePage || isInternalPage;
 
   useEffect(() => {
     setBottomNavVisible(!isInternalPage && !hideNavigation);

@@ -391,8 +391,9 @@ export default function CourseReader() {
       <Container 
         maxWidth={focusMode ? "md" : "sm"} 
         sx={{ 
-          pt: { xs: 10, sm: 16 }, 
-          pb: 24, 
+          pt: { xs: 6, sm: 8 }, 
+          pb: 10, 
+          px: { xs: 1.5, sm: 3 },
           position: 'relative', 
           zIndex: 1,
           transition: 'all 0.5s ease'

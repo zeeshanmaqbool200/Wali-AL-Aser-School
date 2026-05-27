@@ -5,7 +5,7 @@ import {
   FormControl, InputLabel, Tooltip, Avatar, List, 
   ListItem, ListItemText, ListItemAvatar, Card, CardContent,
   Tab, Tabs, Alert, CircularProgress, Fab, FormControlLabel, Switch,
-  InputAdornment
+  InputAdornment, ListItemIcon
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { 
@@ -36,7 +36,7 @@ const DetailsTab = React.memo(({ course, setCourse }: { course: any, setCourse: 
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
-      setCourse((prev: any) => ({ ...prev, [field]: result }));
+      setCourse({ [field]: result });
     };
     reader.readAsDataURL(file);
   };
@@ -50,111 +50,131 @@ const DetailsTab = React.memo(({ course, setCourse }: { course: any, setCourse: 
       <Grid container spacing={4}>
         <Grid size={{ xs: 12, md: 8 }}>
           <Stack spacing={4}>
-            <Paper sx={{ p: 4, borderRadius: 6, border: '1px solid', borderColor: 'divider' }}>
+              <Paper sx={{ p: 4, borderRadius: 6, border: '1px solid', borderColor: 'divider' }}>
               <Typography variant="h6" sx={{ fontWeight: 950, mb: 3 }}>Core Information</Typography>
-              <Stack spacing={3}>
-                <TextField 
-                  fullWidth 
-                  label="Subject Name" 
-                  value={course.name} 
-                  onChange={(e) => setCourse((p: any) => ({ ...p, name: e.target.value }))}
-                  placeholder="e.g. History of Modern Architecture"
-                  InputProps={{ sx: { borderRadius: 3 } }}
-                />
-                <TextField 
-                  fullWidth 
-                  label="Description (Cinematic Style)" 
-                  multiline 
-                  rows={4} 
-                  value={course.description} 
-                  onChange={(e) => setCourse((p: any) => ({ ...p, description: e.target.value }))}
-                  placeholder="Write a compelling summary that hooks students..."
-                  InputProps={{ sx: { borderRadius: 4 } }}
-                />
-                <Grid container spacing={2}>
-                  <Grid size={6}>
-                    <TextField 
-                      fullWidth 
-                      label="Subject Code" 
-                      value={course.code} 
-                      onChange={(e) => setCourse((p: any) => ({ ...p, code: e.target.value }))}
-                      InputProps={{ sx: { borderRadius: 3 } }}
-                    />
-                  </Grid>
-                  <Grid size={6}>
-                      <FormControl fullWidth>
-                        <InputLabel>Category</InputLabel>
-                        <Select 
-                          value={course.category} 
-                          label="Category"
-                          onChange={(e) => setCourse((p: any) => ({ ...p, category: e.target.value }))}
-                          sx={{ borderRadius: 3 }}
-                        >
-                            <MenuItem value="General">General</MenuItem>
-                            <MenuItem value="History">History</MenuItem>
-                            <MenuItem value="Arts">Arts</MenuItem>
-                            <MenuItem value="Science">Science</MenuItem>
-                            <MenuItem value="Dinyat">Dinyat</MenuItem>
-                        </Select>
-                      </FormControl>
-                  </Grid>
-                </Grid>
-              </Stack>
-            </Paper>
-
-            <Paper sx={{ p: 4, borderRadius: 6, border: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="h6" sx={{ fontWeight: 950, mb: 3 }}>Branding & Visuals</Typography>
               <Grid container spacing={3}>
-                <Grid size={12}>
-                  <Stack direction="row" spacing={2} alignItems="flex-start">
-                    <TextField 
-                      fullWidth 
-                      label="Vertical Cover URL" 
-                      value={course.thumbnailUrl} 
-                      onChange={(e) => setCourse((p: any) => ({ ...p, thumbnailUrl: e.target.value }))}
-                      placeholder="Link or upload high-quality vertical cover"
-                      InputProps={{ 
-                        sx: { borderRadius: 3 },
-                        startAdornment: <InputAdornment position="start"><ImageIcon size={18} /></InputAdornment>
-                      }}
-                    />
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Stack spacing={2} alignItems="center">
+                    <Box sx={{ 
+                      width: '100%', 
+                      aspectRatio: '2/3', 
+                      borderRadius: 4, 
+                      bgcolor: alpha(theme.palette.primary.main, 0.05),
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      overflow: 'hidden',
+                      position: 'relative',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
+                    }}>
+                      {course.thumbnailUrl ? (
+                         <Box component="img" src={course.thumbnailUrl} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.4 }}>
+                          <ImageIcon size={40} />
+                          <Typography variant="caption" sx={{ mt: 1, fontWeight: 800 }}>Cover Art</Typography>
+                        </Box>
+                      )}
+                    </Box>
                     <Button
                       component="label"
+                      fullWidth
                       variant="outlined"
-                      sx={{ borderRadius: 3, height: 56, minWidth: 120, fontWeight: 800 }}
-                      startIcon={<Upload size={18} />}
+                      color="primary"
+                      size="small"
+                      sx={{ 
+                        borderRadius: 3, 
+                        fontWeight: 900, 
+                        textTransform: 'none',
+                        bgcolor: alpha(theme.palette.primary.main, 0.05),
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
+                      }}
+                      startIcon={<Upload size={16} />}
                     >
-                      Browse
+                      Change Cover
                       <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, 'thumbnailUrl')} />
                     </Button>
                   </Stack>
                 </Grid>
-                <Grid size={12}>
-                  <Stack direction="row" spacing={2} alignItems="flex-start">
+                <Grid size={{ xs: 12, md: 8 }}>
+                  <Stack spacing={2.5}>
                     <TextField 
                       fullWidth 
-                      label="Wide Banner URL" 
+                      label="Subject Name" 
+                      variant="filled"
+                      value={course.name} 
+                      onChange={(e) => setCourse({ name: e.target.value })}
+                      placeholder="e.g. History of Modern Architecture"
+                      InputProps={{ sx: { borderRadius: 3, fontWeight: 800 }, disableUnderline: true }}
+                    />
+                    <TextField 
+                      fullWidth 
+                      label="Learning Outcomes" 
+                      variant="filled"
+                      value={course.learningOutcomes?.join(', ') || ''} 
+                      onChange={(e) => setCourse({ learningOutcomes: e.target.value.split(',').map(s => s.trim()) })}
+                      placeholder="Enter outcomes separated by commas..."
+                      InputProps={{ sx: { borderRadius: 3, fontWeight: 600 }, disableUnderline: true }}
+                    />
+                    <TextField 
+                      fullWidth 
+                      label="Banner Image URL" 
+                      variant="filled"
+                      size="small"
                       value={course.bannerUrl} 
-                      onChange={(e) => setCourse((p: any) => ({ ...p, bannerUrl: e.target.value }))}
-                      placeholder="Link or upload cinematic wide banner"
+                      onChange={(e) => setCourse({ bannerUrl: e.target.value })}
+                      placeholder="Cinematic wide banner URL"
                       InputProps={{ 
-                        sx: { borderRadius: 3 },
-                        startAdornment: <InputAdornment position="start"><Layout size={18} /></InputAdornment>
+                        sx: { borderRadius: 3, fontSize: '0.8rem' }, 
+                        disableUnderline: true,
+                        startAdornment: <InputAdornment position="start"><Layout size={14} /></InputAdornment>
                       }}
                     />
-                    <Button
-                      component="label"
-                      variant="outlined"
-                      sx={{ borderRadius: 3, height: 56, minWidth: 120, fontWeight: 800 }}
-                      startIcon={<Upload size={18} />}
-                    >
-                      Browse
-                      <input type="file" hidden accept="image/*" onChange={(e) => handleFileUpload(e, 'bannerUrl')} />
-                    </Button>
+                    <TextField 
+                      fullWidth 
+                      label="Cinematic Description" 
+                      variant="filled"
+                      multiline 
+                      rows={4} 
+                      value={course.description} 
+                      onChange={(e) => setCourse({ description: e.target.value })}
+                      placeholder="Write a compelling summary..."
+                      InputProps={{ sx: { borderRadius: 4, fontWeight: 600 }, disableUnderline: true }}
+                    />
                   </Stack>
                 </Grid>
               </Grid>
+              
+              <Grid container spacing={2} sx={{ mt: 3 }}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField 
+                    fullWidth 
+                    label="Subject Code" 
+                    value={course.code} 
+                    onChange={(e) => setCourse({ code: e.target.value })}
+                    InputProps={{ sx: { borderRadius: 3 } }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <FormControl fullWidth>
+                    <InputLabel>Category</InputLabel>
+                    <Select 
+                      value={course.category} 
+                      label="Category"
+                      onChange={(e) => setCourse({ category: e.target.value })}
+                      sx={{ borderRadius: 3 }}
+                    >
+                      <MenuItem value="General">General</MenuItem>
+                      <MenuItem value="History">History</MenuItem>
+                      <MenuItem value="Arts">Arts</MenuItem>
+                      <MenuItem value="Science">Science</MenuItem>
+                      <MenuItem value="Dinyat">Dinyat</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
             </Paper>
+
+
           </Stack>
         </Grid>
 
@@ -164,33 +184,12 @@ const DetailsTab = React.memo(({ course, setCourse }: { course: any, setCourse: 
               <CardContent>
                 <Stack spacing={3}>
                   <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 950, mb: 1.5 }}>Publishing Status</Typography>
-                    <FormControlLabel 
-                      control={
-                        <Switch 
-                          checked={course.isPublished} 
-                          onChange={(e) => setCourse((p: any) => ({ ...p, isPublished: e.target.checked }))} 
-                        />
-                      }
-                      label={
-                        <Chip 
-                          label={course.isPublished ? "Visible to Students" : "Draft (Teacher Only)"} 
-                          size="small" 
-                          color={course.isPublished ? "success" : "default"} 
-                          sx={{ fontWeight: 900, borderRadius: 1 }}
-                        />
-                      }
-                      sx={{ ml: 0, justifyContent: 'space-between', width: '100%', flexDirection: 'row-reverse' }}
-                    />
-                  </Box>
-                  <Divider />
-                  <Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 950, mb: 1 }}>Course Difficulty</Typography>
                     <Select 
                       fullWidth
                       size="small"
                       value={course.difficulty || 'beginner'} 
-                      onChange={(e) => setCourse((p: any) => ({ ...p, difficulty: e.target.value }))}
+                      onChange={(e) => setCourse({ difficulty: e.target.value })}
                       sx={{ borderRadius: 2 }}
                     >
                         <MenuItem value="beginner">Beginner</MenuItem>
@@ -335,23 +334,6 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                     InputProps={{ sx: { borderRadius: 3 } }}
                   />
                   <FormControl fullWidth>
-                    <InputLabel>Premium Layout</InputLabel>
-                    <Select 
-                      value={newSection.layout} 
-                      label="Premium Layout" 
-                      onChange={(e) => handleLayoutChange(e.target.value as any)}
-                      sx={{ borderRadius: 3 }}
-                    >
-                        <MenuItem value="standard">Standard Content</MenuItem>
-                        <MenuItem value="audio-immersive">Audio Experience First</MenuItem>
-                        <MenuItem value="video-lesson">Video Learning Suite</MenuItem>
-                        <MenuItem value="ebook">Elegant E-Book</MenuItem>
-                        <MenuItem value="magazine">Editorial Magazine</MenuItem>
-                        <MenuItem value="study-sheet">Minimal Study Sheet</MenuItem>
-                    </Select>
-                  </FormControl>
-                  
-                  <FormControl fullWidth>
                     <InputLabel>Module Type</InputLabel>
                     <Select 
                       value={newSection.type} 
@@ -393,22 +375,68 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                 </Stack>
               </Paper>
 
-              <Paper sx={{ p: 3, borderRadius: 6, bgcolor: alpha('#1976d2', 0.03), border: '1px solid', borderColor: alpha('#1976d2', 0.1) }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 950, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Clock size={16} /> Reading Time
-                </Typography>
-                <TextField 
-                  fullWidth size="small" type="number" 
-                  value={newSection.metadata?.estimatedReadTime || 5}
-                  onChange={(e) => setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, estimatedReadTime: parseInt(e.target.value) } }))}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                />
-              </Paper>
+
             </Stack>
           </Grid>
           
           <Grid size={{ xs: 12, md: 8 }}>
             <Stack spacing={3}>
+              {newSection.type === 'quiz' && (
+                <Paper sx={{ p: 4, borderRadius: 6, border: '1px solid', borderColor: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 950, mb: 3 }}>Interactive Quiz Builder</Typography>
+                  <Stack spacing={3}>
+                    {(newSection.metadata?.questions || [{ q: '', options: ['', ''], correct: 0 }]).map((q: any, qIdx: number) => (
+                      <Paper key={qIdx} elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', borderRadius: 4 }}>
+                        <Stack spacing={2}>
+                          <TextField 
+                            fullWidth 
+                            label={`Question ${qIdx + 1}`} 
+                            value={q.q} 
+                            onChange={(e) => {
+                              const qs = [...(newSection.metadata?.questions || [])];
+                              if (!qs[qIdx]) qs[qIdx] = { q: '', options: ['', ''], correct: 0 };
+                              qs[qIdx].q = e.target.value;
+                              setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, questions: qs } }));
+                            }}
+                          />
+                          <Grid container spacing={2}>
+                            {q.options.map((opt: string, optIdx: number) => (
+                              <Grid size={6} key={optIdx}>
+                                <TextField 
+                                  fullWidth 
+                                  size="small" 
+                                  label={`Option ${optIdx + 1}`} 
+                                  value={opt}
+                                  onChange={(e) => {
+                                    const qs = [...(newSection.metadata?.questions || [])];
+                                    qs[qIdx].options[optIdx] = e.target.value;
+                                    setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, questions: qs } }));
+                                  }}
+                                  color={q.correct === optIdx ? 'success' : 'primary'}
+                                  onClick={() => {
+                                    const qs = [...(newSection.metadata?.questions || [])];
+                                    qs[qIdx].correct = optIdx;
+                                    setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, questions: qs } }));
+                                  }}
+                                />
+                              </Grid>
+                            ))}
+                          </Grid>
+                          <Button size="small" color="error" onClick={() => {
+                            const qs = (newSection.metadata?.questions || []).filter((_: any, i: number) => i !== qIdx);
+                            setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, questions: qs } }));
+                          }}>Remove Question</Button>
+                        </Stack>
+                      </Paper>
+                    ))}
+                    <Button variant="outlined" sx={{ borderRadius: 10 }} onClick={() => {
+                       const qs = [...(newSection.metadata?.questions || []), { q: '', options: ['', '', '', ''], correct: 0 }];
+                       setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, questions: qs } }));
+                    }}>Add Question to Quiz</Button>
+                  </Stack>
+                </Paper>
+              )}
+
               <Paper sx={{ borderRadius: 6, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
                 <Box sx={{ p: 2, bgcolor: alpha(theme.palette.divider, 0.2), borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="caption" sx={{ fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1 }}>Content Studio</Typography>
@@ -482,6 +510,19 @@ export default function CourseEditor() {
     }
   });
 
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [lastSaved, setLastSaved] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Basic auto-save indicator logic
+    if (submitting) setHasUnsavedChanges(false);
+  }, [submitting]);
+
+  const handleCourseUpdate = useCallback((updates: any) => {
+    setCourse(prev => ({ ...prev, ...updates }));
+    setHasUnsavedChanges(true);
+  }, []);
+
   useEffect(() => {
     if (!courseId || courseId === 'new') {
       setLoading(false);
@@ -536,6 +577,7 @@ export default function CourseEditor() {
         const docRef = await addDoc(collection(db, 'courses'), data);
         setCourse(p => ({ ...p, id: docRef.id }));
       }
+      setLastSaved(Date.now());
       logger.success('Subject saved to library');
     } catch (e) {
       logger.error('Failed to saveSubject');
@@ -631,10 +673,15 @@ export default function CourseEditor() {
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Stack direction="row" spacing={2} alignItems="center">
               <IconButton onClick={() => navigate('/courses')}><ArrowLeft /></IconButton>
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 950, lineHeight: 1 }}>{course.name || 'New Subject'}</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>Content Management Studio</Typography>
-              </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 900, lineHeight: 1 }}>{course.name || 'New Subject'}</Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 950, lineHeight: 1.2 }}>Content Management Studio</Typography>
+                    {lastSaved && (
+                      <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 800, display: 'block', mt: 0.5 }}>
+                        Last synced: {new Date(lastSaved).toLocaleTimeString()}
+                      </Typography>
+                    )}
+                  </Box>
             </Stack>
             <Stack direction="row" spacing={1.5}>
               {course.id && (
@@ -682,18 +729,134 @@ export default function CourseEditor() {
         </Container>
       </Paper>
 
-      <Container maxWidth="lg">
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 4 }}>
-          <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
-            <Tab label="Subject Details" sx={{ fontWeight: 800, textTransform: 'none' }} />
-            <Tab label="Curriculum Builder" sx={{ fontWeight: 800, textTransform: 'none' }} />
-            <Tab label={editingSectionIdx !== null ? "Edit Chapter" : "New Chapter"} sx={{ fontWeight: 800, textTransform: 'none' }} />
-          </Tabs>
-        </Box>
+      <Container maxWidth="xl">
+        <Grid container spacing={4}>
+          <Grid size={{ xs: 12, md: 3 }}>
+            <Paper 
+              elevation={0}
+              sx={{ 
+                p: 3, 
+                borderRadius: 6, 
+                border: '1px solid', 
+                borderColor: 'divider',
+                position: 'sticky',
+                top: 100,
+                bgcolor: alpha(theme.palette.background.paper, 0.4),
+                backdropFilter: 'blur(10px)'
+              }}
+            >
+              <Typography variant="overline" sx={{ fontWeight: 950, color: 'primary.main', letterSpacing: 2, mb: 2, display: 'block' }}>
+                NAVIGATE CURRICULUM
+              </Typography>
+              <List sx={{ px: 0 }}>
+                <ListItem 
+                  component={Button} 
+                  onClick={() => setActiveTab(0)}
+                  sx={{ 
+                    borderRadius: 3, 
+                    mb: 1, 
+                    bgcolor: activeTab === 0 ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                    color: activeTab === 0 ? 'primary.main' : 'text.secondary',
+                    textAlign: 'left',
+                    justifyContent: 'flex-start',
+                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) }
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}><Info size={18} /></ListItemIcon>
+                  <ListItemText primary="General Details" primaryTypographyProps={{ fontWeight: 800, fontSize: '0.85rem' }} />
+                </ListItem>
+                <Divider sx={{ my: 1.5, opacity: 0.5 }} />
+                {(course.sections || []).map((s, idx) => (
+                  <ListItem 
+                    key={s.id}
+                    component={Button} 
+                    onClick={() => editSection(idx)}
+                    sx={{ 
+                      borderRadius: 3, 
+                      mb: 0.5, 
+                      color: editingSectionIdx === idx ? 'primary.main' : 'text.primary',
+                      bgcolor: editingSectionIdx === idx ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
+                      textAlign: 'left',
+                      justifyContent: 'flex-start'
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 32, color: 'inherit', opacity: 0.5 }}>
+                      {s.type === 'quiz' ? <HelpCircle size={14} /> : s.type === 'audio' ? <Headphones size={14} /> : <FileText size={14} />}
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={s.title} 
+                      primaryTypographyProps={{ 
+                        fontWeight: 700, 
+                        fontSize: '0.75rem',
+                        noWrap: true,
+                        color: editingSectionIdx === idx ? 'primary.main' : 'inherit'
+                      }} 
+                    />
+                  </ListItem>
+                ))}
+                <Button 
+                  fullWidth 
+                  startIcon={<Plus size={16} />}
+                  onClick={() => { setEditingSectionIdx(null); setActiveTab(2); }}
+                  sx={{ 
+                    mt: 2, 
+                    borderRadius: 3, 
+                    border: '1px dashed', 
+                    borderColor: 'divider',
+                    py: 1,
+                    textTransform: 'none',
+                    fontWeight: 800,
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  New Chapter
+                </Button>
+              </List>
+            </Paper>
+          </Grid>
 
-        {activeTab === 0 && <DetailsTab course={course} setCourse={setCourse} />}
-        {activeTab === 1 && <CurriculumTab sections={course.sections || []} moveSection={moveSection} editSection={editSection} removeSection={removeSection} onAddClick={() => setActiveTab(2)} />}
-        {activeTab === 2 && <SectionEditorTab newSection={newSection} setNewSection={setNewSection} onSave={handleAddSection} isEditing={editingSectionIdx !== null} />}
+          <Grid size={{ xs: 12, md: 9 }}>
+            <Box sx={{ mb: 4 }}>
+              <Tabs 
+                value={activeTab > 2 ? 2 : activeTab} 
+                onChange={(_, v) => setActiveTab(v)}
+                sx={{ 
+                  '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' }
+                }}
+              >
+                <Tab label="Subject Settings" sx={{ fontWeight: 900, textTransform: 'none', px: 4 }} />
+                <Tab label="Curriculum Skeleton" sx={{ fontWeight: 900, textTransform: 'none', px: 4 }} />
+                <Tab label={editingSectionIdx !== null ? "Editor Content" : "Quick Add Content"} sx={{ fontWeight: 900, textTransform: 'none', px: 4 }} />
+              </Tabs>
+            </Box>
+
+            <AnimatePresence mode="wait">
+              {activeTab === 0 && (
+                <DetailsTab 
+                  course={course} 
+                  setCourse={handleCourseUpdate} 
+                />
+              )}
+              {activeTab === 1 && (
+                <CurriculumTab 
+                  sections={course.sections || []} 
+                  moveSection={moveSection} 
+                  editSection={editSection} 
+                  removeSection={removeSection} 
+                  onAddClick={() => { setEditingSectionIdx(null); setActiveTab(2); }} 
+                />
+              )}
+              {activeTab === 2 && (
+                <SectionEditorTab 
+                  newSection={newSection} 
+                  setNewSection={setNewSection} 
+                  onSave={handleAddSection} 
+                  isEditing={editingSectionIdx !== null} 
+                />
+              )}
+            </AnimatePresence>
+          </Grid>
+        </Grid>
       </Container>
     </Box>
   );

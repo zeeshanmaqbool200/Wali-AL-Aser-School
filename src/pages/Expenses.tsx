@@ -77,10 +77,11 @@ export default function Expenses() {
   const [submitting, setSubmitting] = useState(false);
 
   // Filter State
-  const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState(format(startOfMonth(subMonths(new Date(), 11)), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'credit' | 'debit'>('all');
+  const [pieChartType, setPieChartType] = useState<'credit' | 'debit'>('debit');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
@@ -186,11 +187,11 @@ export default function Expenses() {
     return CATEGORIES.map(cat => ({
       name: cat.label,
       value: filteredExpenses
-        .filter(e => e.category === cat.value && e.type === 'debit')
+        .filter(e => e.category === cat.value && e.type === pieChartType)
         .reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
       color: cat.color
     })).filter(d => d.value > 0);
-  }, [filteredExpenses]);
+  }, [filteredExpenses, pieChartType]);
 
   // Monthly trend (last 6 months)
   const monthlyTrend = useMemo(() => {
@@ -661,9 +662,29 @@ export default function Expenses() {
           </Grid>
 
           <Grid size={{ xs: 12, md: 5 }}>
-            <Paper id="categories-chart" sx={{ p: 4, borderRadius: 5, height: 450, border: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
-              <Typography variant="h6" sx={{ fontWeight: 900, mb: 4 }}>Category Distribution</Typography>
-              <ResponsiveContainer width="100%" height="85%">
+            <Paper id="categories-chart" sx={{ p: 4, borderRadius: 5, height: 450, border: `1px solid ${alpha(theme.palette.divider, 0.1)}`, display: 'flex', flexDirection: 'column' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 900 }}>Category Distribution</Typography>
+                <Stack direction="row" spacing={0.5} sx={{ bgcolor: alpha(theme.palette.divider, 0.05), p: 0.5, borderRadius: 2 }}>
+                  <Button 
+                    size="small" 
+                    variant={pieChartType === 'debit' ? 'contained' : 'text'} 
+                    onClick={() => setPieChartType('debit')}
+                    sx={{ borderRadius: 1.5, fontSize: '0.65rem', fontWeight: 900, py: 0 }}
+                  >
+                    Expenses
+                  </Button>
+                  <Button 
+                    size="small" 
+                    variant={pieChartType === 'credit' ? 'contained' : 'text'} 
+                    onClick={() => setPieChartType('credit')}
+                    sx={{ borderRadius: 1.5, fontSize: '0.65rem', fontWeight: 900, py: 0 }}
+                  >
+                    Income
+                  </Button>
+                </Stack>
+              </Box>
+              <ResponsiveContainer width="100%" height="80%">
                 <PieChart>
                   <Pie
                     data={pieData}

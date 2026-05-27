@@ -413,6 +413,7 @@ export interface InstituteSettings {
   primaryColor: string;
   secondaryColor: string;
   accentColors?: string[]; // 4 accent colors
+  holidays?: string[]; // Array of YYYY-MM-DD strings
   announcementBgColor?: string;
   announcementTextColor?: string;
   jafariOffset?: number;

@@ -293,6 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: email,
         displayName: name,
         role: finalRole as UserRole,
+        status: finalRole === 'student' ? 'Pending' : 'Active', // Students start as pending for admission pool
         isVerified: false, // All new users need verification
         createdAt: Date.now(),
       };

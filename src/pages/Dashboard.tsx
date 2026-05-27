@@ -91,9 +91,9 @@ export default function Dashboard() {
   const [idCardOpen, setIdCardOpen] = useState(false);
 
   const stats = useMemo(() => {
-    const students = users.filter(u => (u.role === 'student' || !u.role) && u.status !== 'Archived' && !['admin', 'manager', 'superadmin'].includes(u.role || ''));
-    const activeStudents = students.filter(u => u.status === 'Active');
-    const staff = users.filter(u => ['teacher', 'manager', 'superadmin', 'admin'].includes(u.role || ''));
+    const students = users.filter(u => (u.role === 'student' || !u.role) && u.status === 'Active' && !['admin', 'manager', 'superadmin'].includes(u.role || ''));
+    const activeStudents = students; // For students tab, we only care about active now
+    const staff = users.filter(u => ['teacher', 'manager', 'superadmin', 'admin'].includes(u.role || '') && u.status === 'Active');
     
     const now = new Date();
     const currentMonthStr = format(now, 'yyyy-MM');

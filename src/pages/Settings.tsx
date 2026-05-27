@@ -871,8 +871,56 @@ export default function Settings() {
                                   onChange={(e) => setInstituteData({ ...instituteData, quotes: e.target.value.split('\n').filter(q => q.trim().length > 0) })}
                                   InputProps={{ sx: { borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.02), fontWeight: 600 } }}
                                 />
-                            </Box>
-                            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+                             </Box>
+                             <Divider />
+                             <Box>
+                               <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', mb: 3, display: 'block' }}>Academic Calendar (General Holidays)</Typography>
+                               <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
+                                 <TextField
+                                   type="date"
+                                   size="small"
+                                   fullWidth
+                                   label="Add Holiday Date"
+                                   InputLabelProps={{ shrink: true }}
+                                   id="new-holiday-date"
+                                   sx={{ flex: 1 }}
+                                 />
+                                 <Button 
+                                   variant="contained" 
+                                   startIcon={<Plus size={18} />}
+                                   onClick={() => {
+                                     const input = document.getElementById('new-holiday-date') as HTMLInputElement;
+                                     if (input.value) {
+                                       const current = instituteData.holidays || [];
+                                       if (!current.includes(input.value)) {
+                                         setInstituteData({ ...instituteData, holidays: [...current, input.value].sort() });
+                                       }
+                                       input.value = '';
+                                     }
+                                   }}
+                                   sx={{ borderRadius: 2, fontWeight: 800 }}
+                                 >
+                                   Add
+                                 </Button>
+                               </Stack>
+                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                 {(instituteData.holidays || []).map((h) => (
+                                   <Chip 
+                                     key={h} 
+                                     label={h} 
+                                     onDelete={() => {
+                                       const updated = (instituteData.holidays || []).filter(date => date !== h);
+                                       setInstituteData({ ...instituteData, holidays: updated });
+                                     }}
+                                     sx={{ fontWeight: 700, borderRadius: 1.5 }} 
+                                   />
+                                 ))}
+                                 {(!instituteData.holidays || instituteData.holidays.length === 0) && (
+                                   <Typography variant="caption" color="text.disabled" sx={{ fontWeight: 700 }}>No general holidays configured. Sundays are handled automatically.</Typography>
+                                 )}
+                               </Box>
+                             </Box>
+                             <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
                               <AnimatePresence>
                                 {isInstituteDirty && (
                                   <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>

@@ -288,7 +288,7 @@ const Fees = () => {
                 label="Select Student"
                 notched
               >
-                {users.filter(u => u.role === 'student').map(s => (
+                {users.filter(u => u.role === 'student' && (u.status === 'Active' || !u.status)).map(s => (
                   <MenuItem key={s.uid} value={s.uid}>
                     {s.displayName} ({s.studentId || s.admissionNo || 'No ID'})
                   </MenuItem>

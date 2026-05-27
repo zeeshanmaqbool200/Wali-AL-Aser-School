@@ -201,7 +201,7 @@ export default function Courses() {
     }}>
       <Box sx={{ 
         position: 'relative', 
-        height: { xs: '50vh', sm: '55vh', md: '75vh' }, 
+        height: { xs: '35vh', sm: '40vh', md: '50vh' }, 
         width: '100%',
         overflow: 'hidden',
         display: 'flex',
@@ -260,7 +260,7 @@ export default function Courses() {
           zIndex: 2
         }} />
 
-        <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 10, textAlign: 'center', px: 4, pt: { xs: 8, sm: 6, md: 0 }, pb: { xs: 4, md: 0 } }}>
+        <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 10, textAlign: 'center', px: 4, pt: { xs: 4, sm: 2, md: 0 }, pb: { xs: 2, md: 0 } }}>
           {!searchQuery && (
             <motion.div
               initial={{ opacity: 0, y: 40 }}
@@ -341,11 +341,11 @@ export default function Courses() {
         position: 'relative',
         zIndex: 1,
         px: { xs: 2, md: 4 }, 
-        pt: { xs: 4, md: 8 }, 
+        pt: { xs: 2, md: 4 }, 
         pb: 1,
         display: 'flex',
         flexDirection: 'column',
-        gap: { xs: 2.5, md: 6 }
+        gap: { xs: 2, md: 4 }
       }}>
         {/* Profile Bar - Keeping Profile at Top Right */}
         <Box 

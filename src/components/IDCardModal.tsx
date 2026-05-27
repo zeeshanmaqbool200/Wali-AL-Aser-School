@@ -29,29 +29,41 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
     if (!cardRef.current) return;
     setDownloading(true);
     try {
-      // Temporarily unset scale for high-quality capture
-      const originalTransform = cardRef.current.style.transform;
-      const originalMargin = cardRef.current.style.marginBottom;
+      // Create a dedicated capture container to avoid scaling side effects
+      const originalElement = cardRef.current;
+      const originalDisplay = originalElement.style.display;
       
-      cardRef.current.style.transform = 'none';
-      cardRef.current.style.marginBottom = '0';
-      cardRef.current.style.display = 'block'; // Ensure block layout for capture
+      // Ensure element is visible and unscaled for capture
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.padding = '40px';
+      container.style.background = '#f1f5f9';
       
-      await new Promise(resolve => setTimeout(resolve, 800));
+      const clone = originalElement.cloneNode(true) as HTMLElement;
+      clone.style.transform = 'none';
+      clone.style.scale = '1';
+      clone.style.margin = '0';
+      clone.style.display = 'flex';
+      clone.style.flexDirection = 'row';
+      clone.style.gap = '40px';
       
-      const canvas = await html2canvas(cardRef.current, {
+      container.appendChild(clone);
+      document.body.appendChild(container);
+
+      // Give extra time for images to resolve if needed
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const canvas = await html2canvas(clone, {
         useCORS: true,
         allowTaint: true,
-        scale: 4, // Higher scale for premium print quality
+        scale: 3, 
         logging: false,
         backgroundColor: '#ffffff',
-        windowWidth: 1000, // Ensure fixed width for consistency
       });
       
-      // Restore styles
-      cardRef.current.style.transform = originalTransform;
-      cardRef.current.style.marginBottom = originalMargin;
-      cardRef.current.style.display = ''; 
+      document.body.removeChild(container);
 
       const dataUrl = canvas.toDataURL('image/png', 1.0);
       const link = document.createElement('a');
@@ -64,7 +76,7 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
       logger.success('HD Card downloaded successfully');
     } catch (error: any) {
       console.error('Failed to download ID card:', error);
-      logger.error('Download failed. Try printing to PDF instead.');
+      logger.error('Download failed. Please try "Print to PDF" instead.');
     } finally {
       setDownloading(false);
     }
@@ -73,6 +85,12 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
   const verificationUrl = `${window.location.origin}/verify/member/${user?.uid}`;
 
   if (!user) return null;
+
+  const urduFontStyle = { 
+    fontFamily: "'Noto Nastaliq Urdu', serif",
+    direction: 'rtl' as const,
+    lineHeight: 2.2
+  };
 
   const idText = user.admissionNo || user.studentId || user.teacherId || user.staffId || 'PENDING';
   const roleLabel = (user.role || 'student').replace('_', ' ').toUpperCase();
@@ -121,11 +139,19 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
             transformOrigin: 'top center',
             mb: { xs: -45, sm: -30, md: -20, lg: -15 }, // Offset for scaled content space
             '@media print': {
+              display: 'block',
               flexDirection: 'column',
-              gap: '20mm',
-              m: 0,
-              transform: 'none',
-              mb: 0
+              gap: '0',
+              m: '0 !important',
+              transform: 'none !important',
+              mb: '0 !important',
+              p: '0 !important',
+              width: '100%',
+              '& > .MuiPaper-root': {
+                 mb: '20mm', // Gap between front and back in print
+                 breakInside: 'avoid',
+                 mx: 'auto'
+              }
             }
           }}
         >
@@ -202,8 +228,8 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
                   )}
                 </Box>
                 <Box sx={{ overflow: 'hidden' }}>
-                  <Typography variant="caption" sx={{ fontWeight: 900, color: '#3b82f6', letterSpacing: 2, display: 'flex', gap: 1, textTransform: 'uppercase', fontSize: '0.6rem' }}>
-                    {instituteSettings?.instituteName?.split(' ')[0] || 'MAKTAB'} <Box component="span" sx={{ opacity: 0.5 }}>|</Box> مکتب
+                  <Typography variant="caption" sx={{ fontWeight: 900, color: '#3b82f6', letterSpacing: 2, display: 'flex', gap: 1, textTransform: 'uppercase', fontSize: '0.6rem', alignItems: 'center' }}>
+                    {instituteSettings?.instituteName?.split(' ')[0] || 'MAKTAB'} <Box component="span" sx={{ opacity: 0.5 }}>|</Box> <Box component="span" sx={{ ...urduFontStyle, fontSize: '0.9rem', mt: -0.5 }}>مکتب</Box>
                   </Typography>
                   <Typography 
                     variant="subtitle1" 
@@ -268,17 +294,22 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
 
                 <Stack spacing={1.2}>
                    {[
-                     { label: 'S/O | ولدیت', value: user.fatherName || 'N/A' },
-                     { label: 'CLASS | جماعت', value: user.role === 'student' ? (user.classLevel || 'Active Student') : roleLabel },
-                     { label: 'ID NO | شناختی نمبر', value: idText },
-                     { label: 'DOB | تاریخِ پیدائش', value: user.dob || 'N/A' },
-                     { label: 'PHONE | موبائل', value: user.phone || 'N/A' }
+                     { en: 'S/O', ur: 'ولدیت', value: user.fatherName || 'N/A' },
+                     { en: 'CLASS', ur: 'جماعت', value: user.role === 'student' ? (user.classLevel || 'Active Student') : roleLabel },
+                     { en: 'ID NO', ur: 'شناختی نمبر', value: idText },
+                     { en: 'DOB', ur: 'تاریخِ پیدائش', value: user.dob || 'N/A' },
+                     { en: 'PHONE', ur: 'موبائل', value: user.phone || 'N/A' }
                    ].map((item, i) => (
                      <Box key={i} sx={{ borderBottom: '1px solid #f1f5f9', pb: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 950, color: '#64748b', fontSize: '0.45rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                          {item.label}
-                        </Typography>
-                        <Typography variant="caption" sx={{ fontWeight: 900, color: '#0f172a', fontSize: '0.6rem', maxWidth: '65%', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Typography variant="caption" sx={{ fontWeight: 950, color: '#64748b', fontSize: '0.45rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                            {item.en} |&nbsp;
+                          </Typography>
+                          <Typography variant="caption" sx={{ ...urduFontStyle, color: '#64748b', fontSize: '0.6rem', mt: -0.8, whiteSpace: 'nowrap' }}>
+                            {item.ur}
+                          </Typography>
+                        </Box>
+                        <Typography variant="caption" sx={{ fontWeight: 900, color: '#0f172a', fontSize: '0.65rem', maxWidth: '65%', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {item.value}
                         </Typography>
                      </Box>
@@ -340,7 +371,9 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
                  }}>
                    <Shield size={36} color={theme.palette.primary.main} />
                  </Box>
-                 <Typography variant="h5" sx={{ fontWeight: 950, letterSpacing: 2 }}>MAKTAB</Typography>
+                 <Typography variant="h5" sx={{ fontWeight: 950, letterSpacing: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5 }}>
+                   MAKTAB <Box component="span" sx={{ opacity: 0.3, fontWeight: 300 }}>|</Box> <Box component="span" sx={{ ...urduFontStyle, fontSize: '1.4rem', mt: -0.5 }}>مکتب</Box>
+                 </Typography>
                  <Typography variant="caption" sx={{ opacity: 0.5, letterSpacing: 4, fontWeight: 800, textTransform: 'uppercase' }}>Identity Ecosystem</Typography>
                </Box>
 

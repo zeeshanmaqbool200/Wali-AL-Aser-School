@@ -102,6 +102,7 @@ const SingleIDCard = ({ user, instituteSettings }: { user: UserProfile, institut
   const roleLabel = (user.role || 'student').replace('_', ' ').toUpperCase();
   const idText = user.admissionNo || user.studentId || user.staffId || 'PENDING';
   const verificationUrl = `${window.location.origin}/verify/member/${user.uid}`;
+  const urduFontStyle = { fontFamily: "'Noto Nastaliq Urdu', serif", direction: 'rtl' as const };
 
   return (
     <Paper 
@@ -166,8 +167,8 @@ const SingleIDCard = ({ user, instituteSettings }: { user: UserProfile, institut
             )}
           </Box>
           <Box sx={{ overflow: 'hidden' }}>
-            <Typography variant="caption" sx={{ fontWeight: 900, color: '#3b82f6', letterSpacing: 1, display: 'flex', gap: 0.5, textTransform: 'uppercase', fontSize: '0.4rem' }}>
-              {instituteSettings?.instituteName?.split(' ')[0] || 'MAKTAB'} <Box component="span" sx={{ opacity: 0.5 }}>|</Box> مکتب
+            <Typography variant="caption" sx={{ fontWeight: 900, color: '#3b82f6', letterSpacing: 1, display: 'flex', gap: 0.5, textTransform: 'uppercase', fontSize: '0.4rem', alignItems: 'center' }}>
+              {instituteSettings?.instituteName?.split(' ')[0] || 'MAKTAB'} <Box component="span" sx={{ opacity: 0.5 }}>|</Box> <Box component="span" sx={{ ...urduFontStyle, fontSize: '0.65rem', mt: -0.5 }}>مکتب</Box>
             </Typography>
             <Typography variant="subtitle2" sx={{ fontWeight: 950, lineHeight: 1.1, color: '#0f172a', fontSize: '0.55rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {instituteSettings?.instituteName}
@@ -192,14 +193,17 @@ const SingleIDCard = ({ user, instituteSettings }: { user: UserProfile, institut
           <Box sx={{ borderBottom: '1.5px solid #3b82f6', width: '8mm', mx: 'auto', mb: 1 }} />
           <Stack spacing={0.4}>
              {[
-               { label: 'S/O | ولدیت', value: user.fatherName || 'N/A' },
-               { label: 'CLASS | جماعت', value: user.role === 'student' ? (user.classLevel || 'Active Student') : roleLabel },
-               { label: 'ID NO | شناختی نمبر', value: idText },
-               { label: 'DOB | تاریخِ پیدائش', value: user.dob || 'N/A' },
-               { label: 'PHONE | موبائل', value: user.phone || 'N/A' }
+               { en: 'S/O', ur: 'ولدیت', value: user.fatherName || 'N/A' },
+               { en: 'CLASS', ur: 'جماعت', value: user.role === 'student' ? (user.classLevel || 'Active Student') : roleLabel },
+               { en: 'ID NO', ur: 'شناختی نمبر', value: idText },
+               { en: 'DOB', ur: 'تاریخِ پیدائش', value: user.dob || 'N/A' },
+               { en: 'PHONE', ur: 'موبائل', value: user.phone || 'N/A' }
              ].map((item, i) => (
                <Box key={i} sx={{ borderBottom: '0.1pt solid #f1f5f9', pb: 0.2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 950, color: '#64748b', fontSize: '0.35rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{item.label}</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 950, color: '#64748b', fontSize: '0.35rem', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{item.en} |&nbsp;</Typography>
+                    <Typography variant="caption" sx={{ ...urduFontStyle, color: '#64748b', fontSize: '0.45rem', mt: -0.5, whiteSpace: 'nowrap' }}>{item.ur}</Typography>
+                  </Box>
                   <Typography variant="caption" sx={{ fontWeight: 900, color: '#0f172a', fontSize: '0.38rem', maxWidth: '65%', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.value}</Typography>
                </Box>
              ))}

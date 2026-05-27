@@ -98,10 +98,10 @@ export default function UserDetailModal({ open, onClose, user, onViewID }: UserD
 
         <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 950, letterSpacing: -1 }}>
+            <Typography variant="h5" sx={{ fontWeight: 950, letterSpacing: -1, fontFamily: "'Noto Nastaliq Urdu', 'Inter', sans-serif" }}>
               {user.displayName}
             </Typography>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
               <Chip 
                 label={(user.role || 'Member').toUpperCase()} 
                 size="small" 
@@ -143,8 +143,8 @@ export default function UserDetailModal({ open, onClose, user, onViewID }: UserD
           <Grid size={{ xs: 12, sm: 6 }}>
             <DetailItem 
               icon={User} 
-              label="Parentage" 
-              value={user.fatherName ? `S/O ${user.fatherName}` : 'N/A'} 
+              label="Parentage / ولدیت" 
+              value={<span style={{ fontFamily: "'Noto Nastaliq Urdu', 'Inter', sans-serif" }}>{user.fatherName ? `S/O ${user.fatherName}` : 'N/A'}</span>} 
             />
           </Grid>
 

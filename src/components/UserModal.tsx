@@ -257,10 +257,10 @@ export default function UserModal({ open, onClose, onSubmit, initialData, title,
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
-                name="displayName" label="Full Name" fullWidth required
+                name="displayName" label="Full Name / مکمل نام" fullWidth required
                 value={formData.displayName} onChange={handleChange}
-                placeholder="Enter member's full name"
-                InputProps={{ sx: { borderRadius: 3 } }}
+                placeholder="Enter candidate's full name"
+                InputProps={{ sx: { borderRadius: 3, fontFamily: "'Noto Nastaliq Urdu', 'Inter', sans-serif" } }}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -302,9 +302,9 @@ export default function UserModal({ open, onClose, onSubmit, initialData, title,
               <>
                 <Grid size={{ xs: 12, md: 6 }}>
                    <TextField
-                    name="fatherName" label="Father's Name" fullWidth required
+                    name="fatherName" label="Father's Name / ولدیت" fullWidth required
                     value={formData.fatherName} onChange={handleChange}
-                    InputProps={{ sx: { borderRadius: 3 } }}
+                    InputProps={{ sx: { borderRadius: 3, fontFamily: "'Noto Nastaliq Urdu', 'Inter', sans-serif" } }}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
@@ -333,7 +333,7 @@ export default function UserModal({ open, onClose, onSubmit, initialData, title,
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
                <TextField
-                name="admissionNo" label={formData.role === 'student' ? "Admission No" : "Staff ID"} 
+                name="admissionNo" label={formData.role === 'student' ? "Admission No / رجسٹریشن نمبر" : "Staff ID"} 
                 fullWidth value={formData.studentId} onChange={(e) => setFormData(p => ({ ...p, studentId: e.target.value }))}
                 InputProps={{ sx: { borderRadius: 3 } }}
               />

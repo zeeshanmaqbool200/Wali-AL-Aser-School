@@ -123,10 +123,10 @@ const Users = () => {
       if (tabValue === 3) return u.status === 'Archived';
       if (u.status === 'Archived' && tabValue !== 3) return false;
       
-      if (tabValue === 2) return (!u.isVerified || u.role?.includes('pending')) && u.status !== 'Archived';
+      if (tabValue === 2) return ((!u.isVerified || u.role?.includes('pending')) || u.status === 'Pending') && u.status !== 'Archived';
       
       if (tabValue === 0) {
-        return (u.role === 'student' || !u.role);
+        return (u.role === 'student' || !u.role) && (u.status === 'Active' || !u.status);
       }
       
       if (tabValue === 1) {
@@ -194,6 +194,50 @@ const Users = () => {
       logger.success(`Action ${action} completed`);
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, 'users/bulk');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleApproveUser = async (uid: string) => {
+    setIsSaving(true);
+    try {
+      const userRef = doc(db, 'users', uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) return;
+      const userData = userSnap.data() as UserProfile;
+
+      // Generate Student ID: ADM-2026-XXXX (incremental)
+      const year = new Date().getFullYear();
+      // Filter for students who already have an ID starting with ADM-YEAR
+      const existingIds = users
+        .map(u => u.studentId || u.admissionNo)
+        .filter(id => id && id.startsWith(`ADM-${year}`)) as string[];
+      
+      let nextNum = 1;
+      if (existingIds.length > 0) {
+        const nums = existingIds.map(id => {
+          const parts = id.split('-');
+          return parseInt(parts[parts.length - 1], 10);
+        }).filter(n => !isNaN(n));
+        if (nums.length > 0) {
+          nextNum = Math.max(...nums) + 1;
+        }
+      }
+      
+      const studentId = `ADM-${year}-${String(nextNum).padStart(4, '0')}`;
+
+      await updateDoc(userRef, {
+        status: 'Active',
+        isVerified: true,
+        studentId,
+        admissionNo: studentId,
+        admissionDate: new Date().toISOString().split('T')[0],
+        role: userData.role === 'pending_teacher' ? 'teacher' : 'student'
+      });
+      logger.success(`Account approved. Generated ID: ${studentId}`);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, 'users/approve');
     } finally {
       setIsSaving(false);
     }
@@ -476,6 +520,7 @@ const Users = () => {
                         onSelect={() => toggleSelect(user.uid)}
                         onOpenProfile={() => handleOpenProfile(user.uid)}
                         onPass={setIdCardUser}
+                        onApprove={handleApproveUser}
                         onDelete={(u: any) => {
                           if (tabValue === 3) {
                             setUserToDelete(u.uid);
@@ -543,7 +588,7 @@ const Users = () => {
                             {user.displayName?.charAt(0)}
                           </Avatar>
                           <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 900, lineHeight: 1.2, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 900, lineHeight: 1.2, fontSize: { xs: '0.8rem', md: '0.875rem' }, fontFamily: "'Noto Nastaliq Urdu', 'Inter', sans-serif" }}>
                               {user.displayName}
                             </Typography>
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem', opacity: 0.7 }}>
@@ -588,6 +633,21 @@ const Users = () => {
                       </TableCell>
                       <TableCell align="right">
                         <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                          {tabValue === 2 && (
+                             <Tooltip title="Approve Admission">
+                               <IconButton 
+                                 size="small" 
+                                 color="success" 
+                                 onClick={(e) => { e.stopPropagation(); handleApproveUser(user.uid); }}
+                                 sx={{ 
+                                   bgcolor: alpha(theme.palette.success.main, 0.05),
+                                   '&:hover': { bgcolor: alpha(theme.palette.success.main, 0.1) }
+                                 }}
+                               >
+                                 <CheckCircle2 size={14} />
+                               </IconButton>
+                             </Tooltip>
+                          )}
                           {user.phone && (
                             <Tooltip title="Message via WhatsApp">
                               <IconButton 
@@ -660,7 +720,7 @@ const Users = () => {
   );
 };
 
-const UserCard = ({ user, onDelete, onSelect, isSelected, onEdit, isAdmin, onOpenProfile, onPass }: any) => {
+const UserCard = ({ user, onDelete, onSelect, isSelected, onEdit, isAdmin, onOpenProfile, onPass, onApprove }: any) => {
   const theme = useTheme();
   return (
     <Card sx={{ 
@@ -686,7 +746,9 @@ const UserCard = ({ user, onDelete, onSelect, isSelected, onEdit, isAdmin, onOpe
         <Badge overlap="circular" anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} badgeContent={user.isVerified ? <CheckCircle2 size={14} color="green" /> : null}>
           <Avatar src={user.photoURL} sx={{ width: 64, height: 64, mx: 'auto', mb: 2 }}>{user.displayName?.charAt(0)}</Avatar>
         </Badge>
-        <Typography variant="subtitle1" sx={{ fontWeight: 950, letterSpacing: -0.5 }}>{user.displayName}</Typography>
+        <Typography variant="subtitle1" sx={{ fontWeight: 950, letterSpacing: -0.5, fontFamily: "'Noto Nastaliq Urdu', 'Inter', sans-serif" }}>
+          {user.displayName}
+        </Typography>
         
         <Stack spacing={0.5} sx={{ mt: 1 }}>
           <Typography variant="caption" sx={{ fontWeight: 800, color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.08), px: 1, py: 0.2, borderRadius: 1, width: 'fit-content', mx: 'auto' }}>
@@ -700,6 +762,19 @@ const UserCard = ({ user, onDelete, onSelect, isSelected, onEdit, isAdmin, onOpe
         </Stack>
         
         <Stack direction="row" spacing={1} sx={{ mt: 3, width: '100%' }}>
+          {user.status === 'Pending' && (
+            <Button 
+              fullWidth 
+              size="small" 
+              variant="contained" 
+              color="success" 
+              onClick={(e) => { e.stopPropagation(); onApprove(user.uid); }}
+              startIcon={<CheckCircle2 size={14} />} 
+              sx={{ borderRadius: 2, fontWeight: 900, fontSize: '0.65rem' }}
+            >
+              Approve
+            </Button>
+          )}
           <Button fullWidth size="small" variant="contained" disableElevation onClick={(e) => { e.stopPropagation(); onPass(user); }} startIcon={<Printer size={14} />} sx={{ borderRadius: 2, fontWeight: 900, fontSize: '0.65rem' }}>Pass</Button>
           {user.phone && (
             <IconButton 
