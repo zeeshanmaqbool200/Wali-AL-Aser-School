@@ -322,11 +322,11 @@ export default function Dashboard() {
                       <Typography id="hero-main-greeting" variant="h1" sx={{ 
                         fontFamily: '"Cinzel Decorative", serif',
                         fontWeight: 900, 
-                        fontSize: { xs: '1.5rem', sm: '2.1rem', md: '3.1rem' }, 
+                        fontSize: { xs: '1.4rem', sm: '2.1rem', md: '3.1rem' }, 
                         textShadow: '0 6px 16px rgba(0,0,0,0.7)', 
                         mb: 0,
-                        letterSpacing: { xs: -0.5, md: -1.5 }, 
-                        lineHeight: 0.85,
+                        letterSpacing: { xs: -0.2, md: -1.5 }, 
+                        lineHeight: 0.9,
                         textTransform: 'uppercase'
                       }}>
                         ASSLAMUALIKUM
@@ -405,9 +405,9 @@ export default function Dashboard() {
           </motion.div>
 
           {/* Quick Access Grid - From Image */}
-          <Grid container spacing={2} justifyContent="center" sx={{ mt: 2 }}>
+          <Grid container spacing={1.5} justifyContent="center" sx={{ mt: 2 }}>
             {QUICK_GRID.map((item, i) => (
-              <Grid key={i} size={{ xs: 4, sm: 2 }}>
+              <Grid key={i} size={{ xs: 4, sm: 2, md: 1.5 }}>
                  <motion.div variants={itemVariants}>
                    <Paper 
                     elevation={0}
@@ -420,7 +420,7 @@ export default function Dashboard() {
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 1,
+                      gap: 0.5,
                       borderRadius: 1.5,
                       cursor: 'pointer',
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -431,8 +431,8 @@ export default function Dashboard() {
                       }
                     }}
                   >
-                    <item.icon size={20} strokeWidth={2.5} />
-                    <Typography variant="caption" sx={{ fontWeight: 950, fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    <item.icon size={isMobile ? 18 : 20} strokeWidth={2.5} />
+                    <Typography variant="caption" sx={{ fontWeight: 950, fontSize: { xs: '0.55rem', md: '0.6rem' }, textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' }}>
                       {item.label}
                     </Typography>
                   </Paper>

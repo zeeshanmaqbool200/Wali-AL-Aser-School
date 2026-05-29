@@ -84,7 +84,16 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
         p: 2,
         position: 'relative',
         boxShadow: 'none',
+        backdropFilter: 'blur(20px)',
         borderRight: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
+        zIndex: theme.zIndex.drawer + 5,
+        '&:after': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          background: `linear-gradient(180deg, transparent 0%, ${alpha(theme.palette.primary.main, 0.02)} 100%)`,
+          pointerEvents: 'none'
+        }
       }}
     >
         <Box 
@@ -110,10 +119,11 @@ export default function Sidebar({ role, open, onToggle, onLogout, unreadNotifica
               p: 0, 
               display: 'flex',
               overflow: 'hidden',
-              width: open ? 50 : 40,
-              height: open ? 50 : 40,
-              transition: 'all 0.3s ease',
-              flexShrink: 0
+              width: open ? 56 : 44,
+              height: open ? 56 : 44,
+              transition: 'all 0.5s cubic-bezier(0.19, 1, 0.22, 1)',
+              flexShrink: 0,
+              filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))'
             }}>
                 <img 
                   src={logoUrl} 

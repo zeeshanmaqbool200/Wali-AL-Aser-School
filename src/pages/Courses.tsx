@@ -787,10 +787,10 @@ export default function Courses() {
       </Box>
 
       <Box sx={{ px: { xs: 2, md: 4 } }}>
-        <Grid container spacing={4}>
+        <Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
           <AnimatePresence mode="popLayout">
             {filteredCourses.map((course, index) => (
-              <Grid size={{ xs: 6, sm: 4, md: 2.4 }} key={course.id}>
+              <Grid size={{ xs: 6, sm: 4, md: 3, lg: 2.4 }} key={course.id}>
                 <motion.div
                   layout
                   initial={{ opacity: 0, y: 20 }}

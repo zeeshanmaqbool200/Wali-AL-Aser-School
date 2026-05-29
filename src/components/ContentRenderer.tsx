@@ -378,14 +378,22 @@ export default function ContentRenderer({ section, readingMode = 'light', fontSi
         return (
           <Box 
             sx={{ 
-              fontSize: getFontSize(), 
-              lineHeight: getLineHeight(),
-              '& h1, & h2, & h3': { mt: 3, mb: 1.5, fontWeight: 900, lineHeight: 1.2, transition: 'all 0.3s' },
-              '& p': { mb: 2 },
+              fontSize: section.isRTL ? (fontSize === 'medium' ? '1.4rem' : getFontSize()) : getFontSize(), 
+              lineHeight: section.isRTL ? 2.2 : getLineHeight(),
+              letterSpacing: section.isRTL ? 0.2 : 'inherit',
+              '& h1, & h2, & h3': { 
+                mt: 3, mb: 1.5, 
+                fontWeight: 900, 
+                lineHeight: 1.2, 
+                transition: 'all 0.3s',
+                fontFamily: section.isRTL ? '"Amiri", serif' : 'inherit'
+              },
+              '& p': { mb: section.isRTL ? 4 : 2 },
               '& ul, & ol': { mb: 2, pl: 3 },
               '& li': { mb: 1 },
-              textAlign: section.alignment || 'left',
-              fontFamily: section.fontFamily === 'serif' ? '"Playfair Display", serif' : 
+              textAlign: section.alignment || (section.isRTL ? 'right' : 'left'),
+              fontFamily: section.isRTL ? '"Amiri", serif' : 
+                          section.fontFamily === 'serif' ? '"Playfair Display", serif' : 
                           section.fontFamily === 'mono' ? 'monospace' : 'inherit',
               direction: section.isRTL ? 'rtl' : 'ltr'
             }}
