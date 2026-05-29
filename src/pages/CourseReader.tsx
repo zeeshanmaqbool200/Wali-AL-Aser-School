@@ -222,6 +222,20 @@ export default function CourseReader() {
   };
 
   const getThemeStyles = () => {
+    // Priority 1: Chapter-specific theme set by Admin
+    if (activeSection?.theme && readingMode === 'light') {
+       return { 
+         bg: activeSection.theme.backgroundColor || '#FDFCFB', 
+         text: activeSection.theme.textColor || '#1A1A1A', 
+         paper: alpha(activeSection.theme.backgroundColor || '#FDFCFB', 0.8), 
+         divider: alpha(activeSection.theme.textColor || '#1A1A1A', 0.1),
+         fontPairing: activeSection.theme.fontPairing,
+         texture: activeSection.theme.backgroundTextureUrl,
+         paperOverlay: activeSection.theme.paperTexture
+       };
+    }
+
+    // Priority 2: User-selected accessibility modes
     if (readingMode === 'sepia') return { bg: '#F4ECD8', text: '#5D4037', paper: '#E2D1B3', divider: 'rgba(93, 64, 55, 0.1)' };
     if (readingMode === 'dark') return { bg: '#0A0A0A', text: '#F5F5F5', paper: '#1A1A1A', divider: 'rgba(255, 255, 255, 0.08)' };
     return { bg: '#FDFCFB', text: '#1A1A1A', paper: '#FFFFFF', divider: 'rgba(0, 0, 0, 0.06)' };
@@ -290,11 +304,23 @@ export default function CourseReader() {
       {/* Immersive Background Texture */}
       <Box sx={{ 
         position: 'fixed', inset: 0, 
-        opacity: readingMode === 'sepia' ? 0.05 : 0.02, 
+        opacity: activeStyles.texture ? 0.3 : (readingMode === 'sepia' ? 0.05 : 0.02), 
         pointerEvents: 'none',
-        backgroundImage: `url("https://www.transparenttextures.com/patterns/paper-fibers.png")`,
+        backgroundImage: activeStyles.texture ? `url("${activeStyles.texture}")` : (activeStyles.paperOverlay ? `url("https://www.transparenttextures.com/patterns/paper-fibers.png")` : `url("https://www.transparenttextures.com/patterns/paper-fibers.png")`),
+        backgroundSize: activeStyles.texture ? 'cover' : 'auto',
         zIndex: 0
       }} />
+
+      {/* Additional Paper Texture Overlay if requested */}
+      {activeStyles.paperOverlay && (
+        <Box sx={{ 
+          position: 'fixed', inset: 0, 
+          opacity: 0.05, 
+          pointerEvents: 'none',
+          backgroundImage: `url("https://www.transparenttextures.com/patterns/paper-fibers.png")`,
+          zIndex: 1
+        }} />
+      )}
 
       {/* Floating Header */}
       <AppBar 
@@ -415,7 +441,10 @@ export default function CourseReader() {
                 fontWeight: 950, 
                 mb: focusMode ? 2 : 4, 
                 letterSpacing: -1.5, 
-                fontFamily: readingMode === 'sepia' ? 'serif' : 'inherit',
+                fontFamily: (activeStyles as any).fontPairing === 'premium-serif' ? '"Playfair Display", serif' : 
+                          (activeStyles as any).fontPairing === 'classic-book' ? '"Lora", serif' :
+                          (activeStyles as any).fontPairing === 'modern-sans' ? '"Outfit", sans-serif' :
+                          (readingMode === 'sepia' || (activeStyles as any).fontPairing === 'serif') ? 'serif' : 'inherit',
                 fontSize: { xs: '1.25rem', md: focusMode ? '2.5rem' : '3.5rem' },
                 lineHeight: 1.1,
                 color: activeStyles.text,
@@ -538,60 +567,86 @@ export default function CourseReader() {
       </Container>
 
       {/* Floating Audio Player (Spotify Style) */}
-      {(activeSection.type === 'audio' || activeSection.secondaryMediaUrl) && (
+      {(activeSection.type === 'audio' || activeSection.audioUrl || activeSection.secondaryMediaUrl) && (
         <Paper 
           elevation={24}
           sx={{ 
             position: 'fixed', 
-            bottom: isMobile ? 20 : 40, 
+            bottom: isMobile ? 80 : 40, // Move up slightly on mobile to avoid nav bars if any
             left: '50%', 
             transform: 'translateX(-50%)',
-            width: { xs: 'calc(100% - 32px)', sm: 500 },
-            borderRadius: 10,
-            bgcolor: activeStyles.paper,
+            width: { xs: 'calc(100% - 32px)', sm: 550 },
+            borderRadius: 6,
+            bgcolor: activeStyles.bg,
             color: activeStyles.text,
-            p: 1.5,
+            p: 2,
             display: 'flex',
-            alignItems: 'center',
-            gap: 2,
+            flexDirection: 'column',
+            gap: 1.5,
             zIndex: 1100,
             boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
             border: '1px solid',
-            borderColor: alpha(activeStyles.text, 0.1)
+            borderColor: alpha(activeStyles.text, 0.1),
+            backdropFilter: 'blur(10px)'
           }}
           component={motion.div}
-          initial={{ y: 100 }}
+          initial={{ y: 200 }}
           animate={{ y: 0 }}
         >
-          <Avatar 
-            variant="rounded" 
-            src={course.thumbnailUrl} 
-            sx={{ width: 56, height: 56, borderRadius: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} 
-          />
-          <Box sx={{ flex: 1, overflow: 'hidden' }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 900, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {activeSection.title}
-            </Typography>
-            <Typography variant="caption" sx={{ fontWeight: 700, opacity: 0.6, display: 'block' }}>
-               Episode • {activeSection.metadata?.audioDuration || '04:20'}
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={0.5} alignItems="center">
-             <IconButton size="small" sx={{ color: activeStyles.text }}><SkipBack size={20} fill="currentColor" /></IconButton>
-             <IconButton 
-              onClick={() => setIsPlaying(!isPlaying)}
-              sx={{ 
-                bgcolor: 'primary.main', 
-                color: 'white', 
-                '&:hover': { bgcolor: 'primary.dark' },
-                width: 48,
-                height: 48
-              }}
-             >
-                {isPlaying ? <Pause size={24} fill="white" /> : <Play size={24} fill="white" />}
-             </IconButton>
-             <IconButton size="small" sx={{ color: activeStyles.text }}><SkipForward size={20} fill="currentColor" /></IconButton>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Avatar 
+              variant="rounded" 
+              src={course.thumbnailUrl} 
+              sx={{ width: 48, height: 48, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} 
+            />
+            <Box sx={{ flex: 1, overflow: 'hidden' }}>
+              <Typography variant="caption" sx={{ fontWeight: 950, opacity: 0.5, letterSpacing: 1, textTransform: 'uppercase' }}>
+                AUDIOBOOK EXPERIENCE
+              </Typography>
+              <Typography variant="subtitle2" sx={{ fontWeight: 900, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {activeSection.title}
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+               <IconButton size="small" sx={{ color: activeStyles.text }}><SkipBack size={18} /></IconButton>
+               <IconButton 
+                onClick={() => setIsPlaying(!isPlaying)}
+                sx={{ 
+                  bgcolor: 'primary.main', 
+                  color: 'white', 
+                  '&:hover': { bgcolor: 'primary.dark' },
+                  width: 40,
+                  height: 40
+                }}
+               >
+                  {isPlaying ? <Pause size={20} fill="white" /> : <Play size={20} fill="white" />}
+               </IconButton>
+               <IconButton size="small" sx={{ color: activeStyles.text }}><SkipForward size={18} /></IconButton>
+            </Stack>
           </Stack>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="caption" sx={{ fontFamily: 'mono', opacity: 0.5 }}>0:00</Typography>
+            <LinearProgress 
+              variant="determinate" 
+              value={isPlaying ? 35 : 0} 
+              sx={{ flex: 1, height: 4, borderRadius: 2, bgcolor: alpha(activeStyles.text, 0.1) }} 
+            />
+            <Typography variant="caption" sx={{ fontFamily: 'mono', opacity: 0.5 }}>{activeSection.metadata?.audioDuration || '5:00'}</Typography>
+            
+            <audio 
+              src={activeSection.audioUrl || activeSection.mediaUrl || (activeSection.secondaryMediaType === 'audio' ? activeSection.secondaryMediaUrl : '')} 
+              autoPlay={isPlaying}
+              loop
+              style={{ display: 'none' }}
+              ref={(el) => {
+                if (el) {
+                  if (isPlaying) el.play().catch(() => setIsPlaying(false));
+                  else el.pause();
+                }
+              }}
+            />
+          </Box>
         </Paper>
       )}
 

@@ -45,19 +45,30 @@ const isRTL = (text: string) => {
   return rtlChars.test(text);
 };
 
+import { cache, CACHE_KEYS } from '../lib/cache';
+
 export default function Courses() {
   const { user: currentUser } = useAuth();
   const { users: allUsers } = useData();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [courses, setCourses] = useState<Course[]>(() => {
-    const cached = localStorage.getItem('courses_data');
-    return cached ? JSON.parse(cached) : [];
-  });
+  const [courses, setCourses] = useState<Course[]>([]);
   const [allTeachers, setAllTeachers] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(!(window as any)._coursesLoaded && courses.length === 0);
+  const [loading, setLoading] = useState(true);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Load from tiered cache initially
+  useEffect(() => {
+    const loadCache = async () => {
+      const cached = await cache.get<Course[]>(CACHE_KEYS.COURSES);
+      if (cached && cached.length > 0) {
+        setCourses(cached);
+        setLoading(false);
+      }
+    };
+    loadCache();
+  }, []);
 
   const studentCount = React.useMemo(() => {
     return allUsers.filter(u => u.role === 'student' && u.status !== 'Deleted' && (u.isVerified || u.status === 'Active')).length;
@@ -132,7 +143,7 @@ export default function Courses() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[];
       setCourses(docs);
-      localStorage.setItem('courses_data', JSON.stringify(docs));
+      cache.set(CACHE_KEYS.COURSES, docs); // Tiered cache update
       setLoading(false);
       (window as any)._coursesLoaded = true;
     }, (error) => {
@@ -201,7 +212,7 @@ export default function Courses() {
     }}>
       <Box sx={{ 
         position: 'relative', 
-        height: { xs: '35vh', sm: '40vh', md: '50vh' }, 
+        height: { xs: '25vh', sm: '30vh', md: '35vh' }, 
         width: '100%',
         overflow: 'hidden',
         display: 'flex',
@@ -303,20 +314,20 @@ export default function Courses() {
                 sx={{ 
                   fontWeight: 700, 
                   color: 'text.secondary',
-                  fontSize: { xs: '0.85rem', md: '1.2rem' },
+                  fontSize: { xs: '0.85rem', md: '1rem' },
                   opacity: 0.8,
                   maxWidth: 750,
                   mx: 'auto',
-                  lineHeight: 1.6,
-                  mb: { xs: 6, md: 8 },
+                  lineHeight: 1.4,
+                  mb: { xs: 3, md: 4 },
                   display: { xs: 'none', sm: 'block' },
                   letterSpacing: 0.5
                 }}
               >
-                Your Comprehensive Gateway to Sacred Knowledge and Scholarly Growth
+                Comprehensive Gateway to Sacred Knowledge & Scholarly Growth
               </Typography>
               
-              <Stack direction="row" spacing={{ xs: 2, md: 3 }} justifyContent="center" sx={{ opacity: 0.9 }}>
+              <Stack direction="row" spacing={{ xs: 2, md: 4 }} justifyContent="center" sx={{ opacity: 0.9 }}>
                  <Box sx={{ textAlign: 'center' }}>
                     <Typography variant={isMobile ? "h6" : "h4"} sx={{ fontWeight: 950, color: 'primary.main' }}>{courses.length}</Typography>
                     <Typography variant="caption" sx={{ fontWeight: 900, letterSpacing: 1, opacity: 0.5, fontSize: { xs: '0.55rem', md: '0.75rem' } }}>MODULES</Typography>
@@ -621,14 +632,14 @@ export default function Courses() {
       </Box>
 
       {filteredCourses.length > 0 && !searchQuery && (
-        <Box sx={{ px: { xs: 2, md: 4 }, mb: 8 }}>
+        <Box sx={{ px: { xs: 2, md: 4 }, mb: 4 }}>
           <Box sx={{ 
             bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'white',
-            borderRadius: 10,
-            p: { xs: 4, md: 6 },
+            borderRadius: 8,
+            p: { xs: 2.5, md: 4 },
             display: 'flex',
             flexDirection: { xs: 'column', md: 'row' },
-            gap: 6,
+            gap: { xs: 3, md: 6 },
             alignItems: 'center',
             boxShadow: '0 40px 100px rgba(0,0,0,0.08)',
             position: 'relative',
@@ -690,17 +701,27 @@ export default function Courses() {
               </Typography>
 
               {filteredCourses[0].activeUsers && filteredCourses[0].activeUsers.length > 0 && (
-                <Box sx={{ mb: 4 }}>
+                <Box sx={{ mb: 3 }}>
                   <Typography variant="caption" sx={{ fontWeight: 900, mb: 1, display: 'block', opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
                     Currently Learning
                   </Typography>
                   <AvatarStack 
-                    users={filteredCourses[0].activeUsers.map(u => ({
-                       uid: u.uid,
-                       displayName: allUsers.find(au => au.uid === u.uid)?.displayName || 'Scholar',
-                       photoURL: allUsers.find(au => au.uid === u.uid)?.photoURL,
-                       isOnline: (Date.now() - u.lastSeen) < 60000
-                    }))} 
+                    users={(() => {
+                      // Deduplicate by uid to prevent multiple pictures of same user
+                      const usersMap = new Map();
+                      filteredCourses[0].activeUsers.forEach(u => {
+                        if (!usersMap.has(u.uid)) {
+                          usersMap.set(u.uid, u);
+                        }
+                      });
+                      
+                      return Array.from(usersMap.values()).map(u => ({
+                         uid: u.uid,
+                         displayName: allUsers.find(au => au.uid === u.uid)?.displayName || 'Scholar',
+                         photoURL: allUsers.find(au => au.uid === u.uid)?.photoURL,
+                         isOnline: (Date.now() - u.lastSeen) < 60000
+                      }));
+                    })()} 
                   />
                 </Box>
               )}

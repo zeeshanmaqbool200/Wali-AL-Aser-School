@@ -47,7 +47,9 @@ import {
   QrCode,
   BookOpen,
   Edit2,
-  Printer
+  Printer,
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import { collection, query, where, getDocs, doc, getDoc, orderBy, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -58,6 +60,7 @@ import AdmissionFormModal from '../components/AdmissionFormModal';
 import UserModal from '../components/UserModal';
 import CertificateModal from '../components/CertificateModal';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 
@@ -71,13 +74,19 @@ const AcademicTab = ({
   attendance, 
   isAdmin, 
   currentUser, 
-  onIssueCertificate 
+  onIssueCertificate,
+  onRevokeCertificate,
+  setSelectedCert,
+  setCertModalOpen
 }: { 
   user: UserProfile, 
   attendance: Attendance[], 
   isAdmin: boolean,
   currentUser: any,
-  onIssueCertificate: (cert: Certificate) => void
+  onIssueCertificate: (cert: Certificate) => void,
+  onRevokeCertificate: (certId: string) => void,
+  setSelectedCert: (cert: Certificate | null) => void,
+  setCertModalOpen: (open: boolean) => void
 }) => {
   const theme = useTheme();
   
@@ -205,7 +214,31 @@ const AcademicTab = ({
                         primary={<Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{cert.courseName}</Typography>}
                         secondary={<Typography variant="caption" sx={{ fontWeight: 700, opacity: 0.5 }}>Issued: {new Date(cert.issueDate).toLocaleDateString()}</Typography>}
                       />
-                      <IconButton size="small" color="primary"><Printer size={18} /></IconButton>
+                      <Stack direction="row" spacing={1}>
+                        <IconButton 
+                          size="small" 
+                          color="primary" 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setSelectedCert(cert); 
+                            setCertModalOpen(true); 
+                          }}
+                        >
+                          <Printer size={18} />
+                        </IconButton>
+                        {isAdmin && (
+                          <IconButton 
+                            size="small" 
+                            color="error" 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              onRevokeCertificate(cert.id); 
+                            }}
+                          >
+                            <Trash2 size={18} />
+                          </IconButton>
+                        )}
+                      </Stack>
                    </ListItem>
                 ))}
                 {(user.certificates || []).length === 0 && (
@@ -227,11 +260,10 @@ const UserProfileView = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const { user: currentUser } = useAuth();
+  const { receipts: allReceipts, attendance: allAttendance, users: allUsers } = useData();
   const isAdmin = currentUser?.role === 'superadmin' || currentUser?.role === 'manager';
   
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [fees, setFees] = useState<FeeReceipt[]>([]);
-  const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState(0);
   const [idModalOpen, setIdModalOpen] = useState(false);
@@ -240,6 +272,29 @@ const UserProfileView = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [certModalOpen, setCertModalOpen] = useState(false);
   const [selectedCert, setSelectedCert] = useState<Certificate | null>(null);
+  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
+  const [certToRevoke, setCertToRevoke] = useState<string | null>(null);
+
+  // Derived synced data
+  const fees = useMemo(() => {
+    return allReceipts.filter(r => r.studentId === uid || r.studentOfficialId === user?.studentId || r.studentOfficialId === user?.admissionNo);
+  }, [allReceipts, uid, user?.studentId, user?.admissionNo]);
+
+  const attendance = useMemo(() => {
+    return allAttendance
+      .filter(a => a.studentId === uid)
+      .sort((a, b) => {
+        const getDate = (obj: any) => {
+          if (!obj) return 0;
+          if (obj.toDate) return obj.toDate().getTime();
+          if (obj.seconds) return obj.seconds * 1000;
+          if (typeof obj === 'number') return obj;
+          const d = new Date(obj);
+          return isNaN(d.getTime()) ? 0 : d.getTime();
+        };
+        return getDate(b.date) - getDate(a.date);
+      });
+  }, [allAttendance, uid]);
 
   const handleIssueCertificate = async (cert: Certificate) => {
     if (!uid) return;
@@ -276,27 +331,10 @@ const UserProfileView = () => {
         const userDoc = await getDoc(doc(db, 'users', uid));
         if (userDoc.exists()) {
           setUser({ uid: userDoc.id, ...userDoc.data() } as UserProfile);
-          
-          // Fetch Fees
-          const feesQuery = query(
-            collection(db, 'fee_receipts'), 
-            where('studentId', '==', uid),
-            orderBy('createdAt', 'desc')
-          );
-          const feesSnap = await getDocs(feesQuery);
-          setFees(feesSnap.docs.map(d => ({ id: d.id, ...d.data() } as FeeReceipt)));
-
-          // Fetch Attendance
-          const attendanceQuery = query(
-            collection(db, 'attendance'),
-            where('studentId', '==', uid),
-            orderBy('date', 'desc')
-          );
-          const attendanceSnap = await getDocs(attendanceQuery);
-          setAttendance(attendanceSnap.docs.map(d => ({ id: d.id, ...d.data() } as Attendance)));
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
+        toast.error('Failed to load profile');
       } finally {
         setLoading(false);
       }
@@ -304,6 +342,37 @@ const UserProfileView = () => {
 
     fetchData();
   }, [uid]);
+
+  const handleRevokeCertificate = async (certId: string) => {
+    setCertToRevoke(certId);
+    setRevokeConfirmOpen(true);
+  };
+
+  const confirmRevokeCertificate = async () => {
+    if (!uid || !user || !certToRevoke) return;
+    
+    try {
+      const userRef = doc(db, 'users', uid);
+      const updatedCertificates = (user.certificates || []).filter((c: any) => c.id !== certToRevoke);
+      
+      await updateDoc(userRef, {
+        certificates: updatedCertificates
+      });
+
+      setUser(prev => prev ? ({
+        ...prev,
+        certificates: updatedCertificates
+      }) : null);
+
+      toast.success('Certificate revoked successfully');
+    } catch (error) {
+      console.error('Error revoking certificate:', error);
+      toast.error('Failed to revoke certificate');
+    } finally {
+      setRevokeConfirmOpen(false);
+      setCertToRevoke(null);
+    }
+  };
 
   const handleUpdateProfile = async (updatedData: any) => {
     if (!uid || !user) return;
@@ -397,7 +466,39 @@ const UserProfileView = () => {
         open={certModalOpen} 
         onClose={() => setCertModalOpen(false)} 
         certificate={selectedCert} 
+        onRevoke={handleRevokeCertificate}
       />
+
+      <Dialog 
+        open={revokeConfirmOpen} 
+        onClose={() => setRevokeConfirmOpen(false)}
+        PaperProps={{ sx: { borderRadius: 4, p: 2 } }}
+      >
+        <Box sx={{ p: 2, textAlign: 'center' }}>
+          <AlertCircle size={48} color={theme.palette.error.main} style={{ marginBottom: 16 }} />
+          <Typography variant="h6" sx={{ fontWeight: 950, mb: 1 }}>Revoke Certificate?</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            This action will permanently remove this certificate from the student's profile.
+          </Typography>
+          <Stack direction="row" spacing={2} justifyContent="center">
+            <Button 
+              onClick={() => setRevokeConfirmOpen(false)} 
+              variant="outlined" 
+              sx={{ borderRadius: 2, fontWeight: 900 }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={confirmRevokeCertificate} 
+              variant="contained" 
+              color="error"
+              sx={{ borderRadius: 2, fontWeight: 900 }}
+            >
+              Revoke Now
+            </Button>
+          </Stack>
+        </Box>
+      </Dialog>
       
       <Dialog open={qrModalOpen} onClose={() => setQrModalOpen(false)} sx={{ '& .MuiDialog-paper': { borderRadius: 6, p: 4, textAlign: 'center' } }}>
         <Typography variant="h6" sx={{ fontWeight: 950, mb: 3 }}>Verification Portal</Typography>
@@ -528,7 +629,7 @@ const UserProfileView = () => {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
               <Grid container spacing={4}>
                 <Grid size={{ xs: 12, md: 7 }}>
-                  <Paper sx={{ p: 4, borderRadius: 4, mb: 4 }}>
+                  <Paper elevation={0} sx={{ p: 4, borderRadius: 4, mb: 4, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), boxShadow: '0 2px 12px rgba(0,0,0,0.02)' }}>
                     <Typography variant="h6" sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 1.5, mb: 4 }}>
                       <FileText size={20} color={theme.palette.primary.main} /> Bio-Data Details
                     </Typography>
@@ -553,7 +654,7 @@ const UserProfileView = () => {
                 </Grid>
 
                 <Grid size={{ xs: 12, md: 5 }}>
-                  <Paper sx={{ p: 4, borderRadius: 4, mb: 4 }}>
+                  <Paper elevation={0} sx={{ p: 4, borderRadius: 4, mb: 4, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.1), boxShadow: '0 2px 12px rgba(0,0,0,0.02)' }}>
                     <Typography variant="h6" sx={{ fontWeight: 950, mb: 3 }}>Active Enrollments</Typography>
                     <List disablePadding>
                       {(user.enrolledCourses || []).length > 0 ? (
@@ -608,7 +709,17 @@ const UserProfileView = () => {
                         fees.map((fee) => (
                           <TableRow key={fee.id}>
                             <TableCell sx={{ fontWeight: 700, fontFamily: 'mono', fontSize: '0.75rem' }}>{fee.receiptNumber || fee.receiptNo}</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{fee.date}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>
+                              {(() => {
+                                const obj = fee.date as any;
+                                let d: Date;
+                                if (obj?.toDate) d = obj.toDate();
+                                else if (obj?.seconds) d = new Date(obj.seconds * 1000);
+                                else d = new Date(fee.date);
+                                
+                                return isNaN(d.getTime()) ? fee.date : d.toLocaleDateString();
+                              })()}
+                            </TableCell>
                             <TableCell>{fee.feeHead}</TableCell>
                             <TableCell>{fee.paymentMode}</TableCell>
                             <TableCell sx={{ fontWeight: 900, color: 'primary.main' }}>PKR {fee.amount.toLocaleString()}</TableCell>
@@ -638,7 +749,7 @@ const UserProfileView = () => {
                      <Paper sx={{ p: 4, borderRadius: 4, textAlign: 'center' }}>
                         <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', letterSpacing: 2 }}>ATTENDANCE SUMMARY</Typography>
                         <Typography variant="h2" sx={{ fontWeight: 950, my: 2, color: 'primary.main' }}>
-                          {attendance.length > 0 ? Math.round((attendance.filter(a => a.status === 'present').length / attendance.length) * 100) : 0}%
+                          {attendance.length > 0 ? Math.round((attendance.filter((a: any) => a.status === 'present').length / attendance.length) * 100) : 0}%
                         </Typography>
                         <Typography variant="body2" sx={{ fontWeight: 700, opacity: 0.5 }}>Overall Attendance Record</Typography>
                         
@@ -675,7 +786,14 @@ const UserProfileView = () => {
                                    }} />
                                  </ListItemIcon>
                                  <ListItemText 
-                                   primary={<Typography sx={{ fontWeight: 900, fontSize: '0.9rem' }}>{new Date(log.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Typography>}
+                                   primary={
+                                     <Typography sx={{ fontWeight: 900, fontSize: '0.9rem' }}>
+                                       {(() => {
+                                         const d = log.date && (log.date as any).toDate ? (log.date as any).toDate() : new Date(log.date);
+                                         return isNaN(d.getTime()) ? 'Invalid Date' : d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                                       })()}
+                                     </Typography>
+                                   }
                                    secondary={<Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>Marked by: {log.markedByName || 'System'}</Typography>}
                                  />
                                  <Chip 
@@ -706,6 +824,9 @@ const UserProfileView = () => {
               isAdmin={isAdmin} 
               currentUser={currentUser} 
               onIssueCertificate={handleIssueCertificate}
+              onRevokeCertificate={handleRevokeCertificate}
+              setSelectedCert={setSelectedCert}
+              setCertModalOpen={setCertModalOpen}
             />
           )}
         </AnimatePresence>

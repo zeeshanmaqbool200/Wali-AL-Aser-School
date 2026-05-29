@@ -22,9 +22,10 @@ import { UserProfile, FeeReceipt, Course } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { alpha, useTheme } from '@mui/material/styles';
 import { QRCodeSVG } from 'qrcode.react';
-import html2canvas from 'html2canvas';
+import * as htmlToImage from 'html-to-image';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import { logger } from '../lib/logger';
 
 interface AdmissionFormModalProps {
   open: boolean;
@@ -50,7 +51,7 @@ export default function AdmissionFormModal({ open, onClose, user }: AdmissionFor
     setLoading(true);
     try {
       // Fetch Fee History
-      const feeQ = query(collection(db, 'feeReceipts'), where('studentId', '==', user.uid));
+      const feeQ = query(collection(db, 'receipts'), where('studentId', '==', user.uid));
       const feeSnap = await getDocs(feeQ);
       setFeeHistory(feeSnap.docs.map(d => ({ id: d.id, ...d.data() } as FeeReceipt)));
 
@@ -70,19 +71,67 @@ export default function AdmissionFormModal({ open, onClose, user }: AdmissionFor
 
   const handleDownload = async () => {
     if (!formRef.current) return;
+    setLoading(true);
     try {
-      const canvas = await html2canvas(formRef.current, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff'
+      // 1. Wait for fonts to be ready (essential for Urdu/Custom fonts)
+      await document.fonts.ready;
+      
+      const originalElement = formRef.current;
+      
+      // 2. Capture a clean clone to avoid UI/Dialog artifacts
+      const clone = originalElement.cloneNode(true) as HTMLElement;
+      
+      // 3. Force clean background and layout for capture context
+      clone.style.position = 'fixed';
+      clone.style.left = '-9999px';
+      clone.style.top = '0';
+      clone.style.transform = 'none';
+      clone.style.margin = '0';
+      clone.style.padding = '0'; 
+      clone.style.background = '#ffffff';
+      clone.style.width = '210mm';
+      clone.style.height = 'auto'; // Let it grow for multi-page
+      clone.style.visibility = 'visible';
+      clone.style.opacity = '1';
+      
+      // Ensure all MUI sub-components don't have artifacts
+      const allElements = clone.querySelectorAll('*');
+      allElements.forEach((el: any) => {
+        el.style.boxShadow = 'none';
       });
+
+      document.body.appendChild(clone);
+      
+      // 4. Small delay to ensure layout calculates correctly in the new DOM position
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      const dataUrl = await htmlToImage.toPng(clone, {
+        quality: 1,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        skipAutoScale: true,
+        cacheBust: true,
+        style: {
+          transform: 'none',
+          left: '0',
+          top: '0'
+        }
+      });
+
+      document.body.removeChild(clone);
+
       const link = document.createElement('a');
       link.download = `Admission_Record_${user.displayName?.replace(/\s+/g, '_')}.png`;
-      link.href = canvas.toDataURL('image/png');
+      link.href = dataUrl;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
+      logger.success('Admission record exported as Image');
     } catch (error) {
       console.error('Error generating image:', error);
+      logger.error('Export failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -99,10 +148,11 @@ export default function AdmissionFormModal({ open, onClose, user }: AdmissionFor
               fontSize: '1.25rem', 
               fontWeight: 500, 
               color: '#0f172a', 
-              fontFamily: 'var(--font-urdu), "Noto Sans Arabic", serif',
+              fontFamily: '"Noto Nastaliq Urdu", serif',
               textAlign: 'right',
-              lineHeight: 1,
-              fontFeatureSettings: '"kern" 1, "liga" 1'
+              lineHeight: 1.2,
+              letterSpacing: 'normal',
+              fontFeatureSettings: '"kern" 1, "liga" 1, "calt" 1'
             }}
           >
              {urdu}
@@ -195,7 +245,7 @@ export default function AdmissionFormModal({ open, onClose, user }: AdmissionFor
               }
             }}
           >
-            {/* Watermark Logo */}
+          {/* Watermark Logo */}
             <Box sx={{ 
               position: 'absolute', 
               top: '55%', 
@@ -210,12 +260,12 @@ export default function AdmissionFormModal({ open, onClose, user }: AdmissionFor
               justifyContent: 'center'
             }}>
               {instituteSettings?.admissionWatermarkImageUrl ? (
-                <Box component="img" src={instituteSettings.admissionWatermarkImageUrl} sx={{ width: '100%' }} />
+                <Box component="img" src={instituteSettings.admissionWatermarkImageUrl} sx={{ width: '100%' }} crossOrigin="anonymous" />
               ) : instituteSettings?.logoUrl ? (
-                <Box component="img" src={instituteSettings.logoUrl} sx={{ width: '100%' }} />
+                <Box component="img" src={instituteSettings.logoUrl} sx={{ width: '100%' }} crossOrigin="anonymous" />
               ) : (
                 <Shield size={450} />
-              )}
+              ) }
             </Box>
 
             <Box sx={{ position: 'relative', zIndex: 1, direction: 'ltr', '@media print': { p: 0 } }}>
@@ -224,9 +274,9 @@ export default function AdmissionFormModal({ open, onClose, user }: AdmissionFor
                 {/* Left Logo */}
                 <Box sx={{ width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {instituteSettings?.admissionLeftImageUrl ? (
-                    <Box component="img" src={instituteSettings.admissionLeftImageUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    <Box component="img" src={instituteSettings.admissionLeftImageUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} crossOrigin="anonymous" />
                   ) : instituteSettings?.logoUrl ? (
-                    <Box component="img" src={instituteSettings.logoUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    <Box component="img" src={instituteSettings.logoUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} crossOrigin="anonymous" />
                   ) : (
                     <Shield size={60} strokeWidth={1.5} />
                   )}
@@ -249,9 +299,9 @@ export default function AdmissionFormModal({ open, onClose, user }: AdmissionFor
                 {/* Right Logo */}
                 <Box sx={{ width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {instituteSettings?.admissionRightImageUrl ? (
-                    <Box component="img" src={instituteSettings.admissionRightImageUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    <Box component="img" src={instituteSettings.admissionRightImageUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} crossOrigin="anonymous" />
                   ) : instituteSettings?.logoUrl ? (
-                    <Box component="img" src={instituteSettings.logoUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    <Box component="img" src={instituteSettings.logoUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} crossOrigin="anonymous" />
                   ) : (
                     <Shield size={60} strokeWidth={1.5} />
                   )}
@@ -282,7 +332,7 @@ export default function AdmissionFormModal({ open, onClose, user }: AdmissionFor
                     bgcolor: '#f8fafc'
                   }}>
                     {user.photoURL ? (
-                      <Box component="img" src={user.photoURL} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <Box component="img" src={user.photoURL} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} crossOrigin="anonymous" />
                     ) : (
                       <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, textAlign: 'center', color: '#94a3b8' }}>
                         PASTE PHOTO<br/>HERE
@@ -310,7 +360,17 @@ export default function AdmissionFormModal({ open, onClose, user }: AdmissionFor
                 <Typography sx={{ fontWeight: 950, fontSize: '0.9rem', mb: 1.5, textAlign: 'center', textDecoration: 'underline' }}>DECLARATION & TERMS</Typography>
                 <Typography sx={{ fontSize: '0.75rem', lineHeight: 1.7, textAlign: 'justify', color: '#1e293b' }}>
                   I hereby solemnly declare that the information provided is accurate. I agree to abide by the institution's discipline, academic protocols, and financial obligations. The administration reserves the right to cancel admission in case of violation.
-                  <Box component="span" dir="rtl" sx={{ display: 'block', mt: 1, fontWeight: 500, textAlign: 'right', fontSize: '1.1rem', fontFamily: 'var(--font-urdu), "Noto Sans Arabic", serif', lineHeight: 1.8, letterSpacing: 0 }}>
+                  <Box component="span" dir="rtl" sx={{ 
+                    display: 'block', 
+                    mt: 1, 
+                    fontWeight: 500, 
+                    textAlign: 'right', 
+                    fontSize: '1.1rem', 
+                    fontFamily: '"Noto Nastaliq Urdu", serif',
+                    lineHeight: 1.8, 
+                    letterSpacing: 'normal',
+                    fontFeatureSettings: '"kern" 1, "liga" 1, "calt" 1'
+                  }}>
                     میں اقرار کرتا ہوں کہ فراہم کردہ تمام معلومات درست ہیں۔ میں ادارے کے تمام قوانین ، تعلیمی ضوابط اور مالی ذمہ داریوں کی مکمل پاسداری کرنے پر اتفاق کرتا ہوں۔ ادارہ خلاف ورزی کی صورت میں داخلہ منسوخ کرنے کا حق محفوظ رکھتا ہے۔
                   </Box>
                 </Typography>

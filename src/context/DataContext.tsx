@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { collection, query, onSnapshot, orderBy, where, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { UserProfile, FeeReceipt, Notification as NotificationType, Course } from '../types';
 import { useAuth } from './AuthContext';
+import { cache, CACHE_KEYS } from '../lib/cache';
 
 interface DataContextType {
   users: UserProfile[];
@@ -36,43 +37,52 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [lastUpdate, setLastUpdate] = useState(Date.now());
   const unsubscribes = useRef<(() => void)[]>([]);
   const lastNotifiedIds = useRef<Set<string>>(new Set());
-
-  // LocalStorage keys for better perceived performance (Initial Load)
-  const CACHE_KEYS = {
-    USERS: 'institute_cache_users',
-    RECEIPTS: 'institute_cache_receipts',
-    NOTIFS: 'institute_cache_notifs',
-    COURSES: 'institute_cache_courses',
-    EXPENSES: 'institute_cache_expenses'
-  };
+  
+  // Throttled cache write flags to prevent "too much cache" (CPU/IO overhead)
+  const cacheThrottle = useRef<Record<string, number>>({});
 
   const isStaff = user?.role === 'superadmin' || user?.role === 'manager' || user?.role === 'teacher';
   const isAdmin = user?.role === 'superadmin' || user?.role === 'manager';
 
-  // Load from cache initially for fast first paint
+  // Throttled Cache Setter (Local Storage Tier)
+  const persistToDisk = useCallback(async (key: string, data: any, delay: number = 2000) => {
+    const now = Date.now();
+    if (!cacheThrottle.current[key] || now - cacheThrottle.current[key] > delay) {
+      cacheThrottle.current[key] = now;
+      await cache.set(key, data);
+    }
+  }, []);
+
+  // Load from tiered cache initially for fast first paint
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+
+    const loadInitialData = async () => {
       try {
-        const cachedUsers = localStorage.getItem(CACHE_KEYS.USERS);
-        const cachedReceipts = localStorage.getItem(CACHE_KEYS.RECEIPTS);
-        const cachedNotifs = localStorage.getItem(CACHE_KEYS.NOTIFS);
-        const cachedCourses = localStorage.getItem(CACHE_KEYS.COURSES);
+        const [cUsers, cReceipts, cNotifs, cCourses] = await Promise.all([
+          cache.get<UserProfile[]>(CACHE_KEYS.USERS),
+          cache.get<FeeReceipt[]>(CACHE_KEYS.FEES),
+          cache.get<NotificationType[]>(CACHE_KEYS.NOTIFS),
+          cache.get<Course[]>(CACHE_KEYS.COURSES)
+        ]);
         
-        if (cachedUsers) setUsers(JSON.parse(cachedUsers));
-        if (cachedReceipts) setReceipts(JSON.parse(cachedReceipts));
-        if (cachedNotifs) setNotifications(JSON.parse(cachedNotifs));
-        if (cachedCourses) setAvailableCourses(JSON.parse(cachedCourses));
+        if (cUsers) setUsers(cUsers);
+        if (cReceipts) setReceipts(cReceipts);
+        if (cNotifs) setNotifications(cNotifs);
+        if (cCourses) setAvailableCourses(cCourses);
         
-        if (cachedUsers || cachedReceipts) {
+        if (cUsers || cReceipts) {
           setLoading(false);
         }
       } catch (e) {
-        console.warn('Cache load failed:', e);
+        console.warn('Initial cache load failed:', e);
       }
-    }
+    };
+
+    loadInitialData();
   }, [user?.uid]);
 
-  // Native Notification Logic
+  // Combined Native Notification Logic
   useEffect(() => {
     if (!user || notifications.length === 0) return;
 
@@ -139,7 +149,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubUsers = onSnapshot(uQuery, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as UserProfile[];
       setUsers(data);
-      if (isStaff) localStorage.setItem(CACHE_KEYS.USERS, JSON.stringify(data));
+      // Memory-first tiered cache update
+      persistToDisk(CACHE_KEYS.USERS, data, isStaff ? 5000 : 2000); 
       setLastUpdate(Date.now());
       setIsSyncing(false);
       setLoading(false);
@@ -154,7 +165,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubReceipts = onSnapshot(rQuery, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FeeReceipt[];
       setReceipts(data);
-      localStorage.setItem(CACHE_KEYS.RECEIPTS, JSON.stringify(data));
+      persistToDisk(CACHE_KEYS.FEES, data, 5000);
       setIsSyncing(false);
     }, (err) => onSyncError(err, 'Receipts'));
     unsubscribes.current.push(unsubReceipts);
@@ -164,7 +175,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubNotifs = onSnapshot(nQuery, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NotificationType[];
       setNotifications(data);
-      localStorage.setItem(CACHE_KEYS.NOTIFS, JSON.stringify(data));
+      persistToDisk(CACHE_KEYS.NOTIFS, data, 10000);
     }, (err) => onSyncError(err, 'Notifications'));
     unsubscribes.current.push(unsubNotifs);
 
@@ -173,6 +184,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubCourses = onSnapshot(cQuery, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Course[];
       setAvailableCourses(data);
+      persistToDisk(CACHE_KEYS.COURSES, data, 30000);
     }, (err) => onSyncError(err, 'Courses'));
     unsubscribes.current.push(unsubCourses);
 
@@ -198,7 +210,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     return () => clearUnsubscribes();
-  }, [user?.uid, isStaff, isAdmin]);
+  }, [user?.uid, isStaff, isAdmin, persistToDisk]);
 
   return (
     <DataContext.Provider value={{

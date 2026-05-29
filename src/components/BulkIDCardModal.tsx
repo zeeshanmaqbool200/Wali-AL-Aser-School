@@ -102,7 +102,12 @@ const SingleIDCard = ({ user, instituteSettings }: { user: UserProfile, institut
   const roleLabel = (user.role || 'student').replace('_', ' ').toUpperCase();
   const idText = user.admissionNo || user.studentId || user.staffId || 'PENDING';
   const verificationUrl = `${window.location.origin}/verify/member/${user.uid}`;
-  const urduFontStyle = { fontFamily: "'Noto Nastaliq Urdu', serif", direction: 'rtl' as const };
+  const urduFontStyle = { 
+    fontFamily: "'Noto Nastaliq Urdu', serif", 
+    direction: 'rtl' as const,
+    letterSpacing: 'normal',
+    fontFeatureSettings: '"kern" 1, "liga" 1, "calt" 1'
+  };
 
   return (
     <Paper 

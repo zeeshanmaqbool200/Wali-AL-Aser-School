@@ -3,7 +3,7 @@ import { Dialog, Box, Typography, Button, IconButton, Avatar, Paper, CircularPro
 import { X, Printer, User, Shield, Phone, GraduationCap, Download, QrCode } from 'lucide-react';
 import { UserProfile } from '../types';
 import { useAuth } from '../context/AuthContext';
-import html2canvas from 'html2canvas';
+import * as htmlToImage from 'html-to-image';
 import { QRCodeSVG } from 'qrcode.react';
 import { useReactToPrint } from 'react-to-print';
 import { logger } from '../lib/logger';
@@ -29,46 +29,58 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
     if (!cardRef.current) return;
     setDownloading(true);
     try {
-      // Create a dedicated capture container to avoid scaling side effects
       const originalElement = cardRef.current;
-      const originalDisplay = originalElement.style.display;
       
-      // Ensure element is visible and unscaled for capture
-      const container = document.createElement('div');
-      container.style.position = 'fixed';
-      container.style.left = '-9999px';
-      container.style.top = '0';
-      container.style.padding = '40px';
-      container.style.background = '#f1f5f9';
-      
+      // html-to-image is generally more reliable for modern CSS
+      // We use a clone to ensure we capture a clean state without scaling artifacts
       const clone = originalElement.cloneNode(true) as HTMLElement;
+      
+      // Strip potentially problematic styles that cause "boxes" in foreignObject rendering
+      clone.style.position = 'fixed';
+      clone.style.left = '-9999px';
+      clone.style.top = '0';
       clone.style.transform = 'none';
-      clone.style.scale = '1';
       clone.style.margin = '0';
       clone.style.display = 'flex';
       clone.style.flexDirection = 'row';
       clone.style.gap = '40px';
+      clone.style.padding = '40px';
+      clone.style.background = '#f8fafc';
+      clone.style.width = 'fit-content';
+      clone.style.height = 'auto';
+      clone.style.visibility = 'visible';
+      clone.style.opacity = '1';
       
-      container.appendChild(clone);
-      document.body.appendChild(container);
+      // Fix MUI elevation/shadow artifacts by forcing solid borders for capture if needed
+      // Strip shadows from EVERY element to avoid transparency/rendering artifacts
+      const allElements = clone.querySelectorAll('*');
+      allElements.forEach((el: any) => {
+        el.style.boxShadow = 'none';
+        el.style.textShadow = 'none';
+      });
 
-      // Give extra time for images to resolve if needed
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const cards = clone.querySelectorAll('.MuiPaper-root');
+      cards.forEach((c: any) => {
+        c.style.border = '1px solid #e2e8f0';
+      });
+
+      document.body.appendChild(clone);
       
-      const canvas = await html2canvas(clone, {
-        useCORS: true,
-        allowTaint: true,
-        scale: 3, 
-        logging: false,
-        backgroundColor: '#ffffff',
+      // Wait for fonts and images to be ready
+      await document.fonts.ready;
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const realDataUrl = await htmlToImage.toPng(clone, {
+        quality: 1,
+        pixelRatio: 2, // High DPI capture
+        backgroundColor: '#f8fafc',
       });
       
-      document.body.removeChild(container);
+      document.body.removeChild(clone);
 
-      const dataUrl = canvas.toDataURL('image/png', 1.0);
       const link = document.createElement('a');
       link.download = `ID-CARD-${(user.displayName || 'STUDENT').replace(/\s+/g, '-')}.png`;
-      link.href = dataUrl;
+      link.href = realDataUrl;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -89,7 +101,9 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
   const urduFontStyle = { 
     fontFamily: "'Noto Nastaliq Urdu', serif",
     direction: 'rtl' as const,
-    lineHeight: 2.2
+    lineHeight: 2.2,
+    letterSpacing: 'normal',
+    fontFeatureSettings: '"kern" 1, "liga" 1, "calt" 1'
   };
 
   const idText = user.admissionNo || user.studentId || user.teacherId || user.staffId || 'PENDING';

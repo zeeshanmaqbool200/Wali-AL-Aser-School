@@ -10,6 +10,7 @@ import NotificationListener from './components/NotificationListener';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Clock, X, BookOpen } from 'lucide-react';
 import Layout from './components/Layout';
+import PWAUpdater from './components/PWAUpdater';
 import Login from './pages/Login';
 
 // Lazy load pages for performance
@@ -320,6 +321,7 @@ export default function App() {
             {globalStyles}
             <NotificationProvider>
               <Router>
+                <PWAUpdater />
                 <ScrollRestoration />
                 <AppContent />
               </Router>

@@ -174,16 +174,25 @@ export interface CourseSection {
   content: string; // Markdown or plain text
   type: 'text' | 'image' | 'video' | 'quiz' | 'file' | 'audio' | 'callout' | 'quote' | 'code' | 'gallery' | 'pdf' | 'bookmark' | 'divider' | 'flashcard';
   mediaUrl?: string;
+  audioUrl?: string; // Dedicated for audiobook experiences
   mediaItems?: string[]; // For gallery
   quizData?: QuizData;
   quizAttempts?: QuizAttempt[];
-  fontFamily?: 'default' | 'serif' | 'nastaliq' | 'mono' | 'urdu-modern' | 'ebook-serif' | 'display-playfair';
+  fontFamily?: 'default' | 'serif' | 'nastaliq' | 'mono' | 'urdu-modern' | 'ebook-serif' | 'display-playfair' | 'premium-serif' | 'modern-sans' | 'classic-book';
   alignment?: 'left' | 'center' | 'right' | 'justify';
   isRTL?: boolean;
   fontSize?: 'small' | 'medium' | 'large' | 'extra-large' | 'massive';
   secondaryMediaUrl?: string;
   secondaryMediaType?: 'audio' | 'video';
   layout?: 'standard' | 'ebook' | 'blog' | 'magazine' | 'audio-immersive' | 'video-lesson' | 'study-sheet';
+  theme?: {
+    backgroundColor?: string;
+    textColor?: string;
+    accentColor?: string;
+    fontPairing?: 'default' | 'premium-serif' | 'modern-sans' | 'classic-book';
+    backgroundTextureUrl?: string;
+    paperTexture?: boolean;
+  };
   metadata?: {
     estimatedReadTime?: number;
     audioDuration?: number;
@@ -191,6 +200,12 @@ export interface CourseSection {
     quoteAuthor?: string;
     codeLanguage?: string;
     flashcardBack?: string;
+    quizQuestions?: {
+      q: string;
+      options: string[];
+      correct: number;
+      explanation?: string;
+    }[];
   };
   metrics?: {
     views: number;

@@ -41,11 +41,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const data = snap.data();
           setInstituteSettings({ id: snap.id, ...data });
           
-          if (data.logoUrl) {
-            const img = new Image();
-            img.src = data.logoUrl;
-            img.onload = () => setBrandingReady(true);
-            img.onerror = () => setBrandingReady(true);
+          // Preload essential branding images
+          const imagesToLoad = [data.logoUrl, data.admissionLeftImageUrl, data.admissionRightImageUrl, data.admissionWatermarkImageUrl].filter(Boolean);
+          if (imagesToLoad.length > 0) {
+            let loadedCount = 0;
+            imagesToLoad.forEach(url => {
+              const img = new Image();
+              img.src = url;
+              img.onload = () => {
+                loadedCount++;
+                if (loadedCount === imagesToLoad.length) setBrandingReady(true);
+              };
+              img.onerror = () => {
+                loadedCount++;
+                if (loadedCount === imagesToLoad.length) setBrandingReady(true);
+              };
+            });
           } else {
             setBrandingReady(true);
           }

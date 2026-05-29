@@ -90,7 +90,7 @@ const AdmissionFormPrint = React.forwardRef<HTMLDivElement, Props>(({ user, sett
 
       <Box sx={{ position: 'relative', zIndex: 1 }}>
         <Typography variant="h5" align="center" sx={{ fontWeight: 950, mb: 4, py: 1, borderTop: '1px solid #eee', borderBottom: '1px solid #eee' }}>
-          ADMISSION RECORD FORM / <span style={{ fontFamily: "'Noto Nastaliq Urdu', serif" }}>رجسٹریشن فارم</span>
+          ADMISSION RECORD FORM / <span style={{ fontFamily: "'Noto Nastaliq Urdu', serif", letterSpacing: 'normal', fontFeatureSettings: '"kern" 1, "liga" 1, "calt" 1' }}>رجسٹریشن فارم</span>
         </Typography>
 
         {/* Content Sections */}
@@ -139,11 +139,11 @@ const AdmissionFormPrint = React.forwardRef<HTMLDivElement, Props>(({ user, sett
 
         {/* Declaration */}
         <Box sx={{ mt: 8, p: 3, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #eee' }}>
-           <Typography variant="caption" sx={{ fontWeight: 950, display: 'block', mb: 1, color: 'primary.main' }}>DECLARATION / <span style={{ fontFamily: "'Noto Nastaliq Urdu', serif", fontSize: '0.8rem' }}>اقرار نامہ</span></Typography>
+           <Typography variant="caption" sx={{ fontWeight: 950, display: 'block', mb: 1, color: 'primary.main' }}>DECLARATION / <span style={{ fontFamily: "'Noto Nastaliq Urdu', serif", fontSize: '0.8rem', letterSpacing: 'normal', fontFeatureSettings: '"kern" 1, "liga" 1, "calt" 1' }}>اقرار نامہ</span></Typography>
            <Typography variant="body2" sx={{ fontSize: '0.7rem', lineHeight: 1.6, opacity: 0.8 }}>
              I hereby declare that the information provided above is correct to the best of my knowledge. I agree to abide by the rules and regulations of {settings?.instituteName || 'the institute'}.
            </Typography>
-           <Typography variant="body2" sx={{ fontSize: '1rem', lineHeight: 2, opacity: 1, mt: 2, textAlign: 'right', fontFamily: "'Noto Nastaliq Urdu', serif" }}>
+           <Typography variant="body2" sx={{ fontSize: '1rem', lineHeight: 2, opacity: 1, mt: 2, textAlign: 'right', fontFamily: "'Noto Nastaliq Urdu', serif", letterSpacing: 'normal', fontFeatureSettings: '"kern" 1, "liga" 1, "calt" 1' }}>
              میں اقرار کرتا ہوں کہ فراہم کردہ تمام معلومات درست ہیں۔ میں ادارے کے تمام قواعد و ضوابط کی مکمل پاسداری کرنے کا وعدہ کرتا ہوں۔
            </Typography>
         </Box>
@@ -190,7 +190,7 @@ function DetailRow({ labelEn, labelUr, value }: { labelEn: string, labelUr: stri
         <Typography variant="body1" sx={{ fontWeight: 800, color: '#000', fontSize: '1.1rem' }}>{value || '_______________________'}</Typography>
       </Box>
       <Box sx={{ textAlign: 'right', minWidth: '40%' }}>
-         <Typography variant="body1" sx={{ fontFamily: "'Noto Nastaliq Urdu', serif", fontSize: '1.25rem', color: '#000', lineHeight: 1.8 }}>{labelUr}</Typography>
+         <Typography variant="body1" sx={{ fontFamily: "'Noto Nastaliq Urdu', serif", fontSize: '1.25rem', color: '#000', lineHeight: 1.8, letterSpacing: 'normal', fontFeatureSettings: '"kern" 1, "liga" 1, "calt" 1' }}>{labelUr}</Typography>
       </Box>
     </Box>
   );

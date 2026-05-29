@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Paper, Grid, Stack, Checkbox, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Button, Card, Avatar, Alert } from '@mui/material';
+import { Box, Typography, Paper, Grid, Stack, Checkbox, FormControlLabel, Accordion, AccordionSummary, AccordionDetails, Button, Card, Avatar, Alert, Fade } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { Info, AlertTriangle, CheckCircle, Lightbulb, Quote, Code, Bookmark, ChevronDown, Play, FileText, Headphones, Image as ImageIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -33,27 +33,29 @@ export default function ContentRenderer({ section, readingMode = 'light', fontSi
   }, [currentUser?.uid, section.id]);
   
   const handleQuizSubmit = () => {
-    if (!section.quizData || !onQuizSubmit) return;
+    const questions = section.metadata?.quizQuestions || section.quizData?.questions || [];
+    if (questions.length === 0 || !onQuizSubmit) return;
     
     let score = 0;
     const wrongAnswers: string[] = [];
-    section.quizData.questions.forEach((q, idx) => {
-      if (quizAnswers[q.id] === q.correctAnswer) {
+    questions.forEach((q: any, idx: number) => {
+      const qId = q.id || idx.toString();
+      if (quizAnswers[qId] === q.correctAnswer || quizAnswers[qId] === q.correct) {
         score++;
       } else {
-        wrongAnswers.push(q.id);
+        wrongAnswers.push(qId);
       }
     });
 
     const attempt = {
       score,
-      totalQuestions: section.quizData.questions.length,
+      totalQuestions: questions.length,
       submittedAt: Date.now(),
       completionTimeSeconds: Math.floor((Date.now() - startTime.current) / 1000),
       wrongAnswersIds: wrongAnswers,
       answers: quizAnswers,
       performanceAnalytics: {
-        accuracy: (score / section.quizData.questions.length) * 100
+        accuracy: (score / questions.length) * 100
       }
     };
 
@@ -64,26 +66,44 @@ export default function ContentRenderer({ section, readingMode = 'light', fontSi
   const getFontSize = () => {
     switch (fontSize) {
       case 'small': return '0.9rem';
-      case 'large': return '1.2rem';
-      case 'extra-large': return '1.4rem';
-      case 'massive': return '1.8rem';
-      default: return '1.05rem';
+      case 'large': return '1.25rem';
+      case 'extra-large': return '1.5rem';
+      case 'massive': return '2rem';
+      default: return '1.15rem';
     }
   };
 
   const getLineHeight = () => {
     switch (fontSize) {
-      case 'massive': return 1.4;
+      case 'massive': return 1.3;
       default: return 1.8;
     }
+  };
+
+  const getFontFamily = () => {
+     const pairing = section.theme?.fontPairing || section.fontFamily;
+     switch (pairing) {
+       case 'premium-serif':
+       case 'serif': 
+         return '"Playfair Display", serif';
+       case 'classic-book':
+       case 'ebook-serif':
+         return '"Lora", serif';
+       case 'modern-sans':
+         return '"Outfit", sans-serif';
+       case 'mono':
+         return '"JetBrains Mono", monospace';
+       default:
+         return 'inherit';
+     }
   };
 
   const renderMedia = () => {
     if (!section.mediaUrl) return null;
 
-    if (section.type === 'video') {
+    if (section.type === 'video' || section.mediaUrl.includes('youtube.com') || section.mediaUrl.includes('vimeo.com')) {
       return (
-        <Box sx={{ position: 'relative', width: '100%', pt: '56.25%', borderRadius: 4, overflow: 'hidden', mb: 4, bgcolor: 'black' }}>
+        <Box sx={{ position: 'relative', width: '100%', pt: '56.25%', borderRadius: 4, overflow: 'hidden', mb: 4, bgcolor: 'black', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
           <iframe
             src={section.mediaUrl}
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
@@ -93,46 +113,17 @@ export default function ContentRenderer({ section, readingMode = 'light', fontSi
       );
     }
 
-    if (section.type === 'image' || section.type === 'gallery') {
+    if (section.type === 'image' || section.type === 'gallery' || section.mediaUrl.match(/\.(jpeg|jpg|gif|png)$/) != null || section.mediaUrl.startsWith('data:image')) {
       return (
-        <Box sx={{ mb: 4 }}>
+        <Box sx={{ mb: 6 }}>
           <img 
             src={section.mediaUrl} 
             alt={section.title} 
-            style={{ width: '100%', borderRadius: 16, display: 'block' }} 
+            style={{ width: '100%', borderRadius: 12, display: 'block', boxShadow: '0 15px 40px rgba(0,0,0,0.1)' }} 
             referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
           />
         </Box>
-      );
-    }
-
-    if (section.type === 'audio') {
-      return (
-        <Paper 
-          elevation={0}
-          sx={{ 
-            p: 3, 
-            borderRadius: 4, 
-            mb: 4, 
-            bgcolor: alpha(theme.palette.primary.main, 0.05),
-            border: '1px solid',
-            borderColor: alpha(theme.palette.primary.main, 0.1),
-            display: 'flex',
-            alignItems: 'center',
-            gap: 3
-          }}
-        >
-          <Box sx={{ p: 2, borderRadius: '50%', bgcolor: 'primary.main', color: 'white' }}>
-            <Headphones size={24} />
-          </Box>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{section.title || 'Audio Lesson'}</Typography>
-            <Typography variant="caption" color="text.secondary">Listen to the explanation</Typography>
-            <audio controls style={{ width: '100%', height: 36, marginTop: 8 }}>
-              <source src={section.mediaUrl} />
-            </audio>
-          </Box>
-        </Paper>
       );
     }
 
@@ -140,75 +131,112 @@ export default function ContentRenderer({ section, readingMode = 'light', fontSi
   };
 
   const renderSpecialBlocks = () => {
+    const questions = section.metadata?.quizQuestions || section.quizData?.questions || [];
+
     switch (section.type) {
       case 'quiz':
+      case 'text': // Also check for quiz at the end of text
+        if (questions.length === 0 && section.type === 'quiz') {
+           return <Alert severity="warning" sx={{ borderRadius: 4 }}>Integrated Quiz questions not found.</Alert>;
+        }
+        
+        // If type is text, we only render the quiz at the end of the text if specifically asked or via this check
+        if (section.type === 'text' && questions.length === 0) return null;
+
         return (
-          <Box sx={{ my: 4 }}>
-            {!section.quizData ? (
-              <Alert severity="warning" sx={{ borderRadius: 4 }}>Assessment data not found.</Alert>
-            ) : (
-              <Stack spacing={4}>
+          <Box sx={{ my: 8 }}>
+            <Stack spacing={4}>
                 <Paper 
                   elevation={0} 
                   sx={{ 
-                    p: { xs: 2.5, sm: 4 }, 
-                    borderRadius: 6, 
+                    p: { xs: 3, sm: 5 }, 
+                    borderRadius: 8, 
                     border: '1px solid', 
-                    borderColor: readingMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'divider', 
-                    bgcolor: readingMode === 'dark' ? 'rgba(255,255,255,0.03)' : readingMode === 'sepia' ? 'rgba(0,0,0,0.03)' : alpha(theme.palette.primary.main, 0.02) 
+                    borderColor: readingMode === 'dark' ? 'rgba(255,255,255,0.1)' : alpha(theme.palette.primary.main, 0.1), 
+                    bgcolor: readingMode === 'dark' ? 'rgba(255,255,255,0.02)' : alpha(theme.palette.primary.main, 0.01),
+                    boxShadow: '0 30px 60px rgba(0,0,0,0.03)'
                   }}
                 >
-                  <Typography variant="h5" sx={{ fontWeight: 950, mb: 1 }}>{persistedAttempt ? 'Assessment Result' : 'Final Assessment'}</Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.6, mb: 4 }}>
-                    {persistedAttempt 
-                      ? `Synchronized on ${new Date(persistedAttempt.timestamp).toLocaleDateString()}` 
-                      : 'Verify your understanding of this module to proceed.'}
-                  </Typography>
+                  <Stack direction="row" spacing={2} sx={{ mb: 4 }} alignItems="center">
+                    <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main' }}>
+                      <CheckCircle size={24} />
+                    </Box>
+                    <Box>
+                      <Typography variant="h5" sx={{ fontWeight: 950, letterSpacing: -1 }}>Section Completion Assessment</Typography>
+                      <Typography variant="body2" sx={{ opacity: 0.6 }}>Verify your understanding to synchronize your academic progress.</Typography>
+                    </Box>
+                  </Stack>
 
                   {persistedAttempt && (
-                    <Box sx={{ mb: 4, p: 3, borderRadius: 4, bgcolor: alpha(theme.palette.success.main, 0.1), border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.2) }}>
-                       <Stack direction="row" spacing={3} alignItems="center">
-                          <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                             <Typography variant="h4" sx={{ fontWeight: 950, color: 'success.main' }}>{Math.round((persistedAttempt.score / persistedAttempt.total) * 100)}%</Typography>
-                          </Box>
+                    <Box sx={{ mb: 4, p: 4, borderRadius: 4, bgcolor: alpha(theme.palette.success.main, 0.05), border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.1) }}>
+                       <Stack direction="row" spacing={4} alignItems="center">
+                          <Avatar sx={{ width: 80, height: 80, bgcolor: 'success.main', fontSize: '1.5rem', fontWeight: 950 }}>
+                            {Math.round((persistedAttempt.score / persistedAttempt.total) * 100)}%
+                          </Avatar>
                           <Box>
-                             <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>Score: {persistedAttempt.score} / {persistedAttempt.total}</Typography>
-                             <Typography variant="body2" sx={{ opacity: 0.7 }}>This assessment is permanently locked to your academic record.</Typography>
+                             <Typography variant="h6" sx={{ fontWeight: 900 }}>Assessment Completed</Typography>
+                             <Typography variant="body1" sx={{ opacity: 0.8 }}>Score: {persistedAttempt.score} Correct out of {persistedAttempt.total}</Typography>
                           </Box>
                        </Stack>
                     </Box>
                   )}
                   
                   {!persistedAttempt && (
-                    <Stack spacing={4}>
-                      {section.quizData.questions.map((q, idx) => (
-                        <Box key={q.id}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 2, display: 'flex', gap: 1.5 }}>
-                            <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: 'primary.main', fontWeight: 900 }}>{idx + 1}</Avatar>
-                            {q.question}
-                          </Typography>
-                          <Grid container spacing={2}>
-                            {q.options.map((opt, optIdx) => (
-                              <Grid size={{ xs: 12, sm: 6 }} key={optIdx}>
-                                <Button 
-                                  fullWidth 
-                                  variant={quizAnswers[q.id] === optIdx ? "contained" : "outlined"} 
-                                  onClick={() => !quizSubmitted && setQuizAnswers(p => ({ ...p, [q.id]: optIdx }))}
-                                  disabled={quizSubmitted}
-                                  sx={{ 
-                                    textAlign: 'left', justifyContent: 'flex-start', p: 2, borderRadius: 3,
-                                    borderWidth: 2, fontWeight: 700,
-                                    borderColor: quizAnswers[q.id] === optIdx ? 'primary.main' : alpha(theme.palette.divider, 0.5),
-                                    '&:hover': { borderWidth: 2 }
-                                  }}
+                    <Stack spacing={5}>
+                      {questions.map((q: any, idx: number) => {
+                        const qId = q.id || idx.toString();
+                        const correctIdx = q.correctAnswer !== undefined ? q.correctAnswer : q.correct;
+                        const isCorrect = quizSubmitted && quizAnswers[qId] === correctIdx;
+                        const isWrong = quizSubmitted && quizAnswers[qId] !== correctIdx;
+
+                        return (
+                          <Box key={qId}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 3, display: 'flex', gap: 2, fontSize: '1.15rem' }}>
+                              <Box component="span" sx={{ opacity: 0.2 }}>0{idx + 1}</Box>
+                              {q.question || q.q}
+                            </Typography>
+                            <Grid container spacing={2}>
+                              {q.options.map((opt: string, optIdx: number) => {
+                                let btnColor: any = "primary";
+                                if (quizSubmitted) {
+                                  if (optIdx === correctIdx) btnColor = "success";
+                                  else if (quizAnswers[qId] === optIdx) btnColor = "error";
+                                }
+
+                                return (
+                                  <Grid size={{ xs: 12, sm: 6 }} key={optIdx}>
+                                    <Button 
+                                      fullWidth 
+                                      variant={quizAnswers[qId] === optIdx ? "contained" : "outlined"} 
+                                      color={btnColor}
+                                      onClick={() => !quizSubmitted && setQuizAnswers(p => ({ ...p, [qId]: optIdx }))}
+                                      disabled={quizSubmitted}
+                                      sx={{ 
+                                        textAlign: 'left', justifyContent: 'flex-start', p: 2, borderRadius: 4,
+                                        borderWidth: 2, fontWeight: 800,
+                                        '&:hover': { borderWidth: 2 }
+                                      }}
+                                    >
+                                      {opt}
+                                    </Button>
+                                  </Grid>
+                                );
+                              })}
+                            </Grid>
+                            
+                            {quizSubmitted && q.explanation && (
+                              <Fade in={true}>
+                                <Alert 
+                                  severity={isCorrect ? "success" : "info"} 
+                                  sx={{ mt: 2, borderRadius: 3, fontWeight: 600 }}
                                 >
-                                  {opt}
-                                </Button>
-                              </Grid>
-                            ))}
-                          </Grid>
-                        </Box>
-                      ))}
+                                  {q.explanation}
+                                </Alert>
+                              </Fade>
+                            )}
+                          </Box>
+                        );
+                      })}
                     </Stack>
                   )}
 
@@ -218,15 +246,14 @@ export default function ContentRenderer({ section, readingMode = 'light', fontSi
                       fullWidth 
                       size="large" 
                       onClick={handleQuizSubmit}
-                      disabled={Object.keys(quizAnswers).length < section.quizData.questions.length}
-                      sx={{ mt: 6, py: 2, borderRadius: 10, fontWeight: 950, fontSize: '1rem', boxShadow: '0 10px 40px rgba(25, 118, 210, 0.2)' }}
+                      disabled={Object.keys(quizAnswers).length < questions.length}
+                      sx={{ mt: 8, py: 2.5, borderRadius: 10, fontWeight: 950, fontSize: '1.1rem', boxShadow: '0 12px 48px rgba(25, 118, 210, 0.3)' }}
                     >
-                      Certify & Synchronize Profile
+                      Certify Result & Sync Profile
                     </Button>
                   )}
                 </Paper>
-              </Stack>
-            )}
+            </Stack>
           </Box>
         );
 
@@ -392,6 +419,7 @@ export default function ContentRenderer({ section, readingMode = 'light', fontSi
       width: '100%', 
       maxWidth: '100%',
       color: readingMode === 'dark' ? '#F5F5F5' : readingMode === 'sepia' ? '#5B4636' : 'text.primary',
+      fontFamily: getFontFamily(),
     }}>
       {renderMedia()}
       {renderSpecialBlocks()}

@@ -15,7 +15,7 @@ import {
   GripVertical, Eye, Share2, Globe, Archive, 
   MoreVertical, Quote, Code, Bookmark, ChevronUp, ChevronDown,
   Type, MessageSquare, List as ListIcon, Calendar, Info,
-  Upload, Music, Link as LinkIcon, Clock
+  Upload, Music, Link as LinkIcon, Clock, Wand2
 } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, doc, getDoc, setDoc, updateDoc, collection, addDoc, serverTimestamp } from '../firebase';
@@ -101,7 +101,7 @@ const DetailsTab = React.memo(({ course, setCourse }: { course: any, setCourse: 
                       fullWidth 
                       label="Subject Name" 
                       variant="filled"
-                      value={course.name} 
+                      value={course.name || ''} 
                       onChange={(e) => setCourse({ name: e.target.value })}
                       placeholder="e.g. History of Modern Architecture"
                       InputProps={{ sx: { borderRadius: 3, fontWeight: 800 }, disableUnderline: true }}
@@ -111,7 +111,7 @@ const DetailsTab = React.memo(({ course, setCourse }: { course: any, setCourse: 
                       label="Learning Outcomes" 
                       variant="filled"
                       value={course.learningOutcomes?.join(', ') || ''} 
-                      onChange={(e) => setCourse({ learningOutcomes: e.target.value.split(',').map(s => s.trim()) })}
+                      onChange={(e) => setCourse({ learningOutcomes: (e.target.value ? e.target.value.split(',').map(s => s.trim()) : []) })}
                       placeholder="Enter outcomes separated by commas..."
                       InputProps={{ sx: { borderRadius: 3, fontWeight: 600 }, disableUnderline: true }}
                     />
@@ -120,7 +120,7 @@ const DetailsTab = React.memo(({ course, setCourse }: { course: any, setCourse: 
                       label="Banner Image URL" 
                       variant="filled"
                       size="small"
-                      value={course.bannerUrl} 
+                      value={course.bannerUrl || ''} 
                       onChange={(e) => setCourse({ bannerUrl: e.target.value })}
                       placeholder="Cinematic wide banner URL"
                       InputProps={{ 
@@ -135,7 +135,7 @@ const DetailsTab = React.memo(({ course, setCourse }: { course: any, setCourse: 
                       variant="filled"
                       multiline 
                       rows={4} 
-                      value={course.description} 
+                      value={course.description || ''} 
                       onChange={(e) => setCourse({ description: e.target.value })}
                       placeholder="Write a compelling summary..."
                       InputProps={{ sx: { borderRadius: 4, fontWeight: 600 }, disableUnderline: true }}
@@ -302,14 +302,14 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
     });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, field = 'mediaUrl') => {
     const file = e.target.files?.[0];
     if (!file) return;
     
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
-      setNewSection((prev: any) => ({ ...prev, mediaUrl: result }));
+      setNewSection((prev: any) => ({ ...prev, [field]: result }));
     };
     reader.readAsDataURL(file);
   };
@@ -329,7 +329,7 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                   <TextField 
                     fullWidth 
                     label="Chapter Title" 
-                    value={newSection.title} 
+                    value={newSection.title || ''} 
                     onChange={(e) => setNewSection((p: any) => ({ ...p, title: e.target.value }))} 
                     InputProps={{ sx: { borderRadius: 3 } }}
                   />
@@ -353,14 +353,14 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                   <Stack direction="row" spacing={1}>
                     <TextField 
                       fullWidth 
-                      label="Media Link (URL)" 
+                      label="Primary Media (Video/Image/PDF)" 
                       value={newSection.mediaUrl} 
                       onChange={(e) => setNewSection((p: any) => ({ ...p, mediaUrl: e.target.value }))} 
                       placeholder="HTTPS link"
                       InputProps={{ 
                         sx: { borderRadius: 3 },
                         startAdornment: <InputAdornment position="start">
-                          {newSection.type === 'audio' ? <Music size={16} /> : <LinkIcon size={16} />}
+                           <LinkIcon size={16} />
                         </InputAdornment> 
                       }}
                     />
@@ -369,23 +369,108 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                       sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 3, width: 56, height: 56 }}
                     >
                       <Upload size={20} />
-                      <input type="file" hidden onChange={handleFileUpload} />
+                      <input type="file" hidden onChange={(e) => handleFileUpload(e, 'mediaUrl')} />
+                    </IconButton>
+                  </Stack>
+
+                  <Stack direction="row" spacing={1}>
+                    <TextField 
+                      fullWidth 
+                      label="Audiobook Track (MP3/URL)" 
+                      value={newSection.audioUrl} 
+                      onChange={(e) => setNewSection((p: any) => ({ ...p, audioUrl: e.target.value }))} 
+                      placeholder="Background audio URL"
+                      InputProps={{ 
+                        sx: { borderRadius: 3 },
+                        startAdornment: <InputAdornment position="start">
+                          <Headphones size={16} />
+                        </InputAdornment> 
+                      }}
+                    />
+                    <IconButton 
+                      component="label" 
+                      sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1), borderRadius: 3, width: 56, height: 56 }}
+                    >
+                      <Music size={20} />
+                      <input type="file" hidden accept="audio/*" onChange={(e) => handleFileUpload(e, 'audioUrl')} />
                     </IconButton>
                   </Stack>
                 </Stack>
               </Paper>
 
+              <Paper sx={{ p: 3, borderRadius: 6, border: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 950, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Wand2 size={16} /> Chapter Aesthetics
+                </Typography>
+                <Stack spacing={2.5}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Font Pairing</InputLabel>
+                    <Select 
+                      value={newSection.theme?.fontPairing || 'default'} 
+                      label="Font Pairing"
+                      onChange={(e) => setNewSection((p: any) => ({ ...p, theme: { ...(p.theme || {}), fontPairing: e.target.value } }))}
+                    >
+                      <MenuItem value="default">Default Sans</MenuItem>
+                      <MenuItem value="premium-serif">Premium Serif (Editorial)</MenuItem>
+                      <MenuItem value="modern-sans">Modern Sans (Bold)</MenuItem>
+                      <MenuItem value="classic-book">Classic Book (Serif)</MenuItem>
+                    </Select>
+                  </FormControl>
 
+                  <Grid container spacing={2}>
+                    <Grid size={6}>
+                      <TextField 
+                        fullWidth 
+                        size="small" 
+                        label="Background" 
+                        type="color" 
+                        value={newSection.theme?.backgroundColor || '#ffffff'}
+                        onChange={(e) => setNewSection((p: any) => ({ ...p, theme: { ...(p.theme || {}), backgroundColor: e.target.value } }))}
+                      />
+                    </Grid>
+                    <Grid size={6}>
+                       <TextField 
+                        fullWidth 
+                        size="small" 
+                        label="Text Color" 
+                        type="color" 
+                        value={newSection.theme?.textColor || '#1a1a1a'}
+                        onChange={(e) => setNewSection((p: any) => ({ ...p, theme: { ...(p.theme || {}), textColor: e.target.value } }))}
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <TextField 
+                    fullWidth 
+                    size="small" 
+                    label="Background Texture URL" 
+                    placeholder="e.g. Parchment/Paper pattern"
+                    value={newSection.theme?.backgroundTextureUrl || ''}
+                    onChange={(e) => setNewSection((p: any) => ({ ...p, theme: { ...(p.theme || {}), backgroundTextureUrl: e.target.value } }))}
+                    InputProps={{ sx: { borderRadius: 2 } }}
+                  />
+                  
+                  <FormControlLabel 
+                    control={
+                      <Switch 
+                        checked={newSection.theme?.paperTexture || false} 
+                        onChange={(e) => setNewSection((p: any) => ({ ...p, theme: { ...(p.theme || {}), paperTexture: e.target.checked } }))} 
+                      />
+                    }
+                    label={<Typography variant="caption" sx={{ fontWeight: 800 }}>Apply Paper Texture Overlay</Typography>}
+                  />
+                </Stack>
+              </Paper>
             </Stack>
           </Grid>
           
           <Grid size={{ xs: 12, md: 8 }}>
             <Stack spacing={3}>
-              {newSection.type === 'quiz' && (
+              {(newSection.type === 'quiz' || (newSection.metadata?.quizQuestions || []).length > 0) && (
                 <Paper sx={{ p: 4, borderRadius: 6, border: '1px solid', borderColor: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
                   <Typography variant="subtitle1" sx={{ fontWeight: 950, mb: 3 }}>Interactive Quiz Builder</Typography>
                   <Stack spacing={3}>
-                    {(newSection.metadata?.questions || [{ q: '', options: ['', ''], correct: 0 }]).map((q: any, qIdx: number) => (
+                    {(newSection.metadata?.quizQuestions || [{ q: '', options: ['', ''], correct: 0, explanation: '' }]).map((q: any, qIdx: number) => (
                       <Paper key={qIdx} elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', borderRadius: 4 }}>
                         <Stack spacing={2}>
                           <TextField 
@@ -393,10 +478,10 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                             label={`Question ${qIdx + 1}`} 
                             value={q.q} 
                             onChange={(e) => {
-                              const qs = [...(newSection.metadata?.questions || [])];
+                              const qs = [...(newSection.metadata?.quizQuestions || [])];
                               if (!qs[qIdx]) qs[qIdx] = { q: '', options: ['', ''], correct: 0 };
                               qs[qIdx].q = e.target.value;
-                              setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, questions: qs } }));
+                              setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
                             }}
                           />
                           <Grid container spacing={2}>
@@ -408,30 +493,42 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                                   label={`Option ${optIdx + 1}`} 
                                   value={opt}
                                   onChange={(e) => {
-                                    const qs = [...(newSection.metadata?.questions || [])];
+                                    const qs = [...(newSection.metadata?.quizQuestions || [])];
                                     qs[qIdx].options[optIdx] = e.target.value;
-                                    setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, questions: qs } }));
+                                    setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
                                   }}
                                   color={q.correct === optIdx ? 'success' : 'primary'}
                                   onClick={() => {
-                                    const qs = [...(newSection.metadata?.questions || [])];
+                                    const qs = [...(newSection.metadata?.quizQuestions || [])];
                                     qs[qIdx].correct = optIdx;
-                                    setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, questions: qs } }));
+                                    setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
                                   }}
                                 />
                               </Grid>
                             ))}
                           </Grid>
+                          <TextField 
+                            fullWidth 
+                            size="small"
+                            label="Reasoning / Explanation" 
+                            placeholder="Why is this answer correct?"
+                            value={q.explanation || ''}
+                            onChange={(e) => {
+                              const qs = [...(newSection.metadata?.quizQuestions || [])];
+                              qs[qIdx].explanation = e.target.value;
+                              setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
+                            }}
+                          />
                           <Button size="small" color="error" onClick={() => {
-                            const qs = (newSection.metadata?.questions || []).filter((_: any, i: number) => i !== qIdx);
-                            setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, questions: qs } }));
+                            const qs = (newSection.metadata?.quizQuestions || []).filter((_: any, i: number) => i !== qIdx);
+                            setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
                           }}>Remove Question</Button>
                         </Stack>
                       </Paper>
                     ))}
                     <Button variant="outlined" sx={{ borderRadius: 10 }} onClick={() => {
-                       const qs = [...(newSection.metadata?.questions || []), { q: '', options: ['', '', '', ''], correct: 0 }];
-                       setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, questions: qs } }));
+                       const qs = [...(newSection.metadata?.quizQuestions || []), { q: '', options: ['', '', '', ''], correct: 0, explanation: '' }];
+                       setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
                     }}>Add Question to Quiz</Button>
                   </Stack>
                 </Paper>
@@ -445,7 +542,7 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                   </Tooltip>
                 </Box>
                 <SimpleMDE 
-                  value={newSection.content} 
+                  value={newSection.content || ''} 
                   onChange={(v) => setNewSection((p: any) => ({ ...p, content: v }))}
                   options={{ 
                     placeholder: "Inject your knowledge here using Markdown...", 
@@ -598,8 +695,10 @@ export default function CourseEditor() {
       type: newSection.type as any,
       layout: newSection.layout as any || 'standard',
       mediaUrl: newSection.mediaUrl,
+      audioUrl: newSection.audioUrl,
       metadata: newSection.metadata || {},
-      fontFamily: newSection.fontFamily as any || 'default'
+      fontFamily: newSection.fontFamily as any || 'default',
+      theme: newSection.theme || {}
     } as CourseSection;
 
     if (editingSectionIdx !== null) {
@@ -616,7 +715,13 @@ export default function CourseEditor() {
       type: 'text', 
       layout: 'standard', 
       fontFamily: 'default',
-      metadata: { estimatedReadTime: 5, calloutType: 'info' } 
+      audioUrl: '',
+      theme: {
+        backgroundColor: '#ffffff',
+        textColor: '#1a1a1a',
+        fontPairing: 'default'
+      },
+      metadata: { estimatedReadTime: 5, calloutType: 'info', quizQuestions: [] } 
     });
     setActiveTab(1); // Switch to content tab after adding
   }, [newSection, editingSectionIdx, course.sections]);
@@ -670,59 +775,95 @@ export default function CourseEditor() {
         }}
       >
         <Container maxWidth="lg">
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Stack direction="row" spacing={2} alignItems="center">
-              <IconButton onClick={() => navigate('/courses')}><ArrowLeft /></IconButton>
+          <Stack 
+            direction={{ xs: 'column', sm: 'row' }} 
+            justifyContent="space-between" 
+            alignItems={{ xs: 'flex-start', sm: 'center' }} 
+            spacing={2}
+          >
+            <Stack direction="row" spacing={1} alignItems="center">
+              <IconButton onClick={() => navigate('/courses')} size="small"><ArrowLeft size={20} /></IconButton>
                   <Box>
-                    <Typography variant="caption" sx={{ fontWeight: 900, lineHeight: 1 }}>{course.name || 'New Subject'}</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 950, lineHeight: 1.2 }}>Content Management Studio</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 900, lineHeight: 1, display: 'block', maxWidth: { xs: 150, sm: 'none' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {course.name || 'New Subject'}
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 950, lineHeight: 1.2, fontSize: { xs: '0.9rem', sm: '1.1rem', md: '1.25rem' } }}>
+                      <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Content Management </Box>Studio
+                    </Typography>
                     {lastSaved && (
-                      <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 800, display: 'block', mt: 0.5 }}>
-                        Last synced: {new Date(lastSaved).toLocaleTimeString()}
+                      <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 800, display: { xs: 'none', sm: 'block' }, mt: 0.5 }}>
+                        Synced: {new Date(lastSaved).toLocaleTimeString()}
                       </Typography>
                     )}
                   </Box>
             </Stack>
-            <Stack direction="row" spacing={1.5}>
+            <Stack 
+              direction="row" 
+              spacing={1} 
+              sx={{ 
+                width: { xs: '100%', sm: 'auto' },
+                justifyContent: { xs: 'flex-end', sm: 'flex-start' }
+              }}
+            >
               {course.id && (
-                 <Button 
-                   variant="outlined" 
-                   onClick={() => navigate(`/courses/${course.id}`)} 
-                   startIcon={<Eye size={18} />}
-                   sx={{ borderRadius: 10, fontWeight: 800, textTransform: 'none', display: { xs: 'none', sm: 'flex' } }}
-                 >
-                   Preview
-                 </Button>
+                 <Tooltip title="Preview">
+                   <Button 
+                     variant="outlined" 
+                     onClick={() => navigate(`/courses/${course.id}`)} 
+                     sx={{ 
+                       borderRadius: 10, 
+                       fontWeight: 800, 
+                       textTransform: 'none', 
+                       minWidth: { xs: 40, sm: 100 },
+                       px: { xs: 1, sm: 2 }
+                     }}
+                   >
+                     <Eye size={18} />
+                     <Box component="span" sx={{ ml: 1, display: { xs: 'none', sm: 'inline' } }}>Preview</Box>
+                   </Button>
+                 </Tooltip>
               )}
               <Button 
                 variant="outlined" 
                 color="inherit"
                 onClick={handleSaveCourse} 
                 disabled={submitting}
-                startIcon={<Archive size={18} />}
-                sx={{ borderRadius: 10, fontWeight: 900, px: 3, textTransform: 'none' }}
+                sx={{ 
+                  borderRadius: 10, 
+                  fontWeight: 900, 
+                  px: { xs: 1.5, sm: 3 }, 
+                  textTransform: 'none',
+                  minWidth: { xs: 40, sm: 'auto' }
+                }}
               >
-                {submitting ? 'Saving...' : 'Save Draft'}
+                <Archive size={18} />
+                <Box component="span" sx={{ ml: 1, display: { xs: 'none', sm: 'inline' } }}>Save Draft</Box>
+                <Box component="span" sx={{ ml: 1, display: { xs: 'inline', sm: 'none' } }}>Save</Box>
               </Button>
               <Button 
                 variant="contained" 
                 color="primary"
                 onClick={async () => {
                    setCourse(p => ({ ...p, isPublished: true }));
-                   // Immediate save via custom call to ensure state is captured
                    setSubmitting(true);
                    try {
                      const data = { ...course, isPublished: true, updatedAt: Date.now() };
                      if (course.id) await updateDoc(doc(db, 'courses', course.id), data);
-                     logger.success('Subject published to library');
+                     logger.success('Subject published');
                    } catch(e) { logger.error('Publish failed'); }
                    setSubmitting(false);
                 }} 
                 disabled={submitting}
-                startIcon={<Globe size={18} />}
-                sx={{ borderRadius: 10, fontWeight: 950, px: 4, textTransform: 'none', boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 8px 24px rgba(25, 118, 210, 0.2)' }}
+                sx={{ 
+                  borderRadius: 10, 
+                  fontWeight: 950, 
+                  px: { xs: 2, sm: 4 }, 
+                  textTransform: 'none', 
+                  boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 8px 24px rgba(25, 118, 210, 0.2)' 
+                }}
               >
-                Publish
+                <Globe size={18} />
+                <Box component="span" sx={{ ml: 1 }}>Publish</Box>
               </Button>
             </Stack>
           </Stack>
@@ -820,6 +961,8 @@ export default function CourseEditor() {
               <Tabs 
                 value={activeTab > 2 ? 2 : activeTab} 
                 onChange={(_, v) => setActiveTab(v)}
+                variant="scrollable"
+                scrollButtons="auto"
                 sx={{ 
                   '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' }
                 }}
@@ -833,12 +976,14 @@ export default function CourseEditor() {
             <AnimatePresence mode="wait">
               {activeTab === 0 && (
                 <DetailsTab 
+                  key="details-tab"
                   course={course} 
                   setCourse={handleCourseUpdate} 
                 />
               )}
               {activeTab === 1 && (
                 <CurriculumTab 
+                  key="curriculum-tab"
                   sections={course.sections || []} 
                   moveSection={moveSection} 
                   editSection={editSection} 
@@ -848,6 +993,7 @@ export default function CourseEditor() {
               )}
               {activeTab === 2 && (
                 <SectionEditorTab 
+                  key="section-editor-tab"
                   newSection={newSection} 
                   setNewSection={setNewSection} 
                   onSave={handleAddSection} 
