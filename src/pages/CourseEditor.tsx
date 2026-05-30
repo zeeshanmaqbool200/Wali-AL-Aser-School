@@ -99,30 +99,30 @@ const DetailsTab = React.memo(({ course, setCourse }: { course: any, setCourse: 
                   <Stack spacing={2.5}>
                     <TextField 
                       fullWidth 
-                      label="Subject Name" 
+                      label="Course Title" 
                       variant="filled"
                       value={course.name || ''} 
                       onChange={(e) => setCourse({ name: e.target.value })}
-                      placeholder="e.g. History of Modern Architecture"
+                      placeholder="e.g. Master the Art of Architectural History"
                       InputProps={{ sx: { borderRadius: 3, fontWeight: 800 }, disableUnderline: true }}
                     />
                     <TextField 
                       fullWidth 
-                      label="Learning Outcomes" 
+                      label="Educational Objectives" 
                       variant="filled"
                       value={course.learningOutcomes?.join(', ') || ''} 
                       onChange={(e) => setCourse({ learningOutcomes: (e.target.value ? e.target.value.split(',').map(s => s.trim()) : []) })}
-                      placeholder="Enter outcomes separated by commas..."
+                      placeholder="List key outcomes separated by commas..."
                       InputProps={{ sx: { borderRadius: 3, fontWeight: 600 }, disableUnderline: true }}
                     />
                     <TextField 
                       fullWidth 
-                      label="Banner Image URL" 
+                      label="Cinematic Banner URL" 
                       variant="filled"
                       size="small"
                       value={course.bannerUrl || ''} 
                       onChange={(e) => setCourse({ bannerUrl: e.target.value })}
-                      placeholder="Cinematic wide banner URL"
+                      placeholder="Provide a high-resolution wide banner URL"
                       InputProps={{ 
                         sx: { borderRadius: 3, fontSize: '0.8rem' }, 
                         disableUnderline: true,
@@ -131,13 +131,13 @@ const DetailsTab = React.memo(({ course, setCourse }: { course: any, setCourse: 
                     />
                     <TextField 
                       fullWidth 
-                      label="Cinematic Description" 
+                      label="Comprehensive Description" 
                       variant="filled"
                       multiline 
                       rows={4} 
                       value={course.description || ''} 
                       onChange={(e) => setCourse({ description: e.target.value })}
-                      placeholder="Write a compelling summary..."
+                      placeholder="Craft an engaging narrative for this subject..."
                       InputProps={{ sx: { borderRadius: 4, fontWeight: 600 }, disableUnderline: true }}
                     />
                   </Stack>
@@ -148,7 +148,7 @@ const DetailsTab = React.memo(({ course, setCourse }: { course: any, setCourse: 
                 <Grid size={{ xs: 12, md: 6 }}>
                   <TextField 
                     fullWidth 
-                    label="Subject Code" 
+                    label="Official Course Code" 
                     value={course.code} 
                     onChange={(e) => setCourse({ code: e.target.value })}
                     InputProps={{ sx: { borderRadius: 3 } }}
@@ -156,10 +156,10 @@ const DetailsTab = React.memo(({ course, setCourse }: { course: any, setCourse: 
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
                   <FormControl fullWidth>
-                    <InputLabel>Category</InputLabel>
+                    <InputLabel>Academic Category</InputLabel>
                     <Select 
                       value={course.category} 
-                      label="Category"
+                      label="Academic Category"
                       onChange={(e) => setCourse({ category: e.target.value })}
                       sx={{ borderRadius: 3 }}
                     >
@@ -350,14 +350,14 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                     STUDIO MODULE
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 950, letterSpacing: -1 }}>
-                    Lesson {course.sections?.length ? course.sections.length + 1 : 1}
+                    Syllabus Module {course.sections?.length ? course.sections.length + 1 : 1}
                   </Typography>
                 </Box>
 
                 <Stack spacing={4}>
                   <TextField 
                     fullWidth 
-                    label="Lesson Title" 
+                    label="Module Title" 
                     variant="standard"
                     value={newSection.title || ''} 
                     onChange={(e) => setNewSection((p: any) => ({ ...p, title: e.target.value }))} 
@@ -365,10 +365,10 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                       sx: { fontSize: '1.25rem', fontWeight: 900, py: 1 },
                       startAdornment: <InputAdornment position="start"><BookOpen size={20} style={{ opacity: 0.3 }} /></InputAdornment>
                     }}
-                    placeholder="Enter an inspiring title..."
+                    placeholder="Enter a descriptive module title..."
                   />
                   <FormControl variant="standard" fullWidth>
-                    <InputLabel sx={{ fontWeight: 700 }}>Module Type</InputLabel>
+                    <InputLabel sx={{ fontWeight: 700 }}>Lesson Delivery Format</InputLabel>
                     <Select 
                       value={newSection.type} 
                       onChange={(e) => setNewSection((p: any) => ({ ...p, type: e.target.value as any }))}
@@ -442,8 +442,8 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                   <Box sx={{ mt: 2, pt: 3, borderTop: '1px solid', borderColor: alpha(theme.palette.divider, 0.2) }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                       <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 900 }}>Practice Quiz</Typography>
-                        <Typography variant="caption" sx={{ fontWeight: 700, opacity: 0.5, display: 'block' }}>Optional assessment for students</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 900 }}>Academic Assessment</Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 700, opacity: 0.5, display: 'block' }}>Integrated knowledge evaluation</Typography>
                       </Box>
                       <Button 
                         variant="outlined" 
@@ -459,7 +459,7 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                         }}
                         sx={{ borderRadius: 4, fontWeight: 900, textTransform: 'none' }}
                       >
-                        {newSection.metadata?.quizQuestions?.length ? "Edit Quiz" : "Add Quiz"}
+                        {newSection.metadata?.quizQuestions?.length ? "Refine Quiz" : "Append Assessment"}
                       </Button>
                     </Stack>
                   </Box>
@@ -491,9 +491,9 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="h6" sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                     <Wand2 size={24} className="text-secondary-500" /> 
-                    {newSection.type === 'audio' ? 'Narrative / Transcript' : 'Lesson Content'}
+                    {newSection.type === 'audio' ? 'Narrative Transcript' : 'Module Comprehensive Content'}
                   </Typography>
-                  <Chip label="Markdown Ready" size="small" variant="outlined" sx={{ fontWeight: 800, borderColor: alpha(theme.palette.secondary.main, 0.4), color: theme.palette.secondary.main }} />
+                  <Chip label="Academic Markdown" size="small" variant="outlined" sx={{ fontWeight: 800, borderColor: alpha(theme.palette.secondary.main, 0.4), color: theme.palette.secondary.main }} />
                 </Box>
                 <Paper 
                   elevation={0} 
@@ -535,9 +535,9 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
                       <Box>
                          <Typography variant="h6" sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <HelpCircle size={22} className="text-primary-500" /> Lesson Quiz Builder
+                          <HelpCircle size={22} className="text-primary-500" /> Institutional Assessment Builder
                         </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Add interactive questions to test student knowledge</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Design challenging evaluative sessions for pupils</Typography>
                       </Box>
                       <Button 
                         variant="outlined" 
@@ -655,13 +655,15 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
 });
 
 
+import { useData } from '../context/DataContext';
+
 export default function CourseEditor() {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const theme = useTheme();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, instituteSettings } = useAuth();
+  const { setIsSaving, isSaving } = useData();
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   
   const [course, setCourse] = useState<Partial<Course>>({
@@ -692,18 +694,7 @@ export default function CourseEditor() {
     }
   });
 
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<number | null>(null);
-
-  useEffect(() => {
-    // Basic auto-save indicator logic
-    if (submitting) setHasUnsavedChanges(false);
-  }, [submitting]);
-
-  const handleCourseUpdate = useCallback((updates: any) => {
-    setCourse(prev => ({ ...prev, ...updates }));
-    setHasUnsavedChanges(true);
-  }, []);
 
   useEffect(() => {
     if (!courseId || courseId === 'new') {
@@ -738,11 +729,11 @@ export default function CourseEditor() {
 
   const handleSaveCourse = async () => {
     if (!course.name) {
-      logger.error('Subject name is required');
+      logger.error('A descriptive title is required for this module.');
       return;
     }
 
-    setSubmitting(true);
+    setIsSaving(true);
     try {
       const data = {
         ...course,
@@ -760,11 +751,41 @@ export default function CourseEditor() {
         setCourse(p => ({ ...p, id: docRef.id }));
       }
       setLastSaved(Date.now());
-      logger.success('Subject saved to library');
+      logger.success('Academic content synced successfully');
     } catch (e) {
-      logger.error('Failed to saveSubject');
+      logger.error('Failed to preserve changes to the academic vault');
     } finally {
-      setSubmitting(false);
+      setIsSaving(false);
+    }
+  };
+
+  const publishCourse = async () => {
+    if (!course.name) {
+      logger.error('A descriptive title is required for publication.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const data = { 
+        ...course, 
+        isPublished: true, 
+        updatedAt: Date.now(),
+        ownerId: course.ownerId || currentUser?.uid,
+        teacherId: course.teacherId || currentUser?.uid,
+        teacherName: course.teacherName || currentUser?.displayName,
+      };
+      if (course.id) {
+        await updateDoc(doc(db, 'courses', course.id), data);
+      } else {
+        const docRef = await addDoc(collection(db, 'courses'), data);
+        setCourse(p => ({ ...p, id: docRef.id }));
+      }
+      setCourse(p => ({ ...p, isPublished: true }));
+      logger.success('Course module is now live and public');
+    } catch (e) {
+      logger.error('Publication failed. Internal server error.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -912,7 +933,7 @@ export default function CourseEditor() {
                 variant="outlined" 
                 color="inherit"
                 onClick={handleSaveCourse} 
-                disabled={submitting}
+                disabled={isSaving}
                 sx={{ 
                   borderRadius: 10, 
                   fontWeight: 900, 
@@ -921,24 +942,15 @@ export default function CourseEditor() {
                   minWidth: { xs: 40, sm: 'auto' }
                 }}
               >
-                <Archive size={18} />
-                <Box component="span" sx={{ ml: 1, display: { xs: 'none', sm: 'inline' } }}>Save Draft</Box>
-                <Box component="span" sx={{ ml: 1, display: { xs: 'inline', sm: 'none' } }}>Save</Box>
+                {isSaving ? <CircularProgress size={18} sx={{ mr: 1 }} /> : <Archive size={18} />}
+                <Box component="span" sx={{ ml: 1, display: { xs: 'none', sm: 'inline' } }}>{isSaving ? 'Saving...' : 'Save Draft'}</Box>
+                <Box component="span" sx={{ ml: 1, display: { xs: 'inline', sm: 'none' } }}>{isSaving ? '' : 'Save'}</Box>
               </Button>
               <Button 
                 variant="contained" 
                 color="primary"
-                onClick={async () => {
-                   setCourse(p => ({ ...p, isPublished: true }));
-                   setSubmitting(true);
-                   try {
-                     const data = { ...course, isPublished: true, updatedAt: Date.now() };
-                     if (course.id) await updateDoc(doc(db, 'courses', course.id), data);
-                     logger.success('Subject published');
-                   } catch(e) { logger.error('Publish failed'); }
-                   setSubmitting(false);
-                }} 
-                disabled={submitting}
+                onClick={publishCourse} 
+                disabled={isSaving}
                 sx={{ 
                   borderRadius: 10, 
                   fontWeight: 950, 
@@ -947,14 +959,14 @@ export default function CourseEditor() {
                   boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 8px 24px rgba(25, 118, 210, 0.2)' 
                 }}
               >
-                <Globe size={18} />
-                <Box component="span" sx={{ ml: 1 }}>Publish</Box>
+                {isSaving ? <CircularProgress size={18} color="inherit" sx={{ mr: 1 }} /> : <Globe size={18} />}
+                <Box component="span" sx={{ ml: 1 }}>{isSaving ? 'Processing...' : 'Publish Content'}</Box>
               </Button>
             </Stack>
           </Stack>
         </Container>
       </Paper>
-
+      
       <Container maxWidth="xl">
         <Grid container spacing={4}>
           <Grid size={{ xs: 12, md: 3 }}>

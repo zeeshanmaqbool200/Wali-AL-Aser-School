@@ -66,6 +66,7 @@ export default function ContentRenderer({
 
     if (section.type === 'image' || (section.mediaUrl && section.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp|svg)$/) != null) || section.mediaUrl?.startsWith('data:image')) {
       const isPng = section.mediaUrl.toLowerCase().includes('.png') || section.mediaUrl.includes('data:image/png');
+      const isStamp = section.mediaUrl.toLowerCase().includes('stamp') || section.mediaUrl.toLowerCase().includes('logo') || section.title.toLowerCase().includes('stamp');
       
       return (
         <Box sx={{ mb: 6, display: 'flex', justifyContent: 'center', width: '100%' }}>
@@ -79,7 +80,8 @@ export default function ContentRenderer({
               borderRadius: isPng ? 0 : 6, 
               display: 'block',
               filter: isPng ? 'none' : 'drop-shadow(0 10px 40px rgba(0,0,0,0.05))',
-              objectFit: 'contain'
+              objectFit: 'contain',
+              mixBlendMode: isStamp ? 'screen' : 'normal'
             }} 
             referrerPolicy="no-referrer"
           />

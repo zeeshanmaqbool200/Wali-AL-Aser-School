@@ -17,7 +17,6 @@ interface DataContextType {
   isSaving: boolean;
   setIsSaving: (val: boolean) => void;
   isSyncing: boolean;
-  lastUpdate: number;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -34,7 +33,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState(Date.now());
   const unsubscribes = useRef<(() => void)[]>([]);
   const lastNotifiedIds = useRef<Set<string>>(new Set());
   
@@ -49,7 +47,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const now = Date.now();
     if (!cacheThrottle.current[key] || now - cacheThrottle.current[key] > delay) {
       cacheThrottle.current[key] = now;
-      await cache.set(key, data);
+      
+      // OPTIMIZATION: Only cache the most recent entries for large lists
+      let optimizedData = data;
+      if (Array.isArray(data) && data.length > 200) {
+        optimizedData = data.slice(0, 200); // Keep only 200 most recent for cache
+      }
+      
+      await cache.set(key, optimizedData);
     }
   }, []);
 
@@ -151,7 +156,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUsers(data);
       // Memory-first tiered cache update
       persistToDisk(CACHE_KEYS.USERS, data, isStaff ? 5000 : 2000); 
-      setLastUpdate(Date.now());
       setIsSyncing(false);
       setLoading(false);
     }, (err) => onSyncError(err, 'Users'));
@@ -224,8 +228,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       error,
       isSaving,
       setIsSaving,
-      isSyncing,
-      lastUpdate
+      isSyncing
     }}>
       {children}
     </DataContext.Provider>

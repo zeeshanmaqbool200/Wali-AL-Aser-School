@@ -9,7 +9,7 @@ interface SavingOverlayProps {
   message?: string;
 }
 
-export default function SavingOverlay({ isSaving, message = 'Syncing Changes...' }: SavingOverlayProps) {
+export function SavingOverlay({ isSaving, message = 'Syncing Changes...' }: SavingOverlayProps) {
   const theme = useTheme();
 
   return (
@@ -39,51 +39,47 @@ export default function SavingOverlay({ isSaving, message = 'Syncing Changes...'
               display: 'flex',
               alignItems: 'center',
               gap: 2,
-              px: 3,
-              py: 1.2,
-              borderRadius: 3,
-              bgcolor: theme.palette.mode === 'dark' ? alpha('#1e293b', 0.9) : alpha('#ffffff', 0.9),
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+              px: { xs: 2, sm: 3 },
+              py: 1.5,
+              borderRadius: 4,
+              bgcolor: theme.palette.mode === 'dark' ? alpha('#0f172a', 0.95) : '#ffffff',
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
               boxShadow: theme.palette.mode === 'dark' 
-                ? '0 10px 30px rgba(0,0,0,0.5)' 
-                : '0 10px 30px rgba(0,0,0,0.06)',
-              backdropFilter: 'blur(10px)',
-              pointerEvents: 'auto', // Re-enable pointer events for the box itself if needed
+                ? '0 20px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)' 
+                : '0 20px 50px rgba(0,0,0,0.1)',
+              backdropFilter: 'blur(20px)',
+              pointerEvents: 'auto',
             }}
           >
             <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <motion.div
                 animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
                 style={{
-                  width: 24,
-                  height: 24,
+                  width: 32,
+                  height: 32,
                   borderRadius: '50%',
-                  border: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                  borderTopColor: theme.palette.primary.main,
+                  background: `conic-gradient(from 0deg, transparent, ${theme.palette.primary.main})`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 2
                 }}
-              />
+              >
+                <Box sx={{ width: '100%', height: '100%', borderRadius: '50%', bgcolor: theme.palette.mode === 'dark' ? '#0f172a' : '#fff' }} />
+              </motion.div>
               <Box sx={{ position: 'absolute' }}>
                 <CloudUpload size={14} color={theme.palette.primary.main} />
               </Box>
             </Box>
 
             <Box>
-              <Typography variant="body2" sx={{ fontWeight: 900, color: 'text.primary', letterSpacing: -0.2 }}>
+              <Typography variant="body2" sx={{ fontWeight: 950, color: 'text.primary', letterSpacing: 0.5, textTransform: 'uppercase', fontSize: '0.7rem', opacity: 0.8 }}>
+                System Sync
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 800, color: 'text.primary', letterSpacing: -0.2, mt: -0.2 }}>
                 {message}
               </Typography>
-              <Box sx={{ mt: 0.5, height: 2, width: '100%', bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 1, overflow: 'hidden' }}>
-                <motion.div
-                  initial={{ x: '-100%' }}
-                  animate={{ x: '100%' }}
-                  transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-                  style={{
-                    height: '100%',
-                    width: '40%',
-                    background: `linear-gradient(90deg, transparent, ${theme.palette.primary.main}, transparent)`,
-                  }}
-                />
-              </Box>
             </Box>
           </Box>
         </Box>

@@ -12,7 +12,7 @@ import {
   School, CheckCircle, AlertCircle
 } from 'lucide-react';
 import { UserRole, InstituteSettings } from '../types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useThemeContext } from '../context/ThemeContext';
@@ -237,8 +237,8 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
             }}
           >
             <CardContent sx={{ p: { xs: 4, sm: 7 } }}>
-              <Typography variant="h4" sx={{ fontWeight: 900, mb: 5, textAlign: 'center', letterSpacing: -1.5, fontFamily: '"Outfit", sans-serif' }}>
-                {isSignUp ? 'Activate Workspace' : 'System Access'}
+              <Typography variant="h4" sx={{ fontWeight: 950, mb: 5, textAlign: 'center', letterSpacing: -1.5, fontFamily: '"Outfit", sans-serif', textTransform: 'uppercase', fontSize: '1.25rem', opacity: 0.8 }}>
+                {isSignUp ? 'Enrollment Portal' : 'Academic Gateway'}
               </Typography>
               
               <AnimatePresence mode="wait">
@@ -268,11 +268,17 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                 <Stack spacing={3}>
                   <AnimatePresence mode="wait">
                     {isSignUp && (
-                      <motion.div key="signup-fields" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                      <motion.div 
+                        key="signup-fields" 
+                        initial={{ opacity: 0, height: 0 }} 
+                        animate={{ opacity: 1, height: 'auto' }} 
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.4, ease: "circOut" }}
+                      >
                         <Stack spacing={3} sx={{ pb: 3 }}>
                           <TextField
                             fullWidth
-                            label="Legal Full Name"
+                            label="Certified Name"
                             variant="filled"
                             required
                             value={name}
@@ -283,10 +289,10 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                             }}
                           />
                           <FormControl fullWidth required variant="filled">
-                            <InputLabel sx={{ fontWeight: 700 }}>Identity Role</InputLabel>
+                            <InputLabel sx={{ fontWeight: 700 }}>Academic Identity</InputLabel>
                             <Select
                               value={role}
-                              label="Identity Role"
+                              label="Academic Identity"
                               disableUnderline
                               onChange={(e) => setRole(e.target.value as UserRole)}
                               sx={{ 
@@ -296,8 +302,8 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                                 '& .MuiSelect-select': { py: 2 }
                               }}
                             >
-                               <MenuItem value="student" sx={{ py: 1.5, fontWeight: 700 }}>Student Member</MenuItem>
-                               <MenuItem value="teacher" sx={{ py: 1.5, fontWeight: 700 }}>Staff Academic</MenuItem>
+                               <MenuItem value="student" sx={{ py: 1.5, fontWeight: 700 }}>Registered Student</MenuItem>
+                               <MenuItem value="teacher" sx={{ py: 1.5, fontWeight: 700 }}>Staff Faculty</MenuItem>
                             </Select>
                           </FormControl>
                         </Stack>
@@ -305,15 +311,20 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                     )}
                   </AnimatePresence>
 
-                  <Box>
+                  <Box 
+                    component={motion.div}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 }}
+                  >
                     <TextField
                       fullWidth
-                      label="Academic Email"
+                      label="University Email"
                       type="email"
                       variant="filled"
                       required
                       error={emailCheck.exists}
-                      helperText={emailCheck.exists ? 'System ID already active for this email.' : ''}
+                      helperText={emailCheck.exists ? 'System ID already active for this account.' : ''}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       InputProps={{
@@ -331,29 +342,36 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                     />
                   </Box>
 
-                  <TextField
-                    fullWidth
-                    label="Access Password"
-                    variant="filled"
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    InputProps={{
-                      disableUnderline: true,
-                      sx: { borderRadius: 4, fontWeight: 700, bgcolor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.03) },
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <Lock size={20} style={{ opacity: 0.4 }} />
-                        </InputAdornment>
-                      ),
-                      endAdornment: (
-                        <IconButton onClick={() => setShowPassword(!showPassword)} size="small" edge="end">
-                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </IconButton>
-                      ),
-                    }}
-                  />
+                  <Box 
+                    component={motion.div}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <TextField
+                      fullWidth
+                      label="Secure Cipher"
+                      variant="filled"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      InputProps={{
+                        disableUnderline: true,
+                        sx: { borderRadius: 4, fontWeight: 700, bgcolor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.03) },
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Lock size={20} style={{ opacity: 0.4 }} />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <IconButton onClick={() => setShowPassword(!showPassword)} size="small" edge="end">
+                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </IconButton>
+                        ),
+                      }}
+                    />
+                  </Box>
 
                   <Button
                     type="submit"
@@ -361,37 +379,38 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                     fullWidth
                     size="large"
                     disabled={loading}
+                    component={motion.button}
+                    whileHover={{ scale: loading ? 1 : 1.01 }}
+                    whileTap={{ scale: loading ? 1 : 0.98 }}
                     sx={{ 
                       py: 2.2, 
                       borderRadius: 10, 
-                      fontSize: '1.1rem', 
+                      fontSize: '1rem', 
                       fontWeight: 950,
-                      textTransform: 'uppercase',
-                      letterSpacing: 1.5,
+                      textTransform: 'none',
+                      letterSpacing: 0.5,
                       fontFamily: '"Outfit", sans-serif',
                       background: loading 
                         ? 'divider' 
-                        : isDark ? `linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)` : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                        : isDark ? `linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)` : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                       boxShadow: isDark 
-                        ? '0 15px 35px rgba(37, 99, 235, 0.4)' 
-                        : `0 15px 35px ${alpha(theme.palette.primary.main, 0.3)}`,
+                        ? '0 15px 35px rgba(0, 0, 0, 0.4)' 
+                        : `0 15px 35px ${alpha(theme.palette.primary.main, 0.2)}`,
                       border: 'none',
                       '&:hover': { 
-                        transform: 'translateY(-3px)',
                         boxShadow: isDark 
-                          ? '0 20px 45px rgba(37, 99, 235, 0.5)' 
-                          : `0 20px 45px ${alpha(theme.palette.primary.main, 0.4)}`,
+                          ? '0 20px 45px rgba(0, 0, 0, 0.5)' 
+                          : `0 20px 45px ${alpha(theme.palette.primary.main, 0.3)}`,
                         filter: 'brightness(1.1)'
-                      },
-                      '&:active': { transform: 'translateY(-1px) scale(0.98)' }
+                      }
                     }}
                   >
                     {loading ? (
-                      <CircularProgress size={28} color="inherit" thickness={5} />
+                      <CircularProgress size={24} color="inherit" thickness={6} />
                     ) : (
                       <Stack direction="row" spacing={2} alignItems="center">
-                        <span>{isSignUp ? 'Establish Identity' : 'Authenticate Access'}</span>
-                        <ArrowRight size={22} />
+                        <Typography sx={{ fontWeight: 950 }}>{isSignUp ? 'Initialize Enrollment' : 'Enter Academy'}</Typography>
+                        <ArrowRight size={20} />
                       </Stack>
                     )}
                   </Button>

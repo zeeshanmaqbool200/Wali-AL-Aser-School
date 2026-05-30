@@ -15,7 +15,6 @@ import { useData } from '../context/DataContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { logger } from '../lib/logger';
 import ImageCaptureDialog from '../components/ImageCaptureDialog';
-import SavingOverlay from '../components/SavingOverlay';
 import IDCardModal from '../components/IDCardModal';
 import AdmissionFormPrint from '../components/AdmissionFormPrint';
 import { useReactToPrint } from 'react-to-print';
@@ -23,11 +22,10 @@ import { Printer } from 'lucide-react';
 
 export default function Profile() {
   const { user: currentUser, instituteSettings } = useAuth();
-  const { setIsSaving } = useData();
+  const { setIsSaving, isSaving } = useData();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [profileData, setProfileData] = useState<Partial<UserProfile>>({});
   const [originalData, setOriginalData] = useState<string>('');
   const [openCapture, setOpenCapture] = useState(false);
@@ -102,7 +100,6 @@ export default function Profile() {
 
   const handleSave = async () => {
     if (!currentUser) return;
-    setSaving(true);
     setIsSaving(true);
     try {
       logger.db('Updating Profile', `users/${currentUser.uid}`);
@@ -146,7 +143,6 @@ export default function Profile() {
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.uid}`);
     } finally {
-      setSaving(false);
       setIsSaving(false);
     }
   };
@@ -198,7 +194,6 @@ export default function Profile() {
 
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', pb: 8, px: { xs: 2, sm: 0 } }}>
-      <SavingOverlay isSaving={saving} message="Updating Secure Profile..." />
       <IDCardModal open={idCardOpen} user={profileData as any} onClose={() => setIdCardOpen(false)} />
       <AdmissionFormPrint ref={printRef} user={profileData as any} settings={instituteSettings} />
       
@@ -495,9 +490,9 @@ export default function Profile() {
                   )}
                   <Button
                     variant="contained"
-                    startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save size={20} />}
+                    startIcon={isSaving ? <CircularProgress size={20} color="inherit" /> : <Save size={20} />}
                     onClick={handleSave}
-                    disabled={saving}
+                    disabled={isSaving}
                     sx={{ 
                       borderRadius: 1.5, 
                       fontWeight: 800, 
@@ -508,7 +503,7 @@ export default function Profile() {
                       '&:hover': { boxShadow: 'none' }
                     }}
                   >
-                    {saving ? 'Saving...' : 'Save Profile Changes'}
+                    {isSaving ? 'Saving...' : 'Save Profile Changes'}
                   </Button>
                 </Box>
               )}

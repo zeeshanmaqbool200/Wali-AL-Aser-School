@@ -62,7 +62,6 @@ import UserModal from '../components/UserModal';
 import IDCardModal from '../components/IDCardModal';
 import BulkIDCardModal from '../components/BulkIDCardModal';
 import { logger } from '../lib/logger';
-import SavingOverlay from '../components/SavingOverlay';
 import PrintableMemberDirectory from '../components/PrintableMemberDirectory';
 import { useReactToPrint } from 'react-to-print';
 import { Printer, Download as DownloadIcon, CheckSquare, Square } from 'lucide-react';
@@ -71,7 +70,7 @@ const Users = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { users, loading: dataLoading, setIsSaving } = useData();
+  const { users, loading: dataLoading, setIsSaving, isSaving } = useData();
   const { user: currentUser, instituteSettings } = useAuth();
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -376,7 +375,6 @@ const Users = () => {
         settings={instituteSettings} 
         title={`${tabValue === 0 ? 'Student' : tabValue === 1 ? 'Staff' : 'Members'} Directory`} 
       />
-      <SavingOverlay isSaving={false} message="Managing Directory..." />
       <UserModal 
         open={userModalOpen || !!editingUser} 
         onClose={() => { setUserModalOpen(false); setEditingUser(null); }} 
@@ -426,7 +424,7 @@ const Users = () => {
             sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}
           >
           <Box>
-            <Typography variant={isMobile ? "h6" : "h5"} sx={{ fontWeight: 950, letterSpacing: -1 }}>Institutional Records</Typography>
+            <Typography variant={isMobile ? "h6" : "h5"} sx={{ fontWeight: 950, letterSpacing: -1 }}>Academic Directory</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>{filteredUsers.length} active entities indexed</Typography>
           </Box>
           <Stack direction="row" spacing={1}>
@@ -437,7 +435,7 @@ const Users = () => {
                 onClick={() => setUserModalOpen(true)}
                 sx={{ borderRadius: 3, fontWeight: 900, textTransform: 'none', px: 3 }}
               >
-                {!isMobile && 'New Admission'}
+                {!isMobile && 'Enlist Member'}
               </Button>
             )}
             <IconButton onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')} sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
@@ -470,8 +468,8 @@ const Users = () => {
                 <Tab label="Students" />
                 <Tab label="Academic Staff" />
                 <Tab label="Admission Pool" />
-                <Tab label="Record Archive" icon={<Archive size={16} />} iconPosition="start" />
-                <Tab label="Suspended" icon={<ShieldAlert size={16} />} iconPosition="start" />
+                <Tab label="Vault Archive" icon={<Archive size={16} />} iconPosition="start" />
+                <Tab label="Restricted Access" icon={<ShieldAlert size={16} />} iconPosition="start" />
               </Tabs>
             </Grid>
           </Grid>

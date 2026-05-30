@@ -4,18 +4,19 @@ service cloud.firestore {
     // Basic helpers
     function isSignedIn() { return request.auth != null; }
     function getUserData() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function isNotBanned() { return isSignedIn() && getUserData().status != 'Banned'; }
     
     // Role based helpers
     function isSuperAdmin() { 
-      return isSignedIn() && (
+      return isNotBanned() && (
         request.auth.token.email == 'zeeshanmaqbool200@gmail.com' || 
         getUserData().role == 'superadmin' ||
         getUserData().role == 'super_admin'
       ); 
     }
-    function isAdmin() { return isSuperAdmin() || (isSignedIn() && getUserData().role == 'admin'); }
-    function isManager() { return isAdmin() || (isSignedIn() && (getUserData().role == 'manager' || getUserData().role == 'muntazim')); }
-    function isTeacher() { return isManager() || (isSignedIn() && getUserData().role == 'teacher'); }
+    function isAdmin() { return isSuperAdmin() || (isNotBanned() && getUserData().role == 'admin'); }
+    function isManager() { return isAdmin() || (isNotBanned() && (getUserData().role == 'manager' || getUserData().role == 'muntazim')); }
+    function isTeacher() { return isManager() || (isNotBanned() && getUserData().role == 'teacher'); }
 
     // Ownership helpers
     function isOwner(data) { return isSignedIn() && data.ownerId == request.auth.uid; }

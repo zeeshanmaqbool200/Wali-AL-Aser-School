@@ -32,7 +32,6 @@ import { useMediaQuery, Dialog, DialogTitle, DialogContent, DialogActions } from
 import { logger } from '../lib/logger';
 import { saveSessionUser } from '../lib/session';
 
-import SavingOverlay from '../components/SavingOverlay';
 import { styled } from '@mui/material/styles';
 
 const IOSSwitch = styled((props: any) => (
@@ -811,7 +810,7 @@ export default function Settings() {
                         <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
                           <Typography variant="h6" sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                             <Sparkles size={22} color={theme.palette.primary.main} /> 
-                            Institute Identity & Branding
+                            Institutional Identity & Visual Branding
                           </Typography>
                         </Box>
                         <CardContent sx={{ p: 4 }}>
@@ -893,7 +892,7 @@ export default function Settings() {
                                 <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', display: 'block' }}>Visual Assets</Typography>
                                 <Box sx={{ textAlign: 'right' }}>
                                    <Typography variant="caption" sx={{ fontWeight: 900, color: calculateTotalBrandingSize() > 800000 ? 'error.main' : 'text.secondary', display: 'block' }}>
-                                      Branding Data Scope: {(calculateTotalBrandingSize() / 1024).toFixed(0)}KB / 1024KB
+                                      Storage Utilization: {(calculateTotalBrandingSize() / 1024).toFixed(0)}KB / 1024KB
                                    </Typography>
                                    <Box sx={{ width: 120, height: 4, bgcolor: 'divider', borderRadius: 2, mt: 0.5, overflow: 'hidden' }}>
                                       <Box sx={{ width: `${Math.min(100, (calculateTotalBrandingSize() / 1048576) * 100)}%`, height: '100%', bgcolor: calculateTotalBrandingSize() > 800000 ? 'error.main' : 'primary.main', transition: '0.5s' }} />

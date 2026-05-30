@@ -16,7 +16,7 @@ import { UserProfile, Notification as NotificationType } from '../types';
 import { useData } from '../context/DataContext';
 import BottomNav from './BottomNav';
 import Sidebar from './Sidebar';
-import SavingOverlay from './SavingOverlay';
+import { SavingOverlay } from './SavingOverlay';
 import ImportantNotificationBanner from './ImportantNotificationBanner';
 import { collection, query, onSnapshot, orderBy, limit, updateDoc, doc, arrayUnion, getDoc, where, or, and } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
@@ -338,6 +338,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
       </Box>
 
       {showBottomNav && !isInternalPage && <Box className="no-print"><BottomNav user={user} unreadNotifications={unreadCount} visible={bottomNavVisible} logoUrl={logoUrl} /></Box>}
+      <SavingOverlay isSaving={isSaving} message="Syncing Academic Intelligence..." />
     </Box>
   );
 }

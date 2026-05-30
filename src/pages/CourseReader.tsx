@@ -229,7 +229,8 @@ export default function CourseReader() {
       {instituteSettings?.logoUrl && (
         <Box sx={{ 
           position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%) rotate(-15deg)', 
-          width: '60%', opacity: 0.03, pointerEvents: 'none', zIndex: 0 
+          width: '60%', opacity: 0.03, pointerEvents: 'none', zIndex: 0,
+          mixBlendMode: 'screen' 
         }}>
           <img src={instituteSettings.logoUrl} style={{ width: '100%', height: 'auto' }} />
         </Box>
