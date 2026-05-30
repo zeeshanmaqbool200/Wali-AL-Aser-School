@@ -27,7 +27,7 @@ export interface UserProfile {
   rollNo?: string;
   contactNumber?: string;
   admissionDate?: string;
-  status?: 'Active' | 'Inactive' | 'Archived' | 'Pending' | 'Deleted';
+  status?: 'Active' | 'Inactive' | 'Archived' | 'Pending' | 'Deleted' | 'Banned';
   removedAt?: any;
   removedBy?: string;
   subjectsEnrolled?: string[];
@@ -419,11 +419,9 @@ export interface InstituteSettings {
   logo?: string;
   logoUrl?: string;
   bannerUrl?: string;
-  receiptLeftImageUrl?: string;
-  receiptRightImageUrl?: string;
-  admissionLeftImageUrl?: string;
-  admissionRightImageUrl?: string;
-  admissionWatermarkImageUrl?: string;
+  stampUrl?: string;
+  leftImageUrl?: string;
+  rightImageUrl?: string;
   receiptPrefix: string;
   primaryColor: string;
   secondaryColor: string;

@@ -37,32 +37,18 @@ const AdmissionFormPrint = React.forwardRef<HTMLDivElement, Props>(({ user, sett
         },
       }}
     >
-      {/* Watermark Logo */}
-      {settings?.logoUrl && (
-        <Box sx={{ 
-          position: 'absolute', 
-          top: '50%', 
-          left: '50%', 
-          transform: 'translate(-50%, -50%)', 
-          opacity: 0.05, 
-          zIndex: 0,
-          pointerEvents: 'none',
-          width: 500,
-          height: 500,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <img src={settings.logoUrl} crossOrigin="anonymous" alt="" style={{ width: '100%', height: 'auto', maxHeight: '100%', objectFit: 'contain' }} />
-        </Box>
-      )}
+      <Box sx={{ position: 'absolute', top: '15mm', left: '15mm', right: '15mm', bottom: '15mm', pointerEvents: 'none', zIndex: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {settings?.logoUrl && (
+          <img src={settings.logoUrl} alt="watermark" style={{ width: '60%', opacity: 0.05, transform: 'rotate(-30deg)' }} />
+        )}
+      </Box>
 
       {/* Header */}
       <Box sx={{ borderBottom: '2px solid #000', pb: 2, mb: 4, textAlign: 'center', position: 'relative', zIndex: 1 }}>
         <Grid container alignItems="center" spacing={2}>
           <Grid size={{ xs: 3 }}>
-            {settings?.receiptLeftImageUrl ? (
-              <img src={settings.receiptLeftImageUrl} crossOrigin="anonymous" alt="Left Header" style={{ width: '100%', height: '80px', objectFit: 'contain' }} />
+            {settings?.leftImageUrl ? (
+              <img src={settings.leftImageUrl} crossOrigin="anonymous" alt="Left Header" style={{ width: '100%', height: '80px', objectFit: 'contain' }} />
             ) : settings?.logoUrl ? (
               <img src={settings.logoUrl} crossOrigin="anonymous" alt="Logo" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
             ) : null}
@@ -73,8 +59,8 @@ const AdmissionFormPrint = React.forwardRef<HTMLDivElement, Props>(({ user, sett
             <Typography variant="body2" sx={{ fontSize: '0.75rem', maxWidth: '80%', mx: 'auto' }}>{settings?.address}</Typography>
           </Grid>
           <Grid size={{ xs: 3 }}>
-            {settings?.receiptRightImageUrl ? (
-              <img src={settings.receiptRightImageUrl} crossOrigin="anonymous" alt="Right Header" style={{ width: '100%', height: '80px', objectFit: 'contain' }} />
+            {settings?.rightImageUrl ? (
+              <img src={settings.rightImageUrl} crossOrigin="anonymous" alt="Right Header" style={{ width: '100%', height: '80px', objectFit: 'contain' }} />
             ) : (
               <Box sx={{ border: '1px solid #ccc', width: 90, height: 110, mx: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f8fafc' }}>
                 {user.photoURL ? (

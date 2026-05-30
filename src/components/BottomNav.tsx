@@ -8,7 +8,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile } from '../types';
 
 interface BottomNavProps {

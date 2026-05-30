@@ -15,8 +15,10 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       VitePWA({
+        disable: mode === 'development',
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg', 'logo.svg'],
+        filename: 'service-worker.js',
+        injectRegister: 'auto',
         manifest: {
           name: 'Academic Management System',
           short_name: 'AMS',
@@ -39,25 +41,15 @@ export default defineConfig(({ mode }) => {
           cleanupOutdatedCaches: true,
           skipWaiting: true,
           clientsClaim: true,
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'google-fonts-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365
-                },
-                cacheableResponse: {
-                  statuses: [0, 200]
-                }
-              }
-            }
-          ]
-        }
+          disableDevLogs: true,
+          sourcemap: false
+        },
+        devOptions: {
+          enabled: false,
+        },
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg', 'logo.svg'],
       })
-    ],
+    ].filter(Boolean) as any,
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
@@ -69,7 +61,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
-      hmr: false, // Force disable HMR to stop WebSocket connection attempts
+      hmr: false,
       watch: {
         usePolling: true,
       }
@@ -82,7 +74,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            'vendor-react': ['react', 'react-dom', 'react-router-dom', 'motion/react'],
+            'vendor-react': ['react', 'react-dom', 'react-router-dom', 'framer-motion'],
             'vendor-mui': ['@mui/material', '@emotion/react', '@emotion/styled'],
             'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
             'vendor-utils': ['date-fns', 'lucide-react', 'canvas-confetti', 'qrcode.react', 'gsap'],

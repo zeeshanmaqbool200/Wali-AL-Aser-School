@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme, alpha } from '@mui/material/styles';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';

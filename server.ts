@@ -14,18 +14,32 @@ async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        hmr: false 
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
     
-    // Serve static files with long-term caching for assets
+    // Aggressive cache-busting for PWA service worker
+    app.get("/service-worker.js", (req, res) => {
+      res.set({
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        "Content-Type": "application/javascript",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      });
+      res.sendFile(path.join(distPath, "service-worker.js"));
+    });
+
+    // Serve other static files with long-term caching for assets
     app.use(express.static(distPath, {
       maxAge: "1y",
       immutable: true,
-      index: false // We will handle index manually to add cache-busting headers
+      index: false
     }));
 
     // Aggressive cache-busting for index.html

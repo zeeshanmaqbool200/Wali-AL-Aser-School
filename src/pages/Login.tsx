@@ -9,10 +9,10 @@ import { alpha, useTheme } from '@mui/material/styles';
 import { 
   LogIn, UserPlus, Eye, EyeOff, Mail, Lock, User, 
   ShieldCheck, Sparkles, ArrowRight, GraduationCap,
-  School, CheckCircle
+  School, CheckCircle, AlertCircle
 } from 'lucide-react';
 import { UserRole, InstituteSettings } from '../types';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useThemeContext } from '../context/ThemeContext';
@@ -99,72 +99,72 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center',
-        bgcolor: isDark ? '#0f172a' : '#f8fafc',
-        backgroundImage: isDark 
-          ? `radial-gradient(circle at 0% 0%, ${alpha('#3b82f6', 0.05)} 0%, transparent 50%), 
-             radial-gradient(circle at 100% 100%, ${alpha('#1e40af', 0.03)} 0%, transparent 50%)`
-          : `radial-gradient(circle at 0% 0%, ${alpha(theme.palette.primary.main, 0.05)} 0%, transparent 50%)`,
+        background: isDark 
+          ? `radial-gradient(circle at 0% 0%, ${alpha(theme.palette.primary.main, 0.12)} 0%, transparent 40%),
+             radial-gradient(circle at 100% 100%, ${alpha(theme.palette.secondary.main, 0.08)} 0%, transparent 40%),
+             #0a0a0a`
+          : `radial-gradient(circle at 100% 0%, ${alpha(theme.palette.primary.main, 0.08)} 0%, transparent 40%),
+             radial-gradient(circle at 0% 100%, ${alpha(theme.palette.secondary.main, 0.05)} 0%, transparent 40%),
+             #fdfcfb`,
         position: 'relative',
-        py: { xs: 4, md: 6 },
+        py: { xs: 4, md: 8 },
         px: 2,
         overflow: 'hidden'
       }}
     >
-      {/* Dynamic Background Elements */}
+      {/* Decorative Ornaments (Islamic/Academic Pattern) */}
       <Box sx={{ 
         position: 'absolute', 
-        width: '100%', 
-        height: '100%', 
-        top: 0, 
-        left: 0, 
+        inset: 0, 
+        opacity: isDark ? 0.03 : 0.02, 
+        zIndex: 0,
         pointerEvents: 'none',
-        zIndex: 0 
-      }}>
-        <Box sx={{ 
-          position: 'absolute', 
-          top: '-10%', 
-          left: '-5%', 
-          width: '50vw', 
-          height: '50vw', 
-          background: isDark ? alpha('#3b82f6', 0.05) : alpha(theme.palette.primary.main, 0.03),
-          filter: 'blur(120px)',
-          borderRadius: '50%',
-        }} />
-      </Box>
+        backgroundImage: 'url("https://www.transparenttextures.com/patterns/p6.png")',
+        backgroundRepeat: 'repeat'
+      }} />
 
       <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
         >
-          <Box sx={{ textAlign: 'center', mb: 5 }}>
+          <Box sx={{ textAlign: 'center', mb: 6 }}>
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.6 }}
+              transition={{ delay: 0.2, duration: 0.8 }}
             >
               <Box 
                 sx={{ 
                   display: 'inline-flex', 
-                  p: 2, 
-                  borderRadius: 5, 
+                  p: 2.5, 
+                  borderRadius: '30% 70% 70% 30% / 30% 30% 70% 70%', 
                   bgcolor: isDark ? 'background.paper' : '#ffffff',
-                  mb: 3,
-                  width: { xs: 80, md: 100 },
-                  height: { xs: 80, md: 100 },
+                  mb: 4,
+                  width: { xs: 90, md: 120 },
+                  height: { xs: 90, md: 120 },
                   alignItems: 'center',
                   justifyContent: 'center',
                   boxShadow: isDark 
-                    ? '0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1)'
-                    : '0 20px 40px rgba(0,0,0,0.05)',
-                  border: isDark ? '1px solid rgba(255,255,255,0.05)' : 'none'
+                    ? '0 30px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)'
+                    : '0 30px 60px rgba(0,0,0,0.1)',
+                  border: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  '&:before': {
+                    content: '""',
+                    position: 'absolute',
+                    inset: 0,
+                    background: `linear-gradient(45deg, transparent, ${alpha(theme.palette.primary.main, 0.1)}, transparent)`,
+                    animation: 'shimmer 3s infinite linear'
+                  }
                 }}
               >
                 {institute.logoUrl ? (
-                  <Box component="img" src={institute.logoUrl} sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  <Box component="img" src={institute.logoUrl} sx={{ width: '80%', height: '80%', objectFit: 'contain', zIndex: 1 }} />
                 ) : (
-                  <School size={48} color={theme.palette.primary.main} strokeWidth={1.5} />
+                  <School size={56} color={theme.palette.primary.main} strokeWidth={1} style={{ zIndex: 1 }} />
                 )}
               </Box>
             </motion.div>
@@ -172,27 +172,42 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.3, duration: 0.6 }}
+              transition={{ delay: 0.4, duration: 0.8 }}
             >
-              <Typography variant="h3" sx={{ 
+              <Typography variant="h5" sx={{ 
+                fontWeight: 900, 
+                color: theme.palette.primary.main, 
+                letterSpacing: 4,
+                mb: 1.5,
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
+                opacity: 0.9,
+                fontFamily: '"Outfit", sans-serif'
+              }}>
+                ASSLAMUALIKUM
+              </Typography>
+              <Typography variant="h2" sx={{ 
                 fontWeight: 950, 
-                mb: 1, 
+                mb: 1.5, 
                 color: 'text.primary', 
                 letterSpacing: -2, 
-                fontSize: { xs: '2rem', sm: '2.8rem' },
-                fontFamily: 'var(--font-heading)'
+                fontSize: { xs: '2.2rem', sm: '3.4rem' },
+                fontFamily: '"Cinzel Decorative", serif',
+                lineHeight: 1
               }}>
                 {institute.instituteName || 'Wali Ul Aser'}
               </Typography>
               <Typography variant="body1" sx={{ 
-                fontWeight: 800, 
-                color: 'primary.main', 
-                letterSpacing: 2,
-                fontSize: { xs: '0.75rem', sm: '0.9rem' },
-                textTransform: 'uppercase',
-                opacity: 0.8
+                fontWeight: 700, 
+                color: 'text.secondary', 
+                letterSpacing: 1,
+                fontSize: { xs: '0.85rem', sm: '1rem' },
+                maxWidth: 400,
+                mx: 'auto',
+                opacity: 0.7,
+                fontFamily: '"Outfit", sans-serif'
               }}>
-                {institute.tagline || 'Education & Management Portal'}
+                {institute.tagline || 'Institutional Management & Digital Learning Portal'}
               </Typography>
             </motion.div>
           </Box>
@@ -200,34 +215,47 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
           <Card
             elevation={0}
             sx={{ 
-              borderRadius: 6,
-              bgcolor: isDark ? alpha(theme.palette.background.paper, 0.4) : 'white',
-              backdropFilter: 'blur(20px)',
+              borderRadius: 8,
+              bgcolor: isDark ? alpha(theme.palette.background.paper, 0.6) : alpha('rgba(255,255,255,0.8)', 0.95),
+              backdropFilter: 'blur(30px)',
               border: '1px solid',
-              borderColor: isDark ? alpha('#ffffff', 0.1) : 'divider',
+              borderColor: isDark ? alpha('#ffffff', 0.1) : alpha(theme.palette.primary.main, 0.1),
               boxShadow: isDark 
-                ? '0 50px 100px rgba(0, 0, 0, 0.5)'
-                : '0 30px 60px rgba(0, 0, 0, 0.08)',
-              overflow: 'hidden'
+                ? '0 60px 120px -20px rgba(0, 0, 0, 0.8)'
+                : '0 60px 120px -20px rgba(0, 0, 0, 0.15)',
+              overflow: 'hidden',
+              position: 'relative',
+              '&:after': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`
+              }
             }}
           >
-            <CardContent sx={{ p: { xs: 4, sm: 6 } }}>
-              <Typography variant="h5" sx={{ fontWeight: 950, mb: 4, textAlign: 'center', letterSpacing: -1 }}>
-                {isSignUp ? 'Create Workspace Account' : 'Welcome Back'}
+            <CardContent sx={{ p: { xs: 4, sm: 7 } }}>
+              <Typography variant="h4" sx={{ fontWeight: 900, mb: 5, textAlign: 'center', letterSpacing: -1.5, fontFamily: '"Outfit", sans-serif' }}>
+                {isSignUp ? 'Activate Workspace' : 'System Access'}
               </Typography>
+              
               <AnimatePresence mode="wait">
                 {error && (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
                     <Alert 
                       severity="error" 
-                      variant="outlined"
+                      icon={<AlertCircle size={20} />}
                       sx={{ 
-                        mb: 3, 
-                        borderRadius: 2, 
+                        mb: 4, 
+                        borderRadius: 3, 
                         fontWeight: 700, 
-                        bgcolor: alpha(theme.palette.error.main, 0.05),
-                        borderColor: alpha(theme.palette.error.main, 0.2),
-                        color: theme.palette.error.main
+                        bgcolor: alpha(theme.palette.error.main, 0.03),
+                        color: theme.palette.error.main,
+                        border: '1px solid',
+                        borderColor: alpha(theme.palette.error.main, 0.1),
+                        '& .MuiAlert-icon': { color: theme.palette.error.main }
                       }}
                     >
                       {error}
@@ -237,37 +265,39 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
               </AnimatePresence>
 
               <form onSubmit={handleSubmit}>
-                <Stack spacing={2}>
+                <Stack spacing={3}>
                   <AnimatePresence mode="wait">
                     {isSignUp && (
-                      <motion.div key="signup-fields" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
-                        <Stack spacing={2} sx={{ mb: 2 }}>
+                      <motion.div key="signup-fields" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                        <Stack spacing={3} sx={{ pb: 3 }}>
                           <TextField
                             fullWidth
-                            label="Full Name"
+                            label="Legal Full Name"
+                            variant="filled"
                             required
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            sx={{
-                              '& .MuiOutlinedInput-root': { 
-                                borderRadius: 2.5, 
-                                bgcolor: isDark ? alpha('#ffffff', 0.03) : alpha('#000000', 0.02),
-                              }
+                            InputProps={{ 
+                              disableUnderline: true,
+                              sx: { borderRadius: 4, fontWeight: 700, bgcolor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.03) } 
                             }}
                           />
-                          <FormControl fullWidth required>
-                            <InputLabel>Account Type</InputLabel>
+                          <FormControl fullWidth required variant="filled">
+                            <InputLabel sx={{ fontWeight: 700 }}>Identity Role</InputLabel>
                             <Select
                               value={role}
-                              label="Account Type"
+                              label="Identity Role"
+                              disableUnderline
                               onChange={(e) => setRole(e.target.value as UserRole)}
                               sx={{ 
-                                borderRadius: 2.5, 
-                                bgcolor: isDark ? alpha('#ffffff', 0.03) : alpha('#000000', 0.02),
+                                borderRadius: 4, 
+                                fontWeight: 700,
+                                bgcolor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.03),
+                                '& .MuiSelect-select': { py: 2 }
                               }}
                             >
-                               <MenuItem value="student">Student Identity</MenuItem>
-                              <MenuItem value="teacher">Staff Identity</MenuItem>
+                               <MenuItem value="student" sx={{ py: 1.5, fontWeight: 700 }}>Student Member</MenuItem>
+                               <MenuItem value="teacher" sx={{ py: 1.5, fontWeight: 700 }}>Staff Academic</MenuItem>
                             </Select>
                           </FormControl>
                         </Stack>
@@ -278,29 +308,24 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                   <Box>
                     <TextField
                       fullWidth
-                      label="Email Address"
+                      label="Academic Email"
                       type="email"
+                      variant="filled"
                       required
                       error={emailCheck.exists}
-                      helperText={emailCheck.exists ? 'This email is already associated with an account' : ''}
+                      helperText={emailCheck.exists ? 'System ID already active for this email.' : ''}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      sx={{
-                        '& .MuiOutlinedInput-root': { 
-                          borderRadius: 2.5, 
-                          bgcolor: isDark ? alpha('#ffffff', 0.03) : alpha('#000000', 0.02),
-                        }
-                      }}
                       InputProps={{
+                        disableUnderline: true,
+                        sx: { borderRadius: 4, fontWeight: 700, bgcolor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.03) },
                         startAdornment: (
                           <InputAdornment position="start">
-                            <Mail size={18} color={isDark ? alpha('#ffffff', 0.3) : alpha('#000000', 0.3)} />
+                            <Mail size={20} style={{ opacity: 0.4 }} />
                           </InputAdornment>
                         ),
                         endAdornment: emailCheck.checking ? (
-                          <InputAdornment position="end">
-                            <CircularProgress size={16} />
-                          </InputAdornment>
+                          <CircularProgress size={18} thickness={6} />
                         ) : null
                       }}
                     />
@@ -308,29 +333,24 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
 
                   <TextField
                     fullWidth
-                    label="Password"
+                    label="Access Password"
+                    variant="filled"
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    sx={{
-                      '& .MuiOutlinedInput-root': { 
-                        borderRadius: 2.5, 
-                        bgcolor: isDark ? alpha('#ffffff', 0.03) : alpha('#000000', 0.02),
-                      }
-                    }}
                     InputProps={{
+                      disableUnderline: true,
+                      sx: { borderRadius: 4, fontWeight: 700, bgcolor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.03) },
                       startAdornment: (
                         <InputAdornment position="start">
-                          <Lock size={18} color={isDark ? alpha('#ffffff', 0.3) : alpha('#000000', 0.3)} />
+                          <Lock size={20} style={{ opacity: 0.4 }} />
                         </InputAdornment>
                       ),
                       endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton onClick={() => setShowPassword(!showPassword)} size="small" sx={{ color: isDark ? alpha('#ffffff', 0.3) : alpha('#000000', 0.3) }}>
-                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                          </IconButton>
-                        </InputAdornment>
+                        <IconButton onClick={() => setShowPassword(!showPassword)} size="small" edge="end">
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </IconButton>
                       ),
                     }}
                   />
@@ -342,73 +362,82 @@ export default function Login({ onLogin, onSignUp, error }: LoginProps) {
                     size="large"
                     disabled={loading}
                     sx={{ 
-                      py: 1.8, 
-                      borderRadius: 2.5, 
-                      fontSize: '1rem', 
-                      fontWeight: 900,
-                      textTransform: 'none',
+                      py: 2.2, 
+                      borderRadius: 10, 
+                      fontSize: '1.1rem', 
+                      fontWeight: 950,
+                      textTransform: 'uppercase',
+                      letterSpacing: 1.5,
+                      fontFamily: '"Outfit", sans-serif',
                       background: loading 
                         ? 'divider' 
-                        : isDark ? `linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)` : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                      color: 'white',
-                      boxShadow: isDark ? `0 4px 12px ${alpha('#2563eb', 0.2)}` : `0 4px 12px ${alpha(theme.palette.primary.main, 0.15)}`,
-                      transition: 'all 0.4s cubic-bezier(0.2, 1, 0.2, 1)',
+                        : isDark ? `linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)` : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                      boxShadow: isDark 
+                        ? '0 15px 35px rgba(37, 99, 235, 0.4)' 
+                        : `0 15px 35px ${alpha(theme.palette.primary.main, 0.3)}`,
+                      border: 'none',
                       '&:hover': { 
-                        transform: 'translateY(-2px)',
-                        boxShadow: isDark ? `0 6px 15px ${alpha('#2563eb', 0.3)}` : `0 6px 15px ${alpha(theme.palette.primary.main, 0.2)}`,
+                        transform: 'translateY(-3px)',
+                        boxShadow: isDark 
+                          ? '0 20px 45px rgba(37, 99, 235, 0.5)' 
+                          : `0 20px 45px ${alpha(theme.palette.primary.main, 0.4)}`,
                         filter: 'brightness(1.1)'
                       },
-                      '&:active': { transform: 'scale(0.97)' }
+                      '&:active': { transform: 'translateY(-1px) scale(0.98)' }
                     }}
                   >
                     {loading ? (
-                      <CircularProgress size={24} color="inherit" />
+                      <CircularProgress size={28} color="inherit" thickness={5} />
                     ) : (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        {isSignUp ? 'Activate Account' : 'Access Wali Ul Aser'}
-                        <ArrowRight size={20} />
-                      </Box>
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        <span>{isSignUp ? 'Establish Identity' : 'Authenticate Access'}</span>
+                        <ArrowRight size={22} />
+                      </Stack>
                     )}
                   </Button>
                 </Stack>
               </form>
 
-              <Box sx={{ mt: 4, textAlign: 'center' }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: isDark ? alpha('#ffffff', 0.3) : 'text.secondary' }}>
-                  {isSignUp ? 'Returning back?' : "New here?"}{' '}
-                  <Button
-                    variant="text"
-                    onClick={() => setIsSignUp(!isSignUp)}
-                    sx={{ 
-                      fontWeight: 900, 
-                      color: isDark ? '#60a5fa' : theme.palette.primary.main, 
-                      textTransform: 'none', 
-                      px: 1,
-                      '&:hover': { bgcolor: alpha(isDark ? '#60a5fa' : theme.palette.primary.main, 0.05) }
-                    }}
-                  >
-                    {isSignUp ? 'Sign In' : 'Create Account'}
-                  </Button>
+              <Box sx={{ mt: 5, textAlign: 'center' }}>
+                <Typography variant="body1" sx={{ fontWeight: 800, color: 'text.secondary', opacity: 0.6 }}>
+                  {isSignUp ? 'Already have an academic profile?' : "Don't have an ID yet?"}
                 </Typography>
+                <Button
+                  onClick={() => setIsSignUp(!isSignUp)}
+                  sx={{ 
+                    mt: 1,
+                    fontWeight: 950, 
+                    color: theme.palette.primary.main, 
+                    fontSize: '1rem',
+                    textTransform: 'none',
+                    letterSpacing: -0.5,
+                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) }
+                  }}
+                >
+                  {isSignUp ? 'Access Portal Now' : 'Create System ID'}
+                </Button>
               </Box>
             </CardContent>
           </Card>
           
-          <Box sx={{ mt: 5, textAlign: 'center' }}>
-            <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-              <ShieldCheck size={14} color={isDark ? alpha('#ffffff', 0.2) : alpha('#000000', 0.2)} />
-              <Typography variant="caption" sx={{ fontWeight: 800, color: isDark ? alpha('#ffffff', 0.2) : alpha('#000000', 0.25), letterSpacing: 1, textTransform: 'uppercase' }}>
-                Secured Institutional Environment
+          <Stack sx={{ mt: 6 }} spacing={2} alignItems="center">
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ opacity: 0.4 }}>
+              <ShieldCheck size={16} />
+              <Typography variant="caption" sx={{ fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase' }}>
+                Encrypted Academic Exchange
               </Typography>
             </Stack>
-          </Box>
+            <Typography variant="caption" sx={{ opacity: 0.2, fontWeight: 700 }}>
+              &copy; {new Date().getFullYear()} Wali Ul Aser Academy. All Rights Reserved.
+            </Typography>
+          </Stack>
         </motion.div>
       </Container>
 
       <GlobalStyles styles={{
-        '@keyframes float': {
-          '0%': { transform: 'translate(0, 0) scale(1)' },
-          '100%': { transform: 'translate(20px, 20px) scale(1.1)' }
+        '@keyframes shimmer': {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' }
         }
       }} />
     </Box>

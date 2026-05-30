@@ -214,24 +214,29 @@ export const pdfStyles = StyleSheet.create({
     borderTop: '0.5pt solid #f3f4f6',
     paddingTop: 8,
     lineHeight: 1.2,
+  },
+  watermark: {
+    position: 'absolute',
+    top: '30%',
+    left: '15%',
+    width: '70%',
+    opacity: 0.04,
+    transform: 'rotate(-30deg)',
+    zIndex: -1,
   }
 });
 
 export const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeReceipt, settings: InstituteSettings, qrCodeUrl?: string }) => (
   <Document title={`Receipt_${receipt.receiptNo || receipt.receiptNumber}`}>
     <Page size="A4" style={pdfStyles.page}>
-      {/* Watermark Logo */}
-      <View style={{ position: 'absolute', top: '35%', left: '20%', right: '20%', opacity: 0.05, zIndex: -2 }}>
-        {settings.logoUrl && (
-          <Image src={settings.logoUrl} style={{ width: '100%', height: 'auto' }} />
-        )}
-      </View>
-
+      {settings.logoUrl && (
+        <Image src={settings.logoUrl} style={pdfStyles.watermark} />
+      )}
       <View style={pdfStyles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-          {settings.receiptLeftImageUrl && (
+          {settings.leftImageUrl && (
             <View style={{ width: 60, height: 60, marginRight: 10, justifyContent: 'center' }}>
-              <Image src={settings.receiptLeftImageUrl} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+              <Image src={settings.leftImageUrl} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
             </View>
           )}
           <View style={pdfStyles.headerText}>
@@ -241,8 +246,8 @@ export const ReceiptPDF = ({ receipt, settings, qrCodeUrl }: { receipt: FeeRecei
             <Text style={pdfStyles.address}>Ph: {settings.phone} • {settings.email}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10 }}>
-            {settings.receiptRightImageUrl ? (
-              <Image src={settings.receiptRightImageUrl} style={{ width: 60, height: 60, objectFit: 'contain' }} />
+            {settings.rightImageUrl ? (
+              <Image src={settings.rightImageUrl} style={{ width: 60, height: 60, objectFit: 'contain' }} />
             ) : null}
           </View>
         </View>
@@ -336,17 +341,14 @@ export const BulkReceiptPDF = ({ receipts, settings, qrCodeUrls }: { receipts: F
   <Document title="Bulk_Receipts">
     {receipts.map((receipt) => (
       <Page key={receipt.id} size="A4" style={pdfStyles.page}>
-        <View style={{ position: 'absolute', top: '35%', left: '20%', right: '20%', opacity: 0.05, zIndex: -2 }}>
-          {settings.logoUrl && (
-            <Image src={settings.logoUrl} style={{ width: '100%', height: 'auto' }} />
-          )}
-        </View>
-
+        {settings.logoUrl && (
+          <Image src={settings.logoUrl} style={pdfStyles.watermark} />
+        )}
         <View style={pdfStyles.header}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-            {settings.receiptLeftImageUrl && (
+            {settings.leftImageUrl && (
               <View style={{ width: 60, height: 60, marginRight: 10, justifyContent: 'center' }}>
-                <Image src={settings.receiptLeftImageUrl} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+                <Image src={settings.leftImageUrl} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
               </View>
             )}
             <View style={pdfStyles.headerText}>
@@ -356,8 +358,8 @@ export const BulkReceiptPDF = ({ receipts, settings, qrCodeUrls }: { receipts: F
               <Text style={pdfStyles.address}>Ph: {settings.phone} • {settings.email}</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10 }}>
-              {settings.receiptRightImageUrl ? (
-                <Image src={settings.receiptRightImageUrl} style={{ width: 60, height: 60, objectFit: 'contain' }} />
+              {settings.rightImageUrl ? (
+                <Image src={settings.rightImageUrl} style={{ width: 60, height: 60, objectFit: 'contain' }} />
               ) : null}
             </View>
           </View>
@@ -586,27 +588,19 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             }
           }}
         >
-          {/* Watermark Logo */}
-          <Box sx={{ 
-            position: 'absolute', 
-            top: '55%', 
-            left: '50%', 
-            transform: 'translate(-50%, -50%)', 
-            width: '70%', 
-            opacity: 0.05, 
-            pointerEvents: 'none', 
-            zIndex: 0,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center'
-          }}>
-            <Box component="img" src={settings.logoUrl} sx={{ width: '100%', height: 'auto', filter: 'grayscale(100%) brightness(1.2)' }} />
-          </Box>
+          {settings.logoUrl && (
+            <Box sx={{ 
+              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%) rotate(-30deg)', 
+              width: '60%', opacity: 0.05, pointerEvents: 'none', zIndex: 0 
+            }}>
+              <Box component="img" src={settings.logoUrl} sx={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+            </Box>
+          )}
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, borderBottom: '2.5px solid #0d9488', pb: 2, position: 'relative', zIndex: 1 }}>
             <Box sx={{ width: { xs: 50, sm: 90 }, flexShrink: 0, display: 'flex', justifyContent: 'flex-start' }}>
-              {settings.receiptLeftImageUrl && (
-                <Box component="img" src={settings.receiptLeftImageUrl} sx={{ width: '100%', height: 'auto', maxHeight: 85, objectFit: 'contain' }} />
+              {settings.leftImageUrl && (
+                <Box component="img" src={settings.leftImageUrl} sx={{ width: '100%', height: 'auto', maxHeight: 85, objectFit: 'contain' }} />
               )}
             </Box>
             
@@ -639,8 +633,8 @@ const FeeReceiptModal = memo(({ open, onClose, receipt, settings: propSettings }
             </Box>
 
             <Box sx={{ width: { xs: 60, sm: 95 }, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-              {settings.receiptRightImageUrl ? (
-                <Box component="img" src={settings.receiptRightImageUrl} sx={{ width: '100%', height: 'auto', maxHeight: 85, objectFit: 'contain' }} />
+              {settings.rightImageUrl ? (
+                <Box component="img" src={settings.rightImageUrl} sx={{ width: '100%', height: 'auto', maxHeight: 85, objectFit: 'contain' }} />
               ) : null}
             </Box>
           </Box>

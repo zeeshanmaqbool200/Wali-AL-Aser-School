@@ -21,8 +21,8 @@ try {
   firestoreDb = initializeFirestore(app, {
     localCache: memoryLocalCache(),
     ignoreUndefinedProperties: true,
-    // Use long polling to avoid WebSocket issues in some environments which can cause "Unexpected state"
     experimentalForceLongPolling: true,
+    experimentalAutoDetectLongPolling: false, // Force it, don't auto-detect
   }, firebaseConfig.firestoreDatabaseId);
 } catch (e: any) {
   // If already initialized or fails, try to get current instance

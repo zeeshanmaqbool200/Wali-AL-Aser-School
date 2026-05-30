@@ -1,6 +1,72 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      // Aggressively silence noisy system/dependency logs AS EARLY AS POSSIBLE
+      (function() {
+        const silencePatterns = [
+          'workbox', 'WebSocket', 'QUIC_PROTOCOL_ERROR', 'code suggestions',
+          'hmr', 'HMR', 'dev-sw', 'service-worker', 'ServiceWorker',
+          '[vite]', 'node_modules', 'Unexpected state', 'MIME type', 'ctrl i',
+          'without opened', 'connection to', 'failed:'
+        ];
+
+        const originalConsole = {
+          log: console.log,
+          error: console.error,
+          warn: console.warn,
+          debug: console.debug,
+          info: console.info
+        };
+
+        const wrap = (method) => (...args) => {
+          try {
+            const msg = args.map(arg => {
+              try { return typeof arg === 'string' ? arg : JSON.stringify(arg); }
+              catch(e) { return String(arg); }
+            }).join(' ');
+            
+            if (silencePatterns.some(p => msg.includes(p))) return;
+            originalConsole[method].apply(console, args);
+          } catch (e) {
+            // Fallback
+          }
+        };
+
+        console.log = wrap('log');
+        console.error = wrap('error');
+        console.warn = wrap('warn');
+        console.debug = wrap('debug');
+        console.info = wrap('info');
+        
+        window.addEventListener('error', (e) => {
+          const msg = e.message || (e.error && e.error.message) || '';
+          if (msg && silencePatterns.some(p => msg.includes(p))) {
+            e.preventDefault(); e.stopPropagation();
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', (e) => {
+          const msg = (e.reason && e.reason.message) || String(e.reason || '');
+          if (msg && silencePatterns.some(p => msg.includes(p))) {
+            e.preventDefault(); e.stopPropagation();
+          }
+        }, true);
+
+        // Periodically unregister to kill any lingering dev workers
+        if ('serviceWorker' in navigator && (window.location.hostname === 'localhost' || window.location.hostname.includes('ais-dev'))) {
+          const unregister = () => {
+            navigator.serviceWorker.getRegistrations().then(regs => {
+              regs.forEach(r => r.unregister());
+            }).catch(() => {});
+          };
+          unregister();
+          // Also check periodically
+          setTimeout(unregister, 1000);
+          setInterval(unregister, 5000);
+        }
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Wali Ul Aser | Institutional Management</title>
@@ -18,11 +84,19 @@
     <meta name="apple-mobile-web-app-title" content="Institute" />
     <link rel="apple-touch-icon" href="/logo.svg" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      // Dynamically add manifest link to avoid 404s/MIME errors in development
+      const isDev = window.location.hostname === 'localhost' || window.location.hostname.includes('ais-dev');
+      if (!isDev) {
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = '/manifest.webmanifest';
+        document.head.appendChild(link);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

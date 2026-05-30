@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline, Box, CircularProgress, GlobalStyles, IconButton, Skeleton, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
@@ -36,6 +36,7 @@ const FormManager = lazy(() => import('./pages/Forms/FormManager'));
 const FormBuilder = lazy(() => import('./pages/Forms/FormBuilder'));
 const FormView = lazy(() => import('./pages/Forms/FormView'));
 const FormResults = lazy(() => import('./pages/Forms/FormResults'));
+const PublicVerify = lazy(() => import('./pages/PublicVerify'));
 
 import ErrorBoundary from './components/ErrorBoundary';
 import ClassSelection from './components/ClassSelection';
@@ -109,18 +110,18 @@ const Verify = React.lazy(() => import('./pages/Verify'));
 function AppContent() {
   const { user, loading, error, manualLogin, manualSignUp, logout, instituteSettings } = useAuth();
   const location = useLocation();
-  const [showClassSelection, setShowClassSelection] = React.useState(false);
-  const [hidePendingBanner, setHidePendingBanner] = React.useState(false);
-  const [selectionMade, setSelectionMade] = React.useState(false);
-  const [appReady, setAppReady] = React.useState(false);
+  const [showClassSelection, setShowClassSelection] = useState(false);
+  const [hidePendingBanner, setHidePendingBanner] = useState(false);
+  const [selectionMade, setSelectionMade] = useState(false);
+  const [appReady, setAppReady] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!loading && instituteSettings) {
       setAppReady(true);
     }
   }, [loading, instituteSettings]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setSelectionMade(false); // Reset when user changes
   }, [user?.uid]);
 
@@ -149,6 +150,7 @@ function AppContent() {
       >
         <Suspense fallback={<PageLoading />}>
           <Routes location={location}>
+            <Route path="/v/:uid" element={<PublicVerify />} />
             <Route path="/verify/:type/:id" element={<Verify />} />
             {/* Public Form View - Accessible outside login if form allows */}
             <Route path="/forms/view/:id" element={<FormView />} />

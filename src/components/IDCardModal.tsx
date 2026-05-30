@@ -94,7 +94,7 @@ export default function IDCardModal({ open, onClose, user }: IDCardModalProps) {
     }
   };
 
-  const verificationUrl = `${window.location.origin}/verify/member/${user?.uid}`;
+  const verificationUrl = `${window.location.origin}/v/${user?.uid}`;
 
   if (!user) return null;
 

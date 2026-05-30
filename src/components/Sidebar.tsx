@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { UserRole } from '../types';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {

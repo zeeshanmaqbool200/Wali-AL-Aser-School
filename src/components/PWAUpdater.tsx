@@ -9,6 +9,10 @@ import { toast } from 'react-hot-toast';
  * Listens for route changes to trigger update checks.
  */
 const PWAUpdater: React.FC = () => {
+  const isDev = window.location.hostname === 'localhost' || window.location.hostname.includes('ais-dev');
+  
+  if (isDev) return null;
+
   const location = useLocation();
   
   const {

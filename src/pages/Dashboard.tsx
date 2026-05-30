@@ -23,7 +23,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useNavigate } from 'react-router-dom';
 import { format, startOfDay } from 'date-fns';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -329,7 +329,7 @@ export default function Dashboard() {
                         lineHeight: 0.9,
                         textTransform: 'uppercase'
                       }}>
-                        ASSLAMUALIKUM
+                        Salam {user?.displayName || 'Guest'}
                       </Typography>
                       <Typography id="hero-institute-name" variant="h5" sx={{ 
                         opacity: 0.7, 

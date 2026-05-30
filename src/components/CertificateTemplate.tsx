@@ -67,6 +67,16 @@ export default React.forwardRef<HTMLDivElement, { certificate: Certificate }>(({
         }
       }} />
 
+      {/* Central Watermark */}
+      <Box sx={{ 
+        position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%) rotate(-15deg)', 
+        width: '50%', opacity: 0.04, pointerEvents: 'none', zIndex: 0 
+      }}>
+        {instituteSettings?.logoUrl && (
+          <Box component="img" src={instituteSettings.logoUrl} sx={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+        )}
+      </Box>
+
       {/* Decorative Corner Flowers/Motifs */}
       {[
         { top: -20, left: -20 }, { top: -20, right: -20 }, 
@@ -91,9 +101,9 @@ export default React.forwardRef<HTMLDivElement, { certificate: Certificate }>(({
           borderRadius: 1,
           display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
         }}>
-          {instituteSettings?.admissionLeftImageUrl ? (
+          {instituteSettings?.leftImageUrl ? (
             <img 
-              src={instituteSettings.admissionLeftImageUrl} 
+              src={instituteSettings.leftImageUrl} 
               alt="Leader"
               loading="eager"
               crossOrigin="anonymous"
@@ -147,9 +157,9 @@ export default React.forwardRef<HTMLDivElement, { certificate: Certificate }>(({
           borderRadius: 1,
           display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
         }}>
-          {instituteSettings?.admissionRightImageUrl ? (
+          {instituteSettings?.rightImageUrl ? (
             <img 
-              src={instituteSettings.admissionRightImageUrl} 
+              src={instituteSettings.rightImageUrl} 
               alt="Leader"
               loading="eager"
               crossOrigin="anonymous"
@@ -260,18 +270,18 @@ export default React.forwardRef<HTMLDivElement, { certificate: Certificate }>(({
             zIndex: 20
           }}>
             <Box sx={{ textAlign: 'center', p: 1, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {instituteSettings?.logoUrl ? (
+              {instituteSettings?.stampUrl ? (
                 <img 
-                  src={instituteSettings.logoUrl} 
-                  alt="Seal"
+                  src={instituteSettings.stampUrl} 
+                  alt="Official Stamp"
                   crossOrigin="anonymous"
-                  style={{ width: '80%', height: '80%', objectFit: 'contain' }} 
+                  style={{ width: '90%', height: '90%', objectFit: 'contain' }} 
                 />
               ) : (
                 <Box sx={{ textAlign: 'center' }}>
                   <Typography sx={{ fontSize: 9, fontWeight: 950, color: '#B8860B', letterSpacing: 0.5 }}>OFFICIAL</Typography>
                   <Award size={45} color="#B8860B" />
-                  <Typography sx={{ fontSize: 9, fontWeight: 950, color: '#B8860B', letterSpacing: 0.5 }}>SEAL</Typography>
+                  <Typography sx={{ fontSize: 9, fontWeight: 950, color: '#B8860B', letterSpacing: 0.5 }}>STAMP</Typography>
                 </Box>
               )}
             </Box>

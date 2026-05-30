@@ -101,7 +101,7 @@ export default function BulkIDCardModal({ open, onClose, users }: BulkIDCardModa
 const SingleIDCard = ({ user, instituteSettings }: { user: UserProfile, instituteSettings: any }) => {
   const roleLabel = (user.role || 'student').replace('_', ' ').toUpperCase();
   const idText = user.admissionNo || user.studentId || user.staffId || 'PENDING';
-  const verificationUrl = `${window.location.origin}/verify/member/${user.uid}`;
+  const verificationUrl = `${window.location.origin}/v/${user.uid}`;
   const urduFontStyle = { 
     fontFamily: "'Noto Nastaliq Urdu', serif", 
     direction: 'rtl' as const,

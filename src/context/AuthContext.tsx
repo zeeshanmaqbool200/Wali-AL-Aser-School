@@ -107,6 +107,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             unsubscribeDoc = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
               if (docSnap.exists()) {
                 const profile = { ...docSnap.data(), uid: docSnap.id } as UserProfile;
+                
+                // Immediate enforcement of Banned status
+                if (profile.status === 'Banned') {
+                  logger.warn(`Account suspended for ${profile.displayName} (${profile.uid})`);
+                  signOut(auth);
+                  setUser(null);
+                  setError('Your account has been suspended by the administrator.');
+                  return;
+                }
+
                 const isSuperAdminEmail = firebaseUser.email?.toLowerCase() === 'zeeshanmaqbool200@gmail.com';
                 
                 let needsUpdate = false;
@@ -197,7 +207,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   }
                 }
               } else {
-                // Try to find if user was pre-registered
+                // Document does not exist or was deleted
+                logger.warn(`Profile document not found for active session: ${firebaseUser.uid}`);
+                
+                // Try to find if user was pre-registered (Migration/Discovery logic)
                 const findExisting = async () => {
                   const userEmail = firebaseUser.email || '';
                   const q = query(collection(db, 'users'), where('email', '==', userEmail));
@@ -278,9 +291,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
       logger.auth('Manual Login Attempt', { email });
-      await signInWithEmailAndPassword(auth, email, pass);
+      const cred = await signInWithEmailAndPassword(auth, email, pass);
+      
+      // Secondary Check: Verify Firestore Profile exists and is active
+      const userRef = doc(db, 'users', cred.user.uid);
+      const snap = await getDoc(userRef);
+      
+      if (!snap.exists()) {
+        await signOut(auth);
+        throw new Error('This account record has been removed from the system. Please contact admin.');
+      }
+      
+      if (snap.data().status === 'Banned') {
+        await signOut(auth);
+        throw new Error('Your account is currently suspended. Please contact the administrator.');
+      }
+      
     } catch (err: any) {
-      let message = 'Login failed. Check your email/password.';
+      let message = err.message || 'Login failed. Check your email/password.';
       if (err.code === 'auth/invalid-credential') {
         message = 'Wrong email or password.';
       } else if (err.code === 'auth/user-not-found') {

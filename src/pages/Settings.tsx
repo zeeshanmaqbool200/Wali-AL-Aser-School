@@ -17,7 +17,7 @@ import {
   Key, Eye, EyeOff, Smartphone as MobileIcon,
   Cloud, Zap, HardDrive, RefreshCw, AlertTriangle, Layout,
   Download, FileJson, Terminal, Mic, MessageSquare, Image as ImageIcon,
-  Edit2, ExternalLink, AlertCircle
+  Edit2, ExternalLink, AlertCircle, ShieldCheck
 } from 'lucide-react';
 import { doc, getDoc, updateDoc, collection, query, getDocs, deleteDoc, arrayUnion, setDoc, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
@@ -194,7 +194,7 @@ export default function Settings() {
     loading: false
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+  const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [purgeType, setPurgeType] = useState<'ALL' | 'STUDENTS' | 'ARCHIVED'>('ALL');
   const [resetConfirmText, setResetConfirmText] = useState('');
@@ -458,20 +458,46 @@ export default function Settings() {
     }
   };
 
-  const handleImageUpload = (field: 'logoUrl' | 'bannerUrl' | 'receiptLeftImageUrl' | 'receiptRightImageUrl' | 'admissionLeftImageUrl' | 'admissionRightImageUrl' | 'admissionWatermarkImageUrl') => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const calculateTotalBrandingSize = () => {
+    const fields: (keyof InstituteSettings)[] = ['logoUrl', 'bannerUrl', 'stampUrl', 'leftImageUrl', 'rightImageUrl'];
+    let total = 0;
+    fields.forEach(field => {
+      const val = instituteData[field];
+      if (typeof val === 'string') total += val.length;
+    });
+    return total;
+  };
+
+  const saveFieldToInstitute = async (field: string, value: string) => {
+    try {
+      setIsSaving(true);
+      await updateDoc(doc(db, 'settings', 'institute'), {
+        [field]: value,
+        updatedAt: new Date().toISOString()
+      });
+      // Update original so dirty check works correctly
+      setOriginalInstitute(prev => {
+        try {
+          const parsed = JSON.parse(prev);
+          parsed[field] = value;
+          return JSON.stringify(parsed);
+        } catch (e) { return prev; }
+      });
+    } catch (err: any) {
+      console.error(`Failed to auto-save ${field}:`, err);
+      setSnackbar({ open: true, message: 'Auto-save failed, but image is kept locally.', severity: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleImageUpload = (field: 'logoUrl' | 'bannerUrl' | 'stampUrl' | 'leftImageUrl' | 'rightImageUrl') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Individual limits: 10MB for banner, 2MB for others
-    const limitMB = field === 'bannerUrl' ? 10 : 2;
-    const limitBytes = limitMB * 1024 * 1024;
-
-    if (file.size > limitBytes) {
-      setSnackbar({ 
-        open: true, 
-        message: `Image is too large. ${field === 'bannerUrl' ? 'Cover images' : 'Logos'} must be under ${limitMB}MB.`, 
-        severity: 'error' 
-      });
+    const MAX_SOURCE_SIZE = 20 * 1024 * 1024; // Increased to 20MB as we compress anyway
+    if (file.size > MAX_SOURCE_SIZE) {
+      setSnackbar({ open: true, message: 'Source image is too large (Max 20MB).', severity: 'error' });
       return;
     }
 
@@ -483,58 +509,75 @@ export default function Settings() {
         let width = img.width;
         let height = img.height;
         
-        // Smart resizing: bigger for banners, smaller for receipts
-        let max = 600; 
-        if (field === 'bannerUrl') max = 1200; // Optimized for landscape cover
-        if (field.includes('receipt')) max = 400; 
-        
+        // Stricter target dimensions for better document packing
+        let maxDim = field === 'bannerUrl' ? 1000 : 600; 
+        if (field === 'stampUrl' || field.includes('Left') || field.includes('Right')) maxDim = 400; 
+
         if (width > height) {
-          if (width > max) {
-            height *= max / width;
-            width = max;
+          if (width > maxDim) {
+            height *= maxDim / width;
+            width = maxDim;
           }
         } else {
-          if (height > max) {
-            width *= max / height;
-            height = max;
+          if (height > maxDim) {
+            width *= maxDim / height;
+            height = maxDim;
           }
         }
-        
-        canvas.width = width;
-        canvas.height = height;
+
         const ctx = canvas.getContext('2d');
+        const compress = (w: number, h: number, q: number, format: 'image/jpeg' | 'image/png') => {
+          canvas.width = w;
+          canvas.height = h;
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.clearRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+          }
+          return canvas.toDataURL(format, format === 'image/jpeg' ? q : undefined);
+        };
+
+        // Aggressive quality targets to keep document under 1MB total
+        const PER_IMAGE_SAFE_LIMIT = field === 'bannerUrl' ? 180000 : 100000; 
         
-        // Remove white background fill to support transparent PNGs
-        if (ctx) {
-          ctx.clearRect(0, 0, width, height);
-          ctx.drawImage(img, 0, 0, width, height);
+        let resultFormat: 'image/jpeg' | 'image/png' = field === 'bannerUrl' ? 'image/jpeg' : 'image/png';
+        let quality = 0.8;
+        let base64 = compress(width, height, quality, resultFormat);
+
+        // Iterative compression loop
+        if (base64.length > PER_IMAGE_SAFE_LIMIT) {
+          resultFormat = 'image/jpeg'; // Force JPEG for better compression
+          while (base64.length > PER_IMAGE_SAFE_LIMIT && quality > 0.05) {
+            quality -= 0.1;
+            base64 = compress(width, height, quality, resultFormat);
+          }
         }
-        
-        // Use JPEG for banners to save space while maintaining quality
-        // Use PNG for logos to maintain transparency
-        const type = field === 'bannerUrl' ? 'image/jpeg' : 'image/png';
-        const quality = field === 'bannerUrl' ? 0.75 : undefined;
-        const base64 = canvas.toDataURL(type, quality);
+
+        // Final check - if still too large, reduce dimensions
+        if (base64.length > PER_IMAGE_SAFE_LIMIT) {
+           base64 = compress(width * 0.6, height * 0.6, 0.4, 'image/jpeg');
+        }
         
         setInstituteData(prev => ({ ...prev, [field]: base64 }));
         
-        // Firestore has a 1MB limit for the ENTIRE document.
-        const estimate = JSON.stringify({ ...instituteData, [field]: base64 }).length;
-        if (estimate > 950000) { 
-          setSnackbar({ 
-            open: true, 
-            message: 'Warning: Institute data is near Firestore limit (1MB). If save fails, please try a smaller image.', 
-            severity: 'error' 
-          });
-        }
+        // Auto-save this specific field immediately
+        saveFieldToInstitute(field, base64);
+
+        setSnackbar({ 
+          open: true, 
+          message: `Image optimized & saved (${(base64.length / 1024).toFixed(0)} KB)`, 
+          severity: 'success' 
+        });
       };
       img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveImage = (field: 'logoUrl' | 'bannerUrl' | 'receiptLeftImageUrl' | 'receiptRightImageUrl' | 'admissionLeftImageUrl' | 'admissionRightImageUrl' | 'admissionWatermarkImageUrl') => {
+  const handleRemoveImage = async (field: 'logoUrl' | 'bannerUrl' | 'stampUrl' | 'leftImageUrl' | 'rightImageUrl') => {
     setInstituteData(prev => ({ ...prev, [field]: '' }));
+    await saveFieldToInstitute(field, '');
   };
 
   const menuItems = [
@@ -846,17 +889,27 @@ export default function Settings() {
                             </Box>
                             <Divider />
                             <Box>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', mb: 3, display: 'block' }}>Visual Assets</Typography>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 3 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', display: 'block' }}>Visual Assets</Typography>
+                                <Box sx={{ textAlign: 'right' }}>
+                                   <Typography variant="caption" sx={{ fontWeight: 900, color: calculateTotalBrandingSize() > 800000 ? 'error.main' : 'text.secondary', display: 'block' }}>
+                                      Branding Data Scope: {(calculateTotalBrandingSize() / 1024).toFixed(0)}KB / 1024KB
+                                   </Typography>
+                                   <Box sx={{ width: 120, height: 4, bgcolor: 'divider', borderRadius: 2, mt: 0.5, overflow: 'hidden' }}>
+                                      <Box sx={{ width: `${Math.min(100, (calculateTotalBrandingSize() / 1048576) * 100)}%`, height: '100%', bgcolor: calculateTotalBrandingSize() > 800000 ? 'error.main' : 'primary.main', transition: '0.5s' }} />
+                                   </Box>
+                                </Box>
+                              </Box>
                               <Grid container spacing={3}>
-                                <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Primary Logo" value={instituteData.logoUrl} onUpload={handleImageUpload('logoUrl')} onRemove={() => handleRemoveImage('logoUrl')} icon={<Monitor size={24} />} /></Grid>
-                                <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Banner Image" value={instituteData.bannerUrl} onUpload={handleImageUpload('bannerUrl')} onRemove={() => handleRemoveImage('bannerUrl')} icon={<ImageIcon size={24} />} isBanner /></Grid>
-                                <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Receipt Left" value={instituteData.receiptLeftImageUrl} onUpload={handleImageUpload('receiptLeftImageUrl')} onRemove={() => handleRemoveImage('receiptLeftImageUrl')} icon={<CheckCircle size={24} />} /></Grid>
-                                <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Receipt Right" value={instituteData.receiptRightImageUrl} onUpload={handleImageUpload('receiptRightImageUrl')} onRemove={() => handleRemoveImage('receiptRightImageUrl')} icon={<CheckCircle size={24} />} /></Grid>
-                                
-                                <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Admission Left" value={instituteData.admissionLeftImageUrl} onUpload={handleImageUpload('admissionLeftImageUrl')} onRemove={() => handleRemoveImage('admissionLeftImageUrl')} icon={<ImageIcon size={24} />} /></Grid>
-                                <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Admission Right" value={instituteData.admissionRightImageUrl} onUpload={handleImageUpload('admissionRightImageUrl')} onRemove={() => handleRemoveImage('admissionRightImageUrl')} icon={<ImageIcon size={24} />} /></Grid>
-                                <Grid size={{ xs: 6, md: 3 }}><BrandingImageItem label="Admission Watermark" value={instituteData.admissionWatermarkImageUrl} onUpload={handleImageUpload('admissionWatermarkImageUrl')} onRemove={() => handleRemoveImage('admissionWatermarkImageUrl')} icon={<Shield size={24} />} /></Grid>
+                                <Grid size={{ xs: 6, md: 4, lg: 2.4 }}><BrandingImageItem label="Primary Logo" value={instituteData.logoUrl} onUpload={handleImageUpload('logoUrl')} onRemove={() => handleRemoveImage('logoUrl')} icon={<Monitor size={24} />} /></Grid>
+                                <Grid size={{ xs: 6, md: 4, lg: 2.4 }}><BrandingImageItem label="Banner Image" value={instituteData.bannerUrl} onUpload={handleImageUpload('bannerUrl')} onRemove={() => handleRemoveImage('bannerUrl')} icon={<ImageIcon size={24} />} isBanner /></Grid>
+                                <Grid size={{ xs: 6, md: 4, lg: 2.4 }}><BrandingImageItem label="Official Stamp" value={instituteData.stampUrl} onUpload={handleImageUpload('stampUrl')} onRemove={() => handleRemoveImage('stampUrl')} icon={<ShieldCheck size={24} />} /></Grid>
+                                <Grid size={{ xs: 6, md: 4, lg: 2.4 }}><BrandingImageItem label="Shared Left Image" value={instituteData.leftImageUrl} onUpload={handleImageUpload('leftImageUrl')} onRemove={() => handleRemoveImage('leftImageUrl')} icon={<CheckCircle size={24} />} /></Grid>
+                                <Grid size={{ xs: 6, md: 4, lg: 2.4 }}><BrandingImageItem label="Shared Right Image" value={instituteData.rightImageUrl} onUpload={handleImageUpload('rightImageUrl')} onRemove={() => handleRemoveImage('rightImageUrl')} icon={<CheckCircle size={24} />} /></Grid>
                               </Grid>
+                              <Typography variant="caption" sx={{ mt: 2, display: 'block', fontWeight: 600, color: 'text.secondary', bgcolor: alpha(theme.palette.info.main, 0.05), p: 1.5, borderRadius: 2, border: '1px dashed', borderColor: alpha(theme.palette.info.main, 0.2) }}>
+                                <strong>Note:</strong> The Primary Logo is automatically used as a watermark on all official documents. Separate watermark uploads are no longer required to save system space.
+                              </Typography>
                             </Box>
                             <Divider />
                             <Box>
@@ -1194,7 +1247,7 @@ export default function Settings() {
                                     </IconButton>
                                     <Box sx={{ textAlign: 'center', minWidth: 100 }}>
                                       <Typography variant="h2" sx={{ fontWeight: 950, color: 'primary.main', letterSpacing: -2 }}>
-                                        {instituteData.jafariOffset > 0 ? '+' : ''}{instituteData.jafariOffset || 0}
+                                        {Number(instituteData.jafariOffset || 0) > 0 ? '+' : ''}{instituteData.jafariOffset || 0}
                                       </Typography>
                                       <Typography variant="caption" sx={{ fontWeight: 800, opacity: 0.6, letterSpacing: 1 }}>DAYS SHIFT</Typography>
                                     </Box>

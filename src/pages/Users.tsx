@@ -84,6 +84,8 @@ const Users = () => {
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [userToArchive, setUserToArchive] = useState<string | null>(null);
+  const [userToBan, setUserToBan] = useState<string | null>(null);
+  const [banConfirmOpen, setBanConfirmOpen] = useState(false);
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [idCardUser, setIdCardUser] = useState<UserProfile | null>(null);
@@ -121,9 +123,12 @@ const Users = () => {
 
       // Tab specific filtering
       if (tabValue === 3) return u.status === 'Archived';
-      if (u.status === 'Archived' && tabValue !== 3) return false;
+      if (tabValue === 4) return u.status === 'Banned';
       
-      if (tabValue === 2) return ((!u.isVerified || u.role?.includes('pending')) || u.status === 'Pending') && u.status !== 'Archived';
+      if (u.status === 'Archived' && tabValue !== 3) return false;
+      if (u.status === 'Banned' && tabValue !== 4) return false;
+      
+      if (tabValue === 2) return ((!u.isVerified || u.role?.includes('pending')) || u.status === 'Pending') && u.status !== 'Archived' && u.status !== 'Banned';
       
       if (tabValue === 0) {
         return (u.role === 'student' || !u.role) && (u.status === 'Active' || !u.status);
@@ -177,8 +182,27 @@ const Users = () => {
       setIsSaving(false);
     }
   };
+  
+  const handleToggleBan = async (uid: string, currentStatus?: string) => {
+    setIsSaving(true);
+    try {
+      const userRef = doc(db, 'users', uid);
+      const isBanned = currentStatus === 'Banned';
+      await updateDoc(userRef, { 
+        status: isBanned ? 'Active' : 'Banned',
+        bannedAt: isBanned ? null : Date.now()
+      });
+      logger.success(isBanned ? 'Account restored' : 'Account suspended');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, 'users/ban');
+    } finally {
+      setIsSaving(false);
+      setUserToBan(null);
+      setBanConfirmOpen(false);
+    }
+  };
 
-  const handleBulkAction = async (action: 'verify' | 'restore' | 'archive') => {
+  const handleBulkAction = async (action: 'verify' | 'restore' | 'archive' | 'ban') => {
     if (selectedUsers.length === 0) return;
     setIsSaving(true);
     try {
@@ -186,8 +210,9 @@ const Users = () => {
       selectedUsers.forEach(id => {
         const userRef = doc(db, 'users', id);
         if (action === 'verify') batch.update(userRef, { isVerified: true, status: 'Active' });
-        else if (action === 'restore') batch.update(userRef, { status: 'Active', archivedAt: null });
+        else if (action === 'restore') batch.update(userRef, { status: 'Active', archivedAt: null, bannedAt: null });
         else if (action === 'archive') batch.update(userRef, { status: 'Archived', archivedAt: Date.now() });
+        else if (action === 'ban') batch.update(userRef, { status: 'Banned', bannedAt: Date.now() });
       });
       await batch.commit();
       setSelectedUsers([]);
@@ -382,6 +407,16 @@ const Users = () => {
         onCancel={() => setArchiveConfirmOpen(false)}
       />
 
+      <ConfirmDialog 
+        isOpen={banConfirmOpen}
+        title={userToBan && users.find(u => u.uid === userToBan)?.status === 'Banned' ? "Restore Access?" : "Suspend Access?"}
+        message={userToBan && users.find(u => u.uid === userToBan)?.status === 'Banned' 
+          ? "This will re-enable system access for this individual." 
+          : "This will immediately terminate all active sessions for this user and prevent them from logging in."}
+        onConfirm={() => userToBan && handleToggleBan(userToBan, users.find(u => u.uid === userToBan)?.status)}
+        onCancel={() => setBanConfirmOpen(false)}
+      />
+
       <Stack spacing={3}>
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -436,6 +471,7 @@ const Users = () => {
                 <Tab label="Academic Staff" />
                 <Tab label="Admission Pool" />
                 <Tab label="Record Archive" icon={<Archive size={16} />} iconPosition="start" />
+                <Tab label="Suspended" icon={<ShieldAlert size={16} />} iconPosition="start" />
               </Tabs>
             </Grid>
           </Grid>
@@ -529,6 +565,10 @@ const Users = () => {
                             setUserToArchive(u.uid);
                             setArchiveConfirmOpen(true);
                           }
+                        }}
+                        onBan={(u: any) => {
+                          setUserToBan(u.uid);
+                          setBanConfirmOpen(true);
                         }}
                         onEdit={(u: any) => {
                           setEditingUser(u);
@@ -626,7 +666,7 @@ const Users = () => {
                         <Chip 
                           size="small" 
                           label={user.status || 'Active'} 
-                          color={user.status === 'Active' ? 'success' : 'default'} 
+                          color={user.status === 'Active' ? 'success' : user.status === 'Banned' ? 'error' : 'default'} 
                           variant="outlined"
                           sx={{ height: 20, fontSize: '0.65rem', fontWeight: 900, px: 0.5 }}
                         />
@@ -667,6 +707,23 @@ const Users = () => {
                               </IconButton>
                             </Tooltip>
                           )}
+                          {isAdmin && (
+                            <Tooltip title={user.status === 'Banned' ? "Restore Access" : "Suspend (Ban) Account"}>
+                               <IconButton 
+                                 size="small" 
+                                 color={user.status === 'Banned' ? 'success' : 'warning'}
+                                 onClick={(e) => { 
+                                   e.stopPropagation(); 
+                                   setUserToBan(user.uid);
+                                   setBanConfirmOpen(true);
+                                 }}
+                                 sx={{ bgcolor: alpha(user.status === 'Banned' ? theme.palette.success.main : theme.palette.warning.main, 0.05) }}
+                               >
+                                 <ShieldAlert size={14} />
+                               </IconButton>
+                            </Tooltip>
+                          )}
+                          
                           {isAdmin && (
                             <Tooltip title="Quick Edit">
                               <IconButton 
@@ -720,7 +777,7 @@ const Users = () => {
   );
 };
 
-const UserCard = ({ user, onDelete, onSelect, isSelected, onEdit, isAdmin, onOpenProfile, onPass, onApprove }: any) => {
+const UserCard = ({ user, onDelete, onSelect, isSelected, onEdit, isAdmin, onOpenProfile, onPass, onApprove, onBan }: any) => {
   const theme = useTheme();
   return (
     <Card sx={{ 
@@ -729,6 +786,7 @@ const UserCard = ({ user, onDelete, onSelect, isSelected, onEdit, isAdmin, onOpe
       overflow: 'visible', 
       border: isSelected ? '2px solid' : '1px solid', 
       borderColor: isSelected ? 'primary.main' : 'divider',
+      opacity: user.status === 'Banned' ? 0.7 : 1,
       transition: 'all 0.2s ease',
       '&:hover': {
         borderColor: 'primary.light',
@@ -741,6 +799,15 @@ const UserCard = ({ user, onDelete, onSelect, isSelected, onEdit, isAdmin, onOpe
           {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
         </IconButton>
       </Box>
+
+      {user.status === 'Banned' && (
+        <Chip 
+          label="BANNED" 
+          size="small" 
+          color="error" 
+          sx={{ position: 'absolute', top: 12, right: 12, fontWeight: 900, zIndex: 1 }} 
+        />
+      )}
 
       <Box onClick={onOpenProfile} sx={{ p: 3, textAlign: 'center', cursor: 'pointer' }}>
         <Badge overlap="circular" anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} badgeContent={user.isVerified ? <CheckCircle2 size={14} color="green" /> : null}>
@@ -789,6 +856,16 @@ const UserCard = ({ user, onDelete, onSelect, isSelected, onEdit, isAdmin, onOpe
             >
               <Phone size={14} />
             </IconButton>
+          )}
+          {isAdmin && (
+             <IconButton 
+               size="small" 
+               color={user.status === 'Banned' ? 'success' : 'warning'} 
+               onClick={(e) => { e.stopPropagation(); onBan(user); }} 
+               sx={{ borderRadius: 2, border: '1px solid', borderColor: alpha(user.status === 'Banned' ? theme.palette.success.main : theme.palette.warning.main, 0.2) }}
+             >
+                <ShieldAlert size={14} />
+             </IconButton>
           )}
           {isAdmin && <Button fullWidth size="small" variant="outlined" onClick={(e) => { e.stopPropagation(); onEdit(user); }} startIcon={<Edit2 size={14} />} sx={{ borderRadius: 2, fontWeight: 900, fontSize: '0.65rem' }}>Edit</Button>}
           <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); onDelete(user); }} sx={{ borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette.error.main, 0.2) }}>

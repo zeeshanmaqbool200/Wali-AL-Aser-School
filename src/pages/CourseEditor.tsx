@@ -15,7 +15,7 @@ import {
   GripVertical, Eye, Share2, Globe, Archive, 
   MoreVertical, Quote, Code, Bookmark, ChevronUp, ChevronDown,
   Type, MessageSquare, List as ListIcon, Calendar, Info,
-  Upload, Music, Link as LinkIcon, Clock, Wand2
+  Upload, Music, Link as LinkIcon, Clock, Wand2, X, BookOpen
 } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, doc, getDoc, setDoc, updateDoc, collection, addDoc, serverTimestamp } from '../firebase';
@@ -277,30 +277,14 @@ const CurriculumTab = React.memo(({ sections, moveSection, editSection, removeSe
   );
 });
 
-const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEditing }: {
+const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEditing, course }: {
   newSection: any,
   setNewSection: any,
   onSave: any,
-  isEditing: boolean
+  isEditing: boolean,
+  course: any
 }) => {
   const theme = useTheme();
-
-  const handleLayoutChange = (layout: string) => {
-    setNewSection((p: any) => {
-      const next = { ...p, layout };
-      // Default configurations for premium layouts
-      if (layout === 'audio-immersive') {
-        next.type = 'audio';
-        next.fontFamily = 'serif';
-      } else if (layout === 'video-lesson') {
-        next.type = 'video';
-      } else if (layout === 'study-sheet') {
-        next.type = 'flashcard';
-        next.layout = 'standard';
-      }
-      return next;
-    });
-  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, field = 'mediaUrl') => {
     const file = e.target.files?.[0];
@@ -314,254 +298,354 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
     reader.readAsDataURL(file);
   };
 
+  // Stable editor options to prevent unnecessary re-renders
+  const editorOptions = useMemo(() => ({
+    placeholder: "Your story starts here...",
+    minHeight: '600px',
+    spellChecker: false,
+    toolbar: [
+      "bold", "italic", "heading", "|", 
+      "quote", "unordered-list", "ordered-list", "|", 
+      "link", "image", "table", "|", 
+      "preview", "side-by-side", "fullscreen"
+    ] as any,
+    status: false,
+    autosave: {
+      enabled: true,
+      uniqueId: `section-editor-${newSection.id || 'new'}`,
+      delay: 1000,
+    },
+    renderingConfig: {
+      singleLineBreaks: false,
+      codeSyntaxHighlighting: true,
+    }
+  }), [newSection.id]);
+
   return (
     <Box 
       component={motion.div}
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
+      sx={{ mt: 2 }}
     >
         <Grid container spacing={4}>
           <Grid size={{ xs: 12, md: 4 }}>
             <Stack spacing={3}>
-              <Paper sx={{ p: 3, borderRadius: 6, border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 950, mb: 3 }}>Chapter Structure</Typography>
-                <Stack spacing={3}>
+              <Paper 
+                elevation={0} 
+                sx={{ 
+                  p: 4, 
+                  borderRadius: 8, 
+                  border: '1px solid', 
+                  borderColor: alpha(theme.palette.divider, 0.5), 
+                  bgcolor: alpha(theme.palette.background.paper, 0.8),
+                  backdropFilter: 'blur(10px)',
+                  boxShadow: '0 10px 40px rgba(0,0,0,0.04)',
+                  position: 'sticky',
+                  top: 100
+                }}
+              >
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="overline" sx={{ fontWeight: 950, color: 'primary.main', letterSpacing: 2, display: 'block', mb: 0.5 }}>
+                    STUDIO MODULE
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 950, letterSpacing: -1 }}>
+                    Lesson {course.sections?.length ? course.sections.length + 1 : 1}
+                  </Typography>
+                </Box>
+
+                <Stack spacing={4}>
                   <TextField 
                     fullWidth 
-                    label="Chapter Title" 
+                    label="Lesson Title" 
+                    variant="standard"
                     value={newSection.title || ''} 
                     onChange={(e) => setNewSection((p: any) => ({ ...p, title: e.target.value }))} 
-                    InputProps={{ sx: { borderRadius: 3 } }}
+                    InputProps={{ 
+                      sx: { fontSize: '1.25rem', fontWeight: 900, py: 1 },
+                      startAdornment: <InputAdornment position="start"><BookOpen size={20} style={{ opacity: 0.3 }} /></InputAdornment>
+                    }}
+                    placeholder="Enter an inspiring title..."
                   />
-                  <FormControl fullWidth>
-                    <InputLabel>Module Type</InputLabel>
+                  <FormControl variant="standard" fullWidth>
+                    <InputLabel sx={{ fontWeight: 700 }}>Module Type</InputLabel>
                     <Select 
                       value={newSection.type} 
-                      label="Module Type" 
                       onChange={(e) => setNewSection((p: any) => ({ ...p, type: e.target.value as any }))}
-                      sx={{ borderRadius: 3 }}
+                      sx={{ fontWeight: 700 }}
                     >
-                        <MenuItem value="text">Rich Text / Transcription</MenuItem>
-                        <MenuItem value="audio">Audio Resource</MenuItem>
-                        <MenuItem value="video">Video Resource</MenuItem>
-                        <MenuItem value="pdf">Document / PDF Attachment</MenuItem>
-                        <MenuItem value="quiz">Interactive Assessment</MenuItem>
-                        <MenuItem value="quote">Inspirational Quote</MenuItem>
+                        <MenuItem value="text" sx={{ fontWeight: 600 }}>📝 Rich Text Lesson</MenuItem>
+                        <MenuItem value="audio" sx={{ fontWeight: 600 }}>🎧 Audiobook Lesson</MenuItem>
+                        <MenuItem value="video" sx={{ fontWeight: 600 }}>📽️ Video Masterclass</MenuItem>
+                        <MenuItem value="pdf" sx={{ fontWeight: 600 }}>📄 Reference Doc</MenuItem>
+                        <MenuItem value="quiz" sx={{ fontWeight: 600 }}>💡 Knowledge Check</MenuItem>
                     </Select>
                   </FormControl>
 
-                  <Stack direction="row" spacing={1}>
-                    <TextField 
-                      fullWidth 
-                      label="Primary Media (Video/Image/PDF)" 
-                      value={newSection.mediaUrl} 
-                      onChange={(e) => setNewSection((p: any) => ({ ...p, mediaUrl: e.target.value }))} 
-                      placeholder="HTTPS link"
-                      InputProps={{ 
-                        sx: { borderRadius: 3 },
-                        startAdornment: <InputAdornment position="start">
-                           <LinkIcon size={16} />
-                        </InputAdornment> 
-                      }}
-                    />
-                    <IconButton 
-                      component="label" 
-                      sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 3, width: 56, height: 56 }}
-                    >
-                      <Upload size={20} />
-                      <input type="file" hidden onChange={(e) => handleFileUpload(e, 'mediaUrl')} />
-                    </IconButton>
-                  </Stack>
+                  {newSection.type !== 'quiz' && (
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', mb: 1, display: 'block' }}>RESOURCES (LINK OR UPLOAD)</Typography>
+                      <Stack direction="row" spacing={1}>
+                        <TextField 
+                          fullWidth 
+                          variant="standard"
+                          label={newSection.type === 'video' ? 'Video URL' : newSection.type === 'pdf' ? 'PDF Link' : 'Hero Image'} 
+                          value={newSection.mediaUrl} 
+                          onChange={(e) => setNewSection((p: any) => ({ ...p, mediaUrl: e.target.value }))} 
+                          placeholder="Link or Upload"
+                          InputProps={{ 
+                            sx: { fontWeight: 600 },
+                            startAdornment: <InputAdornment position="start">
+                              {newSection.type === 'video' ? <Video size={14} /> : newSection.type === 'pdf' ? <FileText size={14} /> : <ImageIcon size={14} />}
+                            </InputAdornment> 
+                          }}
+                        />
+                        <IconButton 
+                          component="label" 
+                          size="small"
+                          sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}
+                        >
+                          <Upload size={16} />
+                          <input type="file" hidden onChange={(e) => handleFileUpload(e, 'mediaUrl')} />
+                        </IconButton>
+                      </Stack>
+                    </Box>
+                  )}
 
-                  <Stack direction="row" spacing={1}>
-                    <TextField 
-                      fullWidth 
-                      label="Audiobook Track (MP3/URL)" 
-                      value={newSection.audioUrl} 
-                      onChange={(e) => setNewSection((p: any) => ({ ...p, audioUrl: e.target.value }))} 
-                      placeholder="Background audio URL"
-                      InputProps={{ 
-                        sx: { borderRadius: 3 },
-                        startAdornment: <InputAdornment position="start">
-                          <Headphones size={16} />
-                        </InputAdornment> 
-                      }}
-                    />
-                    <IconButton 
-                      component="label" 
-                      sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.1), borderRadius: 3, width: 56, height: 56 }}
-                    >
-                      <Music size={20} />
-                      <input type="file" hidden accept="audio/*" onChange={(e) => handleFileUpload(e, 'audioUrl')} />
-                    </IconButton>
-                  </Stack>
+                  {['text', 'audio'].includes(newSection.type) && (
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 900, color: 'text.secondary', mb: 1, display: 'block' }}>AUDIO ACCOMPANIMENT</Typography>
+                      <Stack direction="row" spacing={1}>
+                        <TextField 
+                          fullWidth 
+                          variant="standard"
+                          label="Background Audio URL" 
+                          value={newSection.audioUrl || ''} 
+                          onChange={(e) => setNewSection((p: any) => ({ ...p, audioUrl: e.target.value }))} 
+                          placeholder="Link or Upload soundtrack"
+                          InputProps={{ 
+                            sx: { fontWeight: 600, fontSize: '0.85rem' },
+                            startAdornment: <InputAdornment position="start"><Music size={14} /></InputAdornment> 
+                          }}
+                        />
+                        <IconButton 
+                          component="label" 
+                          size="small"
+                          sx={{ bgcolor: alpha(theme.palette.secondary.main, 0.05), borderRadius: 2, color: theme.palette.secondary.main }}
+                        >
+                          <Upload size={16} />
+                          <input type="file" hidden accept="audio/*" onChange={(e) => handleFileUpload(e, 'audioUrl')} />
+                        </IconButton>
+                      </Stack>
+                    </Box>
+                  )}
+                  <Box sx={{ mt: 2, pt: 3, borderTop: '1px solid', borderColor: alpha(theme.palette.divider, 0.2) }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 900 }}>Practice Quiz</Typography>
+                        <Typography variant="caption" sx={{ fontWeight: 700, opacity: 0.5, display: 'block' }}>Optional assessment for students</Typography>
+                      </Box>
+                      <Button 
+                        variant="outlined" 
+                        size="small"
+                        color={newSection.metadata?.quizQuestions?.length ? "success" : "primary"}
+                        onClick={() => {
+                          if (!newSection.metadata?.quizQuestions?.length) {
+                             const qs = [{ q: '', options: ['', '', '', ''], correct: 0, explanation: '' }];
+                             setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
+                          }
+                          // Scroll to builder
+                          document.getElementById('quiz-builder-anchor')?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        sx={{ borderRadius: 4, fontWeight: 900, textTransform: 'none' }}
+                      >
+                        {newSection.metadata?.quizQuestions?.length ? "Edit Quiz" : "Add Quiz"}
+                      </Button>
+                    </Stack>
+                  </Box>
                 </Stack>
               </Paper>
-
-              <Paper sx={{ p: 3, borderRadius: 6, border: '1px solid', borderColor: 'divider', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 950, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Wand2 size={16} /> Chapter Aesthetics
-                </Typography>
-                <Stack spacing={2.5}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Font Pairing</InputLabel>
-                    <Select 
-                      value={newSection.theme?.fontPairing || 'default'} 
-                      label="Font Pairing"
-                      onChange={(e) => setNewSection((p: any) => ({ ...p, theme: { ...(p.theme || {}), fontPairing: e.target.value } }))}
-                    >
-                      <MenuItem value="default">Default Sans</MenuItem>
-                      <MenuItem value="premium-serif">Premium Serif (Editorial)</MenuItem>
-                      <MenuItem value="modern-sans">Modern Sans (Bold)</MenuItem>
-                      <MenuItem value="classic-book">Classic Book (Serif)</MenuItem>
-                    </Select>
-                  </FormControl>
-
-                  <Grid container spacing={2}>
-                    <Grid size={6}>
-                      <TextField 
-                        fullWidth 
-                        size="small" 
-                        label="Background" 
-                        type="color" 
-                        value={newSection.theme?.backgroundColor || '#ffffff'}
-                        onChange={(e) => setNewSection((p: any) => ({ ...p, theme: { ...(p.theme || {}), backgroundColor: e.target.value } }))}
-                      />
-                    </Grid>
-                    <Grid size={6}>
-                       <TextField 
-                        fullWidth 
-                        size="small" 
-                        label="Text Color" 
-                        type="color" 
-                        value={newSection.theme?.textColor || '#1a1a1a'}
-                        onChange={(e) => setNewSection((p: any) => ({ ...p, theme: { ...(p.theme || {}), textColor: e.target.value } }))}
-                      />
-                    </Grid>
-                  </Grid>
-
-                  <TextField 
-                    fullWidth 
-                    size="small" 
-                    label="Background Texture URL" 
-                    placeholder="e.g. Parchment/Paper pattern"
-                    value={newSection.theme?.backgroundTextureUrl || ''}
-                    onChange={(e) => setNewSection((p: any) => ({ ...p, theme: { ...(p.theme || {}), backgroundTextureUrl: e.target.value } }))}
-                    InputProps={{ sx: { borderRadius: 2 } }}
-                  />
-                  
-                  <FormControlLabel 
-                    control={
-                      <Switch 
-                        checked={newSection.theme?.paperTexture || false} 
-                        onChange={(e) => setNewSection((p: any) => ({ ...p, theme: { ...(p.theme || {}), paperTexture: e.target.checked } }))} 
-                      />
-                    }
-                    label={<Typography variant="caption" sx={{ fontWeight: 800 }}>Apply Paper Texture Overlay</Typography>}
-                  />
-                </Stack>
-              </Paper>
+              
+              <Button 
+                variant="contained" 
+                fullWidth 
+                onClick={onSave} 
+                startIcon={isEditing ? <Save size={18} /> : <Plus size={18} />}
+                sx={{ 
+                  py: 2, 
+                  borderRadius: 4, 
+                  fontWeight: 950, 
+                  fontSize: '0.9rem', 
+                  textTransform: 'none',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.1)' 
+                }}
+              >
+                {isEditing ? 'Save Changes' : 'Append to Curriculum'}
+              </Button>
             </Stack>
           </Grid>
           
           <Grid size={{ xs: 12, md: 8 }}>
-            <Stack spacing={3}>
-              {(newSection.type === 'quiz' || (newSection.metadata?.quizQuestions || []).length > 0) && (
-                <Paper sx={{ p: 4, borderRadius: 6, border: '1px solid', borderColor: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 950, mb: 3 }}>Interactive Quiz Builder</Typography>
-                  <Stack spacing={3}>
-                    {(newSection.metadata?.quizQuestions || [{ q: '', options: ['', ''], correct: 0, explanation: '' }]).map((q: any, qIdx: number) => (
-                      <Paper key={qIdx} elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider', borderRadius: 4 }}>
-                        <Stack spacing={2}>
-                          <TextField 
-                            fullWidth 
-                            label={`Question ${qIdx + 1}`} 
-                            value={q.q} 
-                            onChange={(e) => {
-                              const qs = [...(newSection.metadata?.quizQuestions || [])];
-                              if (!qs[qIdx]) qs[qIdx] = { q: '', options: ['', ''], correct: 0 };
-                              qs[qIdx].q = e.target.value;
-                              setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
-                            }}
-                          />
-                          <Grid container spacing={2}>
-                            {q.options.map((opt: string, optIdx: number) => (
-                              <Grid size={6} key={optIdx}>
-                                <TextField 
-                                  fullWidth 
-                                  size="small" 
-                                  label={`Option ${optIdx + 1}`} 
-                                  value={opt}
-                                  onChange={(e) => {
-                                    const qs = [...(newSection.metadata?.quizQuestions || [])];
-                                    qs[qIdx].options[optIdx] = e.target.value;
-                                    setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
-                                  }}
-                                  color={q.correct === optIdx ? 'success' : 'primary'}
-                                  onClick={() => {
-                                    const qs = [...(newSection.metadata?.quizQuestions || [])];
-                                    qs[qIdx].correct = optIdx;
-                                    setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
-                                  }}
-                                />
-                              </Grid>
-                            ))}
-                          </Grid>
-                          <TextField 
-                            fullWidth 
-                            size="small"
-                            label="Reasoning / Explanation" 
-                            placeholder="Why is this answer correct?"
-                            value={q.explanation || ''}
-                            onChange={(e) => {
-                              const qs = [...(newSection.metadata?.quizQuestions || [])];
-                              qs[qIdx].explanation = e.target.value;
-                              setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
-                            }}
-                          />
-                          <Button size="small" color="error" onClick={() => {
-                            const qs = (newSection.metadata?.quizQuestions || []).filter((_: any, i: number) => i !== qIdx);
-                            setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
-                          }}>Remove Question</Button>
-                        </Stack>
-                      </Paper>
-                    ))}
-                    <Button variant="outlined" sx={{ borderRadius: 10 }} onClick={() => {
-                       const qs = [...(newSection.metadata?.quizQuestions || []), { q: '', options: ['', '', '', ''], correct: 0, explanation: '' }];
-                       setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
-                    }}>Add Question to Quiz</Button>
-                  </Stack>
-                </Paper>
-              )}
-
-              <Paper sx={{ borderRadius: 6, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
-                <Box sx={{ p: 2, bgcolor: alpha(theme.palette.divider, 0.2), borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="caption" sx={{ fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1 }}>Content Studio</Typography>
-                  <Tooltip title="Formatting Options">
-                    <HelpCircle size={14} style={{ opacity: 0.5 }} />
-                  </Tooltip>
+            <Stack spacing={4}>
+              <Box sx={{ position: 'relative' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Wand2 size={24} className="text-secondary-500" /> 
+                    {newSection.type === 'audio' ? 'Narrative / Transcript' : 'Lesson Content'}
+                  </Typography>
+                  <Chip label="Markdown Ready" size="small" variant="outlined" sx={{ fontWeight: 800, borderColor: alpha(theme.palette.secondary.main, 0.4), color: theme.palette.secondary.main }} />
                 </Box>
-                <SimpleMDE 
-                  value={newSection.content || ''} 
-                  onChange={(v) => setNewSection((p: any) => ({ ...p, content: v }))}
-                  options={{ 
-                    placeholder: "Inject your knowledge here using Markdown...", 
-                    minHeight: '450px',
-                    spellChecker: false,
-                    toolbar: ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "|", "link", "image", "table", "|", "preview"]
+                <Paper 
+                  elevation={0} 
+                  sx={{ 
+                    borderRadius: 6, 
+                    overflow: 'hidden', 
+                    border: '1px solid', 
+                    borderColor: alpha(theme.palette.divider, 0.4), 
+                    bgcolor: 'background.paper',
+                    '& .CodeMirror': { border: 'none' },
+                    '& .editor-toolbar': { border: 'none', borderBottom: '1px solid', borderColor: alpha(theme.palette.divider, 0.4), bgcolor: alpha(theme.palette.background.default, 0.5) }
                   }}
-                />
-              </Paper>
-
-              <Box sx={{ pt: 2, display: 'flex', gap: 2 }}>
-                  <Button 
-                    variant="contained" 
-                    fullWidth 
-                    onClick={onSave} 
-                    sx={{ py: 2, borderRadius: 10, fontWeight: 950, fontSize: '1rem', boxShadow: '0 10px 40px rgba(25, 118, 210, 0.2)' }}
+                >
+                  <SimpleMDE 
+                    value={newSection.content || ''} 
+                    onChange={(v) => setNewSection((p: any) => ({ ...p, content: v }))}
+                    options={editorOptions}
+                  />
+                </Paper>
+                
+                {/* Simplified floating helper for quiz builders */}
+                {(newSection.type === 'quiz' || (newSection.metadata?.quizQuestions?.length ?? 0) > 0) && (
+                  <Paper 
+                    id="quiz-builder-anchor"
+                    component={motion.div}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    elevation={4} 
+                    sx={{ 
+                      mt: 3, 
+                      p: 4, 
+                      borderRadius: 6, 
+                      border: '1px solid', 
+                      borderColor: 'primary.main', 
+                      bgcolor: 'background.paper',
+                      boxShadow: '0 20px 50px rgba(0,0,0,0.1)'
+                    }}
                   >
-                    {isEditing ? 'Sync Chapter Changes' : 'Append to Curriculum'}
-                  </Button>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+                      <Box>
+                         <Typography variant="h6" sx={{ fontWeight: 950, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <HelpCircle size={22} className="text-primary-500" /> Lesson Quiz Builder
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Add interactive questions to test student knowledge</Typography>
+                      </Box>
+                      <Button 
+                        variant="outlined" 
+                        color="primary" 
+                        startIcon={<Plus size={16} />}
+                        onClick={() => {
+                           const qs = [...(newSection.metadata?.quizQuestions || []), { q: '', options: ['', '', '', ''], correct: 0, explanation: '' }];
+                           setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
+                        }}
+                        sx={{ borderRadius: 3, fontWeight: 800 }}
+                      >
+                        Add Question
+                      </Button>
+                    </Stack>
+                    
+                    <Stack spacing={3}>
+                      {(newSection.metadata?.quizQuestions || []).map((q: any, qIdx: number) => (
+                        <Paper key={qIdx} elevation={0} sx={{ p: 4, border: '1px solid', borderColor: alpha(theme.palette.divider, 0.4), borderRadius: 5, bgcolor: alpha(theme.palette.background.default, 0.5) }}>
+                          <Stack spacing={3}>
+                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                              <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.85rem', fontWeight: 900 }}>{qIdx + 1}</Avatar>
+                              <TextField 
+                                fullWidth 
+                                variant="standard"
+                                placeholder="Write your question here..." 
+                                value={q.q} 
+                                onChange={(e) => {
+                                  const qs = [...(newSection.metadata?.quizQuestions || [])];
+                                  qs[qIdx].q = e.target.value;
+                                  setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
+                                }}
+                                InputProps={{ sx: { fontWeight: 800, fontSize: '1.1rem' } }}
+                              />
+                              <IconButton size="small" color="error" onClick={() => {
+                                const qs = (newSection.metadata?.quizQuestions || []).filter((_: any, i: number) => i !== qIdx);
+                                setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
+                              }}>
+                                <Trash2 size={18} />
+                              </IconButton>
+                            </Box>
+                            
+                            <Grid container spacing={3}>
+                              {q.options.map((opt: string, optIdx: number) => (
+                                <Grid size={6} key={optIdx}>
+                                  <Box 
+                                    onClick={() => {
+                                      const qs = [...(newSection.metadata?.quizQuestions || [])];
+                                      qs[qIdx].correct = optIdx;
+                                      setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
+                                    }}
+                                    sx={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      gap: 2, 
+                                      p: 1, 
+                                      borderRadius: 4, 
+                                      border: '1px solid', 
+                                      borderColor: q.correct === optIdx ? 'primary.main' : 'transparent',
+                                      transition: '0.2s',
+                                      cursor: 'pointer',
+                                      '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) }
+                                    }}
+                                  >
+                                    <Box sx={{ 
+                                      width: 24, height: 24, borderRadius: '50%', border: '2px solid', 
+                                      borderColor: q.correct === optIdx ? 'primary.main' : 'divider',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}>
+                                      {q.correct === optIdx && <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'primary.main' }} />}
+                                    </Box>
+                                    <TextField 
+                                      fullWidth 
+                                      variant="standard" 
+                                      placeholder={`Option ${optIdx + 1}`} 
+                                      value={opt}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        const qs = [...(newSection.metadata?.quizQuestions || [])];
+                                        qs[qIdx].options[optIdx] = e.target.value;
+                                        setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
+                                      }}
+                                      InputProps={{ sx: { fontWeight: 700, fontSize: '0.9rem' }, disableUnderline: true }}
+                                    />
+                                  </Box>
+                                </Grid>
+                              ))}
+                            </Grid>
+
+                            <TextField 
+                              fullWidth 
+                              size="small"
+                              variant="outlined"
+                              label="Correct Answer Reasoning" 
+                              placeholder="Provide historical context or scientific reasoning for the correct answer..."
+                              value={q.explanation || ''}
+                              onChange={(e) => {
+                                const qs = [...(newSection.metadata?.quizQuestions || [])];
+                                qs[qIdx].explanation = e.target.value;
+                                setNewSection((p: any) => ({ ...p, metadata: { ...p.metadata, quizQuestions: qs } }));
+                              }}
+                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                            />
+                          </Stack>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Paper>
+                )}
               </Box>
             </Stack>
           </Grid>
@@ -569,6 +653,7 @@ const SectionEditorTab = React.memo(({ newSection, setNewSection, onSave, isEdit
     </Box>
   );
 });
+
 
 export default function CourseEditor() {
   const { courseId } = useParams();
@@ -998,6 +1083,7 @@ export default function CourseEditor() {
                   setNewSection={setNewSection} 
                   onSave={handleAddSection} 
                   isEditing={editingSectionIdx !== null} 
+                  course={course}
                 />
               )}
             </AnimatePresence>
